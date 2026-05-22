@@ -1,0 +1,25 @@
+{
+  "tool_id": "gau",
+  "type": "cli",
+  "phase": "archive_url_discovery",
+  "binary": "gau",
+  "version_check": {
+    "command": "gau",
+    "args": ["--version"]
+  },
+  "input_type": "domain_list",
+  "output_format": "text",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_passive",
+  "parser": "gau_urls",
+  "tags": ["passive", "urls", "archive"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/lc/gau/v2/cmd/gau@latest"
+  },
+  "safety": {
+    "requires_authorization": false,
+    "active_network": false,
+    "default_profile": "passive"
+  }
+}

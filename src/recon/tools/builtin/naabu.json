@@ -1,0 +1,25 @@
+{
+  "tool_id": "naabu",
+  "type": "cli",
+  "phase": "port_service_discovery",
+  "binary": "naabu",
+  "version_check": {
+    "command": "naabu",
+    "args": ["-version"]
+  },
+  "input_type": "host_list",
+  "output_format": "jsonl",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_conservative",
+  "parser": "naabu_jsonl",
+  "tags": ["active", "ports", "services"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "full"
+  }
+}

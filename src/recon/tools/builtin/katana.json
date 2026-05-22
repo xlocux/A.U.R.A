@@ -1,0 +1,25 @@
+{
+  "tool_id": "katana",
+  "type": "cli",
+  "phase": "crawling",
+  "binary": "katana",
+  "version_check": {
+    "command": "katana",
+    "args": ["-version"]
+  },
+  "input_type": "url_list",
+  "output_format": "jsonl",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "katana_jsonl",
+  "tags": ["active", "crawl", "urls"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/projectdiscovery/katana/cmd/katana@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "full"
+  }
+}

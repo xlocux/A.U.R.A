@@ -26,7 +26,6 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
 
 ```powershell
 npm test
-npm run target:new -- yahoo
 npm run web
 ```
 
@@ -36,11 +35,31 @@ Open:
 http://127.0.0.1:31338
 ```
 
+Create targets from the `Target` tab in the browser. Target setup, scope edits,
+API keys, wordlists, recon runs, and results are all managed from the Web UI.
+
+The Web UI requires login. The first local user defaults to:
+
+```text
+locu / locu
+```
+
+The user is stored locally in SQLite with a password hash. To override the
+initial password before the first server start, set:
+
+```powershell
+$env:AURA_WEB_PASSWORD="change-me"
+npm run web
+```
+
+The server binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only when you
+intentionally expose it on a trusted network, and change the default login first.
+
 ## Project Layout
 
 ```text
 public/web/              Web dashboard HTML/CSS/JS
-scripts/                 CLI entrypoints
+scripts/                 Web server entrypoint
 src/core/                JSON IO and target config validation
 src/db/                  SQLite store
 src/recon/               Recon engine, parsers, WSL tool runner, wordlist generation
@@ -132,7 +151,6 @@ and that directory is ignored by Git.
 ```powershell
 npm test
 npm run web
-npm run target:new -- <target-name>
 ```
 
 ## Safety Model

@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const { normalizeDomain } = require("../recon/domain-utils");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
+const { checkWslEnvironment, installWslTools } = require("../recon/environment-setup");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
 const {
   DEFAULT_PASSIVE_SOURCES,
@@ -11,7 +12,7 @@ const {
   runRecon
 } = require("../recon/recon-engine");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
-const { validateTargetConfig } = require("../core/target-config");
+const { createDefaultTargetConfig, validateTargetConfig } = require("../core/target-config");
 const { readBody, sendJson, sendNotFound } = require("./http-utils");
 const { discoverTargets, inferRootDomains } = require("./target-service");
 
@@ -31,8 +32,18 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/targets") {
+    await createTarget(request, response, store);
+    return true;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/recon-runs") {
     sendJson(response, { runs: store.listRuns(50) });
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/search") {
+    searchSavedData(response, url, store);
     return true;
   }
 
@@ -43,6 +54,11 @@ async function handleApiRequest({ request, response, url, store }) {
 
   if (request.method === "GET" && url.pathname === "/api/wordlists") {
     sendJson(response, { wordlists: store.listWordlists() });
+    return true;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/environment/check") {
+    await checkEnvironment(response, url);
     return true;
   }
 
@@ -58,6 +74,11 @@ async function handleApiRequest({ request, response, url, store }) {
 
   if (request.method === "POST" && url.pathname === "/api/wordlists/generate") {
     await generateWordlist(request, response, store);
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/environment/install") {
+    await installEnvironment(request, response);
     return true;
   }
 
@@ -123,6 +144,81 @@ async function createWordlist(request, response, store) {
   sendJson(response, { wordlist }, 201);
 }
 
+async function createTarget(request, response, store) {
+  const body = await readBody(request);
+  const built = buildTargetConfigFromRequest(body);
+  if (built.error) {
+    sendJson(response, { error: built.error }, 400);
+    return;
+  }
+  const configPath = resolveTargetConfigPath(built.config.target_name);
+  if (fs.existsSync(configPath)) {
+    sendJson(response, { error: `Target already exists: ${built.config.target_name}` }, 409);
+    return;
+  }
+  const errors = validateTargetConfig(built.config);
+  if (errors.length > 0) {
+    sendJson(response, { error: "Target config validation failed", errors }, 400);
+    return;
+  }
+  writeJson(configPath, built.config);
+  const target = store.upsertTarget(configPath, built.config);
+  sendJson(response, { target, config: built.config, configPath }, 201);
+}
+
+async function checkEnvironment(response, url) {
+  const distro = url.searchParams.get("distro") || "kali-linux";
+  const result = await checkWslEnvironment({ distro });
+  sendJson(response, { environment: result });
+}
+
+async function installEnvironment(request, response) {
+  const body = await readBody(request);
+  const result = await installWslTools({
+    distro: body.distro || "kali-linux",
+    toolIds: body.toolIds || null
+  });
+  sendJson(response, { environment: result });
+}
+
+function buildTargetConfigFromRequest(body) {
+  const targetName = normalizeTargetName(body.targetName);
+  if (!targetName) {
+    return { error: "targetName is required and may only contain letters, numbers, dots, underscores, and dashes" };
+  }
+  const inScope = normalizeScopeLines(body.inScope || body.rootDomains || body.scope || []);
+  if (inScope.length === 0) {
+    return { error: "At least one in-scope domain, wildcard, or URL is required" };
+  }
+  const outOfScope = normalizeScopeLines(body.outOfScope || []);
+  const config = createDefaultTargetConfig(targetName);
+  config.asset_type = String(body.assetType || "webapp").trim();
+  config.program_url = normalizeProgramUrl(body.programUrl, inScope);
+  config.scope.in_scope = inScope;
+  config.scope.out_of_scope = outOfScope;
+  const notes = normalizeScopeLines(body.notes ? [body.notes] : []);
+  if (notes.length > 0) config.recon.notes = notes;
+  return { config };
+}
+
+function normalizeTargetName(value) {
+  const targetName = String(value || "").trim();
+  return /^[A-Za-z0-9._-]+$/.test(targetName) ? targetName : "";
+}
+
+function normalizeScopeLines(value) {
+  const values = Array.isArray(value) ? value : String(value || "").split(/\r?\n/);
+  return [...new Set(values.map((entry) => String(entry || "").trim()).filter(Boolean))];
+}
+
+function normalizeProgramUrl(value, inScope) {
+  const raw = String(value || "").trim();
+  if (raw) return raw;
+  const first = inScope[0] || "example.com";
+  if (/^https?:\/\//i.test(first)) return first;
+  return `https://${first.replace(/^\*\./, "")}`;
+}
+
 async function generateWordlist(request, response, store) {
   const body = await readBody(request);
   if (!body.category) {
@@ -153,6 +249,20 @@ function getTargetConfig(response, store, targetName) {
   const config = readJson(configPath);
   store.upsertTarget(configPath, config);
   sendJson(response, { config, configPath });
+}
+
+function searchSavedData(response, url, store) {
+  const query = url.searchParams.get("q") || "";
+  const targetName = url.searchParams.get("target") || null;
+  const limit = Math.max(1, Math.min(500, Number(url.searchParams.get("limit") || 200)));
+  if (!query.trim()) {
+    sendJson(response, { results: [] });
+    return;
+  }
+  sendJson(response, {
+    query,
+    results: store.searchAll({ query, targetName, limit })
+  });
 }
 
 async function updateTargetConfig(request, response, store, targetName) {
@@ -442,5 +552,6 @@ function handleReadEndpoint(response, url, store) {
 }
 
 module.exports = {
+  buildTargetConfigFromRequest,
   handleApiRequest
 };

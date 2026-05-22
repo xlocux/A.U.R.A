@@ -1,0 +1,25 @@
+{
+  "tool_id": "dnsx",
+  "type": "cli",
+  "phase": "dns_resolution",
+  "binary": "dnsx",
+  "version_check": {
+    "command": "dnsx",
+    "args": ["-version"]
+  },
+  "input_type": "domain_list",
+  "output_format": "jsonl",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "dnsx_jsonl",
+  "tags": ["active", "dns", "resolution"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/projectdiscovery/dnsx/cmd/dnsx@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "standard"
+  }
+}

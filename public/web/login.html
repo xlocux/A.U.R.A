@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A.U.R.A Login</title>
+  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/login.css">
+</head>
+<body class="login-body">
+  <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
+  <main class="login-shell">
+    <section class="login-card">
+      <h1>A.U.R.A</h1>
+      <p class="muted">Sign in to access the local recon workbench.</p>
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="username" value="locu" autofocus>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" autofocus>
+      <button id="login">Sign In</button>
+      <div id="loginStatus" class="notice muted">Default login: locu / locu. Change it before exposing the server.</div>
+    </section>
+  </main>
+  <script src="/wave-background.js"></script>
+  <script>
+    const password = document.getElementById("password");
+    const username = document.getElementById("username");
+    const status = document.getElementById("loginStatus");
+    async function login() {
+      status.textContent = "Signing in...";
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.value, password: password.value })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        status.textContent = data.error || "Login failed";
+        status.className = "notice error";
+        return;
+      }
+      window.location.href = "/";
+    }
+    document.getElementById("login").addEventListener("click", login);
+    password.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") login();
+    });
+  </script>
+</body>
+</html>

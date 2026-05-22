@@ -1,0 +1,25 @@
+{
+  "tool_id": "gowitness",
+  "type": "cli",
+  "phase": "screenshots",
+  "binary": "gowitness",
+  "version_check": {
+    "command": "gowitness",
+    "args": ["version"]
+  },
+  "input_type": "url_list",
+  "output_format": "filesystem",
+  "output_path": "artifact_dir",
+  "rate_limit_profile": "default_active_light",
+  "parser": "screenshot_artifacts",
+  "tags": ["active", "screenshots", "visual-triage"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/sensepost/gowitness@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "standard"
+  }
+}

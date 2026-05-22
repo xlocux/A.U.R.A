@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
   <header>
     <h1>A.U.R.A Recon</h1>
     <div class="topbar">
@@ -18,26 +19,76 @@
   </header>
 
   <nav class="tabs" aria-label="Workspace tabs">
-    <button class="tab active" data-tab="target">Target</button>
+    <button class="tab active" data-tab="environment">Environment</button>
+    <button class="tab" data-tab="target">Target</button>
     <button class="tab" data-tab="recon">Recon</button>
     <button class="tab" data-tab="assetDiscovery">Asset Discovery</button>
     <button class="tab" data-tab="wordlists">Wordlists</button>
-    <button class="tab" data-tab="apiKeys">API Keys</button>
+    <button class="tab" data-tab="search">Search</button>
+    <button class="tab" data-tab="topology">Topology</button>
     <button class="tab" data-tab="results">Results</button>
     <button class="tab" data-tab="runs">Runs & Logs</button>
+    <button class="tab" data-tab="settings">Settings</button>
   </nav>
 
-  <main>
-    <section id="tab-target" class="tab-panel active">
-      <div class="triple">
+  <main class="workspace">
+    <div class="workspace-main">
+    <section id="tab-environment" class="tab-panel active">
+      <div class="split">
         <div class="pane">
-          <h2>Target Config</h2>
+          <h2>Setup</h2>
           <div class="form-body">
-            <textarea id="targetConfigEditor" class="json-editor" spellcheck="false"></textarea>
+            <label for="setupDistro">WSL distro</label>
+            <input id="setupDistro" type="text" value="kali-linux">
             <div class="row">
-              <button id="formatTargetConfig">Format JSON</button>
-              <button id="saveTargetConfig">Save Target</button>
+              <button id="checkEnvironment">Check Environment</button>
+              <button id="installEnvironment">Install / Update Tools</button>
             </div>
+            <div class="notice muted">
+              API keys are optional during setup. You can skip them now and add
+              provider credentials later in Settings > Credentials.
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>Tool Status</h2>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>Tool</th><th>Status</th><th>Version / Error</th></tr></thead>
+              <tbody id="setupToolRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="pane">
+        <h2>Setup Log</h2>
+        <div id="setupLog" class="notice muted">Run an environment check before installing tools.</div>
+      </div>
+    </section>
+
+    <section id="tab-target" class="tab-panel">
+      <div class="target-grid">
+        <div class="pane">
+          <h2>Create Target</h2>
+          <div class="form-body">
+            <label for="newTargetName">Target name</label>
+            <input id="newTargetName" type="text" placeholder="acme">
+            <label for="newProgramUrl">Program URL</label>
+            <input id="newProgramUrl" type="text" placeholder="https://example.com/security">
+            <label for="newAssetType">Asset type</label>
+            <select id="newAssetType">
+              <option value="webapp">webapp</option>
+              <option value="api">api</option>
+              <option value="mobileapp">mobileapp</option>
+              <option value="browserext">browserext</option>
+              <option value="network">network</option>
+              <option value="other">other</option>
+            </select>
+            <label for="newInScope">In-scope assets</label>
+            <textarea id="newInScope" placeholder="example.com&#10;*.example.com&#10;https://app.example.com/login"></textarea>
+            <label for="newOutOfScope">Out-of-scope assets</label>
+            <textarea id="newOutOfScope" placeholder="dev.example.com&#10;*.internal.example.com"></textarea>
+            <button id="createTarget">Create Target</button>
           </div>
         </div>
         <div class="pane">
@@ -219,38 +270,72 @@
       </div>
     </section>
 
-    <section id="tab-apiKeys" class="tab-panel">
+    <section id="tab-search" class="tab-panel">
       <div class="split">
         <div class="pane">
-          <h2>Add API Key</h2>
+          <h2>Cross-Data Search</h2>
           <div class="form-body">
-            <div class="row3">
-              <div>
-                <label for="keyProvider">Provider</label>
-                <input id="keyProvider" type="text" value="whoisxmlapi">
-              </div>
-              <div>
-                <label for="keyLabel">Label</label>
-                <input id="keyLabel" type="text" placeholder="trial-1">
-              </div>
-              <div>
-                <label for="keyMonthlyLimit">Monthly limit</label>
-                <input id="keyMonthlyLimit" type="number" placeholder="50">
-              </div>
-            </div>
-            <label for="apiKeyValue">API key</label>
-            <input id="apiKeyValue" type="text" placeholder="api key">
-            <button id="saveApiKey">Save API Key</button>
+            <label for="searchQuery">Query</label>
+            <input id="searchQuery" type="text" placeholder="citrix, jquery, joomla, cve-2024, /admin">
+            <label class="check"><input id="searchCurrentTarget" type="checkbox" checked> <span>Current target only</span></label>
+            <button id="runSearch">Search Saved Data</button>
           </div>
         </div>
-
         <div class="pane">
-          <h2>Saved Keys</h2>
-          <div class="scroll">
-            <table>
-              <thead><tr><th>Provider</th><th>Label</th><th>Key</th><th>Status</th><th>Usage</th></tr></thead>
-              <tbody id="apiKeyRows"></tbody>
-            </table>
+          <h2>Search Notes</h2>
+          <div class="notice muted">
+            Search checks saved domains, HTTP services, titles, technologies,
+            URLs, parameters, and asset leads. Use it to quickly answer questions
+            like "which scanned assets use Citrix, jQuery, or Joomla?"
+          </div>
+        </div>
+      </div>
+      <div class="pane">
+        <h2>Results</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Type</th><th>Target</th><th>Value</th><th>Detail</th><th>Source</th><th>Seen</th></tr></thead>
+            <tbody id="searchRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-topology" class="tab-panel">
+      <div class="topology-shell">
+        <div class="topology-main pane">
+          <div class="topology-head">
+            <div>
+              <h2>Recon Topology</h2>
+              <p class="muted">Live relationship map for targets, observations, services, artifacts, and future graph edges.</p>
+            </div>
+            <div class="topology-actions">
+              <button id="fitTopology">Fit</button>
+              <button id="pulseTopology">Pulse</button>
+            </div>
+          </div>
+          <canvas id="topologyCanvas" width="1200" height="720" aria-label="Recon topology graph"></canvas>
+        </div>
+        <div class="topology-side">
+          <div class="pane">
+            <h2>Graph Metrics</h2>
+            <div class="metrics compact">
+              <div class="metric"><span class="muted">Nodes</span><strong id="topologyNodeCount">0</strong></div>
+              <div class="metric"><span class="muted">Edges</span><strong id="topologyEdgeCount">0</strong></div>
+            </div>
+          </div>
+          <div class="pane">
+            <h2>Layers</h2>
+            <div class="form-body">
+              <label class="check"><input id="topologyDomains" type="checkbox" checked> <span>Domains</span></label>
+              <label class="check"><input id="topologyServices" type="checkbox" checked> <span>HTTP services</span></label>
+              <label class="check"><input id="topologyArtifacts" type="checkbox" checked> <span>Artifacts</span></label>
+              <label class="check"><input id="topologyCandidates" type="checkbox" checked> <span>Candidates</span></label>
+            </div>
+          </div>
+          <div class="pane">
+            <h2>Selection</h2>
+            <div id="topologySelection" class="notice muted">Click a node to inspect it.</div>
           </div>
         </div>
       </div>
@@ -302,8 +387,99 @@
         <div id="events" class="scroll"></div>
       </div>
     </section>
+
+    <section id="tab-settings" class="tab-panel">
+      <div class="settings-layout">
+        <div class="pane">
+          <h2>Settings</h2>
+          <div class="settings-tabs" aria-label="Settings sections">
+            <button class="settings-tab active" data-settings-panel="appearance">Appearance</button>
+            <button class="settings-tab" data-settings-panel="ai">AI Agent</button>
+            <button class="settings-tab" data-settings-panel="credentials">Credentials</button>
+            <button class="settings-tab" data-settings-panel="storage">Storage</button>
+          </div>
+        </div>
+        <div class="pane settings-panel active" id="settings-appearance">
+          <h2>Appearance</h2>
+          <div class="form-body">
+            <label for="fontScale">Font size</label>
+            <input id="fontScale" type="range" min="90" max="118" value="100">
+            <div id="fontScaleValue" class="notice muted">100%</div>
+          </div>
+        </div>
+        <div class="pane settings-panel" id="settings-ai">
+          <h2>AI Agent</h2>
+          <div class="notice muted">AI provider, model, window behavior, and autonomy controls will live here.</div>
+        </div>
+        <div class="pane settings-panel" id="settings-credentials">
+          <h2>Credentials</h2>
+          <div class="split embedded">
+            <div>
+              <div class="form-body">
+                <div class="row3">
+                  <div>
+                    <label for="keyProvider">Provider</label>
+                    <input id="keyProvider" type="text" value="whoisxmlapi">
+                  </div>
+                  <div>
+                    <label for="keyLabel">Label</label>
+                    <input id="keyLabel" type="text" placeholder="trial-1">
+                  </div>
+                  <div>
+                    <label for="keyMonthlyLimit">Monthly limit</label>
+                    <input id="keyMonthlyLimit" type="number" placeholder="50">
+                  </div>
+                </div>
+                <label for="apiKeyValue">API key</label>
+                <input id="apiKeyValue" type="text" placeholder="api key">
+                <button id="saveApiKey">Save API Key</button>
+              </div>
+            </div>
+            <div class="scroll">
+              <table>
+                <thead><tr><th>Provider</th><th>Label</th><th>Key</th><th>Status</th><th>Usage</th></tr></thead>
+                <tbody id="apiKeyRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="pane settings-panel" id="settings-storage">
+          <h2>Storage</h2>
+          <div class="notice muted">Database, artifacts, memory, exports, and retention settings will live here.</div>
+        </div>
+      </div>
+    </section>
+    </div>
   </main>
 
+  <aside id="aiPanel" class="ai-panel floating" aria-label="AI agent chat">
+      <div id="aiDragHandle" class="ai-header">
+        <div>
+          <h2>AI Agent</h2>
+          <p class="muted">Read-only assistant shell</p>
+        </div>
+        <div class="ai-actions">
+          <span class="ai-status">Local</span>
+          <button id="aiMinimize" class="icon-button" type="button" title="Minimize AI panel">Hide</button>
+        </div>
+      </div>
+      <div id="aiMessages" class="ai-messages">
+        <div class="ai-message assistant">
+          I can help with target setup, scope review, recon planning, run status, tool failures, and result triage.
+        </div>
+      </div>
+      <div class="ai-input">
+        <textarea id="aiPrompt" placeholder="Ask about the current target, run, tools, or next recon step"></textarea>
+        <button id="sendAiPrompt">Send</button>
+      </div>
+      <span class="ai-resize-handle nw" data-resize="nw" aria-hidden="true"></span>
+      <span class="ai-resize-handle ne" data-resize="ne" aria-hidden="true"></span>
+      <span class="ai-resize-handle sw" data-resize="sw" aria-hidden="true"></span>
+      <span class="ai-resize-handle se" data-resize="se" aria-hidden="true"></span>
+    </aside>
+    <button id="aiRestore" class="ai-restore" type="button">AI Agent</button>
+
+  <script src="/wave-background.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -88,6 +88,33 @@ function initScanStore(db) {
       FOREIGN KEY (run_id) REFERENCES scan_runs(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS recon_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id INTEGER NOT NULL,
+      target_name TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      type TEXT NOT NULL,
+      tool_id TEXT,
+      status TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 100,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      checkpoint_json TEXT NOT NULL DEFAULT '{}',
+      rate_limit_profile TEXT,
+      timeout_ms INTEGER,
+      max_attempts INTEGER NOT NULL DEFAULT 1,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      concurrency_group TEXT,
+      locked_by TEXT,
+      locked_at TEXT,
+      started_at TEXT,
+      finished_at TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (run_id) REFERENCES scan_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (target_name) REFERENCES targets(target_name)
+    );
+
     CREATE TABLE IF NOT EXISTS recon_urls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       run_id INTEGER NOT NULL,
@@ -193,6 +220,17 @@ function initScanStore(db) {
       UNIQUE (provider, label)
     );
 
+    CREATE TABLE IF NOT EXISTS web_users (
+      username TEXT PRIMARY KEY,
+      password_hash TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      iterations INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_login_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS wordlists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -205,6 +243,8 @@ function initScanStore(db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_scan_events_run_id ON scan_events(run_id, id);
+    CREATE INDEX IF NOT EXISTS idx_recon_jobs_status ON recon_jobs(status, priority, id);
+    CREATE INDEX IF NOT EXISTS idx_recon_jobs_run ON recon_jobs(run_id, status, id);
     CREATE INDEX IF NOT EXISTS idx_recon_domains_target ON recon_domains(target_name, domain);
     CREATE INDEX IF NOT EXISTS idx_recon_domains_run ON recon_domains(run_id, domain);
     CREATE INDEX IF NOT EXISTS idx_recon_urls_run ON recon_urls(run_id, host);
@@ -212,6 +252,7 @@ function initScanStore(db) {
     CREATE INDEX IF NOT EXISTS idx_asset_leads_target ON asset_leads(target_name, value);
     CREATE INDEX IF NOT EXISTS idx_api_keys_provider ON api_keys(provider, status);
     CREATE INDEX IF NOT EXISTS idx_wordlists_category ON wordlists(category, status);
+    CREATE INDEX IF NOT EXISTS idx_web_users_status ON web_users(status);
   `);
 }
 
@@ -311,6 +352,128 @@ class ScanStore {
       ORDER BY id ASC
       LIMIT ?
     `).all(runId, afterId, limit).map(hydrateEvent);
+  }
+
+  createJob({
+    runId,
+    targetName,
+    phase,
+    type,
+    toolId = null,
+    priority = 100,
+    payload = {},
+    checkpoint = {},
+    rateLimitProfile = null,
+    timeoutMs = null,
+    maxAttempts = 1,
+    concurrencyGroup = null
+  }) {
+    const timestamp = nowIso();
+    const result = this.db.prepare(`
+      INSERT INTO recon_jobs (
+        run_id, target_name, phase, type, tool_id, status, priority,
+        payload_json, checkpoint_json, rate_limit_profile, timeout_ms,
+        max_attempts, concurrency_group, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      runId,
+      targetName,
+      phase,
+      type,
+      toolId,
+      priority,
+      JSON.stringify(payload || {}),
+      JSON.stringify(checkpoint || {}),
+      rateLimitProfile,
+      timeoutMs,
+      maxAttempts,
+      concurrencyGroup,
+      timestamp,
+      timestamp
+    );
+    return this.getJob(Number(result.lastInsertRowid));
+  }
+
+  getJob(id) {
+    const row = this.db.prepare("SELECT * FROM recon_jobs WHERE id = ?").get(id);
+    return row ? hydrateJob(row) : null;
+  }
+
+  listJobs({ runId = null, status = null, limit = 200 } = {}) {
+    if (runId !== null && status !== null) {
+      return this.db.prepare(`
+        SELECT * FROM recon_jobs
+        WHERE run_id = ? AND status = ?
+        ORDER BY priority ASC, id ASC
+        LIMIT ?
+      `).all(runId, status, limit).map(hydrateJob);
+    }
+    if (runId !== null) {
+      return this.db.prepare(`
+        SELECT * FROM recon_jobs
+        WHERE run_id = ?
+        ORDER BY priority ASC, id ASC
+        LIMIT ?
+      `).all(runId, limit).map(hydrateJob);
+    }
+    if (status !== null) {
+      return this.db.prepare(`
+        SELECT * FROM recon_jobs
+        WHERE status = ?
+        ORDER BY priority ASC, id ASC
+        LIMIT ?
+      `).all(status, limit).map(hydrateJob);
+    }
+    return this.db.prepare(`
+      SELECT * FROM recon_jobs
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(limit).map(hydrateJob);
+  }
+
+  claimNextJob({ workerId, statuses = ["queued"], now = nowIso() }) {
+    const placeholders = statuses.map(() => "?").join(", ");
+    const candidate = this.db.prepare(`
+      SELECT id FROM recon_jobs
+      WHERE status IN (${placeholders})
+      ORDER BY priority ASC, id ASC
+      LIMIT 1
+    `).get(...statuses);
+    if (!candidate) return null;
+
+    const result = this.db.prepare(`
+      UPDATE recon_jobs
+      SET status = 'running',
+          locked_by = ?,
+          locked_at = ?,
+          started_at = COALESCE(started_at, ?),
+          attempts = attempts + 1,
+          updated_at = ?
+      WHERE id = ? AND status IN (${placeholders})
+    `).run(workerId, now, now, now, candidate.id, ...statuses);
+    return result.changes === 1 ? this.getJob(candidate.id) : null;
+  }
+
+  updateJob(id, patch) {
+    const current = this.getJob(id);
+    if (!current) return null;
+    const next = {
+      status: patch.status ?? current.status,
+      checkpoint_json: patch.checkpoint === undefined ? current.checkpoint_json : JSON.stringify(patch.checkpoint || {}),
+      finished_at: patch.finishedAt === undefined ? current.finished_at : patch.finishedAt,
+      error_message: patch.errorMessage === undefined ? current.error_message : patch.errorMessage,
+      updated_at: nowIso()
+    };
+    this.db.prepare(`
+      UPDATE recon_jobs
+      SET status = ?,
+          checkpoint_json = ?,
+          finished_at = ?,
+          error_message = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(next.status, next.checkpoint_json, next.finished_at, next.error_message, next.updated_at, id);
+    return this.getJob(id);
   }
 
   saveDomains(runId, targetName, domains) {
@@ -585,6 +748,55 @@ class ScanStore {
     `).all(limit).map(hydrateAssetDiscoveryQuery);
   }
 
+  searchAll({ query, targetName = null, limit = 200 } = {}) {
+    const text = String(query || "").trim();
+    if (!text) return [];
+    const pattern = `%${text.toLowerCase()}%`;
+    const targetFilter = targetName ? "AND target_name = ?" : "";
+    const params = targetName ? [pattern, targetName, limit] : [pattern, limit];
+    const allParams = targetName ? [pattern, pattern, pattern, targetName, limit] : [pattern, pattern, pattern, limit];
+
+    const domains = this.db.prepare(`
+      SELECT 'domain' AS result_type, target_name, run_id, domain AS value, source,
+        kind AS detail, last_seen_at AS seen_at
+      FROM recon_domains
+      WHERE lower(domain) LIKE ? ${targetFilter}
+      ORDER BY last_seen_at DESC
+      LIMIT ?
+    `).all(...params);
+
+    const services = this.db.prepare(`
+      SELECT 'http_service' AS result_type, target_name, run_id, url AS value, source,
+        COALESCE(title, webserver, technologies_json) AS detail, observed_at AS seen_at
+      FROM recon_http_services
+      WHERE (lower(url) LIKE ? OR lower(title) LIKE ? OR lower(technologies_json) LIKE ?) ${targetFilter}
+      ORDER BY observed_at DESC
+      LIMIT ?
+    `).all(...allParams);
+
+    const urls = this.db.prepare(`
+      SELECT 'url' AS result_type, target_name, run_id, url AS value, source,
+        COALESCE(path, query, params_json) AS detail, last_seen_at AS seen_at
+      FROM recon_urls
+      WHERE (lower(url) LIKE ? OR lower(path) LIKE ? OR lower(params_json) LIKE ?) ${targetFilter}
+      ORDER BY last_seen_at DESC
+      LIMIT ?
+    `).all(...allParams);
+
+    const leads = this.db.prepare(`
+      SELECT 'asset_lead' AS result_type, target_name, run_id, value, source,
+        confidence AS detail, last_seen_at AS seen_at
+      FROM asset_leads
+      WHERE lower(value) LIKE ? ${targetFilter}
+      ORDER BY last_seen_at DESC
+      LIMIT ?
+    `).all(...params);
+
+    return domains.concat(services, urls, leads)
+      .sort((a, b) => String(b.seen_at || "").localeCompare(String(a.seen_at || "")))
+      .slice(0, limit);
+  }
+
   addApiKey({ provider, label, apiKey, status = "active", monthlyLimit = null, notes = null }) {
     const timestamp = nowIso();
     const result = this.db.prepare(`
@@ -644,6 +856,38 @@ class ScanStore {
 
   deleteApiKey(id) {
     return this.db.prepare("DELETE FROM api_keys WHERE id = ?").run(id).changes;
+  }
+
+  ensureDefaultWebUser(user) {
+    const existing = this.db.prepare("SELECT username FROM web_users LIMIT 1").get();
+    if (existing) return this.getWebUser(user.username) || this.getWebUser(existing.username);
+    return this.upsertWebUser(user);
+  }
+
+  upsertWebUser({ username, passwordHash, salt, iterations, status = "active" }) {
+    const timestamp = nowIso();
+    this.db.prepare(`
+      INSERT INTO web_users (username, password_hash, salt, iterations, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(username) DO UPDATE SET
+        password_hash = excluded.password_hash,
+        salt = excluded.salt,
+        iterations = excluded.iterations,
+        status = excluded.status,
+        updated_at = excluded.updated_at
+    `).run(username, passwordHash, salt, iterations, status, timestamp, timestamp);
+    return this.getWebUser(username);
+  }
+
+  getWebUser(username) {
+    const row = this.db.prepare("SELECT * FROM web_users WHERE username = ?").get(username);
+    return row ? hydrateWebUser(row) : null;
+  }
+
+  recordWebUserLogin(username) {
+    this.db.prepare("UPDATE web_users SET last_login_at = ?, updated_at = ? WHERE username = ?")
+      .run(nowIso(), nowIso(), username);
+    return this.getWebUser(username);
   }
 
   addWordlist({ name, category, path: filePath, status = "active", notes = null }) {
@@ -723,6 +967,14 @@ function hydrateRun(row) {
   };
 }
 
+function hydrateJob(row) {
+  return {
+    ...row,
+    payload: JSON.parse(row.payload_json || "{}"),
+    checkpoint: JSON.parse(row.checkpoint_json || "{}")
+  };
+}
+
 function hydrateEvent(row) {
   return {
     ...row,
@@ -798,6 +1050,19 @@ function hydrateApiKey(row, includeSecret = false) {
     last_used_at: row.last_used_at,
     key_preview: maskSecret(row.api_key),
     ...(includeSecret ? { api_key: row.api_key } : {})
+  };
+}
+
+function hydrateWebUser(row) {
+  return {
+    username: row.username,
+    passwordHash: row.password_hash,
+    salt: row.salt,
+    iterations: row.iterations,
+    status: row.status,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    last_login_at: row.last_login_at
   };
 }
 

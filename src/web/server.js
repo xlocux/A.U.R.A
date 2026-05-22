@@ -6,12 +6,14 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { openScanStore } = require("../db/scan-store");
 const { handleApiRequest } = require("./api-routes");
+const { createWebAuth } = require("./auth");
 const { discoverTargets } = require("./target-service");
 const { safeResolveStatic, sendFile, sendJson, sendNotFound } = require("./http-utils");
 
 function parseArgs(argv) {
   const parsed = {
     port: 31338,
+    host: "127.0.0.1",
     db: path.resolve("data", "aura.db"),
     open: false
   };
@@ -19,6 +21,8 @@ function parseArgs(argv) {
     const value = argv[index];
     if (value === "--port") parsed.port = Number(argv[++index]);
     else if (value.startsWith("--port=")) parsed.port = Number(value.split("=")[1]);
+    else if (value === "--host") parsed.host = String(argv[++index]);
+    else if (value.startsWith("--host=")) parsed.host = String(value.split("=")[1]);
     else if (value === "--db") parsed.db = path.resolve(argv[++index]);
     else if (value.startsWith("--db=")) parsed.db = path.resolve(value.split("=")[1]);
     else if (value === "--open") parsed.open = true;
@@ -30,11 +34,25 @@ async function startWebServer(argv = process.argv) {
   const args = parseArgs(argv);
   const store = openScanStore(args.db);
   const staticRoot = path.resolve(__dirname, "..", "..", "public", "web");
+  const auth = createWebAuth({ store });
   discoverTargets(store);
 
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, `http://${request.headers.host}`);
+      if (url.pathname.startsWith("/api/auth/")) {
+        const handled = await auth.handleAuthRequest(request, response, url);
+        if (!handled) sendNotFound(response);
+        return;
+      }
+      if (!auth.isAuthenticated(request) && !isPublicPath(url.pathname)) {
+        if (url.pathname.startsWith("/api/")) {
+          sendJson(response, { error: "Authentication required" }, 401);
+          return;
+        }
+        serveStatic(response, staticRoot, "/login.html");
+        return;
+      }
       if (url.pathname.startsWith("/api/")) {
         const handled = await handleApiRequest({ request, response, url, store });
         if (!handled) sendNotFound(response);
@@ -46,9 +64,10 @@ async function startWebServer(argv = process.argv) {
     }
   });
 
-  server.listen(args.port, () => {
-    const url = `http://127.0.0.1:${args.port}`;
+  server.listen(args.port, args.host, () => {
+    const url = `http://${args.host}:${args.port}`;
     process.stdout.write(`A.U.R.A web UI listening on ${url}\n`);
+    process.stdout.write("Default login is locu:locu until changed. Set AURA_WEB_PASSWORD before first start to override the initial password.\n");
     if (args.open) {
       spawn("rundll32.exe", ["url.dll,FileProtocolHandler", url], {
         windowsHide: true,
@@ -59,6 +78,14 @@ async function startWebServer(argv = process.argv) {
   });
 
   return server;
+}
+
+function isPublicPath(requestPath) {
+  return requestPath === "/login.html" ||
+    requestPath === "/app.css" ||
+    requestPath === "/login.css" ||
+    requestPath === "/wave-background.js" ||
+    requestPath === "/favicon.ico";
 }
 
 function serveStatic(response, staticRoot, requestPath) {

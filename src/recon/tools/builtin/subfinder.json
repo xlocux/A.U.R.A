@@ -1,0 +1,25 @@
+{
+  "tool_id": "subfinder",
+  "type": "cli",
+  "phase": "passive_subdomain_discovery",
+  "binary": "subfinder",
+  "version_check": {
+    "command": "subfinder",
+    "args": ["-version"]
+  },
+  "input_type": "domain_list",
+  "output_format": "text",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_passive",
+  "parser": "domain_lines",
+  "tags": ["passive", "subdomain"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+  },
+  "safety": {
+    "requires_authorization": false,
+    "active_network": false,
+    "default_profile": "passive"
+  }
+}

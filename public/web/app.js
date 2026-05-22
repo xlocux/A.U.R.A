@@ -4,8 +4,14 @@ let targets = [];
 let activeRunId = null;
 let lastEventId = 0;
 let poll = null;
+let aiWindowDrag = null;
+let topologyFrame = null;
+let topologyPulse = 0;
+let topologyGraph = { nodes: [], edges: [] };
 
 const $ = (id) => document.getElementById(id);
+const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
+const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
 
 function esc(value) {
   return String(value ?? "")
@@ -21,6 +27,10 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) }
   });
   const data = await res.json();
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    throw new Error("Authentication required");
+  }
   if (!res.ok) {
     const error = new Error(data.error || "Request failed");
     error.errors = data.errors || null;
@@ -33,12 +43,46 @@ function selectedValues(ids) {
   return ids.filter((id) => $(id).checked);
 }
 
+function textLines(id) {
+  return $(id).value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+}
+
 function activateTab(name) {
   document.querySelectorAll(".tab").forEach((button) => {
     button.classList.toggle("active", button.dataset.tab === name);
   });
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `tab-${name}`);
+  });
+  if (name === "topology") renderTopology();
+}
+
+function getUiSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveUiSettings(settings) {
+  localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ ...getUiSettings(), ...settings }));
+}
+
+function applyFontScale(value) {
+  const scale = Math.min(118, Math.max(90, Number(value) || 100));
+  document.documentElement.style.setProperty("--font-scale", String(scale / 100));
+  $("fontScale").value = String(scale);
+  $("fontScaleValue").textContent = `${scale}%`;
+  saveUiSettings({ fontScale: scale });
+}
+
+function activateSettingsPanel(name) {
+  document.querySelectorAll(".settings-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsPanel === name);
+  });
+  document.querySelectorAll(".settings-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `settings-${name}`);
   });
 }
 
@@ -47,7 +91,13 @@ async function loadTargets() {
   targets = data.targets;
   $("target").innerHTML = targets.map((t) => `<option value="${esc(t.target_name)}">${esc(t.target_name)}</option>`).join("");
   if (targets.length === 0) {
-    $("status").textContent = "No targets found. Create one with scripts/new-target.js first.";
+    $("status").textContent = "No targets yet. Create one in the Target tab.";
+    $("targetValidation").textContent = "Create a target in the browser to load its config.";
+    $("targetValidation").className = "notice muted";
+    $("domains").value = "";
+    $("leadRows").innerHTML = "";
+    await refreshApiKeys();
+    await refreshWordlists();
     return;
   }
   fillDomains();
@@ -78,46 +128,52 @@ async function loadTargetConfig() {
   const target = $("target").value;
   if (!target) return;
   const data = await api(`/api/targets/${encodeURIComponent(target)}/config`);
-  $("targetConfigEditor").value = JSON.stringify(data.config, null, 2);
-  $("targetValidation").textContent = `Loaded ${data.configPath}`;
+  $("targetValidation").textContent = [
+    `Loaded ${data.configPath}`,
+    "",
+    `Program: ${data.config.program_url}`,
+    `In scope: ${(data.config.scope?.in_scope || []).join(", ") || "none"}`,
+    `Out of scope: ${(data.config.scope?.out_of_scope || []).join(", ") || "none"}`
+  ].join("\n");
   $("targetValidation").className = "notice muted";
 }
 
-function formatTargetConfig() {
+async function createTarget() {
+  $("createTarget").disabled = true;
+  $("status").textContent = "Creating target...";
   try {
-    const parsed = JSON.parse($("targetConfigEditor").value);
-    $("targetConfigEditor").value = JSON.stringify(parsed, null, 2);
-    $("targetValidation").textContent = "JSON is valid.";
-    $("targetValidation").className = "notice ok";
-  } catch (error) {
-    $("targetValidation").textContent = error.message;
-    $("targetValidation").className = "notice error";
-  }
-}
-
-async function saveTargetConfig() {
-  $("saveTargetConfig").disabled = true;
-  $("status").textContent = "Saving target...";
-  try {
-    const config = JSON.parse($("targetConfigEditor").value);
-    const data = await api(`/api/targets/${encodeURIComponent($("target").value)}/config`, {
-      method: "PUT",
-      body: JSON.stringify({ config })
+    const data = await api("/api/targets", {
+      method: "POST",
+      body: JSON.stringify({
+        targetName: $("newTargetName").value.trim(),
+        programUrl: $("newProgramUrl").value.trim(),
+        assetType: $("newAssetType").value,
+        inScope: textLines("newInScope"),
+        outOfScope: textLines("newOutOfScope")
+      })
     });
-    $("targetValidation").textContent = `Saved ${data.configPath}`;
-    $("targetValidation").className = "notice ok";
-    $("status").textContent = "Target saved";
+    $("status").textContent = `Target created: ${data.target.target_name}`;
+    $("newTargetName").value = "";
+    $("newProgramUrl").value = "";
+    $("newInScope").value = "";
+    $("newOutOfScope").value = "";
     await loadTargets();
+    $("target").value = data.target.target_name;
+    fillDomains();
+    await loadTargetConfig();
   } catch (error) {
-    $("targetValidation").textContent = error.errors ? error.errors.join("\n") : error.message;
-    $("targetValidation").className = "notice error";
-    $("status").textContent = error.message;
+    $("status").textContent = error.errors ? error.errors.join("; ") : error.message;
   } finally {
-    $("saveTargetConfig").disabled = false;
+    $("createTarget").disabled = false;
   }
 }
 
 async function startRecon() {
+  if (!$("target").value) {
+    $("status").textContent = "Create a target before starting recon.";
+    activateTab("target");
+    return;
+  }
   $("start").disabled = true;
   $("status").textContent = "Starting...";
   try {
@@ -184,6 +240,7 @@ async function refreshRun() {
   renderDomains(domainData.domains);
   renderServices(serviceData.services);
   renderArtifacts(urlData.urls, screenshotData.screenshots);
+  updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
   if (["completed", "failed", "cancelled"].includes(runData.run.status) && poll) {
     clearInterval(poll);
     poll = null;
@@ -211,6 +268,409 @@ function renderArtifacts(urls, screenshots) {
     `<tr><td>screenshot</td><td>${esc(s.tool_name)}</td><td>${esc(s.report_path || s.output_dir)}</td></tr>`
   );
   $("artifactRows").innerHTML = screenshotRows.concat(urlRows).join("");
+}
+
+async function runSearch() {
+  const query = $("searchQuery").value.trim();
+  if (!query) {
+    $("status").textContent = "Enter a search query.";
+    return;
+  }
+  $("runSearch").disabled = true;
+  $("status").textContent = "Searching saved data...";
+  try {
+    const params = new URLSearchParams({ q: query, limit: "200" });
+    if ($("searchCurrentTarget").checked && $("target").value) params.set("target", $("target").value);
+    const data = await api(`/api/search?${params.toString()}`);
+    renderSearchResults(data.results);
+    $("status").textContent = `Search returned ${data.results.length} results`;
+    activateTab("search");
+  } catch (error) {
+    $("status").textContent = error.message;
+  } finally {
+    $("runSearch").disabled = false;
+  }
+}
+
+function renderSearchResults(results) {
+  $("searchRows").innerHTML = results.map((result) =>
+    `<tr><td>${esc(result.result_type)}</td><td>${esc(result.target_name)}</td><td>${esc(result.value)}</td><td>${esc(result.detail || "")}</td><td>${esc(result.source || "")}</td><td>${esc(result.seen_at || "")}</td></tr>`
+  ).join("");
+}
+
+function updateTopologyGraph({ domains = [], services = [], urls = [], screenshots = [] } = {}) {
+  const nodes = [];
+  const edges = [];
+  const rootId = $("target").value || "workspace";
+  nodes.push({ id: rootId, label: rootId, type: "target", x: 0, y: 0 });
+
+  if ($("topologyDomains").checked) {
+    domains.slice(0, 120).forEach((domain) => {
+      nodes.push({ id: `domain:${domain.domain}`, label: domain.domain, type: "domain" });
+      edges.push({ from: rootId, to: `domain:${domain.domain}`, type: domain.source || "discovered" });
+    });
+  }
+  if ($("topologyServices").checked) {
+    services.slice(0, 80).forEach((service) => {
+      nodes.push({ id: `service:${service.url}`, label: service.host || service.url, type: "service" });
+      edges.push({ from: `domain:${service.host}`, to: `service:${service.url}`, type: "http" });
+    });
+  }
+  if ($("topologyArtifacts").checked) {
+    urls.slice(0, 80).forEach((url) => {
+      nodes.push({ id: `url:${url.url}`, label: url.path || url.url, type: "url" });
+      edges.push({ from: rootId, to: `url:${url.url}`, type: "archive" });
+    });
+    screenshots.slice(0, 30).forEach((shot) => {
+      nodes.push({ id: `screenshot:${shot.id || shot.output_dir}`, label: shot.tool_name || "screenshot", type: "artifact" });
+      edges.push({ from: rootId, to: `screenshot:${shot.id || shot.output_dir}`, type: "visual" });
+    });
+  }
+
+  topologyGraph = nodes.length > 1 ? { nodes: layoutTopology(nodes), edges } : previewTopology(rootId);
+  $("topologyNodeCount").textContent = topologyGraph.nodes.length;
+  $("topologyEdgeCount").textContent = topologyGraph.edges.length;
+  renderTopology();
+}
+
+function previewTopology(rootId) {
+  const nodes = [
+    { id: rootId, label: rootId, type: "target" },
+    { id: "phase:passive", label: "Passive recon", type: "phase" },
+    { id: "phase:dns", label: "DNS resolution", type: "phase" },
+    { id: "phase:http", label: "HTTP probing", type: "phase" },
+    { id: "phase:graph", label: "Correlation graph", type: "phase" }
+  ];
+  const edges = [
+    { from: rootId, to: "phase:passive", type: "feeds" },
+    { from: "phase:passive", to: "phase:dns", type: "validates" },
+    { from: "phase:dns", to: "phase:http", type: "probes" },
+    { from: "phase:http", to: "phase:graph", type: "correlates" }
+  ];
+  return { nodes: layoutTopology(nodes), edges };
+}
+
+function layoutTopology(nodes) {
+  const radius = Math.max(120, Math.min(340, 34 * nodes.length));
+  return nodes.map((node, index) => {
+    if (index === 0) return { ...node, x: 0, y: 0 };
+    const angle = (Math.PI * 2 * (index - 1)) / Math.max(1, nodes.length - 1);
+    const ring = radius * (0.55 + ((index % 4) * 0.16));
+    return { ...node, x: Math.cos(angle) * ring, y: Math.sin(angle) * ring };
+  });
+}
+
+function renderTopology() {
+  const canvas = $("topologyCanvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const scale = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.max(1, Math.floor(rect.width * scale));
+  canvas.height = Math.max(1, Math.floor(rect.height * scale));
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  drawTopology(ctx, rect.width, rect.height);
+}
+
+function drawTopology(ctx, width, height) {
+  const centerX = width / 2;
+  const centerY = height / 2;
+  ctx.clearRect(0, 0, width, height);
+  drawTopologyGrid(ctx, width, height);
+  const nodeMap = new Map(topologyGraph.nodes.map((node) => [node.id, node]));
+  for (const edge of topologyGraph.edges) {
+    const from = nodeMap.get(edge.from);
+    const to = nodeMap.get(edge.to);
+    if (!from || !to) continue;
+    drawEdge(ctx, centerX + from.x, centerY + from.y, centerX + to.x, centerY + to.y, edge.type);
+  }
+  for (const node of topologyGraph.nodes) {
+    drawNode(ctx, centerX + node.x, centerY + node.y, node);
+  }
+}
+
+function drawTopologyGrid(ctx, width, height) {
+  ctx.strokeStyle = "rgba(67, 197, 158, .08)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x < width; x += 36) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < height; y += 36) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+}
+
+function drawEdge(ctx, x1, y1, x2, y2) {
+  const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+  gradient.addColorStop(0, "rgba(67, 197, 158, .42)");
+  gradient.addColorStop(1, "rgba(143, 220, 195, .18)");
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+}
+
+function drawNode(ctx, x, y, node) {
+  const colors = {
+    target: ["#43c59e", 15],
+    domain: ["#8fdcc3", 9],
+    service: ["#f2b84b", 8],
+    url: ["#9da6b5", 6],
+    artifact: ["#ef6f6c", 7],
+    phase: ["#8fdcc3", 10]
+  };
+  const [color, radius] = colors[node.type] || ["#9da6b5", 7];
+  const pulse = Math.sin(topologyPulse / 18) * 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, radius + pulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(240, 242, 245, .86)";
+  ctx.font = "12px Inter, Segoe UI, sans-serif";
+  ctx.fillText(node.label.slice(0, 28), x + radius + 7, y + 4);
+}
+
+function animateTopology() {
+  topologyPulse += 1;
+  renderTopology();
+  topologyFrame = window.requestAnimationFrame(animateTopology);
+}
+
+function selectTopologyNode(event) {
+  const canvas = $("topologyCanvas");
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left - rect.width / 2;
+  const y = event.clientY - rect.top - rect.height / 2;
+  const selected = topologyGraph.nodes.find((node) => Math.hypot(node.x - x, node.y - y) < 18);
+  if (!selected) return;
+  $("topologySelection").textContent = `${selected.type}: ${selected.label}`;
+}
+
+function resetTopology() {
+  updateTopologyGraph();
+}
+
+function renderSetupTools(tools) {
+  $("setupToolRows").innerHTML = tools.map((tool) => {
+    const status = tool.installed ? "installed" : tool.status;
+    const details = tool.version || tool.error || tool.stderr || tool.stdout || "";
+    return `<tr><td>${esc(tool.tool_id)}</td><td>${esc(status)}</td><td>${esc(details)}</td></tr>`;
+  }).join("");
+}
+
+async function checkEnvironment() {
+  $("checkEnvironment").disabled = true;
+  $("status").textContent = "Checking environment...";
+  try {
+    const distro = $("setupDistro").value.trim() || "kali-linux";
+    const data = await api(`/api/environment/check?distro=${encodeURIComponent(distro)}`);
+    renderSetupTools(data.environment.tools);
+    $("setupLog").textContent = data.environment.wslAvailable
+      ? `WSL distro detected: ${data.environment.distroName || data.environment.distro}`
+      : `WSL distro is not available: ${data.environment.distro}`;
+    $("setupLog").className = data.environment.wslAvailable ? "notice ok" : "notice error";
+    $("status").textContent = "Environment check completed";
+  } catch (error) {
+    $("setupLog").textContent = error.message;
+    $("setupLog").className = "notice error";
+    $("status").textContent = error.message;
+  } finally {
+    $("checkEnvironment").disabled = false;
+  }
+}
+
+async function installEnvironment() {
+  $("installEnvironment").disabled = true;
+  $("status").textContent = "Installing tools in WSL...";
+  try {
+    const data = await api("/api/environment/install", {
+      method: "POST",
+      body: JSON.stringify({ distro: $("setupDistro").value.trim() || "kali-linux" })
+    });
+    renderSetupTools(data.environment.tools.map((tool) => ({
+      ...tool,
+      installed: tool.status === "completed",
+      version: tool.status === "completed" ? "installed" : null
+    })));
+    $("setupLog").textContent = data.environment.tools.map((tool) =>
+      `${tool.tool_id}: ${tool.status}${tool.error ? ` - ${tool.error}` : ""}`
+    ).join("\n");
+    $("setupLog").className = "notice muted";
+    $("status").textContent = "Tool installation completed";
+    await checkEnvironment();
+  } catch (error) {
+    $("setupLog").textContent = error.message;
+    $("setupLog").className = "notice error";
+    $("status").textContent = error.message;
+  } finally {
+    $("installEnvironment").disabled = false;
+  }
+}
+
+function appendAiMessage(role, text) {
+  const message = document.createElement("div");
+  message.className = `ai-message ${role}`;
+  message.textContent = text;
+  $("aiMessages").appendChild(message);
+  $("aiMessages").scrollTop = $("aiMessages").scrollHeight;
+}
+
+function sendAiPrompt() {
+  const prompt = $("aiPrompt").value.trim();
+  if (!prompt) return;
+  appendAiMessage("user", prompt);
+  $("aiPrompt").value = "";
+  appendAiMessage(
+    "assistant",
+    "The AI provider is not connected yet. This widget is ready for the AgentProvider integration and will use the current target/run context once the backend endpoint is available."
+  );
+}
+
+function getAiWindowState() {
+  try {
+    return JSON.parse(localStorage.getItem(AI_WINDOW_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveAiWindowState() {
+  const panel = $("aiPanel");
+  const rect = panel.getBoundingClientRect();
+  localStorage.setItem(AI_WINDOW_STORAGE_KEY, JSON.stringify({
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    minimized: panel.classList.contains("minimized")
+  }));
+}
+
+function applyAiWindowState() {
+  const panel = $("aiPanel");
+  const state = getAiWindowState();
+  if (Number.isFinite(state.width)) panel.style.width = `${state.width}px`;
+  if (Number.isFinite(state.height)) panel.style.height = `${state.height}px`;
+  if (Number.isFinite(state.left)) panel.style.left = `${state.left}px`;
+  if (Number.isFinite(state.top)) panel.style.top = `${state.top}px`;
+  if (state.minimized) {
+    panel.classList.add("minimized");
+    $("aiRestore").classList.add("active");
+  }
+  clampAiPanel();
+}
+
+function clampAiPanel() {
+  const panel = $("aiPanel");
+  if (panel.classList.contains("minimized")) return;
+  const margin = 16;
+  const minWidth = 280;
+  const minHeight = 240;
+  const maxWidth = Math.max(minWidth, window.innerWidth - margin * 2);
+  const maxHeight = Math.max(minHeight, window.innerHeight - margin * 2);
+  const rect = panel.getBoundingClientRect();
+  const width = Math.min(Math.max(rect.width, minWidth), maxWidth);
+  const height = Math.min(Math.max(rect.height, minHeight), maxHeight);
+  const left = Math.min(Math.max(rect.left, margin), window.innerWidth - width - margin);
+  const top = Math.min(Math.max(rect.top, margin), window.innerHeight - height - margin);
+  panel.style.width = `${width}px`;
+  panel.style.height = `${height}px`;
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+}
+
+function minimizeAiPanel() {
+  $("aiPanel").classList.add("minimized");
+  $("aiRestore").classList.add("active");
+  saveAiWindowState();
+}
+
+function restoreAiPanel() {
+  $("aiPanel").classList.remove("minimized");
+  $("aiRestore").classList.remove("active");
+  clampAiPanel();
+  saveAiWindowState();
+}
+
+function startAiDrag(event) {
+  if (event.target.closest("button")) return;
+  const panel = $("aiPanel");
+  const rect = panel.getBoundingClientRect();
+  aiWindowDrag = {
+    type: "move",
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height
+  };
+  $("aiDragHandle").setPointerCapture(event.pointerId);
+}
+
+function startAiResize(event) {
+  const panel = $("aiPanel");
+  const rect = panel.getBoundingClientRect();
+  aiWindowDrag = {
+    type: "resize",
+    edge: event.target.dataset.resize,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height
+  };
+  event.target.setPointerCapture(event.pointerId);
+  event.preventDefault();
+}
+
+function updateAiWindow(event) {
+  if (!aiWindowDrag) return;
+  const panel = $("aiPanel");
+  const deltaX = event.clientX - aiWindowDrag.startX;
+  const deltaY = event.clientY - aiWindowDrag.startY;
+  let { left, top, width, height } = aiWindowDrag;
+  if (aiWindowDrag.type === "move") {
+    left += deltaX;
+    top += deltaY;
+  } else {
+    if (aiWindowDrag.edge.includes("e")) width += deltaX;
+    if (aiWindowDrag.edge.includes("s")) height += deltaY;
+    if (aiWindowDrag.edge.includes("w")) {
+      width -= deltaX;
+      left += deltaX;
+    }
+    if (aiWindowDrag.edge.includes("n")) {
+      height -= deltaY;
+      top += deltaY;
+    }
+  }
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  panel.style.width = `${width}px`;
+  panel.style.height = `${height}px`;
+  clampAiPanel();
+}
+
+function endAiWindowEdit() {
+  if (!aiWindowDrag) return;
+  aiWindowDrag = null;
+  clampAiPanel();
+  saveAiWindowState();
 }
 
 async function saveApiKey() {
@@ -295,6 +755,11 @@ async function refreshApiKeys() {
 }
 
 async function runReverseWhois() {
+  if (!$("target").value) {
+    $("status").textContent = "Create a target before running asset discovery.";
+    activateTab("target");
+    return;
+  }
   $("reverseWhois").disabled = true;
   $("status").textContent = "Reverse WHOIS running...";
   try {
@@ -343,8 +808,41 @@ $("reverseWhois").addEventListener("click", runReverseWhois);
 $("saveApiKey").addEventListener("click", saveApiKey);
 $("saveWordlist").addEventListener("click", saveWordlist);
 $("generateWordlist").addEventListener("click", generateWordlist);
-$("formatTargetConfig").addEventListener("click", formatTargetConfig);
-$("saveTargetConfig").addEventListener("click", saveTargetConfig);
+$("runSearch").addEventListener("click", runSearch);
+$("searchQuery").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") runSearch();
+});
+$("createTarget").addEventListener("click", createTarget);
+$("checkEnvironment").addEventListener("click", checkEnvironment);
+$("installEnvironment").addEventListener("click", installEnvironment);
+$("sendAiPrompt").addEventListener("click", sendAiPrompt);
+$("aiMinimize").addEventListener("click", minimizeAiPanel);
+$("aiRestore").addEventListener("click", restoreAiPanel);
+$("aiDragHandle").addEventListener("pointerdown", startAiDrag);
+document.querySelectorAll(".ai-resize-handle").forEach((handle) => {
+  handle.addEventListener("pointerdown", startAiResize);
+});
+window.addEventListener("pointermove", updateAiWindow);
+window.addEventListener("pointerup", endAiWindowEdit);
+window.addEventListener("resize", () => {
+  clampAiPanel();
+  saveAiWindowState();
+});
+$("aiPrompt").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+    sendAiPrompt();
+  }
+});
+$("topologyCanvas").addEventListener("click", selectTopologyNode);
+$("fitTopology").addEventListener("click", resetTopology);
+$("pulseTopology").addEventListener("click", renderTopology);
+["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => {
+  $(id).addEventListener("change", resetTopology);
+});
+document.querySelectorAll(".settings-tab").forEach((button) => {
+  button.addEventListener("click", () => activateSettingsPanel(button.dataset.settingsPanel));
+});
+$("fontScale").addEventListener("input", () => applyFontScale($("fontScale").value));
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tab));
 });
@@ -353,3 +851,7 @@ loadTargets().catch((error) => {
   $("status").textContent = error.message;
 });
 updateReconModeUi();
+applyAiWindowState();
+applyFontScale(getUiSettings().fontScale || 100);
+updateTopologyGraph();
+if (!topologyFrame) animateTopology();

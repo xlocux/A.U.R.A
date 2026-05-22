@@ -1,0 +1,25 @@
+{
+  "tool_id": "nuclei",
+  "type": "cli",
+  "phase": "informational_template_checks",
+  "binary": "nuclei",
+  "version_check": {
+    "command": "nuclei",
+    "args": ["-version"]
+  },
+  "input_type": "url_list",
+  "output_format": "jsonl",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_conservative",
+  "parser": "nuclei_jsonl",
+  "tags": ["active", "templates", "informational"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "full"
+  }
+}
