@@ -371,7 +371,8 @@
         <div class="pane settings-panel active" id="settings-environment">
           <h2>Environment</h2>
           <div class="split embedded">
-            <div>
+            <div class="embedded-window">
+              <h2>Setup Controls</h2>
               <div class="form-body">
                 <label for="setupDistro">WSL distro</label>
                 <input id="setupDistro" type="text" value="kali-linux">
@@ -385,15 +386,27 @@
                 </div>
               </div>
             </div>
-            <div class="scroll">
-              <table>
-                <thead><tr><th>Tool</th><th>Status</th><th>Version / Error</th></tr></thead>
-                <tbody id="setupToolRows"></tbody>
-              </table>
+            <div class="embedded-window tool-status-window">
+              <h2>Tool Status</h2>
+              <div class="scroll">
+                <table>
+                  <thead><tr><th>Tool</th><th>Status</th><th>Version / Error</th></tr></thead>
+                  <tbody id="setupToolRows"></tbody>
+                </table>
+              </div>
             </div>
           </div>
-          <div id="agentStatus" class="notice muted">OpenCode is checked before recon tools.</div>
-          <div id="setupLog" class="notice muted">Run an environment check before installing tools.</div>
+          <div class="embedded-window runtime-window">
+            <h2>AI Runtime</h2>
+            <div id="agentStatus" class="notice muted">OpenCode is checked before recon tools.</div>
+          </div>
+          <div class="embedded-window output-window">
+            <div class="output-title">
+              <h2>Setup Output</h2>
+              <span>Scrollable install log</span>
+            </div>
+            <pre id="setupLog" class="notice muted">Run an environment check before installing tools.</pre>
+          </div>
         </div>
         <div class="pane settings-panel" id="settings-appearance">
           <h2>Appearance</h2>
