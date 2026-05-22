@@ -1,6 +1,6 @@
 # A.U.R.A
 
-A.U.R.A is a local **Recon & Discovery** dashboard for authorized bug bounty and security research scopes.
+A.U.R.A is a local **Asset Unveiling & Reconnaissance Automation** dashboard for authorized bug bounty and security research scopes.
 
 The project is intentionally scoped to recon for now. Agentic analysis, triage, reporting, and LLM-assisted reasoning will be added later as separate layers.
 
