@@ -145,8 +145,9 @@ async function testAiSettings() {
 }
 
 function readAiSettingsForm() {
+  const useLocalModel = $("useLocalModel").checked;
   return {
-    provider: $("aiProvider").value,
+    provider: useLocalModel ? "local" : $("aiProvider").value,
     planningModel: $("aiPlanningModel").value,
     executionModel: $("aiExecutionModel").value,
     localEndpoint: $("aiLocalEndpoint").value.trim(),
@@ -157,11 +158,16 @@ function readAiSettingsForm() {
 
 function renderAiSettings() {
   const settings = aiSettings || {};
+  const useLocalModel = settings.provider === "local";
   fillModelSelect("aiPlanningModel", settings.planningModel);
   fillModelSelect("aiExecutionModel", settings.executionModel);
-  $("aiProvider").value = settings.provider || "opencode";
+  $("useLocalModel").checked = useLocalModel;
+  $("aiProvider").value = useLocalModel ? "openrouter" : settings.provider || "opencode";
+  $("aiProvider").disabled = useLocalModel;
   $("aiLocalEndpoint").value = settings.localEndpoint || "";
   $("aiLocalModel").value = settings.localModel || "";
+  $("aiLocalEndpoint").disabled = !useLocalModel;
+  $("aiLocalModel").disabled = !useLocalModel;
   $("aiAutonomyLevel").value = String(settings.autonomyLevel ?? 1);
   updateAiAutonomyLabel();
   $("aiProviderMetric").textContent = providerLabel(settings.provider || "opencode");
@@ -194,6 +200,7 @@ function renderModelCards() {
     card.addEventListener("click", () => {
       $("aiPlanningModel").value = card.dataset.model;
       $("aiExecutionModel").value = card.dataset.model;
+      $("useLocalModel").checked = false;
       $("aiProvider").value = "openrouter";
       updateAiSettingsPreview();
     });
@@ -1046,8 +1053,11 @@ $("installEnvironment").addEventListener("click", installEnvironment);
 $("saveAiSettings").addEventListener("click", saveAiSettings);
 $("testAiSettings").addEventListener("click", testAiSettings);
 $("aiProvider").addEventListener("change", updateAiSettingsPreview);
+$("useLocalModel").addEventListener("change", updateAiSettingsPreview);
 $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
 $("aiExecutionModel").addEventListener("change", updateAiSettingsPreview);
+$("aiLocalEndpoint").addEventListener("input", updateAiSettingsPreview);
+$("aiLocalModel").addEventListener("input", updateAiSettingsPreview);
 $("aiAutonomyLevel").addEventListener("input", () => {
   updateAiAutonomyLabel();
   updateAiSettingsPreview();

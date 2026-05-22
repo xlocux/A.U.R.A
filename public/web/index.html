@@ -452,12 +452,16 @@
                 <div class="metric"><span class="muted">Execution</span><strong id="aiExecutionMetric">-</strong></div>
               </div>
               <div class="form-body">
-                <label for="aiProvider">AI provider</label>
+                <label for="aiProvider">Managed provider</label>
                 <select id="aiProvider">
-                  <option value="opencode">OpenCode local runtime</option>
+                  <option value="opencode">OpenCode agent runtime</option>
                   <option value="openrouter">OpenRouter API</option>
-                  <option value="local">Local OpenAI-compatible model</option>
                 </select>
+                <label class="check ai-local-toggle"><input id="useLocalModel" type="checkbox"> <span>Use direct local model endpoint</span></label>
+                <div class="notice muted compact-notice">
+                  Direct local model mode is off by default. Enable it only when
+                  an OpenAI-compatible endpoint is running.
+                </div>
                 <div class="row">
                   <div>
                     <label for="aiPlanningModel">Planning model</label>

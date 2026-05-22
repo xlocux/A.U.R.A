@@ -345,6 +345,16 @@ button:disabled { opacity: .55; cursor: wait; }
 .ai-settings-main {
   min-width: 0;
 }
+.ai-local-toggle {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: rgba(15, 17, 22, .58);
+}
+.compact-notice {
+  padding: 8px 10px;
+  font-size: 12px;
+}
 .ai-metric-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

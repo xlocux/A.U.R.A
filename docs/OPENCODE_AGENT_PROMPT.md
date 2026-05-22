@@ -520,6 +520,8 @@ The Web UI should allow users to:
 
 - Install/check OpenCode through a guided bootstrap.
 - Select provider.
+- Make direct local-model endpoint usage explicit with an unchecked-by-default
+  UI control before local endpoint fields are enabled.
 - Select model.
 - Add/rotate/deactivate credentials.
 - Test the selected model.

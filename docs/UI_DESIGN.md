@@ -154,6 +154,8 @@ Purpose:
 Key UI:
 
 - Provider status metrics.
+- Explicit `Use direct local model endpoint` checkbox, unchecked by default,
+  before local endpoint fields become editable.
 - Planning model selector.
 - Execution model selector.
 - OpenRouter free model presets loaded from provider metadata when available.
