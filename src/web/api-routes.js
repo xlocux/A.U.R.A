@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const { normalizeDomain } = require("../recon/domain-utils");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
+const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
 const {
   DEFAULT_PASSIVE_SOURCES,
@@ -126,6 +127,11 @@ async function handleApiRequest({ request, response, url, store }) {
 
   if (request.method === "POST" && url.pathname === "/api/recon/provider-discovery") {
     await runReverseWhois(request, response, store);
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/recon/whois-term-suggestions") {
+    await suggestWhoisTerms(request, response, store);
     return true;
   }
 
@@ -730,6 +736,26 @@ async function runReverseWhois(request, response, store) {
     recordReverseWhoisFailure(store, run.id, target.target_name, body, error);
     sendJson(response, { error: error.message }, 500);
   }
+}
+
+async function suggestWhoisTerms(request, response, store) {
+  const body = await readBody(request);
+  const requestedDomains = Array.isArray(body.domains) ? body.domains : [];
+  const domains = requestedDomains.length
+    ? requestedDomains
+    : loadTargetDomains(body.targetName, store);
+  const result = await suggestReverseWhoisTerms({ domains });
+  sendJson(response, result);
+}
+
+function loadTargetDomains(targetName, store) {
+  if (!targetName) return [];
+  const targetConfigPath = resolveTargetConfigPath(targetName);
+  if (fs.existsSync(targetConfigPath)) {
+    const targetConfig = readJson(targetConfigPath);
+    return inferRootDomains(store.upsertTarget(targetConfigPath, targetConfig));
+  }
+  return [];
 }
 
 function saveReverseWhoisResult(store, runId, targetName, result) {

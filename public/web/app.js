@@ -1060,6 +1060,55 @@ async function runReverseWhois() {
   }
 }
 
+async function suggestWhoisTerms() {
+  if (!$("target").value) {
+    $("status").textContent = "Create a target before suggesting provider search terms.";
+    activateTab("recon");
+    return;
+  }
+  $("suggestWhoisTerms").disabled = true;
+  $("whoisSuggestionStatus").textContent = "Inspecting public RDAP/WHOIS records...";
+  try {
+    const data = await api("/api/recon/whois-term-suggestions", {
+      method: "POST",
+      body: JSON.stringify({
+        targetName: $("target").value,
+        domains: $("domains").value.split(/\s+/).filter(Boolean)
+      })
+    });
+    if (data.includeTerms?.length) {
+      $("whoisInclude").value = data.includeTerms.join("\n");
+      $("fullWhoisInclude").value = data.includeTerms.join("\n");
+    }
+    if (data.excludeTerms?.length) {
+      $("whoisExclude").value = data.excludeTerms.join("\n");
+      $("fullWhoisExclude").value = data.excludeTerms.join("\n");
+    }
+    $("whoisSuggestionStatus").textContent = formatWhoisSuggestionStatus(data);
+    $("whoisSuggestionStatus").className = data.includeTerms?.length ? "notice ok compact-notice" : "notice warn compact-notice";
+  } catch (error) {
+    $("whoisSuggestionStatus").textContent = error.message;
+    $("whoisSuggestionStatus").className = "notice error compact-notice";
+  } finally {
+    $("suggestWhoisTerms").disabled = false;
+  }
+}
+
+function formatWhoisSuggestionStatus(data) {
+  const suggestions = (data.suggestions || [])
+    .map((item) => `- ${item.value} (${item.field}, score ${item.score})`)
+    .join("\n");
+  const records = (data.records || [])
+    .map((record) => `${record.domain}: ${record.status}${record.error ? ` - ${record.error}` : ""}`)
+    .join("\n");
+  return [
+    data.rationale || "Suggestion complete.",
+    suggestions ? `\nSuggested terms:\n${suggestions}` : "",
+    data.skippedPrivate?.length ? `\nSkipped private/noisy terms: ${data.skippedPrivate.join(", ")}` : "",
+    records ? `\nChecked records:\n${records}` : ""
+  ].filter(Boolean).join("\n");
+}
+
 async function refreshLeads() {
   const target = $("target").value;
   if (!target) return;
@@ -1081,6 +1130,7 @@ $("target").addEventListener("change", () => {
 $("reconMode").addEventListener("change", updateReconModeUi);
 $("start").addEventListener("click", startRecon);
 $("reverseWhois").addEventListener("click", runReverseWhois);
+$("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);
 $("keyProvider").addEventListener("change", updateApiKeyProviderHints);
 $("saveWordlist").addEventListener("click", saveWordlist);

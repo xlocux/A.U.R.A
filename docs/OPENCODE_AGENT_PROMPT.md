@@ -322,6 +322,8 @@ The AI chat agent should assist every major Web UI workflow:
 - OpenCode bootstrap and model/provider configuration.
 - Tool registry browsing, install checks, and custom manifest drafting.
 - Provider/API credential setup with masked secrets.
+- WHOIS/RDAP term suggestion for Reverse WHOIS, including explaining why
+  registration terms were suggested or skipped.
 - Recon profile selection and per-phase configuration.
 - Rate limit, timeout, concurrency, and stop-condition tuning.
 - Run launch, pause, cancel, resume, and live status explanation.

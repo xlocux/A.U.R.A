@@ -225,6 +225,9 @@ Purpose:
 Key UI:
 
 - Provider source list with installed/configured/coming-soon states.
+- One-click WHOIS/RDAP term suggestion that reads public registration data,
+  skips private or registrar-only records, and fills editable Reverse WHOIS
+  include/exclude terms.
 - Search terms and exclusions for provider pivots.
 - Discovery leads table with source, confidence, and matched terms.
 - Links from leads to follow-up recon jobs, review items, and graph edges.

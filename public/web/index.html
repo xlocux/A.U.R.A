@@ -148,6 +148,8 @@
             <div class="check"><input id="sourceCensys" type="checkbox" disabled> <span>Censys host and certificate enrichment</span></div>
             <div class="check"><input id="sourceShodan" type="checkbox" disabled> <span>Shodan host, favicon, and service enrichment</span></div>
             <div class="check"><input id="sourceRdap" type="checkbox" disabled> <span>RDAP / WHOIS provider enrichment</span></div>
+            <button id="suggestWhoisTerms" type="button">Suggest Terms From WHOIS/RDAP</button>
+            <div id="whoisSuggestionStatus" class="notice muted compact-notice">Suggestions inspect public RDAP/WHOIS data and skip private or registrar-only records.</div>
             <label for="whoisInclude">Provider search terms</label>
             <textarea id="whoisInclude" placeholder="Yahoo Assets LLC&#10;yahoo"></textarea>
             <label for="whoisExclude">Exclude terms</label>

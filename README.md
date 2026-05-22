@@ -89,7 +89,7 @@ Use this for known in-scope domains pasted into the UI.
 Full recon currently performs:
 
 1. Seed domain normalization.
-2. Optional provider discovery, starting with WhoisXMLAPI Reverse WHOIS and designed for Censys, Shodan, RDAP, Rapid7, JavaScript, endpoint, history, and parameter adapters.
+2. Optional provider discovery, starting with RDAP/WHOIS term suggestions and WhoisXMLAPI Reverse WHOIS, and designed for Censys, Shodan, Rapid7, JavaScript, endpoint, history, and parameter adapters.
 3. Certificate transparency and passive sources.
 4. Passive subdomain enumeration via tools such as `subfinder` and `amass`.
 5. Optional brute force with `shuffle-dns` using the active `domains` wordlist.

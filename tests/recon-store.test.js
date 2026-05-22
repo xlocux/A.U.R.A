@@ -12,6 +12,7 @@ const { generateWordlistFromDb } = require("../src/recon/wordlist-generator");
 const { LocalArtifactStore } = require("../src/recon/artifact-store");
 const { FunctionToolRunner, runOneJob } = require("../src/recon/local-worker");
 const { loadToolRegistry, validateToolManifest } = require("../src/recon/tool-registry");
+const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/providers/rdap-suggestions");
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
@@ -152,6 +153,35 @@ test("reverse whois helpers build bounded requests and parse domain leads", () =
     domainsList: [{ domainName: "yahoo-example.com" }]
   }, request);
   assert.equal(parsed.leads[0].domain, "yahoo-example.com");
+});
+
+test("rdap suggestions prefer useful org terms and skip private records", () => {
+  const suggested = suggestReverseWhoisTermsFromRdapRecords([
+    {
+      domain: "example.com",
+      status: "completed",
+      raw: {
+        entities: [
+          {
+            roles: ["registrant"],
+            vcardArray: ["vcard", [
+              ["fn", {}, "text", "Example Security Team"],
+              ["org", {}, "text", "Example Assets LLC"]
+            ]]
+          },
+          {
+            roles: ["registrar"],
+            vcardArray: ["vcard", [
+              ["org", {}, "text", "Domains By Proxy LLC"]
+            ]]
+          }
+        ]
+      }
+    }
+  ], ["example.com"]);
+  assert.deepEqual(suggested.includeTerms.slice(0, 2), ["Example Assets LLC", "Example Security Team"]);
+  assert.ok(suggested.skippedPrivate.includes("Domains By Proxy LLC"));
+  assert.ok(suggested.excludeTerms.includes("privacy"));
 });
 
 test("tool registry loads built-in manifests and validates required fields", () => {

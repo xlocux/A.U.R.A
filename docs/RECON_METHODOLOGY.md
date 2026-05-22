@@ -934,6 +934,7 @@ Providers:
 Use cases:
 
 - Enrich known hosts and IPs.
+- Suggest useful Reverse WHOIS terms from public RDAP/WHOIS evidence.
 - Discover certificate SAN names.
 - Find passive DNS relationships.
 - Identify related domains and brand-adjacent candidates.
@@ -960,6 +961,15 @@ not a failed run.
 The UI should not treat this as a separate "asset discovery" product area.
 It belongs inside Recon alongside JavaScript files, endpoints, archived URLs,
 parameters, historical data, provider leads, and correlation pivots.
+
+WHOIS/RDAP term suggestion should run before Reverse WHOIS when possible:
+
+- Fetch public RDAP/WHOIS data for in-scope root domains.
+- Extract organization, registrant, and contact names.
+- Skip privacy, proxy, redacted, registrar-only, or abuse-contact records.
+- Suggest bounded include terms and default exclusions for Reverse WHOIS.
+- Let the AI explain why terms were suggested or skipped, but keep the final
+  provider discovery action user-controlled.
 
 ## Phase 3a: Tracking Identifier Correlation
 
