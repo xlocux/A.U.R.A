@@ -71,13 +71,12 @@ Deliverables:
 Initial tools:
 
 - `subfinder`
-- `amass`
 - `dnsx`
-- `puredns`
-- `shuffle-dns`
 - `gau`
 - `httpx`
 - `katana`
+- `naabu`
+- `nuclei`
 - `gowitness`
 
 Exit criteria:
@@ -87,13 +86,13 @@ Exit criteria:
 - Parsed observations link back to artifacts.
 - Workers can declare installed tool capabilities.
 
-## Phase 2: Environment And OpenCode Setup UI
+## Phase 2: Settings-Based Environment And OpenCode Setup UI
 
 Goal: let users prepare the local/WSL/Linux execution environment from the Web UI.
 
 Deliverables:
 
-- Environment page.
+- `Settings > Environment` setup panel. (started)
 - WSL/native Linux detection. (started)
 - Tool install/check state. (started)
 - OpenCode detection.

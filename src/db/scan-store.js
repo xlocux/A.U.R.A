@@ -231,6 +231,12 @@ function initScanStore(db) {
       last_login_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS ai_settings (
+      key TEXT PRIMARY KEY,
+      value_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS wordlists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -830,6 +836,24 @@ class ScanStore {
     return rows.map((row) => hydrateApiKey(row, includeSecret));
   }
 
+  getAiSettings() {
+    const row = this.db.prepare("SELECT value_json FROM ai_settings WHERE key = 'default'").get();
+    return row ? JSON.parse(row.value_json || "{}") : defaultAiSettings();
+  }
+
+  saveAiSettings(settings) {
+    const next = { ...defaultAiSettings(), ...(settings || {}) };
+    const timestamp = nowIso();
+    this.db.prepare(`
+      INSERT INTO ai_settings (key, value_json, updated_at)
+      VALUES ('default', ?, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        value_json = excluded.value_json,
+        updated_at = excluded.updated_at
+    `).run(JSON.stringify(next), timestamp);
+    return next;
+  }
+
   getActiveApiKey(provider) {
     const row = this.db.prepare(`
       SELECT * FROM api_keys
@@ -1034,6 +1058,17 @@ function maskSecret(value) {
   const text = String(value || "");
   if (text.length <= 8) return "*".repeat(text.length);
   return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function defaultAiSettings() {
+  return {
+    provider: "opencode",
+    planningModel: "qwen/qwen3-coder:free",
+    executionModel: "qwen/qwen3-coder:free",
+    localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+    localModel: "llama3.1",
+    autonomyLevel: 1
+  };
 }
 
 function hydrateApiKey(row, includeSecret = false) {

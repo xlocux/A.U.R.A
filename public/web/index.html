@@ -9,17 +9,13 @@
 <body>
   <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
   <header>
-    <h1>A.U.R.A Recon</h1>
-    <div class="topbar">
-      <label for="target">Target</label>
-      <select id="target"></select>
-      <label class="check inline"><input id="authorized" type="checkbox"> <span>Authorized scope</span></label>
+    <div class="headerbar">
+      <h1>A.U.R.A Recon</h1>
       <p id="status" class="muted"></p>
     </div>
   </header>
 
   <nav class="tabs" aria-label="Workspace tabs">
-    <button class="tab active" data-tab="environment">Environment</button>
     <button class="tab" data-tab="target">Target</button>
     <button class="tab" data-tab="recon">Recon</button>
     <button class="tab" data-tab="assetDiscovery">Asset Discovery</button>
@@ -28,48 +24,11 @@
     <button class="tab" data-tab="topology">Topology</button>
     <button class="tab" data-tab="results">Results</button>
     <button class="tab" data-tab="runs">Runs & Logs</button>
-    <button class="tab" data-tab="settings">Settings</button>
+    <button class="tab active" data-tab="settings">Settings</button>
   </nav>
 
   <main class="workspace">
     <div class="workspace-main">
-    <section id="tab-environment" class="tab-panel active">
-      <div class="split">
-        <div class="pane">
-          <h2>Setup</h2>
-          <div class="form-body">
-            <label for="setupDistro">WSL distro</label>
-            <input id="setupDistro" type="text" value="kali-linux">
-            <div class="row">
-              <button id="checkEnvironment">Check Environment</button>
-              <button id="installEnvironment">Install / Update Tools</button>
-            </div>
-            <div class="notice muted">
-              API keys are optional during setup. You can skip them now and add
-              provider credentials later in Settings > Credentials.
-            </div>
-          </div>
-        </div>
-        <div class="pane">
-          <h2>Tool Status</h2>
-          <div class="scroll">
-            <table>
-              <thead><tr><th>Tool</th><th>Status</th><th>Version / Error</th></tr></thead>
-              <tbody id="setupToolRows"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="pane">
-        <h2>AI Runtime</h2>
-        <div id="agentStatus" class="notice muted">OpenCode is checked before recon tools.</div>
-      </div>
-      <div class="pane">
-        <h2>Setup Log</h2>
-        <div id="setupLog" class="notice muted">Run an environment check before installing tools.</div>
-      </div>
-    </section>
-
     <section id="tab-target" class="tab-panel">
       <div class="target-grid">
         <div class="pane">
@@ -96,7 +55,11 @@
           </div>
         </div>
         <div class="pane">
-          <h2>Validation</h2>
+          <h2>Active Target</h2>
+          <div class="form-body">
+            <label for="target">Target</label>
+            <select id="target"></select>
+          </div>
           <div id="targetValidation" class="notice muted">Select a target to load its config.</div>
         </div>
       </div>
@@ -145,6 +108,7 @@
                 <input id="timeout" type="number" value="180000">
               </div>
             </div>
+            <label class="check"><input id="authorized" type="checkbox"> <span>Authorized scope</span></label>
             <button id="start">Start Recon</button>
           </div>
         </div>
@@ -392,18 +356,46 @@
       </div>
     </section>
 
-    <section id="tab-settings" class="tab-panel">
+    <section id="tab-settings" class="tab-panel active">
       <div class="settings-layout">
         <div class="pane">
           <h2>Settings</h2>
           <div class="settings-tabs" aria-label="Settings sections">
-            <button class="settings-tab active" data-settings-panel="appearance">Appearance</button>
+            <button class="settings-tab active" data-settings-panel="environment">Environment</button>
+            <button class="settings-tab" data-settings-panel="appearance">Appearance</button>
             <button class="settings-tab" data-settings-panel="ai">AI Agent</button>
             <button class="settings-tab" data-settings-panel="credentials">Credentials</button>
             <button class="settings-tab" data-settings-panel="storage">Storage</button>
           </div>
         </div>
-        <div class="pane settings-panel active" id="settings-appearance">
+        <div class="pane settings-panel active" id="settings-environment">
+          <h2>Environment</h2>
+          <div class="split embedded">
+            <div>
+              <div class="form-body">
+                <label for="setupDistro">WSL distro</label>
+                <input id="setupDistro" type="text" value="kali-linux">
+                <div class="row">
+                  <button id="checkEnvironment">Check Environment</button>
+                  <button id="installEnvironment">Install / Update Tools</button>
+                </div>
+                <div class="notice muted">
+                  API keys are optional during setup. You can skip them now and add
+                  provider credentials later in Settings > Credentials.
+                </div>
+              </div>
+            </div>
+            <div class="scroll">
+              <table>
+                <thead><tr><th>Tool</th><th>Status</th><th>Version / Error</th></tr></thead>
+                <tbody id="setupToolRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="agentStatus" class="notice muted">OpenCode is checked before recon tools.</div>
+          <div id="setupLog" class="notice muted">Run an environment check before installing tools.</div>
+        </div>
+        <div class="pane settings-panel" id="settings-appearance">
           <h2>Appearance</h2>
           <div class="form-body">
             <label for="fontScale">Font size</label>
@@ -413,7 +405,55 @@
         </div>
         <div class="pane settings-panel" id="settings-ai">
           <h2>AI Agent</h2>
-          <div class="notice muted">AI provider, model, window behavior, and autonomy controls will live here.</div>
+          <div class="ai-settings-grid">
+            <div class="ai-settings-main">
+              <div class="ai-metric-row">
+                <div class="metric"><span class="muted">Provider</span><strong id="aiProviderMetric">OpenCode</strong></div>
+                <div class="metric"><span class="muted">Planning</span><strong id="aiPlanningMetric">-</strong></div>
+                <div class="metric"><span class="muted">Execution</span><strong id="aiExecutionMetric">-</strong></div>
+              </div>
+              <div class="form-body">
+                <label for="aiProvider">AI provider</label>
+                <select id="aiProvider">
+                  <option value="opencode">OpenCode local runtime</option>
+                  <option value="openrouter">OpenRouter API</option>
+                  <option value="local">Local OpenAI-compatible model</option>
+                </select>
+                <div class="row">
+                  <div>
+                    <label for="aiPlanningModel">Planning model</label>
+                    <select id="aiPlanningModel"></select>
+                  </div>
+                  <div>
+                    <label for="aiExecutionModel">Execution model</label>
+                    <select id="aiExecutionModel"></select>
+                  </div>
+                </div>
+                <div class="row">
+                  <div>
+                    <label for="aiLocalEndpoint">Local endpoint</label>
+                    <input id="aiLocalEndpoint" type="text" placeholder="http://127.0.0.1:11434/v1/chat/completions">
+                  </div>
+                  <div>
+                    <label for="aiLocalModel">Local model</label>
+                    <input id="aiLocalModel" type="text" placeholder="llama3.1">
+                  </div>
+                </div>
+                <label for="aiAutonomyLevel">Autonomy level</label>
+                <input id="aiAutonomyLevel" type="range" min="0" max="4" value="1">
+                <div id="aiAutonomyValue" class="notice muted">Level 1 - suggestions only</div>
+                <div class="row">
+                  <button id="saveAiSettings">Save AI Settings</button>
+                  <button id="testAiSettings">Test AI</button>
+                </div>
+                <div id="aiSettingsStatus" class="notice muted">OpenRouter keys belong in Settings > Credentials using provider `openrouter`.</div>
+              </div>
+            </div>
+            <div class="ai-model-rail">
+              <h2>OpenRouter Free Presets</h2>
+              <div id="aiModelCards" class="model-card-list"></div>
+            </div>
+          </div>
         </div>
         <div class="pane settings-panel" id="settings-credentials">
           <h2>Credentials</h2>

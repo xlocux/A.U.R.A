@@ -37,8 +37,10 @@ Open:
 http://127.0.0.1:31338
 ```
 
-Create targets from the `Target` tab in the browser. Target setup, scope edits,
-API keys, wordlists, recon runs, and results are all managed from the Web UI.
+Start from `Settings > Environment` to check the Linux runtime, install
+OpenCode, and install/update recon tools. Create targets from the `Target` tab
+in the browser. Target setup, scope edits, API keys, wordlists, recon runs, and
+results are all managed from the Web UI.
 
 The Web UI requires login. The first local user defaults to:
 
@@ -101,20 +103,21 @@ Full recon currently performs:
 When A.U.R.A runs on Windows, it uses the selected WSL distro. When A.U.R.A runs
 inside WSL/Linux, setup and tool checks run natively in that Linux environment.
 
-The environment setup installs/checks OpenCode first, then recon tools declared
-in the tool registry.
+The environment setup lives in `Settings > Environment`. It installs/checks
+OpenCode first, then recon tools declared in the tool registry. Install stdout
+and stderr are shown in the setup log so failed tool bootstrap steps can be
+debugged from the browser.
 
-The WSL runner only allows known recon tools:
+The initial tool registry includes:
 
 - `subfinder`
-- `amass`
 - `dnsx`
-- `puredns`
-- `shuffle-dns`
 - `gau`
 - `httpx`
-- `aquatone`
-- `eyewitness`
+- `katana`
+- `naabu`
+- `nuclei`
+- `gowitness`
 
 The default distro name is `kali-linux`, configurable from the UI.
 
@@ -122,11 +125,17 @@ The default distro name is `kali-linux`, configurable from the UI.
 
 API keys are stored locally in SQLite and masked in API/UI responses.
 
-Current provider:
+Current providers:
 
 - `whoisxmlapi` for Reverse WHOIS.
+- `openrouter` for AI chat when `Settings > AI Agent` selects OpenRouter.
 
 The runtime selects the first active key for the provider whose usage is below its configured limit.
+
+`Settings > AI Agent` can use OpenCode, OpenRouter, or a local
+OpenAI-compatible endpoint such as Ollama. The OpenRouter model preset list is
+loaded from OpenRouter's model metadata when available and falls back to bundled
+free presets if the network request fails.
 
 ## Wordlists
 

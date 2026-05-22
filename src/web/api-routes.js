@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const { normalizeDomain } = require("../recon/domain-utils");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
-const { checkWslEnvironment, installWslTools } = require("../recon/environment-setup");
+const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
 const {
   DEFAULT_PASSIVE_SOURCES,
@@ -52,6 +52,11 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/ai-settings") {
+    sendJson(response, { settings: store.getAiSettings(), models: await listOpenRouterFreeModels() });
+    return true;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/wordlists") {
     sendJson(response, { wordlists: store.listWordlists() });
     return true;
@@ -64,6 +69,11 @@ async function handleApiRequest({ request, response, url, store }) {
 
   if (request.method === "POST" && url.pathname === "/api/api-keys") {
     await createApiKey(request, response, store);
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/ai-settings") {
+    await saveAiSettings(request, response, store);
     return true;
   }
 
@@ -83,7 +93,7 @@ async function handleApiRequest({ request, response, url, store }) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/agent/chat") {
-    await agentChat(request, response);
+    await agentChat(request, response, store);
     return true;
   }
 
@@ -131,6 +141,19 @@ async function createApiKey(request, response, store) {
     notes: body.notes || null
   });
   sendJson(response, { apiKey }, 201);
+}
+
+async function saveAiSettings(request, response, store) {
+  const body = await readBody(request);
+  const settings = store.saveAiSettings({
+    provider: normalizeAiProvider(body.provider),
+    planningModel: String(body.planningModel || "").trim(),
+    executionModel: String(body.executionModel || "").trim(),
+    localEndpoint: String(body.localEndpoint || "").trim(),
+    localModel: String(body.localModel || "").trim(),
+    autonomyLevel: Math.max(0, Math.min(4, Number(body.autonomyLevel || 1)))
+  });
+  sendJson(response, { settings });
 }
 
 async function createWordlist(request, response, store) {
@@ -186,21 +209,152 @@ async function installEnvironment(request, response) {
   sendJson(response, { environment: result });
 }
 
-async function agentChat(request, response) {
+async function agentChat(request, response, store) {
   const body = await readBody(request);
-  const prompt = String(body.prompt || "").toLowerCase();
-  let message = "I can help from here. Use Environment > Check Environment first, then Install / Update Tools. OpenCode is checked and installed before recon tools.";
-  if (prompt.includes("install") || prompt.includes("tool") || prompt.includes("opencode") || prompt.includes("ai")) {
-    message = [
-      "Start in Environment.",
-      "1. Confirm the app is running inside the intended Linux environment.",
-      "2. Click Check Environment.",
-      "3. Click Install / Update Tools. A.U.R.A installs OpenCode first, then registry tools.",
+  const prompt = String(body.prompt || "").trim();
+  if (!prompt) {
+    sendJson(response, { message: "Ask me what you want to do next." });
+    return;
+  }
+  const settings = store.getAiSettings();
+  if (settings.provider === "openrouter") {
+    sendJson(response, { message: await callOpenRouterAgent({ prompt, settings, store }) });
+    return;
+  }
+  if (settings.provider === "local") {
+    sendJson(response, { message: await callLocalAgent({ prompt, settings }) });
+    return;
+  }
+  const runner = createEnvironmentRunner({ distro: body.distro || "kali-linux" });
+  const check = await runner.run("export PATH=\"$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH\" && command -v opencode", 15000);
+  if (check.status === "completed") {
+    const safePrompt = [
+      "You are A.U.R.A's local assistant. Answer concisely. Help with setup, tools, recon workflow, and UI usage. Do not suggest unsafe or out-of-scope activity.",
+      "",
+      prompt
+    ].join("\n");
+    const result = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && opencode run ${shellQuote(safePrompt)}`, 120000);
+    if (result.status === "completed" && result.stdout) {
+      sendJson(response, { message: result.stdout });
+      return;
+    }
+    sendJson(response, { message: `OpenCode is installed but did not complete the request.\n${result.stderr || result.errorMessage || "Check model/provider configuration in OpenCode."}` });
+    return;
+  }
+  sendJson(response, { message: setupHelpMessage(prompt) });
+}
+
+async function callOpenRouterAgent({ prompt, settings, store }) {
+  const apiKey = store.getActiveApiKey("openrouter");
+  if (!apiKey?.api_key) {
+    return "OpenRouter is selected, but no active OpenRouter API key is stored. Add it in Settings > Credentials with provider `openrouter`, then try again.";
+  }
+  const model = settings.executionModel || settings.planningModel || "qwen/qwen3-coder:free";
+  const result = await callOpenAiCompatible({
+    url: "https://openrouter.ai/api/v1/chat/completions",
+    apiKey: apiKey.api_key,
+    model,
+    prompt,
+    headers: {
+      "HTTP-Referer": "http://127.0.0.1:31338",
+      "X-Title": "A.U.R.A Recon"
+    }
+  });
+  store.markApiKeyUsed(apiKey.id);
+  return result;
+}
+
+async function callLocalAgent({ prompt, settings }) {
+  if (!settings.localEndpoint || !settings.localModel) {
+    return "Local model is selected, but the endpoint or model is missing. Configure them in Settings > AI Agent.";
+  }
+  return callOpenAiCompatible({
+    url: settings.localEndpoint,
+    apiKey: null,
+    model: settings.localModel,
+    prompt,
+    headers: {}
+  });
+}
+
+async function callOpenAiCompatible({ url, apiKey, model, prompt, headers }) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      ...headers
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity."
+        },
+        { role: "user", content: prompt }
+      ]
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return `AI provider request failed: ${data.error?.message || response.statusText}`;
+  }
+  return data.choices?.[0]?.message?.content || "The AI provider returned an empty response.";
+}
+
+function normalizeAiProvider(provider) {
+  return ["opencode", "openrouter", "local"].includes(provider) ? provider : "opencode";
+}
+
+function defaultAiModels() {
+  return [
+    { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder Free", provider: "openrouter", tags: ["coding", "free"] },
+    { id: "deepseek/deepseek-r1-0528:free", label: "DeepSeek R1 Free", provider: "openrouter", tags: ["reasoning", "free"] },
+    { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B Free", provider: "openrouter", tags: ["general", "free"] },
+    { id: "google/gemma-3-27b-it:free", label: "Gemma 3 27B Free", provider: "openrouter", tags: ["general", "free"] },
+    { id: "mistralai/mistral-small-3.2-24b-instruct:free", label: "Mistral Small Free", provider: "openrouter", tags: ["fast", "free"] }
+  ];
+}
+
+async function listOpenRouterFreeModels() {
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/models");
+    const data = await response.json();
+    if (!response.ok || !Array.isArray(data.data)) return defaultAiModels();
+    const free = data.data
+      .filter((model) => model.id && model.pricing?.prompt === "0" && model.pricing?.completion === "0")
+      .filter((model) => !model.architecture?.modality || String(model.architecture.modality).includes("text"))
+      .slice(0, 12)
+      .map((model) => ({
+        id: model.id,
+        label: model.name || model.id,
+        provider: "openrouter",
+        tags: ["free", `${Math.round((model.context_length || 0) / 1000)}k context`]
+      }));
+    return free.length > 0 ? free : defaultAiModels();
+  } catch {
+    return defaultAiModels();
+  }
+}
+
+function setupHelpMessage(prompt) {
+  const lower = prompt.toLowerCase();
+  if (lower.includes("install") || lower.includes("tool") || lower.includes("opencode") || lower.includes("ai")) {
+    return [
+      "Go to Settings > Environment.",
+      "1. Click Check Environment.",
+      "2. Click Install / Update Tools.",
+      "3. A.U.R.A installs/checks OpenCode first, then registry tools.",
       "4. Add optional provider API keys later in Settings > Credentials.",
-      "If you see spawn wsl ENOENT while running inside WSL/Linux, update to the latest code: the setup runner now uses native Linux commands there."
+      "If OpenCode is installed but chat still fails, configure its model/provider in the Linux environment."
     ].join("\n");
   }
-  sendJson(response, { message });
+  return "OpenCode is not available to the backend yet. Go to Settings > Environment and run Install / Update Tools first.";
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 }
 
 function buildTargetConfigFromRequest(body) {

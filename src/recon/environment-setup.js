@@ -51,7 +51,7 @@ async function installWslTools({ distro = "kali-linux", toolIds = null, registry
 
 async function checkTool({ runner, tool }) {
   const binary = shellQuote(tool.binary);
-  const command = `export PATH="$PATH:$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin" && command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
+  const command = `export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
   const result = await runner.run(command, 60000);
   return {
     tool_id: tool.tool_id,
@@ -75,12 +75,12 @@ async function installTool({ runner, tool }) {
     ? [
       "command -v curl >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y curl)",
       tool.install.source,
-      `export PATH="$PATH:$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin"`,
+      `export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH"`,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ")
     : [
       "command -v go >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y golang-go git)",
-      `export PATH="$PATH:$HOME/go/bin"`,
+      `export PATH="$HOME/go/bin:$PATH"`,
       `go install ${shellQuote(tool.install.source)}`,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ");

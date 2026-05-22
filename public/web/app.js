@@ -8,17 +8,26 @@ let aiWindowDrag = null;
 let topologyFrame = null;
 let topologyPulse = 0;
 let topologyGraph = { nodes: [], edges: [] };
+let aiSettings = null;
+let aiModels = [];
 
 const $ = (id) => document.getElementById(id);
 const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
 
 function esc(value) {
-  return String(value ?? "")
+  return cleanText(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function cleanText(value) {
+  return String(value ?? "")
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\u009b[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\[\??[0-9]{1,3}(;[0-9]{1,3})*m/g, "");
 }
 
 async function api(path, options = {}) {
@@ -42,9 +51,133 @@ async function api(path, options = {}) {
 async function postAgentPrompt(prompt) {
   const data = await api("/api/agent/chat", {
     method: "POST",
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify({
+      prompt,
+      distro: $("setupDistro")?.value?.trim() || "kali-linux"
+    })
   });
   return data.message;
+}
+
+async function loadAiSettings() {
+  const data = await api("/api/ai-settings");
+  aiSettings = data.settings;
+  aiModels = data.models || [];
+  renderAiSettings();
+}
+
+async function saveAiSettings() {
+  $("saveAiSettings").disabled = true;
+  $("aiSettingsStatus").textContent = "Saving AI settings...";
+  try {
+    const data = await api("/api/ai-settings", {
+      method: "POST",
+      body: JSON.stringify(readAiSettingsForm())
+    });
+    aiSettings = data.settings;
+    renderAiSettings();
+    $("aiSettingsStatus").textContent = "AI settings saved.";
+    $("aiSettingsStatus").className = "notice ok";
+  } catch (error) {
+    $("aiSettingsStatus").textContent = error.message;
+    $("aiSettingsStatus").className = "notice error";
+  } finally {
+    $("saveAiSettings").disabled = false;
+  }
+}
+
+async function testAiSettings() {
+  $("testAiSettings").disabled = true;
+  $("aiSettingsStatus").textContent = "Testing AI provider...";
+  try {
+    await saveAiSettings();
+    const message = await postAgentPrompt("Reply with one short sentence confirming that the A.U.R.A AI provider is connected.");
+    $("aiSettingsStatus").textContent = message;
+    $("aiSettingsStatus").className = "notice ok";
+  } catch (error) {
+    $("aiSettingsStatus").textContent = error.message;
+    $("aiSettingsStatus").className = "notice error";
+  } finally {
+    $("testAiSettings").disabled = false;
+  }
+}
+
+function readAiSettingsForm() {
+  return {
+    provider: $("aiProvider").value,
+    planningModel: $("aiPlanningModel").value,
+    executionModel: $("aiExecutionModel").value,
+    localEndpoint: $("aiLocalEndpoint").value.trim(),
+    localModel: $("aiLocalModel").value.trim(),
+    autonomyLevel: Number($("aiAutonomyLevel").value || 1)
+  };
+}
+
+function renderAiSettings() {
+  const settings = aiSettings || {};
+  fillModelSelect("aiPlanningModel", settings.planningModel);
+  fillModelSelect("aiExecutionModel", settings.executionModel);
+  $("aiProvider").value = settings.provider || "opencode";
+  $("aiLocalEndpoint").value = settings.localEndpoint || "";
+  $("aiLocalModel").value = settings.localModel || "";
+  $("aiAutonomyLevel").value = String(settings.autonomyLevel ?? 1);
+  updateAiAutonomyLabel();
+  $("aiProviderMetric").textContent = providerLabel(settings.provider || "opencode");
+  $("aiPlanningMetric").textContent = settings.planningModel || "-";
+  $("aiExecutionMetric").textContent = settings.executionModel || "-";
+  renderModelCards();
+}
+
+function fillModelSelect(id, selected) {
+  const options = aiModels.map((model) =>
+    `<option value="${esc(model.id)}">${esc(model.label)} - ${esc(model.id)}</option>`
+  ).join("");
+  $(id).innerHTML = options;
+  if (selected && [...$(id).options].some((option) => option.value === selected)) {
+    $(id).value = selected;
+  }
+}
+
+function renderModelCards() {
+  $("aiModelCards").innerHTML = aiModels.map((model) => {
+    const active = [$("aiPlanningModel").value, $("aiExecutionModel").value].includes(model.id);
+    const tags = (model.tags || []).map((tag) => `<em>${esc(tag)}</em>`).join("");
+    return `<div class="model-card ${active ? "active" : ""}" data-model="${esc(model.id)}">
+      <strong>${esc(model.label)}</strong>
+      <span>${esc(model.id)}</span>
+      <div class="model-tags">${tags}</div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll(".model-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      $("aiPlanningModel").value = card.dataset.model;
+      $("aiExecutionModel").value = card.dataset.model;
+      $("aiProvider").value = "openrouter";
+      updateAiSettingsPreview();
+    });
+  });
+}
+
+function providerLabel(provider) {
+  if (provider === "openrouter") return "OpenRouter";
+  if (provider === "local") return "Local model";
+  return "OpenCode";
+}
+
+function updateAiAutonomyLabel() {
+  const labels = [
+    "Level 0 - read-only explanation",
+    "Level 1 - suggestions only",
+    "Level 2 - draft plans/configs",
+    "Level 3 - user-confirmed execution",
+    "Level 4 - guarded autopilot"
+  ];
+  $("aiAutonomyValue").textContent = labels[Number($("aiAutonomyLevel").value || 1)] || labels[1];
+}
+
+function updateAiSettingsPreview() {
+  aiSettings = readAiSettingsForm();
+  renderAiSettings();
 }
 
 function selectedValues(ids) {
@@ -99,7 +232,7 @@ async function loadTargets() {
   targets = data.targets;
   $("target").innerHTML = targets.map((t) => `<option value="${esc(t.target_name)}">${esc(t.target_name)}</option>`).join("");
   if (targets.length === 0) {
-    $("status").textContent = "No targets yet. Create one in the Target tab.";
+    $("status").textContent = "";
     $("targetValidation").textContent = "Create a target in the browser to load its config.";
     $("targetValidation").className = "notice muted";
     $("domains").value = "";
@@ -472,7 +605,7 @@ function resetTopology() {
 function renderSetupTools(tools) {
   $("setupToolRows").innerHTML = tools.map((tool) => {
     const status = tool.installed ? "installed" : tool.status;
-    const details = tool.version || tool.error || tool.stderr || tool.stdout || "";
+    const details = cleanText(tool.version || tool.error || tool.stderr || tool.stdout || "");
     return `<tr><td>${esc(tool.tool_id)}</td><td>${esc(status)}</td><td>${esc(details)}</td></tr>`;
   }).join("");
 }
@@ -513,7 +646,7 @@ async function checkEnvironment() {
 
 async function installEnvironment() {
   $("installEnvironment").disabled = true;
-  $("status").textContent = "Installing tools in WSL...";
+  $("status").textContent = "Installing tools...";
   try {
     const data = await api("/api/environment/install", {
       method: "POST",
@@ -530,12 +663,13 @@ async function installEnvironment() {
       installed: tool.status === "completed",
       version: tool.status === "completed" ? "installed" : null
     })));
-    $("setupLog").textContent = data.environment.tools.map((tool) =>
-      `${tool.tool_id}: ${tool.status}${tool.error ? ` - ${tool.error}` : ""}`
-    ).join("\n");
+    $("setupLog").textContent = data.environment.tools.map((tool) => cleanText([
+      `${tool.tool_id}: ${tool.status}${tool.error ? ` - ${tool.error}` : ""}`,
+      tool.stdout ? `stdout:\n${tool.stdout}` : "",
+      tool.stderr ? `stderr:\n${tool.stderr}` : ""
+    ].filter(Boolean).join("\n"))).join("\n\n");
     $("setupLog").className = "notice muted";
     $("status").textContent = "Tool installation completed";
-    await checkEnvironment();
   } catch (error) {
     $("setupLog").textContent = error.message;
     $("setupLog").className = "notice error";
@@ -841,6 +975,15 @@ $("searchQuery").addEventListener("keydown", (event) => {
 $("createTarget").addEventListener("click", createTarget);
 $("checkEnvironment").addEventListener("click", checkEnvironment);
 $("installEnvironment").addEventListener("click", installEnvironment);
+$("saveAiSettings").addEventListener("click", saveAiSettings);
+$("testAiSettings").addEventListener("click", testAiSettings);
+$("aiProvider").addEventListener("change", updateAiSettingsPreview);
+$("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
+$("aiExecutionModel").addEventListener("change", updateAiSettingsPreview);
+$("aiAutonomyLevel").addEventListener("input", () => {
+  updateAiAutonomyLabel();
+  updateAiSettingsPreview();
+});
 $("sendAiPrompt").addEventListener("click", sendAiPrompt);
 $("aiMinimize").addEventListener("click", minimizeAiPanel);
 $("aiRestore").addEventListener("click", restoreAiPanel);
@@ -875,6 +1018,10 @@ document.querySelectorAll(".tab").forEach((button) => {
 
 loadTargets().catch((error) => {
   $("status").textContent = error.message;
+});
+loadAiSettings().catch((error) => {
+  $("aiSettingsStatus").textContent = error.message;
+  $("aiSettingsStatus").className = "notice error";
 });
 updateReconModeUi();
 applyAiWindowState();

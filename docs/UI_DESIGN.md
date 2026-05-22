@@ -49,9 +49,8 @@ Left navigation
   -> right AI assistant panel
 ```
 
-Left navigation:
+Top-level workspace tabs:
 
-- Environment
 - Targets
 - Runs
 - Assets
@@ -101,9 +100,8 @@ Each macro section should use dedicated tabs for its major sub-workflows. Tabs
 should keep related workflows in one screen while avoiding long scrolling pages
 or overloaded mixed panels.
 
-Recommended tab patterns:
+Recommended macro tab patterns:
 
-- Environment: Overview, OpenCode, Tools, Workers, Logs.
 - Targets: Scope, Authorization, Imports, Policy Snapshots, Notes.
 - Runs: Builder, Live Run, Jobs, Events, Artifacts.
 - Assets: Domains, Services, URLs, Parameters, Technologies.
@@ -115,12 +113,13 @@ Recommended tab patterns:
 - Exports: Presets, History, Generated Files.
 - Memory: Snapshots, Reasoning Notes, Decisions, Run Deltas.
 - Search: Cross-Data Search, Saved Queries, Technology Impact Review.
-- Settings: General, AI Models, Notifications, Safety, Storage.
+- Settings: Environment, Appearance, AI Models, Credentials, Notifications,
+  Safety, Storage.
 
 Settings should use sub-sections/tabs from the start so future preferences do
-not become a mixed control wall. Initial sections should include Appearance, AI
-Agent, Credentials, and Storage. Provider API keys belong under Settings >
-Credentials, not as a top-level macro tab.
+not become a mixed control wall. Initial sections should include Environment,
+Appearance, AI Agent, Credentials, and Storage. Environment setup and provider
+API keys belong under Settings, not as top-level macro tabs.
 
 Topology and graph views should be first-class visual workspaces. They should
 support realtime updates, animated relationship maps, layer toggles, node
@@ -151,6 +150,26 @@ Key UI:
 - API key setup prompt with an explicit skip path for optional providers.
 - Guided setup actions.
 - AI setup assistant.
+
+### AI Agent Settings
+
+Purpose:
+
+- Choose the AI runtime used by the floating assistant.
+- Configure OpenCode, OpenRouter, or a local OpenAI-compatible model.
+- Keep planning and execution model choices visible.
+
+Key UI:
+
+- Provider status metrics.
+- Planning model selector.
+- Execution model selector.
+- OpenRouter free model presets loaded from provider metadata when available.
+- Local endpoint and model fields for Ollama or compatible runtimes.
+- Autonomy level slider.
+- Save and test actions.
+- Clear notice that OpenRouter API keys are stored under Settings >
+  Credentials with provider `openrouter`.
 
 ### Target And Scope
 
