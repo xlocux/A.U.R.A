@@ -171,6 +171,31 @@ Key UI:
 - Clear notice that OpenRouter API keys are stored under Settings > API Keys
   with provider `openrouter`.
 
+### Appearance Settings
+
+Purpose:
+
+- Let users tune the workbench for long sessions without changing the product
+  language or workflow density.
+- Keep visual customization local to the browser.
+
+Key UI:
+
+- Theme selector with operational themes such as A.U.R.A Teal, Raven Cyan,
+  Ember Amber, Violet Signal, and Monochrome Ops.
+- Background effect selector with a random rotation mode and explicit effects
+  for waves, particles, neural links, grid pulses, flow lines, mesh fields,
+  orbits, horizon scans, and prime-number drift.
+- Font scale slider for global readability.
+
+Rules:
+
+- Themes and background effects must preserve contrast and dense dashboard
+  readability.
+- Background effects must stay subtle, non-blocking, and behind all functional
+  UI surfaces.
+- Appearance preferences should be persisted in `localStorage`.
+
 ### Target And Scope
 
 Purpose:

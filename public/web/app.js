@@ -252,6 +252,21 @@ function saveUiSettings(settings) {
   localStorage.setItem(UI_SETTINGS_STORAGE_KEY, JSON.stringify({ ...getUiSettings(), ...settings }));
 }
 
+function applyTheme(value) {
+  const theme = ["aura", "raven", "ember", "violet", "mono"].includes(value) ? value : "aura";
+  document.documentElement.dataset.theme = theme === "aura" ? "" : theme;
+  $("themeSelect").value = theme;
+  saveUiSettings({ theme });
+  window.dispatchEvent(new CustomEvent("aura:appearance-change"));
+}
+
+function applyBackgroundEffect(value) {
+  const effect = value || "random";
+  $("backgroundEffect").value = effect;
+  saveUiSettings({ backgroundEffect: effect });
+  window.dispatchEvent(new CustomEvent("aura:background-effect", { detail: { effect } }));
+}
+
 function applyFontScale(value) {
   const scale = Math.min(118, Math.max(90, Number(value) || 100));
   document.documentElement.style.setProperty("--font-scale", String(scale / 100));
@@ -1065,6 +1080,8 @@ document.querySelectorAll(".settings-tab").forEach((button) => {
   button.addEventListener("click", () => activateSettingsPanel(button.dataset.settingsPanel));
 });
 $("fontScale").addEventListener("input", () => applyFontScale($("fontScale").value));
+$("themeSelect").addEventListener("change", () => applyTheme($("themeSelect").value));
+$("backgroundEffect").addEventListener("change", () => applyBackgroundEffect($("backgroundEffect").value));
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tab));
 });
@@ -1078,6 +1095,8 @@ loadAiSettings().catch((error) => {
 });
 updateReconModeUi();
 updateApiKeyProviderHints();
+applyTheme(getUiSettings().theme || "aura");
+applyBackgroundEffect(getUiSettings().backgroundEffect || "random");
 applyAiWindowState();
 applyFontScale(getUiSettings().fontScale || 100);
 updateTopologyGraph();
