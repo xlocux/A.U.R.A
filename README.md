@@ -134,12 +134,17 @@ The default distro name is `kali-linux`, configurable from the UI.
 
 ## API Keys
 
-API keys are stored locally in SQLite and masked in API/UI responses.
+API keys are optional, stored locally in SQLite, and masked in API/UI responses.
 
 Current providers:
 
-- `whoisxmlapi` for Reverse WHOIS.
 - `openrouter` for AI chat when `Settings > AI Agent` selects OpenRouter.
+- `shodan` for host intelligence when provider enrichment is enabled.
+- `censys` for internet intelligence when provider enrichment is enabled.
+- `securitytrails` for DNS intelligence when configured.
+- `chaos` for ProjectDiscovery Chaos subdomain data when configured.
+- `github` for code search when configured.
+- `whoisxmlapi` for Reverse WHOIS.
 
 The runtime selects the first active key for the provider whose usage is below its configured limit.
 

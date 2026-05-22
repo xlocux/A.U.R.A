@@ -14,6 +14,48 @@ let aiModels = [];
 const $ = (id) => document.getElementById(id);
 const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
+const API_KEY_PROVIDER_HINTS = {
+  openrouter: {
+    label: "free-models",
+    placeholder: "OpenRouter API key",
+    monthlyLimit: ""
+  },
+  shodan: {
+    label: "free-api",
+    placeholder: "Shodan API key",
+    monthlyLimit: "100"
+  },
+  censys: {
+    label: "free-api",
+    placeholder: "Censys API ID:Secret or API token",
+    monthlyLimit: "250"
+  },
+  securitytrails: {
+    label: "free-api",
+    placeholder: "SecurityTrails API key",
+    monthlyLimit: "50"
+  },
+  chaos: {
+    label: "community",
+    placeholder: "ProjectDiscovery Chaos API key",
+    monthlyLimit: ""
+  },
+  github: {
+    label: "public-code-search",
+    placeholder: "GitHub personal access token",
+    monthlyLimit: "5000"
+  },
+  whoisxmlapi: {
+    label: "trial",
+    placeholder: "WhoisXMLAPI key",
+    monthlyLimit: "50"
+  },
+  custom: {
+    label: "custom",
+    placeholder: "Provider API key",
+    monthlyLimit: ""
+  }
+};
 
 function esc(value) {
   return cleanText(value)
@@ -858,6 +900,14 @@ async function saveApiKey() {
   }
 }
 
+function updateApiKeyProviderHints() {
+  const hint = API_KEY_PROVIDER_HINTS[$("keyProvider").value] || API_KEY_PROVIDER_HINTS.custom;
+  $("keyLabel").placeholder = hint.label;
+  $("apiKeyValue").placeholder = hint.placeholder;
+  $("keyMonthlyLimit").placeholder = hint.monthlyLimit || "optional";
+  if (!$("keyLabel").value.trim()) $("keyLabel").value = hint.label;
+}
+
 async function saveWordlist() {
   $("saveWordlist").disabled = true;
   $("status").textContent = "Saving wordlist...";
@@ -968,6 +1018,7 @@ $("reconMode").addEventListener("change", updateReconModeUi);
 $("start").addEventListener("click", startRecon);
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("saveApiKey").addEventListener("click", saveApiKey);
+$("keyProvider").addEventListener("change", updateApiKeyProviderHints);
 $("saveWordlist").addEventListener("click", saveWordlist);
 $("generateWordlist").addEventListener("click", generateWordlist);
 $("runSearch").addEventListener("click", runSearch);
@@ -1026,6 +1077,7 @@ loadAiSettings().catch((error) => {
   $("aiSettingsStatus").className = "notice error";
 });
 updateReconModeUi();
+updateApiKeyProviderHints();
 applyAiWindowState();
 applyFontScale(getUiSettings().fontScale || 100);
 updateTopologyGraph();

@@ -364,7 +364,7 @@
             <button class="settings-tab active" data-settings-panel="environment">Environment</button>
             <button class="settings-tab" data-settings-panel="appearance">Appearance</button>
             <button class="settings-tab" data-settings-panel="ai">AI Agent</button>
-            <button class="settings-tab" data-settings-panel="credentials">Credentials</button>
+            <button class="settings-tab" data-settings-panel="credentials">API Keys</button>
             <button class="settings-tab" data-settings-panel="storage">Storage</button>
           </div>
         </div>
@@ -382,7 +382,7 @@
                 </div>
                 <div class="notice muted">
                   API keys are optional during setup. You can skip them now and add
-                  provider credentials later in Settings > Credentials.
+                  provider API keys later in Settings > API Keys.
                 </div>
               </div>
             </div>
@@ -459,7 +459,7 @@
                   <button id="saveAiSettings">Save AI Settings</button>
                   <button id="testAiSettings">Test AI</button>
                 </div>
-                <div id="aiSettingsStatus" class="notice muted">OpenRouter keys belong in Settings > Credentials using provider `openrouter`.</div>
+                <div id="aiSettingsStatus" class="notice muted">OpenRouter keys belong in Settings > API Keys using provider `openrouter`.</div>
               </div>
             </div>
             <div class="ai-model-rail">
@@ -469,18 +469,31 @@
           </div>
         </div>
         <div class="pane settings-panel" id="settings-credentials">
-          <h2>Credentials</h2>
+          <h2>API Keys</h2>
           <div class="split embedded">
             <div>
               <div class="form-body">
+                <div class="notice muted">
+                  API keys are optional. Add only the free provider keys you want
+                  to use; recon still works with local tools and public sources.
+                </div>
                 <div class="row3">
                   <div>
                     <label for="keyProvider">Provider</label>
-                    <input id="keyProvider" type="text" value="whoisxmlapi">
+                    <select id="keyProvider">
+                      <option value="openrouter">OpenRouter - AI models</option>
+                      <option value="shodan">Shodan - host intelligence</option>
+                      <option value="censys">Censys - internet intelligence</option>
+                      <option value="securitytrails">SecurityTrails - DNS intelligence</option>
+                      <option value="chaos">ProjectDiscovery Chaos - subdomains</option>
+                      <option value="github">GitHub - code search</option>
+                      <option value="whoisxmlapi">WhoisXMLAPI - Reverse WHOIS</option>
+                      <option value="custom">Custom provider</option>
+                    </select>
                   </div>
                   <div>
                     <label for="keyLabel">Label</label>
-                    <input id="keyLabel" type="text" placeholder="trial-1">
+                    <input id="keyLabel" type="text" placeholder="free-tier">
                   </div>
                   <div>
                     <label for="keyMonthlyLimit">Monthly limit</label>
@@ -488,7 +501,7 @@
                   </div>
                 </div>
                 <label for="apiKeyValue">API key</label>
-                <input id="apiKeyValue" type="text" placeholder="api key">
+                <input id="apiKeyValue" type="text" placeholder="OpenRouter API key">
                 <button id="saveApiKey">Save API Key</button>
               </div>
             </div>

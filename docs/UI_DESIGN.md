@@ -113,12 +113,12 @@ Recommended macro tab patterns:
 - Exports: Presets, History, Generated Files.
 - Memory: Snapshots, Reasoning Notes, Decisions, Run Deltas.
 - Search: Cross-Data Search, Saved Queries, Technology Impact Review.
-- Settings: Environment, Appearance, AI Models, Credentials, Notifications,
+- Settings: Environment, Appearance, AI Models, API Keys, Notifications,
   Safety, Storage.
 
 Settings should use sub-sections/tabs from the start so future preferences do
 not become a mixed control wall. Initial sections should include Environment,
-Appearance, AI Agent, Credentials, and Storage. Environment setup and provider
+Appearance, AI Agent, API Keys, and Storage. Environment setup and provider
 API keys belong under Settings, not as top-level macro tabs.
 
 Topology and graph views should be first-class visual workspaces. They should
@@ -168,8 +168,8 @@ Key UI:
 - Local endpoint and model fields for Ollama or compatible runtimes.
 - Autonomy level slider.
 - Save and test actions.
-- Clear notice that OpenRouter API keys are stored under Settings >
-  Credentials with provider `openrouter`.
+- Clear notice that OpenRouter API keys are stored under Settings > API Keys
+  with provider `openrouter`.
 
 ### Target And Scope
 
@@ -281,7 +281,7 @@ Key UI:
 - Version check.
 - Install action.
 - Parser mapping.
-- Provider credentials with masked values.
+- Provider API keys with masked values.
 - Model/provider settings.
 
 ### Memory
