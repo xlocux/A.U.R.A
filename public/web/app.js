@@ -39,6 +39,14 @@ async function api(path, options = {}) {
   return data;
 }
 
+async function postAgentPrompt(prompt) {
+  const data = await api("/api/agent/chat", {
+    method: "POST",
+    body: JSON.stringify({ prompt })
+  });
+  return data.message;
+}
+
 function selectedValues(ids) {
   return ids.filter((id) => $(id).checked);
 }
@@ -469,17 +477,30 @@ function renderSetupTools(tools) {
   }).join("");
 }
 
+function renderAgentStatus(agent) {
+  if (!agent) {
+    $("agentStatus").textContent = "OpenCode has not been checked yet.";
+    $("agentStatus").className = "notice muted";
+    return;
+  }
+  $("agentStatus").textContent = agent.installed
+    ? `OpenCode installed: ${agent.version || agent.binary}`
+    : `OpenCode missing: ${agent.error || "not found"}`;
+  $("agentStatus").className = agent.installed ? "notice ok" : "notice warn";
+}
+
 async function checkEnvironment() {
   $("checkEnvironment").disabled = true;
   $("status").textContent = "Checking environment...";
   try {
     const distro = $("setupDistro").value.trim() || "kali-linux";
     const data = await api(`/api/environment/check?distro=${encodeURIComponent(distro)}`);
+    renderAgentStatus(data.environment.agent);
     renderSetupTools(data.environment.tools);
-    $("setupLog").textContent = data.environment.wslAvailable
-      ? `WSL distro detected: ${data.environment.distroName || data.environment.distro}`
-      : `WSL distro is not available: ${data.environment.distro}`;
-    $("setupLog").className = data.environment.wslAvailable ? "notice ok" : "notice error";
+    $("setupLog").textContent = data.environment.environmentAvailable
+      ? `${data.environment.mode} environment detected: ${data.environment.distroName || data.environment.distro}`
+      : `${data.environment.mode} environment is not available: ${data.environment.distro}`;
+    $("setupLog").className = data.environment.environmentAvailable ? "notice ok" : "notice error";
     $("status").textContent = "Environment check completed";
   } catch (error) {
     $("setupLog").textContent = error.message;
@@ -498,7 +519,13 @@ async function installEnvironment() {
       method: "POST",
       body: JSON.stringify({ distro: $("setupDistro").value.trim() || "kali-linux" })
     });
-    renderSetupTools(data.environment.tools.map((tool) => ({
+    const [agent, ...tools] = data.environment.tools;
+    renderAgentStatus({
+      ...agent,
+      installed: agent?.status === "completed",
+      version: agent?.status === "completed" ? "installed" : null
+    });
+    renderSetupTools(tools.map((tool) => ({
       ...tool,
       installed: tool.status === "completed",
       version: tool.status === "completed" ? "installed" : null
@@ -531,10 +558,9 @@ function sendAiPrompt() {
   if (!prompt) return;
   appendAiMessage("user", prompt);
   $("aiPrompt").value = "";
-  appendAiMessage(
-    "assistant",
-    "The AI provider is not connected yet. This widget is ready for the AgentProvider integration and will use the current target/run context once the backend endpoint is available."
-  );
+  postAgentPrompt(prompt)
+    .then((message) => appendAiMessage("assistant", message))
+    .catch((error) => appendAiMessage("assistant", error.message));
 }
 
 function getAiWindowState() {

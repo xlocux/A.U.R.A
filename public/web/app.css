@@ -117,6 +117,7 @@ select,
 textarea,
 input[type="text"],
 input[type="number"],
+input[type="password"],
 input[type="range"] {
   width: 100%;
   background: var(--panel-2);

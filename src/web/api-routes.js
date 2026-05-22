@@ -82,6 +82,11 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/agent/chat") {
+    await agentChat(request, response);
+    return true;
+  }
+
   const targetConfigMatch = url.pathname.match(/^\/api\/targets\/([^/]+)\/config$/);
   if (targetConfigMatch) {
     if (request.method === "GET") {
@@ -179,6 +184,23 @@ async function installEnvironment(request, response) {
     toolIds: body.toolIds || null
   });
   sendJson(response, { environment: result });
+}
+
+async function agentChat(request, response) {
+  const body = await readBody(request);
+  const prompt = String(body.prompt || "").toLowerCase();
+  let message = "I can help from here. Use Environment > Check Environment first, then Install / Update Tools. OpenCode is checked and installed before recon tools.";
+  if (prompt.includes("install") || prompt.includes("tool") || prompt.includes("opencode") || prompt.includes("ai")) {
+    message = [
+      "Start in Environment.",
+      "1. Confirm the app is running inside the intended Linux environment.",
+      "2. Click Check Environment.",
+      "3. Click Install / Update Tools. A.U.R.A installs OpenCode first, then registry tools.",
+      "4. Add optional provider API keys later in Settings > Credentials.",
+      "If you see spawn wsl ENOENT while running inside WSL/Linux, update to the latest code: the setup runner now uses native Linux commands there."
+    ].join("\n");
+  }
+  sendJson(response, { message });
 }
 
 function buildTargetConfigFromRequest(body) {

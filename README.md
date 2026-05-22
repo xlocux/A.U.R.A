@@ -29,6 +29,8 @@ npm test
 npm run web
 ```
 
+A.U.R.A requires Node.js 24 or newer.
+
 Open:
 
 ```text
@@ -96,6 +98,12 @@ Full recon currently performs:
 
 ## WSL/Kali Tools
 
+When A.U.R.A runs on Windows, it uses the selected WSL distro. When A.U.R.A runs
+inside WSL/Linux, setup and tool checks run natively in that Linux environment.
+
+The environment setup installs/checks OpenCode first, then recon tools declared
+in the tool registry.
+
 The WSL runner only allows known recon tools:
 
 - `subfinder`
@@ -147,6 +155,14 @@ data/wordlists/generated/
 and that directory is ignored by Git.
 
 ## Current Commands
+
+Check the runtime first:
+
+```powershell
+node --version
+```
+
+Use Node.js 24 or newer.
 
 ```powershell
 npm test

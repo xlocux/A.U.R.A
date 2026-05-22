@@ -1,9 +1,16 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
+const os = require("node:os");
 const { loadToolRegistry } = require("./tool-registry");
 
 const DEFAULT_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
+const OPENCODE_TOOL = {
+  tool_id: "opencode",
+  binary: "opencode",
+  version_check: { command: "opencode", args: ["--version"] },
+  install: { method: "shell", source: "curl -fsSL https://opencode.ai/install | bash" }
+};
 
 function setupToolIds(registry = loadToolRegistry()) {
   return registry.list().map((tool) => tool.tool_id);
@@ -11,34 +18,41 @@ function setupToolIds(registry = loadToolRegistry()) {
 
 async function checkWslEnvironment({ distro = "kali-linux", toolIds = null, registry = loadToolRegistry() } = {}) {
   const requested = toolIds || setupToolIds(registry);
-  const distroCheck = await runWslShell({ distro, command: "printf '%s' \"$PRETTY_NAME\"", timeoutMs: 30000 });
+  const runner = createEnvironmentRunner({ distro });
+  const distroCheck = await runner.run("printf '%s' \"${PRETTY_NAME:-$(uname -s)}\"", 30000);
+  const agent = await checkTool({ runner, tool: OPENCODE_TOOL });
   const tools = [];
   for (const toolId of requested) {
     const tool = registry.require(toolId);
-    tools.push(await checkTool({ distro, tool }));
+    tools.push(await checkTool({ runner, tool }));
   }
   return {
     distro,
+    mode: runner.mode,
+    environmentAvailable: distroCheck.status === "completed",
     wslAvailable: distroCheck.status === "completed",
     distroName: distroCheck.stdout || null,
+    agent,
     tools
   };
 }
 
 async function installWslTools({ distro = "kali-linux", toolIds = null, registry = loadToolRegistry() } = {}) {
   const requested = toolIds || setupToolIds(registry);
+  const runner = createEnvironmentRunner({ distro });
   const results = [];
+  results.push(await installTool({ runner, tool: OPENCODE_TOOL }));
   for (const toolId of requested) {
     const tool = registry.require(toolId);
-    results.push(await installTool({ distro, tool }));
+    results.push(await installTool({ runner, tool }));
   }
-  return { distro, tools: results };
+  return { distro, mode: runner.mode, tools: results };
 }
 
-async function checkTool({ distro, tool }) {
+async function checkTool({ runner, tool }) {
   const binary = shellQuote(tool.binary);
-  const command = `command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
-  const result = await runWslShell({ distro, command, timeoutMs: 60000 });
+  const command = `export PATH="$PATH:$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin" && command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
+  const result = await runner.run(command, 60000);
   return {
     tool_id: tool.tool_id,
     binary: tool.binary,
@@ -49,21 +63,28 @@ async function checkTool({ distro, tool }) {
   };
 }
 
-async function installTool({ distro, tool }) {
-  if (!tool.install || tool.install.method !== "go_install" || !tool.install.source) {
+async function installTool({ runner, tool }) {
+  if (!tool.install || !["go_install", "shell"].includes(tool.install.method) || !tool.install.source) {
     return {
       tool_id: tool.tool_id,
       status: "skipped",
       message: "No supported install method is declared for this tool"
     };
   }
-  const command = [
-    "command -v go >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y golang-go git)",
-    `go install ${shellQuote(tool.install.source)}`,
-    `command -v ${shellQuote(tool.binary)} >/dev/null 2>&1 || export PATH="$PATH:$HOME/go/bin"`,
-    `command -v ${shellQuote(tool.binary)}`
-  ].join(" && ");
-  const result = await runWslShell({ distro, command, timeoutMs: DEFAULT_SETUP_TIMEOUT_MS });
+  const command = tool.install.method === "shell"
+    ? [
+      "command -v curl >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y curl)",
+      tool.install.source,
+      `export PATH="$PATH:$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin"`,
+      `command -v ${shellQuote(tool.binary)}`
+    ].join(" && ")
+    : [
+      "command -v go >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y golang-go git)",
+      `export PATH="$PATH:$HOME/go/bin"`,
+      `go install ${shellQuote(tool.install.source)}`,
+      `command -v ${shellQuote(tool.binary)}`
+    ].join(" && ");
+  const result = await runner.run(command, DEFAULT_SETUP_TIMEOUT_MS);
   return {
     tool_id: tool.tool_id,
     binary: tool.binary,
@@ -82,9 +103,30 @@ function versionCommand(tool) {
   return `${command}${args ? ` ${args}` : ""}`;
 }
 
+function createEnvironmentRunner({ distro }) {
+  if (os.platform() === "win32") {
+    return {
+      mode: "wsl",
+      run: (command, timeoutMs) => runWslShell({ distro, command, timeoutMs })
+    };
+  }
+  return {
+    mode: "native",
+    run: (command, timeoutMs) => runNativeShell({ command, timeoutMs })
+  };
+}
+
+function runNativeShell({ command, timeoutMs }) {
+  return runShellProcess({ command: "sh", args: ["-lc", command], timeoutMs });
+}
+
 function runWslShell({ distro, command, timeoutMs }) {
+  return runShellProcess({ command: "wsl", args: ["-d", distro, "--", "sh", "-lc", command], timeoutMs });
+}
+
+function runShellProcess({ command, args, timeoutMs }) {
   return new Promise((resolve) => {
-    const child = spawn("wsl", ["-d", distro, "--", "sh", "-lc", command], {
+    const child = spawn(command, args, {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -128,6 +170,7 @@ function firstLine(value) {
 
 module.exports = {
   checkWslEnvironment,
+  createEnvironmentRunner,
   installWslTools,
   setupToolIds
 };

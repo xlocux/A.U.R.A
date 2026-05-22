@@ -13,7 +13,7 @@ const { LocalArtifactStore } = require("../src/recon/artifact-store");
 const { FunctionToolRunner, runOneJob } = require("../src/recon/local-worker");
 const { loadToolRegistry, validateToolManifest } = require("../src/recon/tool-registry");
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
-const { setupToolIds } = require("../src/recon/environment-setup");
+const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
 const { buildTargetConfigFromRequest } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
@@ -164,6 +164,10 @@ test("tool registry loads built-in manifests and validates required fields", () 
   const validation = validateToolManifest({ tool_id: "broken" });
   assert.equal(validation.valid, false);
   assert.ok(validation.errors.includes("type is required"));
+});
+
+test("environment runner selects a valid local mode", () => {
+  assert.ok(["native", "wsl"].includes(createEnvironmentRunner({ distro: "kali-linux" }).mode));
 });
 
 test("local artifact store writes safe run artifacts", () => {
