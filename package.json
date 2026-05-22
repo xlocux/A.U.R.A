@@ -1,0 +1,14 @@
+{
+  "name": "aura-recon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A.U.R.A - Recon and discovery dashboard with persistent local storage.",
+  "scripts": {
+    "test": "node --test --test-isolation=none tests/*.test.js",
+    "web": "node scripts/serve-web.js --port 31338 --open",
+    "target:new": "node scripts/new-target.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

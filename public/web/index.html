@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A.U.R.A Recon</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header>
+    <h1>A.U.R.A Recon</h1>
+    <div class="topbar">
+      <label for="target">Target</label>
+      <select id="target"></select>
+      <label class="check inline"><input id="authorized" type="checkbox"> <span>Authorized scope</span></label>
+      <p id="status" class="muted"></p>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Workspace tabs">
+    <button class="tab active" data-tab="target">Target</button>
+    <button class="tab" data-tab="recon">Recon</button>
+    <button class="tab" data-tab="assetDiscovery">Asset Discovery</button>
+    <button class="tab" data-tab="wordlists">Wordlists</button>
+    <button class="tab" data-tab="apiKeys">API Keys</button>
+    <button class="tab" data-tab="results">Results</button>
+    <button class="tab" data-tab="runs">Runs & Logs</button>
+  </nav>
+
+  <main>
+    <section id="tab-target" class="tab-panel active">
+      <div class="triple">
+        <div class="pane">
+          <h2>Target Config</h2>
+          <div class="form-body">
+            <textarea id="targetConfigEditor" class="json-editor" spellcheck="false"></textarea>
+            <div class="row">
+              <button id="formatTargetConfig">Format JSON</button>
+              <button id="saveTargetConfig">Save Target</button>
+            </div>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>Validation</h2>
+          <div id="targetValidation" class="notice muted">Select a target to load its config.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-recon" class="tab-panel">
+      <div class="split">
+        <div class="pane">
+          <h2>Scope</h2>
+          <div class="form-body">
+            <label for="reconMode">Scan mode</label>
+            <select id="reconMode">
+              <option value="single">Single domain</option>
+              <option value="list">Domain list</option>
+              <option value="full">Full recon</option>
+            </select>
+            <label for="domains">Domain input</label>
+            <textarea id="domains" placeholder="example.com&#10;app.example.com"></textarea>
+            <div id="fullReconOptions">
+              <label for="fullWhoisInclude">Full recon Reverse WHOIS terms</label>
+              <textarea id="fullWhoisInclude" placeholder="Yahoo Assets LLC&#10;Yahoo Inc"></textarea>
+              <label for="fullWhoisExclude">Full recon Reverse WHOIS exclusions</label>
+              <textarea id="fullWhoisExclude" placeholder="privacy&#10;proxy"></textarea>
+              <div class="row3">
+                <div>
+                  <label for="fullWhoisMode">WHOIS mode</label>
+                  <select id="fullWhoisMode"><option value="preview">preview</option><option value="purchase">purchase</option></select>
+                </div>
+                <div>
+                  <label for="fullWhoisType">WHOIS records</label>
+                  <select id="fullWhoisType"><option value="current">current</option><option value="historic">historic</option></select>
+                </div>
+                <div>
+                  <label for="maxAssetLeads">Max leads to scan</label>
+                  <input id="maxAssetLeads" type="number" value="250">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="distro">WSL distro</label>
+                <input id="distro" type="text" value="kali-linux">
+              </div>
+              <div>
+                <label for="timeout">Tool timeout ms</label>
+                <input id="timeout" type="number" value="180000">
+              </div>
+            </div>
+            <button id="start">Start Recon</button>
+          </div>
+        </div>
+
+        <div class="pane">
+          <h2>Tools</h2>
+          <div class="form-body tool-grid">
+            <label>Passive sources</label>
+            <div class="check"><input id="crtsh" type="checkbox" checked> <span>crt.sh</span></div>
+            <div class="check"><input id="wayback" type="checkbox" checked> <span>Wayback CDX</span></div>
+
+            <label>WSL/Kali tools</label>
+            <div class="check"><input id="useWsl" type="checkbox" checked> <span>Use WSL/Kali</span></div>
+            <div class="check"><input id="subfinder" type="checkbox" checked> <span>subfinder</span></div>
+            <div class="check"><input id="amass" type="checkbox" checked> <span>amass passive</span></div>
+            <div class="check"><input id="dnsx" type="checkbox" checked> <span>dnsx validation</span></div>
+            <div class="check"><input id="puredns" type="checkbox"> <span>puredns resolve</span></div>
+            <div class="check"><input id="shuffleDns" type="checkbox" checked> <span>shuffle-dns bruteforce</span></div>
+            <div class="check"><input id="gau" type="checkbox" checked> <span>gau URL mining</span></div>
+            <div class="check"><input id="httpx" type="checkbox" checked> <span>httpx status/tech</span></div>
+
+            <label>Screenshots</label>
+            <div class="check"><input id="aquatone" type="checkbox" checked> <span>aquatone</span></div>
+            <div class="check"><input id="eyewitness" type="checkbox"> <span>EyeWitness</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-assetDiscovery" class="tab-panel">
+      <div class="split">
+        <div class="pane">
+          <h2>Reverse WHOIS</h2>
+          <div class="form-body">
+            <label for="whoisInclude">Include terms</label>
+            <textarea id="whoisInclude" placeholder="Yahoo Assets LLC&#10;yahoo"></textarea>
+            <label for="whoisExclude">Exclude terms</label>
+            <textarea id="whoisExclude" placeholder="privacy&#10;proxy"></textarea>
+            <div class="row">
+              <div>
+                <label for="whoisMode">Mode</label>
+                <select id="whoisMode"><option value="preview">preview</option><option value="purchase">purchase</option></select>
+              </div>
+              <div>
+                <label for="whoisType">WHOIS records</label>
+                <select id="whoisType"><option value="current">current</option><option value="historic">historic</option></select>
+              </div>
+            </div>
+            <button id="reverseWhois">Run Reverse WHOIS</button>
+          </div>
+        </div>
+
+        <div class="pane">
+          <h2>Asset Leads</h2>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>Value</th><th>Source</th><th>Confidence</th><th>Terms</th></tr></thead>
+              <tbody id="leadRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-wordlists" class="tab-panel">
+      <div class="split">
+        <div class="pane">
+          <h2>Add Wordlist</h2>
+          <div class="form-body">
+            <div class="row3">
+              <div>
+                <label for="wordlistName">Name</label>
+                <input id="wordlistName" type="text" placeholder="subdomains-big">
+              </div>
+              <div>
+                <label for="wordlistCategory">Category</label>
+                <select id="wordlistCategory">
+                  <option value="domains">domains</option>
+                  <option value="technologies">technologies</option>
+                  <option value="payloads">payloads</option>
+                  <option value="paths">paths</option>
+                  <option value="params">params</option>
+                </select>
+              </div>
+              <div>
+                <label for="wordlistStatus">Status</label>
+                <select id="wordlistStatus"><option value="active">active</option><option value="disabled">disabled</option></select>
+              </div>
+            </div>
+            <label for="wordlistPath">Path</label>
+            <input id="wordlistPath" type="text" placeholder="/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt">
+            <label for="wordlistNotes">Notes</label>
+            <input id="wordlistNotes" type="text" placeholder="Used by shuffle-dns during full recon">
+            <button id="saveWordlist">Save Wordlist</button>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>Generate From DB</h2>
+          <div class="form-body">
+            <div class="row">
+              <div>
+                <label for="generatedWordlistName">Name</label>
+                <input id="generatedWordlistName" type="text" placeholder="current-target-domains">
+              </div>
+              <div>
+                <label for="generatedWordlistCategory">Category</label>
+                <select id="generatedWordlistCategory">
+                  <option value="domains">domains</option>
+                  <option value="params">params</option>
+                  <option value="paths">paths</option>
+                  <option value="technologies">technologies</option>
+                </select>
+              </div>
+            </div>
+            <button id="generateWordlist">Generate Wordlist</button>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>Saved Wordlists</h2>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>Name</th><th>Category</th><th>Status</th><th>Path</th></tr></thead>
+              <tbody id="wordlistRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-apiKeys" class="tab-panel">
+      <div class="split">
+        <div class="pane">
+          <h2>Add API Key</h2>
+          <div class="form-body">
+            <div class="row3">
+              <div>
+                <label for="keyProvider">Provider</label>
+                <input id="keyProvider" type="text" value="whoisxmlapi">
+              </div>
+              <div>
+                <label for="keyLabel">Label</label>
+                <input id="keyLabel" type="text" placeholder="trial-1">
+              </div>
+              <div>
+                <label for="keyMonthlyLimit">Monthly limit</label>
+                <input id="keyMonthlyLimit" type="number" placeholder="50">
+              </div>
+            </div>
+            <label for="apiKeyValue">API key</label>
+            <input id="apiKeyValue" type="text" placeholder="api key">
+            <button id="saveApiKey">Save API Key</button>
+          </div>
+        </div>
+
+        <div class="pane">
+          <h2>Saved Keys</h2>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>Provider</th><th>Label</th><th>Key</th><th>Status</th><th>Usage</th></tr></thead>
+              <tbody id="apiKeyRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-results" class="tab-panel">
+      <div class="metrics">
+        <div class="metric"><span class="muted">Run</span><strong id="runId">-</strong></div>
+        <div class="metric"><span class="muted">Status</span><strong id="runStatus">idle</strong></div>
+        <div class="metric"><span class="muted">Domains</span><strong id="domainCount">0</strong></div>
+        <div class="metric"><span class="muted">Events</span><strong id="eventCount">0</strong></div>
+      </div>
+
+      <div class="split">
+        <div class="pane">
+          <h2>Domains & Subdomains</h2>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead>
+              <tbody id="domainRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>HTTP Services</h2>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead>
+              <tbody id="serviceRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="pane">
+        <h2>Wayback URLs & Screenshots</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead>
+            <tbody id="artifactRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-runs" class="tab-panel">
+      <div class="pane">
+        <h2>Live Events</h2>
+        <div id="events" class="scroll"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

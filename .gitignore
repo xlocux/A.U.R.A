@@ -1,0 +1,25 @@
+# Local target data and generated recon output
+targets/*/findings/
+targets/*/logs/
+targets/*/intelligence/
+data/agenticaos-web.db*
+data/aura.db*
+data/recon-runs/
+data/wordlists/generated/
+
+# Credentials
+.env
+.env.*
+*.env
+secrets.json
+credentials.json
+
+# Node / OS / IDE
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/settings.json
+.idea/
