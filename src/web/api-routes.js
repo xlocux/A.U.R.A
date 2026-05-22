@@ -119,6 +119,11 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/recon/provider-discovery") {
+    await runReverseWhois(request, response, store);
+    return true;
+  }
+
   if (request.method === "GET") {
     return handleReadEndpoint(response, url, store);
   }
@@ -541,10 +546,10 @@ async function expandFullReconRoots({ store, runId, targetName, rootDomains, ful
   const maxAssetLeads = Math.max(0, Math.min(5000, Number(fullRecon.maxAssetLeads || 250)));
   if (include.length === 0) {
     store.appendEvent(runId, {
-      phase: "asset-discovery",
+      phase: "provider-discovery",
       severity: "warn",
       source: "engine",
-      message: "Full recon asset discovery skipped: no Reverse WHOIS terms provided"
+      message: "Full recon provider discovery skipped: no provider search terms provided"
     });
     return rootDomains;
   }
@@ -564,7 +569,7 @@ async function expandFullReconRoots({ store, runId, targetName, rootDomains, ful
       ? normalizeDomainList(result.leads.map((lead) => lead.domain)).slice(0, maxAssetLeads)
       : [];
     store.appendEvent(runId, {
-      phase: "asset-discovery",
+      phase: "provider-discovery",
       severity: "ok",
       source: "whoisxmlapi",
       message: `Full recon added ${candidateDomains.length} candidate domains to ${rootDomains.length} seeds (${savedLeads} leads saved)`
@@ -582,7 +587,7 @@ async function expandFullReconRoots({ store, runId, targetName, rootDomains, ful
       errorMessage: error.message
     });
     store.appendEvent(runId, {
-      phase: "asset-discovery",
+      phase: "provider-discovery",
       severity: "warn",
       source: "whoisxmlapi",
       message: `Full recon continues without Reverse WHOIS: ${error.message}`
@@ -594,7 +599,7 @@ async function expandFullReconRoots({ store, runId, targetName, rootDomains, ful
 async function runReverseWhois(request, response, store) {
   const body = await readBody(request);
   if (!body.authorized) {
-    sendJson(response, { error: "Authorization confirmation is required before asset discovery" }, 400);
+    sendJson(response, { error: "Authorization confirmation is required before provider discovery" }, 400);
     return;
   }
   const targetConfigPath = resolveTargetConfigPath(body.targetName);
@@ -602,9 +607,9 @@ async function runReverseWhois(request, response, store) {
   const target = store.upsertTarget(targetConfigPath, targetConfig);
   const run = store.createRun({
     targetName: target.target_name,
-    runType: "asset-discovery",
+    runType: "provider-discovery",
     mode: "passive",
-    providerProfile: "whoisxmlapi"
+    providerProfile: "automatic-passive"
   });
   try {
     const selectedKey = store.getActiveApiKey("whoisxmlapi");
@@ -652,7 +657,7 @@ function saveReverseWhoisResult(store, runId, targetName, result) {
     raw: result.raw
   });
   store.appendEvent(runId, {
-    phase: "asset-discovery",
+    phase: "provider-discovery",
     severity: "ok",
     source: "whoisxmlapi",
     message: `Reverse WHOIS ${result.mode} found ${result.domainsCount} matches and saved ${savedLeads} leads`

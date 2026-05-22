@@ -51,16 +51,12 @@ Left navigation
 
 Top-level workspace tabs:
 
-- Targets
-- Runs
-- Assets
-- Observations
-- Review
-- Graph
-- Tools
-- Providers
-- Exports
-- Memory
+- Recon
+- Wordlists
+- Search
+- Topology
+- Results
+- Runs & Logs
 - Settings
 
 Main workspace:
@@ -102,17 +98,13 @@ or overloaded mixed panels.
 
 Recommended macro tab patterns:
 
-- Targets: Scope, Authorization, Imports, Policy Snapshots, Notes.
-- Runs: Builder, Live Run, Jobs, Events, Artifacts.
-- Assets: Domains, Services, URLs, Parameters, Technologies.
-- Observations: All, DNS, HTTP, Code, Mobile, Cloud, Review.
-- Review: Queue, Dismissed, Suppressions, Playbook Triggers.
-- Graph: Explorer, Correlations, Paths, Saved Queries.
-- Tools: Registry, Custom Manifests, Parsers, Install Checks.
-- Providers: API Keys, Usage, Health, Rate Limits.
-- Exports: Presets, History, Generated Files.
-- Memory: Snapshots, Reasoning Notes, Decisions, Run Deltas.
+- Recon: Target setup, Scope, Run Builder, Provider Discovery, Surface
+  Discovery, Tools.
+- Wordlists: Saved Lists, Generated Lists, Tool Presets.
 - Search: Cross-Data Search, Saved Queries, Technology Impact Review.
+- Topology: Explorer, Correlations, Paths, Saved Queries.
+- Results: Domains, Services, URLs, Parameters, Technologies, Artifacts.
+- Runs & Logs: Live Run, Jobs, Events, Artifacts.
 - Settings: Environment, Appearance, AI Models, API Keys, Notifications,
   Safety, Storage.
 
@@ -200,7 +192,7 @@ Rules:
 
 Purpose:
 
-- Create targets.
+- Create targets inside the Recon workflow.
 - Import and review scope.
 - Store authorization records.
 
@@ -212,6 +204,25 @@ Key UI:
 - Authorization files.
 - Scope import preview.
 - AI scope review.
+
+### Provider And Surface Discovery
+
+Purpose:
+
+- Keep all discovery pivots inside Recon instead of splitting them into a
+  separate asset-discovery workspace.
+- Run passive provider pivots across configured sources such as WhoisXMLAPI,
+  Censys, Shodan, RDAP, Rapid7, and future provider adapters.
+- Treat JavaScript files, endpoints, archived URLs, parameters, SaaS providers,
+  technologies, and historical data as recon surfaces rather than a separate
+  top-level module.
+
+Key UI:
+
+- Provider source list with installed/configured/coming-soon states.
+- Search terms and exclusions for provider pivots.
+- Discovery leads table with source, confidence, and matched terms.
+- Links from leads to follow-up recon jobs, review items, and graph edges.
 
 ### Recon Run Builder
 

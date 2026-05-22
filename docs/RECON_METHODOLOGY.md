@@ -950,6 +950,17 @@ observations with `scope_status = unknown` and `requires_review = true`.
 Acquisition and parent-company discoveries should also remain candidates until
 the user confirms the bounty program policy allows them.
 
+Provider enrichment should be automatic and provider-agnostic. When the user
+starts this recon area, A.U.R.A should run every configured passive provider
+that matches the target and available credentials, including Censys, Shodan,
+WhoisXMLAPI, RDAP/WHOIS providers, Rapid7/Open Data, and future provider
+adapters. Missing credentials should produce a low-noise skipped-provider event,
+not a failed run.
+
+The UI should not treat this as a separate "asset discovery" product area.
+It belongs inside Recon alongside JavaScript files, endpoints, archived URLs,
+parameters, historical data, provider leads, and correlation pivots.
+
 ## Phase 3a: Tracking Identifier Correlation
 
 Use cases:

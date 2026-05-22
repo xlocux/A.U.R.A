@@ -16,9 +16,7 @@
   </header>
 
   <nav class="tabs" aria-label="Workspace tabs">
-    <button class="tab" data-tab="target">Target</button>
     <button class="tab" data-tab="recon">Recon</button>
-    <button class="tab" data-tab="assetDiscovery">Asset Discovery</button>
     <button class="tab" data-tab="wordlists">Wordlists</button>
     <button class="tab" data-tab="search">Search</button>
     <button class="tab" data-tab="topology">Topology</button>
@@ -29,8 +27,8 @@
 
   <main class="workspace">
     <div class="workspace-main">
-    <section id="tab-target" class="tab-panel">
-      <div class="target-grid">
+    <section id="tab-recon" class="tab-panel">
+      <div class="target-grid recon-target">
         <div class="pane">
           <h2>Create Target</h2>
           <div class="form-body">
@@ -63,9 +61,7 @@
           <div id="targetValidation" class="notice muted">Select a target to load its config.</div>
         </div>
       </div>
-    </section>
 
-    <section id="tab-recon" class="tab-panel">
       <div class="split">
         <div class="pane">
           <h2>Scope</h2>
@@ -79,17 +75,17 @@
             <label for="domains">Domain input</label>
             <textarea id="domains" placeholder="example.com&#10;app.example.com"></textarea>
             <div id="fullReconOptions">
-              <label for="fullWhoisInclude">Full recon Reverse WHOIS terms</label>
+              <label for="fullWhoisInclude">Full recon provider search terms</label>
               <textarea id="fullWhoisInclude" placeholder="Yahoo Assets LLC&#10;Yahoo Inc"></textarea>
-              <label for="fullWhoisExclude">Full recon Reverse WHOIS exclusions</label>
+              <label for="fullWhoisExclude">Full recon provider exclusions</label>
               <textarea id="fullWhoisExclude" placeholder="privacy&#10;proxy"></textarea>
               <div class="row3">
                 <div>
-                  <label for="fullWhoisMode">WHOIS mode</label>
+                  <label for="fullWhoisMode">Provider mode</label>
                   <select id="fullWhoisMode"><option value="preview">preview</option><option value="purchase">purchase</option></select>
                 </div>
                 <div>
-                  <label for="fullWhoisType">WHOIS records</label>
+                  <label for="fullWhoisType">Provider records</label>
                   <select id="fullWhoisType"><option value="current">current</option><option value="historic">historic</option></select>
                 </div>
                 <div>
@@ -136,14 +132,23 @@
           </div>
         </div>
       </div>
-    </section>
 
-    <section id="tab-assetDiscovery" class="tab-panel">
       <div class="split">
         <div class="pane">
-          <h2>Reverse WHOIS</h2>
+          <h2>Provider & Surface Discovery</h2>
           <div class="form-body">
-            <label for="whoisInclude">Include terms</label>
+            <div class="notice muted">
+              Runs passive provider pivots for related domains and asset leads.
+              WhoisXML Reverse WHOIS is available now; Censys, Shodan, RDAP,
+              Rapid7, JavaScript, endpoints, history, and parameters belong to
+              the same Recon discovery area as adapters are added.
+            </div>
+            <label>Discovery sources</label>
+            <div class="check"><input id="sourceWhoisXml" type="checkbox" checked disabled> <span>WhoisXML Reverse WHOIS</span></div>
+            <div class="check"><input id="sourceCensys" type="checkbox" disabled> <span>Censys host and certificate enrichment</span></div>
+            <div class="check"><input id="sourceShodan" type="checkbox" disabled> <span>Shodan host, favicon, and service enrichment</span></div>
+            <div class="check"><input id="sourceRdap" type="checkbox" disabled> <span>RDAP / WHOIS provider enrichment</span></div>
+            <label for="whoisInclude">Provider search terms</label>
             <textarea id="whoisInclude" placeholder="Yahoo Assets LLC&#10;yahoo"></textarea>
             <label for="whoisExclude">Exclude terms</label>
             <textarea id="whoisExclude" placeholder="privacy&#10;proxy"></textarea>
@@ -153,16 +158,16 @@
                 <select id="whoisMode"><option value="preview">preview</option><option value="purchase">purchase</option></select>
               </div>
               <div>
-                <label for="whoisType">WHOIS records</label>
+                <label for="whoisType">Provider records</label>
                 <select id="whoisType"><option value="current">current</option><option value="historic">historic</option></select>
               </div>
             </div>
-            <button id="reverseWhois">Run Reverse WHOIS</button>
+            <button id="reverseWhois">Run Provider Discovery</button>
           </div>
         </div>
 
         <div class="pane">
-          <h2>Asset Leads</h2>
+          <h2>Discovery Leads</h2>
           <div class="scroll">
             <table>
               <thead><tr><th>Value</th><th>Source</th><th>Confidence</th><th>Terms</th></tr></thead>

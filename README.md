@@ -10,7 +10,7 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
 - Run recon in three modes:
   - `single`: one domain.
   - `list`: a user-provided list of domains.
-  - `full`: seed domains plus asset discovery, passive sources, brute force, HTTP probing, URL mining, and screenshots.
+  - `full`: seed domains plus provider discovery, passive sources, brute force, HTTP probing, URL mining, and screenshots.
 - Persist discovered data in local SQLite:
   - domains and subdomains
   - asset leads
@@ -89,7 +89,7 @@ Use this for known in-scope domains pasted into the UI.
 Full recon currently performs:
 
 1. Seed domain normalization.
-2. Optional Reverse WHOIS asset discovery.
+2. Optional provider discovery, starting with WhoisXMLAPI Reverse WHOIS and designed for Censys, Shodan, RDAP, Rapid7, JavaScript, endpoint, history, and parameter adapters.
 3. Certificate transparency and passive sources.
 4. Passive subdomain enumeration via tools such as `subfinder` and `amass`.
 5. Optional brute force with `shuffle-dns` using the active `domains` wordlist.
@@ -196,6 +196,6 @@ npm run web
 
 ## Safety Model
 
-A.U.R.A is for authorized scopes only. The UI requires explicit authorization confirmation before starting recon or asset discovery.
+A.U.R.A is for authorized scopes only. The UI requires explicit authorization confirmation before starting recon or provider discovery.
 
-Keep target scope current in the `Target` tab before running scans.
+Keep target scope current in the `Recon` tab before running scans.

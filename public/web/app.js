@@ -290,7 +290,7 @@ async function loadTargets() {
   $("target").innerHTML = targets.map((t) => `<option value="${esc(t.target_name)}">${esc(t.target_name)}</option>`).join("");
   if (targets.length === 0) {
     $("status").textContent = "";
-    $("targetValidation").textContent = "Create a target in the browser to load its config.";
+    $("targetValidation").textContent = "Create a target in Recon to load its config.";
     $("targetValidation").className = "notice muted";
     $("domains").value = "";
     $("leadRows").innerHTML = "";
@@ -369,7 +369,7 @@ async function createTarget() {
 async function startRecon() {
   if (!$("target").value) {
     $("status").textContent = "Create a target before starting recon.";
-    activateTab("target");
+    activateTab("recon");
     return;
   }
   $("start").disabled = true;
@@ -983,14 +983,14 @@ async function refreshApiKeys() {
 
 async function runReverseWhois() {
   if (!$("target").value) {
-    $("status").textContent = "Create a target before running asset discovery.";
-    activateTab("target");
+    $("status").textContent = "Create a target before running provider discovery.";
+    activateTab("recon");
     return;
   }
   $("reverseWhois").disabled = true;
-  $("status").textContent = "Reverse WHOIS running...";
+  $("status").textContent = "Provider discovery running...";
   try {
-    const data = await api("/api/asset-discovery/reverse-whois", {
+    const data = await api("/api/recon/provider-discovery", {
       method: "POST",
       body: JSON.stringify({
         targetName: $("target").value,
@@ -1001,9 +1001,9 @@ async function runReverseWhois() {
         authorized: $("authorized").checked
       })
     });
-    $("status").textContent = `Reverse WHOIS: ${data.summary.domainsCount} matches, ${data.summary.savedLeads} saved leads`;
+    $("status").textContent = `Provider discovery: ${data.summary.domainsCount} matches, ${data.summary.savedLeads} saved leads`;
     await refreshLeads();
-    activateTab("assetDiscovery");
+    activateTab("recon");
   } catch (error) {
     $("status").textContent = error.message;
   } finally {
