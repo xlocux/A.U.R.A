@@ -507,19 +507,22 @@ Memory should help answer questions like:
 - Has the user already dismissed this finding?
 - Which surfaces look newly interesting compared with historical baselines?
 
-## OpenCode Integration
+## AI Runtime Integration
 
-OpenCode should run in the Linux execution environment:
+OpenCode, Codex CLI, and Claude Code CLI should run in the Linux execution
+environment:
 
 - WSL on Windows.
 - Native on Linux desktop/server.
 
-A.U.R.A should expose OpenCode through an `AgentProvider` interface.
+A.U.R.A should expose each runtime through an `AgentProvider` interface.
 
 The Web UI should allow users to:
 
 - Install/check OpenCode through a guided bootstrap.
-- Select provider.
+- Select OpenCode, Codex CLI, Claude Code CLI, OpenRouter, or direct local
+  OpenAI-compatible endpoint mode.
+- Show the current redacted OpenCode configuration when available.
 - Make direct local-model endpoint usage explicit with an unchecked-by-default
   UI control before local endpoint fields are enabled.
 - Select model.

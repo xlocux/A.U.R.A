@@ -148,12 +148,15 @@ Key UI:
 Purpose:
 
 - Choose the AI runtime used by the floating assistant.
-- Configure OpenCode, OpenRouter, or a local OpenAI-compatible model.
+- Configure OpenCode, Codex CLI, Claude Code CLI, OpenRouter, or a direct local
+  OpenAI-compatible endpoint.
 - Keep planning and execution model choices visible.
 
 Key UI:
 
 - Provider status metrics.
+- Runtime configuration panel showing OpenCode, Codex, and Claude availability,
+  plus redacted OpenCode config when available.
 - Explicit `Use direct local model endpoint` checkbox, unchecked by default,
   before local endpoint fields become editable.
 - Planning model selector.

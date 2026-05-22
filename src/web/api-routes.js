@@ -57,6 +57,11 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/ai-runtime/status") {
+    await getAiRuntimeStatus(response, url);
+    return true;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/wordlists") {
     sendJson(response, { wordlists: store.listWordlists() });
     return true;
@@ -230,6 +235,10 @@ async function agentChat(request, response, store) {
     sendJson(response, { message: await callLocalAgent({ prompt, settings }) });
     return;
   }
+  if (settings.provider === "codex" || settings.provider === "claude") {
+    sendJson(response, { message: await callCliAgent({ prompt, provider: settings.provider, distro: body.distro || "kali-linux" }) });
+    return;
+  }
   const runner = createEnvironmentRunner({ distro: body.distro || "kali-linux" });
   const check = await runner.run("export PATH=\"$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH\" && command -v opencode", 15000);
   if (check.status === "completed") {
@@ -247,6 +256,87 @@ async function agentChat(request, response, store) {
     return;
   }
   sendJson(response, { message: setupHelpMessage(prompt) });
+}
+
+async function getAiRuntimeStatus(response, url) {
+  const distro = url.searchParams.get("distro") || "kali-linux";
+  const runner = createEnvironmentRunner({ distro });
+  const [opencode, codex, claude] = await Promise.all([
+    inspectCliRuntime({ runner, id: "opencode", binary: "opencode", versionArgs: "--version" }),
+    inspectCliRuntime({ runner, id: "codex", binary: "codex", versionArgs: "--version" }),
+    inspectCliRuntime({ runner, id: "claude", binary: "claude", versionArgs: "--version" })
+  ]);
+  const opencodeConfig = await inspectOpenCodeConfig(runner);
+  sendJson(response, {
+    distro,
+    mode: runner.mode,
+    runtimes: { opencode, codex, claude },
+    opencodeConfig
+  });
+}
+
+async function inspectCliRuntime({ runner, id, binary, versionArgs }) {
+  const command = [
+    `export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH"`,
+    `if command -v ${shellQuote(binary)} >/dev/null 2>&1; then`,
+    `  printf 'path=%s\\n' "$(command -v ${shellQuote(binary)})"`,
+    `  ${shellQuote(binary)} ${versionArgs} 2>&1 | head -n 3`,
+    "else",
+    "  exit 127",
+    "fi"
+  ].join("\n");
+  const result = await runner.run(command, 15000);
+  return {
+    id,
+    installed: result.status === "completed",
+    status: result.status,
+    detail: result.status === "completed" ? cleanRuntimeText(result.stdout) : cleanRuntimeText(result.stderr || result.errorMessage || "not installed")
+  };
+}
+
+async function inspectOpenCodeConfig(runner) {
+  const paths = [
+    "$HOME/.config/opencode/opencode.json",
+    "$HOME/.config/opencode/config.json",
+    "$HOME/.opencode/config.json",
+    "$HOME/.config/opencode/opencode.toml",
+    "$HOME/.config/opencode/config.toml"
+  ];
+  const command = [
+    "set -eu",
+    `for file in ${paths.join(" ")}; do`,
+    "  if [ -f \"$file\" ]; then",
+    "    printf 'path=%s\\n' \"$file\"",
+    "    sed -E 's/(api[_-]?key|token|secret|password)[\"'\"']?[[:space:]]*[:=][[:space:]]*[\"'\"']?[^\"'\"',[:space:]]+/\\1: REDACTED/Ig' \"$file\" | head -n 80",
+    "    exit 0",
+    "  fi",
+    "done",
+    "printf 'No OpenCode config file found in the default locations.'"
+  ].join("\n");
+  const result = await runner.run(command, 15000);
+  return {
+    status: result.status,
+    detail: cleanRuntimeText(result.stdout || result.stderr || result.errorMessage)
+  };
+}
+
+async function callCliAgent({ prompt, provider, distro }) {
+  const runtime = provider === "claude"
+    ? { name: "Claude Code", binary: "claude", command: (safePrompt) => `claude -p ${shellQuote(safePrompt)}` }
+    : { name: "Codex CLI", binary: "codex", command: (safePrompt) => `codex exec --skip-git-repo-check ${shellQuote(safePrompt)}` };
+  const runner = createEnvironmentRunner({ distro });
+  const check = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && command -v ${shellQuote(runtime.binary)}`, 15000);
+  if (check.status !== "completed") {
+    return `${runtime.name} is selected, but the ${runtime.binary} CLI was not found in the execution environment. Install it or select OpenCode/OpenRouter in Settings > AI Agent.`;
+  }
+  const safePrompt = [
+    "You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity.",
+    "",
+    prompt
+  ].join("\n");
+  const result = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && ${runtime.command(safePrompt)}`, 120000);
+  if (result.status === "completed" && result.stdout) return result.stdout;
+  return `${runtime.name} did not complete the request.\n${result.stderr || result.errorMessage || "Check the CLI authentication and configuration."}`;
 }
 
 async function callOpenRouterAgent({ prompt, settings, store }) {
@@ -309,7 +399,7 @@ async function callOpenAiCompatible({ url, apiKey, model, prompt, headers }) {
 }
 
 function normalizeAiProvider(provider) {
-  return ["opencode", "openrouter", "local"].includes(provider) ? provider : "opencode";
+  return ["opencode", "openrouter", "codex", "claude", "local"].includes(provider) ? provider : "opencode";
 }
 
 function defaultAiModels() {
@@ -360,6 +450,13 @@ function setupHelpMessage(prompt) {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
+}
+
+function cleanRuntimeText(value) {
+  return String(value || "")
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\u009b[0-9;?]*[ -/]*[@-~]/g, "")
+    .trim();
 }
 
 function buildTargetConfigFromRequest(body) {

@@ -10,6 +10,7 @@ let topologyPulse = 0;
 let topologyGraph = { nodes: [], edges: [] };
 let aiSettings = null;
 let aiModels = [];
+let aiRuntimeStatus = null;
 
 const $ = (id) => document.getElementById(id);
 const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
@@ -106,6 +107,18 @@ async function loadAiSettings() {
   aiSettings = data.settings;
   aiModels = data.models || [];
   renderAiSettings();
+  await loadAiRuntimeStatus();
+}
+
+async function loadAiRuntimeStatus() {
+  try {
+    const params = new URLSearchParams({ distro: $("setupDistro")?.value?.trim() || "kali-linux" });
+    const data = await api(`/api/ai-runtime/status?${params.toString()}`);
+    aiRuntimeStatus = data;
+    renderAiRuntimeStatus();
+  } catch (error) {
+    $("aiRuntimeStatus").textContent = `Runtime status unavailable: ${error.message}`;
+  }
 }
 
 async function saveAiSettings() {
@@ -174,6 +187,7 @@ function renderAiSettings() {
   $("aiPlanningMetric").textContent = settings.planningModel || "-";
   $("aiExecutionMetric").textContent = settings.executionModel || "-";
   renderModelCards();
+  renderAiRuntimeStatus();
 }
 
 function fillModelSelect(id, selected) {
@@ -209,8 +223,36 @@ function renderModelCards() {
 
 function providerLabel(provider) {
   if (provider === "openrouter") return "OpenRouter";
+  if (provider === "codex") return "Codex CLI";
+  if (provider === "claude") return "Claude Code";
   if (provider === "local") return "Local model";
   return "OpenCode";
+}
+
+function renderAiRuntimeStatus() {
+  const output = $("aiRuntimeStatus");
+  if (!output) return;
+  if (!aiRuntimeStatus) {
+    output.textContent = "Runtime status has not been loaded yet.";
+    return;
+  }
+  const runtimes = aiRuntimeStatus.runtimes || {};
+  const lines = [
+    `Environment: ${aiRuntimeStatus.mode || "-"} (${aiRuntimeStatus.distro || "-"})`,
+    "",
+    formatRuntimeStatus("OpenCode", runtimes.opencode),
+    formatRuntimeStatus("Codex CLI", runtimes.codex),
+    formatRuntimeStatus("Claude Code", runtimes.claude),
+    "",
+    "OpenCode config:",
+    aiRuntimeStatus.opencodeConfig?.detail || "No OpenCode config detail available."
+  ];
+  output.textContent = lines.join("\n");
+}
+
+function formatRuntimeStatus(label, runtime) {
+  if (!runtime) return `${label}: unknown`;
+  return `${label}: ${runtime.installed ? "installed" : "not found"}\n${runtime.detail || ""}`;
 }
 
 function updateAiAutonomyLabel() {
@@ -1058,6 +1100,7 @@ $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
 $("aiExecutionModel").addEventListener("change", updateAiSettingsPreview);
 $("aiLocalEndpoint").addEventListener("input", updateAiSettingsPreview);
 $("aiLocalModel").addEventListener("input", updateAiSettingsPreview);
+$("setupDistro").addEventListener("change", loadAiRuntimeStatus);
 $("aiAutonomyLevel").addEventListener("input", () => {
   updateAiAutonomyLabel();
   updateAiSettingsPreview();

@@ -455,6 +455,8 @@
                 <label for="aiProvider">Managed provider</label>
                 <select id="aiProvider">
                   <option value="opencode">OpenCode agent runtime</option>
+                  <option value="codex">Codex CLI</option>
+                  <option value="claude">Claude Code CLI</option>
                   <option value="openrouter">OpenRouter API</option>
                 </select>
                 <label class="check ai-local-toggle"><input id="useLocalModel" type="checkbox"> <span>Use direct local model endpoint</span></label>
@@ -490,6 +492,13 @@
                   <button id="testAiSettings">Test AI</button>
                 </div>
                 <div id="aiSettingsStatus" class="notice muted">OpenRouter keys belong in Settings > API Keys using provider `openrouter`.</div>
+              </div>
+              <div class="embedded-window output-window ai-runtime-window">
+                <div class="output-title">
+                  <h2>Runtime Configuration</h2>
+                  <span>OpenCode, Codex, Claude</span>
+                </div>
+                <pre id="aiRuntimeStatus" class="output-log compact-log">Runtime status has not been loaded yet.</pre>
               </div>
             </div>
             <div class="ai-model-rail">

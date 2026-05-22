@@ -355,6 +355,12 @@ button:disabled { opacity: .55; cursor: wait; }
   padding: 8px 10px;
   font-size: 12px;
 }
+.ai-runtime-window {
+  margin: 10px 12px 12px;
+}
+.compact-log {
+  max-height: 260px;
+}
 .ai-metric-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

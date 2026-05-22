@@ -38,7 +38,7 @@ http://127.0.0.1:31338
 ```
 
 Start from `Settings > Environment` to check the Linux runtime, install
-OpenCode, and install/update recon tools. Create targets from the `Target` tab
+OpenCode, and install/update recon tools. Create targets from the `Recon` tab
 in the browser. Target setup, scope edits, API keys, wordlists, recon runs, and
 results are all managed from the Web UI.
 
@@ -148,8 +148,10 @@ Current providers:
 
 The runtime selects the first active key for the provider whose usage is below its configured limit.
 
-`Settings > AI Agent` can use OpenCode, OpenRouter, or a local
-OpenAI-compatible endpoint such as Ollama. The OpenRouter model preset list is
+`Settings > AI Agent` can use OpenCode, Codex CLI, Claude Code CLI, OpenRouter,
+or a direct local OpenAI-compatible endpoint such as Ollama. The page shows
+runtime availability and the current redacted OpenCode config when it can be
+read from the selected Linux environment. The OpenRouter model preset list is
 loaded from OpenRouter's model metadata when available and falls back to bundled
 free presets if the network request fails.
 
