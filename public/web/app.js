@@ -653,10 +653,12 @@ async function installEnvironment() {
       body: JSON.stringify({ distro: $("setupDistro").value.trim() || "kali-linux" })
     });
     const [agent, ...tools] = data.environment.tools;
+    const prerequisites = agent?.tool_id === "system-prerequisites" ? agent : null;
+    const runtime = prerequisites ? tools.shift() : agent;
     renderAgentStatus({
-      ...agent,
-      installed: agent?.status === "completed",
-      version: agent?.status === "completed" ? "installed" : null
+      ...runtime,
+      installed: runtime?.status === "completed",
+      version: runtime?.status === "completed" ? "installed" : null
     });
     renderSetupTools(tools.map((tool) => ({
       ...tool,

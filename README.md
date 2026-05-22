@@ -103,10 +103,21 @@ Full recon currently performs:
 When A.U.R.A runs on Windows, it uses the selected WSL distro. When A.U.R.A runs
 inside WSL/Linux, setup and tool checks run natively in that Linux environment.
 
-The environment setup lives in `Settings > Environment`. It installs/checks
-OpenCode first, then recon tools declared in the tool registry. Install stdout
-and stderr are shown in the setup log so failed tool bootstrap steps can be
-debugged from the browser.
+The environment setup lives in `Settings > Environment`. It installs system
+prerequisites first, then OpenCode, then recon tools declared in the tool
+registry. Install stdout and stderr are shown in the setup log so failed tool
+bootstrap steps can be debugged from the browser.
+
+Linux prerequisites installed by setup include:
+
+- `ca-certificates`
+- `curl`
+- `git`
+- build tools
+- `unzip`
+- `tar`
+- `jq`
+- Go
 
 The initial tool registry includes:
 

@@ -345,7 +345,7 @@ function setupHelpMessage(prompt) {
       "Go to Settings > Environment.",
       "1. Click Check Environment.",
       "2. Click Install / Update Tools.",
-      "3. A.U.R.A installs/checks OpenCode first, then registry tools.",
+      "3. A.U.R.A installs system prerequisites first, then OpenCode, then registry tools.",
       "4. Add optional provider API keys later in Settings > Credentials.",
       "If OpenCode is installed but chat still fails, configure its model/provider in the Linux environment."
     ].join("\n");

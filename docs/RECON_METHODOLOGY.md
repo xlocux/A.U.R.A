@@ -1927,6 +1927,8 @@ Bootstrap flow:
 
 - Show the install command and target environment.
 - Ask the user to approve the installation.
+- Install system prerequisites such as certificates, `curl`, `git`, build
+  tools, archive utilities, `jq`, and Go.
 - Install OpenCode using an official installation method.
 - Verify `opencode` is available.
 - Ask the user to select or configure the preferred model/provider.

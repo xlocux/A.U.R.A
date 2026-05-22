@@ -11,6 +11,11 @@ const OPENCODE_TOOL = {
   version_check: { command: "opencode", args: ["--version"] },
   install: { method: "shell", source: "curl -fsSL https://opencode.ai/install | bash" }
 };
+const SYSTEM_PREREQUISITES_TOOL = {
+  tool_id: "system-prerequisites",
+  binary: "sh",
+  install: { method: "system_prerequisites" }
+};
 
 function setupToolIds(registry = loadToolRegistry()) {
   return registry.list().map((tool) => tool.tool_id);
@@ -41,6 +46,7 @@ async function installWslTools({ distro = "kali-linux", toolIds = null, registry
   const requested = toolIds || setupToolIds(registry);
   const runner = createEnvironmentRunner({ distro });
   const results = [];
+  results.push(await installTool({ runner, tool: SYSTEM_PREREQUISITES_TOOL }));
   results.push(await installTool({ runner, tool: OPENCODE_TOOL }));
   for (const toolId of requested) {
     const tool = registry.require(toolId);
@@ -64,6 +70,9 @@ async function checkTool({ runner, tool }) {
 }
 
 async function installTool({ runner, tool }) {
+  if (tool.install?.method === "system_prerequisites") {
+    return installSystemPrerequisites({ runner, tool });
+  }
   if (!tool.install || !["go_install", "shell"].includes(tool.install.method) || !tool.install.source) {
     return {
       tool_id: tool.tool_id,
@@ -84,6 +93,37 @@ async function installTool({ runner, tool }) {
       `go install ${shellQuote(tool.install.source)}`,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ");
+  const result = await runner.run(command, DEFAULT_SETUP_TIMEOUT_MS);
+  return {
+    tool_id: tool.tool_id,
+    binary: tool.binary,
+    status: result.status,
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    error: result.errorMessage
+  };
+}
+
+async function installSystemPrerequisites({ runner, tool }) {
+  const command = [
+    "set -eu",
+    "if command -v apt-get >/dev/null 2>&1; then",
+    "  export DEBIAN_FRONTEND=noninteractive",
+    "  sudo apt-get update",
+    "  sudo apt-get install -y ca-certificates curl git build-essential unzip tar jq golang-go",
+    "elif command -v dnf >/dev/null 2>&1; then",
+    "  sudo dnf install -y ca-certificates curl git gcc make unzip tar jq golang",
+    "elif command -v pacman >/dev/null 2>&1; then",
+    "  sudo pacman -Sy --needed --noconfirm ca-certificates curl git base-devel unzip tar jq go",
+    "else",
+    "  echo 'No supported package manager found. Install ca-certificates curl git build tools jq and Go manually.' >&2",
+    "  exit 1",
+    "fi",
+    "go version",
+    "git --version",
+    "curl --version | head -n 1"
+  ].join("\n");
   const result = await runner.run(command, DEFAULT_SETUP_TIMEOUT_MS);
   return {
     tool_id: tool.tool_id,
