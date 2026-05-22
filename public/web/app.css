@@ -167,7 +167,13 @@ button:disabled { opacity: .55; cursor: wait; }
 .split.embedded { margin: 0; padding: 0; }
 .triple { display: grid; grid-template-columns: minmax(260px, 330px) minmax(360px, 1fr) minmax(220px, 300px); gap: 12px; margin-bottom: 0; }
 .target-grid { display: grid; grid-template-columns: minmax(300px, 420px) minmax(260px, 1fr); gap: 12px; margin-bottom: 0; }
-.settings-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; }
+.settings-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
 .settings-tabs { padding: 8px; display: grid; gap: 6px; }
 .settings-tab {
   margin: 0;
@@ -183,7 +189,42 @@ button:disabled { opacity: .55; cursor: wait; }
   background: rgba(67, 197, 158, .12);
 }
 .settings-panel { display: none; }
-.settings-panel.active { display: block; }
+.settings-panel.active {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+#tab-settings {
+  overflow: hidden;
+}
+#settings-environment.settings-panel.active {
+  display: grid;
+  grid-template-rows: auto minmax(160px, .75fr) auto minmax(120px, 1fr);
+  overflow: hidden;
+}
+#settings-environment .split.embedded {
+  min-height: 0;
+  overflow: hidden;
+}
+#settings-environment .split.embedded > div {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+#settings-environment .scroll {
+  height: 100%;
+  max-height: none;
+}
+#agentStatus {
+  padding: 10px 14px;
+}
+#setupLog {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  word-break: break-word;
+}
 .ai-settings-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
@@ -311,6 +352,7 @@ button:disabled { opacity: .55; cursor: wait; }
 .workspace {
   position: relative;
   z-index: 2;
+  height: 100%;
   min-height: 0;
   padding: 12px;
   display: block;
@@ -318,6 +360,7 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 
 .workspace-main {
+  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
