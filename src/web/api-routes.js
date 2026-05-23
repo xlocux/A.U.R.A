@@ -1,7 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
-const { normalizeDomain } = require("../recon/domain-utils");
+const { normalizeDomain, rootForDomain } = require("../recon/domain-utils");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
@@ -229,7 +229,15 @@ async function createTarget(request, response, store) {
   }
   writeJson(configPath, built.config);
   const target = store.upsertTarget(configPath, built.config);
-  sendJson(response, { target, config: built.config, configPath }, 201);
+  const bootstrapRun = startTargetBootstrap({
+    store,
+    target,
+    config: built.config,
+    authorized: Boolean(body.authorized),
+    wslDistro: body.wslDistro || "kali-linux",
+    timeoutMs: Number(body.timeoutMs || 180000)
+  });
+  sendJson(response, { target, config: built.config, configPath, bootstrapRun }, 201);
 }
 
 async function checkEnvironment(response, url) {
@@ -253,6 +261,184 @@ function ensureDefaultWordlists(store) {
     ...wordlist,
     status: "active"
   }));
+}
+
+function startTargetBootstrap({ store, target, config, authorized, wslDistro, timeoutMs }) {
+  ensureDefaultWordlists(store);
+  const rootDomains = inferRootDomains(target);
+  const run = store.createRun({
+    targetName: target.target_name,
+    runType: "target-bootstrap",
+    mode: authorized ? "bootstrap-authorized" : "bootstrap-passive",
+    providerProfile: "automatic-bootstrap",
+    checkpoint: { rootDomains, authorized }
+  });
+  runInBackground(async () => {
+    try {
+      await bootstrapTargetRecon({ store, runId: run.id, target, config, rootDomains, authorized, wslDistro, timeoutMs });
+    } catch (error) {
+      store.appendEvent(run.id, {
+        phase: "bootstrap",
+        severity: "error",
+        source: "engine",
+        message: error.message
+      });
+      store.updateRun(run.id, {
+        status: "failed",
+        activePhase: "failed",
+        finishedAt: new Date().toISOString(),
+        errorMessage: error.message
+      });
+    }
+  });
+  return run;
+}
+
+async function bootstrapTargetRecon({ store, runId, target, config, rootDomains, authorized, wslDistro, timeoutMs }) {
+  store.updateRun(runId, {
+    status: "running",
+    activePhase: "whois-rdap",
+    checkpoint: { rootDomains, authorized }
+  });
+  store.appendEvent(runId, {
+    phase: "bootstrap",
+    severity: "ok",
+    source: "engine",
+    message: `Target saved. Starting RDAP/WHOIS bootstrap for ${rootDomains.join(", ")}`
+  });
+
+  const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  store.appendEvent(runId, {
+    phase: "whois-rdap",
+    severity: suggestions.includeTerms.length ? "ok" : "warn",
+    source: "rdap",
+    message: suggestions.includeTerms.length
+      ? `RDAP suggested ${suggestions.includeTerms.length} target-related Reverse WHOIS terms`
+      : suggestions.rationale
+  });
+  const rdapDomains = filterScopeDomains({
+    domains: extractRdapRelatedDomains(suggestions),
+    config,
+    rootDomains
+  });
+  if (rdapDomains.length > 0) {
+    saveBootstrapDomains({ store, runId, targetName: target.target_name, domains: rdapDomains, roots: rootDomains, source: "rdap-associated-domain" });
+  }
+
+  let providerDomains = [];
+  if (suggestions.includeTerms.length > 0) {
+    providerDomains = await collectReverseWhoisDomains({ store, runId, targetName: target.target_name, config, rootDomains, suggestions });
+  }
+
+  const seeds = filterScopeDomains({
+    domains: [...rootDomains, ...rdapDomains, ...providerDomains],
+    config,
+    rootDomains
+  });
+  store.appendEvent(runId, {
+    phase: "bootstrap",
+    severity: "ok",
+    source: "engine",
+    message: `Bootstrap prepared ${seeds.length} domain seeds after scope filtering`
+  });
+
+  if (!authorized) {
+    store.appendEvent(runId, {
+      phase: "bootstrap",
+      severity: "warn",
+      source: "engine",
+      message: "Enumeration was not started because authorized scope was not confirmed."
+    });
+    store.updateRun(runId, {
+      status: "completed",
+      activePhase: "authorization-required",
+      finishedAt: new Date().toISOString(),
+      checkpoint: { rootDomains, seeds, authorized: false }
+    });
+    return;
+  }
+
+  const domainWordlist = store.getActiveWordlist("domains");
+  await runRecon({
+    store,
+    runId,
+    targetName: target.target_name,
+    rootDomains: seeds,
+    passiveSources: DEFAULT_PASSIVE_SOURCES,
+    wslTools: DEFAULT_WSL_TOOLS,
+    screenshotTools: DEFAULT_SCREENSHOT_TOOLS,
+    wslDistro,
+    useWsl: true,
+    subdomainWordlistPath: domainWordlist?.path || null,
+    timeoutMs
+  });
+}
+
+async function collectReverseWhoisDomains({ store, runId, targetName, config, rootDomains, suggestions }) {
+  const selectedKey = store.getActiveApiKey("whoisxmlapi");
+  if (!selectedKey?.api_key) {
+    store.appendEvent(runId, {
+      phase: "whois-rdap",
+      severity: "warn",
+      source: "whoisxmlapi",
+      message: "Reverse WHOIS domain expansion skipped: no active WhoisXMLAPI key is configured."
+    });
+    return [];
+  }
+  try {
+    const result = await callReverseWhois({
+      apiKey: selectedKey.api_key,
+      include: suggestions.includeTerms,
+      exclude: suggestions.excludeTerms,
+      mode: "purchase",
+      searchType: "current"
+    });
+    store.markApiKeyUsed(selectedKey.id);
+    const savedLeads = saveReverseWhoisResult(store, runId, targetName, result);
+    const domains = filterScopeDomains({
+      domains: result.leads.map((lead) => lead.domain),
+      config,
+      rootDomains
+    });
+    saveBootstrapDomains({ store, runId, targetName, domains, roots: rootDomains, source: "whoisxmlapi-reverse-whois" });
+    store.appendEvent(runId, {
+      phase: "whois-rdap",
+      severity: "ok",
+      source: "whoisxmlapi",
+      message: `Reverse WHOIS saved ${savedLeads} leads and added ${domains.length} scoped seeds`
+    });
+    return domains;
+  } catch (error) {
+    store.appendEvent(runId, {
+      phase: "whois-rdap",
+      severity: "warn",
+      source: "whoisxmlapi",
+      message: `Reverse WHOIS expansion skipped: ${error.message}`
+    });
+    return [];
+  }
+}
+
+function extractRdapRelatedDomains(suggestions) {
+  return suggestions.associatedDomains || [];
+}
+
+function filterScopeDomains({ domains, config, rootDomains }) {
+  const excluded = (config.scope?.out_of_scope || []).map(normalizeDomain).filter(Boolean);
+  return [...new Set((domains || []).map(normalizeDomain).filter(Boolean))]
+    .filter((domain) => !excluded.some((rule) => domain === rule || domain.endsWith(`.${rule}`)))
+    .filter((domain) => rootDomains.length === 0 || domain.length > 0);
+}
+
+function saveBootstrapDomains({ store, runId, targetName, domains, roots, source }) {
+  if (!domains.length) return 0;
+  return store.saveDomains(runId, targetName, domains.map((domain) => ({
+    domain,
+    rootDomain: rootForDomain(domain, roots) || domain,
+    kind: roots.includes(domain) ? "root" : "associated",
+    source,
+    metadata: { runId }
+  })));
 }
 
 async function agentChat(request, response, store) {
@@ -888,5 +1074,6 @@ function handleReadEndpoint(response, url, store) {
 
 module.exports = {
   buildTargetConfigFromRequest,
+  filterScopeDomains,
   handleApiRequest
 };

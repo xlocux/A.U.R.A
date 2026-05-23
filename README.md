@@ -46,10 +46,18 @@ Recommended first run:
 
 1. Open `Settings > Environment` and run `Install / Update Tools`.
 2. Add optional keys in `Settings > API Keys`.
-3. Create a target in `Recon`.
-4. Confirm authorized scope.
-5. Start with `single` mode and the default checked tools.
+3. Confirm authorized scope when you are allowed to enumerate the target.
+4. Create a target in `Recon`.
+5. A.U.R.A automatically starts a target bootstrap run:
+   - RDAP/WHOIS is inspected for target-related terms.
+   - Associated RDAP domains such as target-owned nameservers are collected.
+   - WhoisXMLAPI Reverse WHOIS expansion runs when an active API key exists.
+   - Out-of-scope domains are filtered out.
+   - The resulting seeds feed the enumeration pipeline.
 6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
+
+If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
+bootstrap checks but does not start active enumeration.
 
 The Web UI requires login. The first local user defaults to:
 

@@ -114,11 +114,15 @@ function suggestReverseWhoisTermsFromRdapRecords(records, domains = []) {
   const skippedPrivate = [...candidates.values()]
     .filter((candidate) => isNoisyTerm(candidate.value) || !isTargetRelatedTerm(candidate.value, brandTokens))
     .map((candidate) => candidate.value);
+  const associatedDomains = [...new Set((records || [])
+    .flatMap((record) => extractRdapAssociatedDomains(record))
+    .filter((domain) => isTargetRelatedTerm(domain, brandTokens)))];
 
   return {
     domains: normalizedDomains,
     includeTerms: includeTerms.map((term) => term.value),
     excludeTerms: DEFAULT_EXCLUDE_TERMS,
+    associatedDomains,
     suggestions: includeTerms,
     skippedPrivate,
     records: (records || []).map((record) => ({
@@ -172,6 +176,22 @@ function extractVcardValues(vcardArray) {
     if (value) values.push({ field, value });
   }
   return values;
+}
+
+function extractRdapAssociatedDomains(record) {
+  const raw = record?.raw || {};
+  const domains = [];
+  for (const nameserver of raw.nameservers || []) {
+    const domain = normalizeDomain(nameserver.ldhName || nameserver.unicodeName || nameserver.name);
+    if (domain) domains.push(domain);
+  }
+  for (const entity of raw.entities || []) {
+    for (const item of extractVcardValues(entity.vcardArray)) {
+      const domain = normalizeDomain(item.value);
+      if (domain) domains.push(domain);
+    }
+  }
+  return [...new Set(domains)];
 }
 
 function addCandidate(candidates, value, metadata) {

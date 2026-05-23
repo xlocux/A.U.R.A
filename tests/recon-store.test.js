@@ -16,7 +16,7 @@ const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/provid
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
-const { buildTargetConfigFromRequest } = require("../src/web/api-routes");
+const { buildTargetConfigFromRequest, filterScopeDomains } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
 
 function tempDb(name) {
@@ -61,6 +61,19 @@ test("web target creation builds valid target configs", () => {
 
   const invalid = buildTargetConfigFromRequest({ targetName: "../bad", inScope: ["example.com"] });
   assert.match(invalid.error, /targetName is required/);
+});
+
+test("bootstrap scope filtering removes excluded domains", () => {
+  const domains = filterScopeDomains({
+    domains: ["example.com", "api.example.com", "dev.example.com", "nested.dev.example.com"],
+    rootDomains: ["example.com"],
+    config: {
+      scope: {
+        out_of_scope: ["dev.example.com"]
+      }
+    }
+  });
+  assert.deepEqual(domains, ["example.com", "api.example.com"]);
 });
 
 test("scan store records recon data and generated wordlists", () => {
@@ -170,16 +183,24 @@ test("rdap suggestions prefer target-related org terms and skip private records"
             ]]
           },
           {
+            roles: ["technical"],
+            vcardArray: ["vcard", [
+              ["email", {}, "text", "dns@ns1.acme.com"]
+            ]]
+          },
+          {
             roles: ["registrar"],
             vcardArray: ["vcard", [
               ["org", {}, "text", "Domains By Proxy LLC"]
             ]]
           }
-        ]
+        ],
+        nameservers: [{ ldhName: "ns1.acme.com" }]
       }
     }
   ], ["acme.com"]);
   assert.deepEqual(suggested.includeTerms.slice(0, 2), ["Acme Assets LLC", "Acme Security Team"]);
+  assert.ok(suggested.associatedDomains.includes("ns1.acme.com"));
   assert.ok(suggested.skippedPrivate.includes("Domains By Proxy LLC"));
   assert.ok(suggested.excludeTerms.includes("privacy"));
 });

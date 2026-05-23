@@ -396,10 +396,15 @@ async function createTarget() {
         programUrl: $("newProgramUrl").value.trim(),
         assetType: $("newAssetType").value,
         inScope: textLines("newInScope"),
-        outOfScope: textLines("newOutOfScope")
+        outOfScope: textLines("newOutOfScope"),
+        authorized: $("authorized").checked,
+        wslDistro: $("distro").value,
+        timeoutMs: Number($("timeout").value || 180000)
       })
     });
-    $("status").textContent = `Target created: ${data.target.target_name}`;
+    $("status").textContent = data.bootstrapRun
+      ? `Target created: ${data.target.target_name}. Bootstrap recon started.`
+      : `Target created: ${data.target.target_name}`;
     $("newTargetName").value = "";
     $("newProgramUrl").value = "";
     $("newInScope").value = "";
@@ -408,6 +413,19 @@ async function createTarget() {
     $("target").value = data.target.target_name;
     fillDomains();
     await loadTargetConfig();
+    if (data.bootstrapRun?.id) {
+      activeRunId = data.bootstrapRun.id;
+      lastEventId = 0;
+      $("runId").textContent = activeRunId;
+      $("events").innerHTML = "";
+      $("domainRows").innerHTML = "";
+      $("serviceRows").innerHTML = "";
+      $("artifactRows").innerHTML = "";
+      activateTab("runs");
+      if (poll) clearInterval(poll);
+      poll = setInterval(refreshRun, 1500);
+      await refreshRun();
+    }
   } catch (error) {
     $("status").textContent = error.errors ? error.errors.join("; ") : error.message;
   } finally {
@@ -485,6 +503,7 @@ async function refreshRun() {
   $("eventCount").textContent = lastEventId;
   $("domainCount").textContent = domainData.domains.length;
   renderDomains(domainData.domains);
+  mergeDomainsIntoScanList(runData.run, domainData.domains);
   renderServices(serviceData.services);
   renderArtifacts(urlData.urls, screenshotData.screenshots);
   updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
@@ -493,6 +512,18 @@ async function refreshRun() {
     poll = null;
     $("status").textContent = `Run ${runData.run.status}`;
   }
+}
+
+function mergeDomainsIntoScanList(run, domains) {
+  if (!run || run.target_name !== $("target").value || domains.length === 0) return;
+  const current = new Set($("domains").value.split(/\s+/).map((value) => value.trim()).filter(Boolean));
+  let changed = false;
+  for (const item of domains) {
+    if (!item.domain || current.has(item.domain)) continue;
+    current.add(item.domain);
+    changed = true;
+  }
+  if (changed) $("domains").value = [...current].sort().join("\n");
 }
 
 function renderDomains(domains) {

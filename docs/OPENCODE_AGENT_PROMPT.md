@@ -546,6 +546,20 @@ storage strategy, and implementation order.
 Follow `docs/UI_DESIGN.md` for Web UI structure, visual direction, AI assistant
 UX, and English-only product text rules.
 
+The default target onboarding flow is browser-first:
+
+1. The user creates a target and optional excluded domains in the Web UI.
+2. A.U.R.A immediately starts a passive target bootstrap run.
+3. RDAP/WHOIS data is inspected for target-related terms and associated domains.
+4. Reverse WHOIS expansion may run when the user has configured an approved API
+   key.
+5. Out-of-scope domains are filtered before any follow-up.
+6. Active enumeration starts only when authorized scope has been confirmed.
+
+Agent suggestions about WHOIS/RDAP must be tied to target evidence. Do not
+suggest registry, reserved, registrar-only, privacy-proxy, or unrelated terms as
+discovery pivots.
+
 When adding new recon capability:
 
 1. Add or update a methodology section if needed.
