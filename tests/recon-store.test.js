@@ -49,7 +49,6 @@ test("web target creation builds valid target configs", () => {
   const built = buildTargetConfigFromRequest({
     targetName: "acme",
     programUrl: "https://hackerone.com/acme",
-    assetType: "webapp",
     inScope: ["example.com", "*.example.com"],
     outOfScope: ["dev.example.com"]
   });
@@ -80,7 +79,6 @@ test("scan store records recon data and generated wordlists", () => {
   const store = openScanStore(tempDb("scan.db"));
   const target = store.upsertTarget(path.resolve("targets/demo/target.json"), {
     target_name: "demo",
-    asset_type: "webapp",
     program_url: "https://example.com",
     logs_dir: "./logs",
     intelligence_dir: "./intelligence",
@@ -126,7 +124,6 @@ test("scan store deletes targets with local recon data", () => {
   const store = openScanStore(tempDb("delete-target.db"));
   const target = store.upsertTarget(path.resolve("targets/delete-me/target.json"), {
     target_name: "delete-me",
-    asset_type: "webapp",
     program_url: "https://example.com",
     scope: { in_scope: ["example.com"], out_of_scope: [] }
   });

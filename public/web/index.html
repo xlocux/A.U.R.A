@@ -36,18 +36,9 @@
             <input id="newTargetName" type="text" placeholder="acme">
             <label for="newProgramUrl">Program URL</label>
             <input id="newProgramUrl" type="text" placeholder="https://example.com/security">
-            <label for="newAssetType">Asset type</label>
-            <select id="newAssetType">
-              <option value="webapp">webapp</option>
-              <option value="api">api</option>
-              <option value="mobileapp">mobileapp</option>
-              <option value="browserext">browserext</option>
-              <option value="network">network</option>
-              <option value="other">other</option>
-            </select>
-            <label for="newInScope">In-scope assets</label>
+            <label for="newInScope">In-scope domains and URLs</label>
             <textarea id="newInScope" placeholder="example.com&#10;*.example.com&#10;https://app.example.com/login"></textarea>
-            <label for="newOutOfScope">Out-of-scope assets</label>
+            <label for="newOutOfScope">Out-of-scope domains and URLs</label>
             <textarea id="newOutOfScope" placeholder="dev.example.com&#10;*.internal.example.com"></textarea>
             <button id="createTarget">Create Target</button>
           </div>
@@ -582,7 +573,7 @@
       </div>
       <div class="ai-input">
         <textarea id="aiPrompt" placeholder="Ask about the current target, run, tools, or next recon step"></textarea>
-        <button id="sendAiPrompt">Send</button>
+        <button id="sendAiPrompt" type="button">Send</button>
       </div>
       <span class="ai-resize-handle nw" data-resize="nw" aria-hidden="true"></span>
       <span class="ai-resize-handle ne" data-resize="ne" aria-hidden="true"></span>

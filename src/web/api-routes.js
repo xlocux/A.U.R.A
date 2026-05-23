@@ -753,7 +753,6 @@ function buildTargetConfigFromRequest(body) {
   }
   const outOfScope = normalizeScopeLines(body.outOfScope || []);
   const config = createDefaultTargetConfig(targetName);
-  config.asset_type = String(body.assetType || "webapp").trim();
   config.program_url = normalizeProgramUrl(body.programUrl, inScope);
   config.scope.in_scope = inScope;
   config.scope.out_of_scope = outOfScope;

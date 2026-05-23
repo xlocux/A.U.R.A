@@ -284,7 +284,7 @@ Unknown discoveries are not automatically promoted to assets.
 
 Promotion should record:
 
-- Promoted asset type.
+- Promoted asset category.
 - Reason.
 - Source observations.
 - Evidence.

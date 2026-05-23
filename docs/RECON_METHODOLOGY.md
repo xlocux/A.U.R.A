@@ -1863,7 +1863,7 @@ Rules:
 
 Use cases:
 
-- Detect new domains, wildcards, URLs, or asset types added to a bounty program.
+- Detect new domains, wildcards, URLs, or scope entries added to a bounty program.
 - Detect assets removed from scope.
 - Trigger recon suggestions when new in-scope assets appear.
 

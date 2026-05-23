@@ -1,7 +1,6 @@
 "use strict";
 
 const MODES = new Set(["blackbox", "graybox", "whitebox"]);
-const ASSET_TYPES = new Set(["webapp", "api", "mobileapp", "browserext", "network", "other"]);
 
 function validateTargetConfig(config) {
   const errors = [];
@@ -10,7 +9,6 @@ function validateTargetConfig(config) {
   }
   if (config.schema_version !== "1.0") errors.push("schema_version: must be '1.0'");
   if (!nonEmpty(config.target_name)) errors.push("target_name: must be a non-empty string");
-  if (!ASSET_TYPES.has(config.asset_type)) errors.push("asset_type: must be a supported asset type");
   if (!MODES.has(config.default_mode)) errors.push("default_mode: must be blackbox, graybox, or whitebox");
   if (!Array.isArray(config.allowed_modes) || config.allowed_modes.length === 0) {
     errors.push("allowed_modes: must be a non-empty array");
@@ -35,7 +33,6 @@ function createDefaultTargetConfig(targetName) {
   return {
     schema_version: "1.0",
     target_name: targetName,
-    asset_type: "webapp",
     default_mode: "blackbox",
     allowed_modes: ["blackbox"],
     program_url: "https://example.com",

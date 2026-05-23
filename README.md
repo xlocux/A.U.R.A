@@ -6,7 +6,7 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
 
 ## What It Does
 
-- Manage target configuration from the web UI.
+- Manage domain recon targets from the web UI.
 - Run recon in three modes:
   - `single`: one domain.
   - `list`: a user-provided list of domains.
@@ -39,9 +39,9 @@ http://127.0.0.1:31338
 ```
 
 Start from `Settings > Environment` to check the Linux runtime, install
-OpenCode, and install/update recon tools. Create targets from the `Recon` tab
-in the browser. Target setup, scope edits, API keys, wordlists, recon runs, and
-results are all managed from the Web UI.
+OpenCode, and install/update recon tools. Create domain targets from the
+`Recon` tab in the browser. Target setup, scope edits, API keys, wordlists,
+recon runs, and results are all managed from the Web UI.
 
 Targets can be deleted from the `Recon` tab. Deleting a target removes its local
 target config, runs, observations, leads, and run artifact folders.

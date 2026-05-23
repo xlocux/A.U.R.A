@@ -445,7 +445,6 @@ async function createTarget() {
       body: JSON.stringify({
         targetName: $("newTargetName").value.trim(),
         programUrl: $("newProgramUrl").value.trim(),
-        assetType: $("newAssetType").value,
         inScope: textLines("newInScope"),
         outOfScope: textLines("newOutOfScope"),
         authorized: $("authorized").checked,
@@ -914,14 +913,21 @@ function appendAiMessage(role, text) {
   $("aiMessages").scrollTop = $("aiMessages").scrollHeight;
 }
 
-function sendAiPrompt() {
+async function sendAiPrompt() {
   const prompt = $("aiPrompt").value.trim();
   if (!prompt) return;
+  $("sendAiPrompt").disabled = true;
   appendAiMessage("user", prompt);
   $("aiPrompt").value = "";
-  postAgentPrompt(prompt)
-    .then((message) => appendAiMessage("assistant", message))
-    .catch((error) => appendAiMessage("assistant", error.message));
+  try {
+    const message = await postAgentPrompt(prompt);
+    appendAiMessage("assistant", message);
+  } catch (error) {
+    appendAiMessage("assistant", error.message);
+  } finally {
+    $("sendAiPrompt").disabled = false;
+    $("aiPrompt").focus();
+  }
 }
 
 function getAiWindowState() {
