@@ -517,6 +517,12 @@ Interactive view controls, such as topology filters and fit/pulse buttons, must
 redraw from the latest loaded store-backed data instead of resetting to empty
 client-side defaults.
 
+Recon runs must be controllable from the Web UI. Pause, resume, and cancel
+actions should be routed through A.U.R.A APIs, logged as events, and honored by
+workers between phases and tool invocations. Candidate domains found through
+alternate TLD correlation should be saved as review leads with evidence and must
+not be silently promoted into authorized scope.
+
 ## AI Runtime Integration
 
 OpenCode, Codex CLI, and Claude Code CLI should run in the Linux execution

@@ -10,6 +10,7 @@ const { commandDisplay, runWslTool } = require("./wsl-tools");
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
 const DEFAULT_SCREENSHOT_TOOLS = [];
+const RUN_CONTROL_STATUSES = new Set(["paused", "cancelled"]);
 
 async function runRecon({
   store,
@@ -31,6 +32,7 @@ async function runRecon({
   }
 
   fs.mkdirSync(artifactsDir, { recursive: true });
+  await waitForRunControl(store, runId);
   store.updateRun(runId, {
     status: "running",
     activePhase: "recon",
@@ -42,11 +44,15 @@ async function runRecon({
     message: `Recon started for ${roots.join(", ")}`
   });
 
+  await waitForRunControl(store, runId);
   const discovered = new Set(roots);
   await collectPassive({ store, runId, targetName, roots, passiveSources, discovered });
+  await waitForRunControl(store, runId);
   const context = { urls: [], httpServices: [] };
   await collectWsl({ store, runId, targetName, roots, wslTools, wslDistro, useWsl, subdomainWordlistPath, timeoutMs, artifactsDir, discovered, context });
+  await waitForRunControl(store, runId);
   await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context });
+  await waitForRunControl(store, runId);
 
   const finalDomains = [...discovered].map((domain) => ({
     domain,
@@ -73,6 +79,7 @@ async function runRecon({
 async function collectPassive({ store, runId, targetName, roots, passiveSources, discovered }) {
   for (const root of roots) {
     for (const source of passiveSources) {
+      await waitForRunControl(store, runId);
       store.appendEvent(runId, {
         phase: "recon",
         source,
@@ -117,6 +124,7 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
 
   for (const root of roots) {
     for (const toolName of wslTools) {
+      await waitForRunControl(store, runId);
       const args = argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlistPath);
       if (!args) continue;
       store.appendEvent(runId, {
@@ -226,6 +234,7 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
   fs.writeFileSync(inputPath, liveUrls.join("\n"), "utf8");
 
   for (const toolName of screenshotTools) {
+    await waitForRunControl(store, runId);
     const outputDir = path.join(artifactsDir, "screenshots", toolName);
     fs.mkdirSync(outputDir, { recursive: true });
     const args = screenshotArgsForTool(toolName, inputPath, outputDir);
@@ -269,6 +278,54 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
       message: `${toolName} screenshot run ${result.status}`
     });
   }
+}
+
+async function waitForRunControl(store, runId) {
+  let run = store.getRun(runId);
+  if (!run) throw new RunControlError("cancelled", "Run no longer exists");
+  if (run.status === "cancelled") {
+    throw new RunControlError("cancelled", "Run cancelled by user");
+  }
+  if (run.status !== "paused") return;
+
+  store.appendEvent(runId, {
+    phase: "control",
+    severity: "warn",
+    source: "engine",
+    message: "Run paused. Waiting for resume or cancel."
+  });
+  while (RUN_CONTROL_STATUSES.has(run.status)) {
+    await sleep(1000);
+    run = store.getRun(runId);
+    if (!run || run.status === "cancelled") {
+      throw new RunControlError("cancelled", "Run cancelled by user");
+    }
+    if (run.status !== "paused") {
+      store.appendEvent(runId, {
+        phase: "control",
+        severity: "ok",
+        source: "engine",
+        message: "Run resumed."
+      });
+      return;
+    }
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+class RunControlError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = "RunControlError";
+    this.status = status;
+  }
+}
+
+function isRunControlError(error) {
+  return error?.name === "RunControlError";
 }
 
 function screenshotArgsForTool(toolName, inputPath, outputDir) {
@@ -322,5 +379,6 @@ module.exports = {
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
   DEFAULT_WSL_TOOLS,
+  isRunControlError,
   runRecon
 };

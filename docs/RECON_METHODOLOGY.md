@@ -409,6 +409,17 @@ Rate limit profiles should define:
 The UI should expose safe defaults and let advanced users tune them per target,
 provider, phase, and tool.
 
+Runs must support user control from the Web UI:
+
+- Pause a running or queued run.
+- Resume a paused run.
+- Cancel a run.
+- Record every control action as an event.
+
+Pause and cancel are cooperative for CLI tools. Workers should honor them
+between provider calls, phases, and tool invocations. A tool process that is
+already running may finish before the worker stops the next step.
+
 ## Deduplication And Canonicalization
 
 Deduplication must happen before observations become stable normalized rows.
@@ -970,6 +981,15 @@ WHOIS/RDAP term suggestion should run before Reverse WHOIS when possible:
 - Suggest bounded include terms and default exclusions for Reverse WHOIS.
 - Let the AI explain why terms were suggested or skipped, but keep the final
   provider discovery action user-controlled.
+
+Alternate TLD correlation should run automatically during target bootstrap:
+
+- Extract the registrable label from in-scope root domains.
+- Generate bounded candidates across common TLDs.
+- Exclude exact existing roots and explicit out-of-scope domains.
+- Store results as `domain_candidate`/asset leads with `scope_status = unknown`.
+- Do not scan or promote alternate TLD candidates unless the user confirms they
+  are authorized.
 
 ## Phase 3a: Tracking Identifier Correlation
 

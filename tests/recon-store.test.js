@@ -16,7 +16,7 @@ const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/provid
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
-const { buildTargetConfigFromRequest, filterScopeDomains } = require("../src/web/api-routes");
+const { buildTargetConfigFromRequest, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
 
 function tempDb(name) {
@@ -73,6 +73,17 @@ test("bootstrap scope filtering removes excluded domains", () => {
     }
   });
   assert.deepEqual(domains, ["example.com", "api.example.com"]);
+});
+
+test("alternate TLD discovery creates bounded review leads", () => {
+  const leads = generateAlternateTldLeads({
+    rootDomains: ["acme.example"],
+    config: { scope: { out_of_scope: ["acme.net"] } }
+  });
+  assert.ok(leads.some((lead) => lead.value === "acme.com"));
+  assert.ok(!leads.some((lead) => lead.value === "acme.example"));
+  assert.ok(!leads.some((lead) => lead.value === "acme.net"));
+  assert.equal(leads[0].leadType, "domain_candidate");
 });
 
 test("scan store records recon data and generated wordlists", () => {

@@ -410,6 +410,7 @@ function clearRunView() {
   $("runStatus").textContent = "idle";
   $("domainCount").textContent = "0";
   $("eventCount").textContent = "0";
+  updateRunControlButtons("idle");
   updateTopologyGraph();
 }
 
@@ -569,6 +570,7 @@ async function refreshRun() {
     api(`/api/recon-runs/${activeRunId}/screenshots`)
   ]);
   $("runStatus").textContent = runData.run.status;
+  updateRunControlButtons(runData.run.status);
   for (const event of eventData.events) {
     lastEventId = Math.max(lastEventId, event.id);
     const div = document.createElement("div");
@@ -583,10 +585,36 @@ async function refreshRun() {
   renderServices(serviceData.services);
   renderArtifacts(urlData.urls, screenshotData.screenshots);
   updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
+  if (runData.run.target_name === $("target").value) {
+    refreshLeads().catch(() => {});
+  }
   if (["completed", "failed", "cancelled"].includes(runData.run.status) && poll) {
     clearInterval(poll);
     poll = null;
     $("status").textContent = `Run ${runData.run.status}`;
+  }
+}
+
+function updateRunControlButtons(status) {
+  const hasRun = Boolean(activeRunId);
+  $("pauseRun").disabled = !hasRun || !["queued", "running"].includes(status);
+  $("resumeRun").disabled = !hasRun || status !== "paused";
+  $("cancelRun").disabled = !hasRun || ["completed", "failed", "cancelled", "idle"].includes(status);
+}
+
+async function updateRunControl(action) {
+  if (!activeRunId) {
+    $("status").textContent = "No active run is loaded.";
+    return;
+  }
+  $("status").textContent = `${action[0].toUpperCase()}${action.slice(1)} requested for run ${activeRunId}`;
+  try {
+    const data = await api(`/api/recon-runs/${activeRunId}/${action}`, { method: "POST" });
+    $("runStatus").textContent = data.run.status;
+    updateRunControlButtons(data.run.status);
+    await refreshRun();
+  } catch (error) {
+    $("status").textContent = error.message;
   }
 }
 
@@ -1262,6 +1290,9 @@ $("target").addEventListener("change", () => {
 });
 $("reconMode").addEventListener("change", updateReconModeUi);
 $("start").addEventListener("click", startRecon);
+$("pauseRun").addEventListener("click", () => updateRunControl("pause"));
+$("resumeRun").addEventListener("click", () => updateRunControl("resume"));
+$("cancelRun").addEventListener("click", () => updateRunControl("cancel"));
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);

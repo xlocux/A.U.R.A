@@ -20,6 +20,7 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   - API key metadata
   - wordlist metadata
 - Restore the selected target and latest saved run after a browser refresh.
+- Pause, resume, or cancel long-running recon runs from the browser.
 - Run WSL/Kali tools through an allowlisted command runner.
 - Generate small derived wordlists from the local DB instead of storing large wordlist contents in SQLite.
 
@@ -57,6 +58,8 @@ Recommended first run:
    - Associated RDAP domains such as target-owned nameservers are collected.
    - Useful Reverse WHOIS terms and associated domains are proposed in the run
      log; if none are found, A.U.R.A says so explicitly.
+   - Alternate TLD domain candidates using the same registrable label are added
+     as review leads and are not automatically treated as in scope.
    - WhoisXMLAPI Reverse WHOIS expansion runs when an active API key exists.
    - Out-of-scope domains are filtered out.
    - The resulting seeds feed the enumeration pipeline.
@@ -67,6 +70,10 @@ selects the last active target when possible and reloads that target's latest
 saved run, including events, domains, HTTP services, artifacts, and topology.
 Topology controls redraw the latest loaded run data instead of discarding the
 current graph state.
+
+Run controls are cooperative. Pause and cancel requests are honored between
+recon phases and tool invocations; a tool process that is already running may
+finish before the run stops.
 
 If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
 bootstrap checks but does not start active enumeration.

@@ -11,6 +11,7 @@ const {
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
   DEFAULT_WSL_TOOLS,
+  isRunControlError,
   runRecon
 } = require("../recon/recon-engine");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
@@ -37,6 +38,23 @@ const DEFAULT_WORDLISTS = [
     path: "/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt",
     notes: "Default Kali/SecLists compact content discovery wordlist"
   }
+];
+const DEFAULT_ALTERNATE_TLDS = [
+  "com",
+  "net",
+  "org",
+  "io",
+  "co",
+  "app",
+  "dev",
+  "cloud",
+  "ai",
+  "it",
+  "uk",
+  "de",
+  "fr",
+  "es",
+  "nl"
 ];
 
 function runInBackground(task) {
@@ -164,6 +182,12 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  const runActionMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/(pause|resume|cancel)$/);
+  if (runActionMatch && request.method === "POST") {
+    updateRunControl(response, store, Number(runActionMatch[1]), runActionMatch[2]);
+    return true;
+  }
+
   if (request.method === "GET") {
     return handleReadEndpoint(response, url, store);
   }
@@ -284,6 +308,15 @@ function startTargetBootstrap({ store, target, config, authorized, wslDistro, ti
     try {
       await bootstrapTargetRecon({ store, runId: run.id, target, config, rootDomains, authorized, wslDistro, timeoutMs });
     } catch (error) {
+      if (isRunControlError(error)) {
+        store.appendEvent(run.id, {
+          phase: "control",
+          severity: "warn",
+          source: "engine",
+          message: error.message
+        });
+        return;
+      }
       store.appendEvent(run.id, {
         phase: "bootstrap",
         severity: "error",
@@ -310,6 +343,78 @@ function deleteTarget(response, store, targetName) {
   const removed = store.deleteTarget(targetName);
   removeTargetFiles(targetName, target.config_path, removed.runIds);
   sendJson(response, { deleted: true, targetName, runIds: removed.runIds });
+}
+
+function updateRunControl(response, store, runId, action) {
+  const run = store.getRun(runId);
+  if (!run) {
+    sendJson(response, { error: "Run not found" }, 404);
+    return;
+  }
+  const terminal = new Set(["completed", "failed", "cancelled"]);
+  if (terminal.has(run.status) && action !== "cancel") {
+    sendJson(response, { error: `Run is already ${run.status}` }, 409);
+    return;
+  }
+  if (action === "pause") {
+    if (run.status !== "running" && run.status !== "queued") {
+      sendJson(response, { error: `Run cannot be paused from ${run.status}` }, 409);
+      return;
+    }
+    const updated = store.updateRun(runId, { status: "paused", activePhase: run.active_phase || "paused" });
+    store.appendEvent(runId, { phase: "control", severity: "warn", source: "user", message: "Run pause requested." });
+    sendJson(response, { run: updated });
+    return;
+  }
+  if (action === "resume") {
+    if (run.status !== "paused") {
+      sendJson(response, { error: `Run cannot be resumed from ${run.status}` }, 409);
+      return;
+    }
+    const updated = store.updateRun(runId, { status: "running", activePhase: run.active_phase || "recon" });
+    store.appendEvent(runId, { phase: "control", severity: "ok", source: "user", message: "Run resume requested." });
+    sendJson(response, { run: updated });
+    return;
+  }
+  if (action === "cancel") {
+    const updated = store.updateRun(runId, {
+      status: "cancelled",
+      activePhase: "cancelled",
+      finishedAt: new Date().toISOString(),
+      errorMessage: null
+    });
+    store.appendEvent(runId, { phase: "control", severity: "warn", source: "user", message: "Run cancel requested." });
+    sendJson(response, { run: updated });
+  }
+}
+
+async function waitForApiRunControl(store, runId) {
+  let run = store.getRun(runId);
+  if (!run) throw new Error("Run no longer exists");
+  if (run.status === "cancelled") {
+    throw createRunControlError("Run cancelled by user");
+  }
+  if (run.status !== "paused") return;
+
+  store.appendEvent(runId, {
+    phase: "control",
+    severity: "warn",
+    source: "engine",
+    message: "Bootstrap paused. Waiting for resume or cancel."
+  });
+  while (run?.status === "paused") {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    run = store.getRun(runId);
+    if (!run || run.status === "cancelled") {
+      throw createRunControlError("Run cancelled by user");
+    }
+  }
+}
+
+function createRunControlError(message) {
+  const error = new Error(message);
+  error.name = "RunControlError";
+  return error;
 }
 
 function removeTargetFiles(targetName, configPath, runIds = []) {
@@ -346,6 +451,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     message: `Target saved. Starting RDAP/WHOIS bootstrap for ${rootDomains.join(", ")}`
   });
 
+  await waitForApiRunControl(store, runId);
   const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
   const suggestionSummary = formatWhoisSuggestionSummary(suggestions);
   const hasUsefulWhoisPivots = suggestions.includeTerms.length > 0 || suggestions.associatedDomains.length > 0;
@@ -370,17 +476,31 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
       source: "rdap",
       message: `RDAP associated domains proposed for enumeration: ${rdapDomains.join(", ")}`
     });
-  } else if (!hasUsefulWhoisPivots) {
+  }
+
+  const alternateTldLeads = generateAlternateTldLeads({ rootDomains, config });
+  if (alternateTldLeads.length > 0) {
+    const saved = store.saveAssetLeads(runId, target.target_name, alternateTldLeads);
+    store.appendEvent(runId, {
+      phase: "bootstrap",
+      severity: "ok",
+      source: "tld-correlation",
+      message: `Proposed ${saved} alternate TLD domain candidates for review: ${alternateTldLeads.map((lead) => lead.value).join(", ")}`
+    });
+  }
+
+  if (rdapDomains.length === 0 && alternateTldLeads.length === 0 && !hasUsefulWhoisPivots) {
     store.appendEvent(runId, {
       phase: "whois-rdap",
       severity: "warn",
       source: "rdap",
-      message: "No target-related WHOIS/RDAP pivots were found."
+      message: "No target-related WHOIS/RDAP pivots or alternate TLD candidates were found."
     });
   }
 
   let providerDomains = [];
   if (suggestions.includeTerms.length > 0) {
+    await waitForApiRunControl(store, runId);
     providerDomains = await collectReverseWhoisDomains({ store, runId, targetName: target.target_name, config, rootDomains, suggestions });
   }
 
@@ -413,6 +533,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   }
 
   const domainWordlist = store.getActiveWordlist("domains");
+  await waitForApiRunControl(store, runId);
   await runRecon({
     store,
     runId,
@@ -489,6 +610,35 @@ function filterScopeDomains({ domains, config, rootDomains }) {
   return [...new Set((domains || []).map(normalizeDomain).filter(Boolean))]
     .filter((domain) => !excluded.some((rule) => domain === rule || domain.endsWith(`.${rule}`)))
     .filter((domain) => rootDomains.length === 0 || domain.length > 0);
+}
+
+function generateAlternateTldLeads({ rootDomains, config }) {
+  const excluded = (config.scope?.out_of_scope || []).map(normalizeDomain).filter(Boolean);
+  const roots = new Set(rootDomains.map(normalizeDomain).filter(Boolean));
+  const leads = new Map();
+  for (const root of roots) {
+    const labels = root.split(".");
+    if (labels.length < 2) continue;
+    const brand = labels[labels.length - 2];
+    if (!/^[a-z0-9-]{3,63}$/.test(brand)) continue;
+    for (const tld of DEFAULT_ALTERNATE_TLDS) {
+      const candidate = normalizeDomain(`${brand}.${tld}`);
+      if (!candidate || roots.has(candidate)) continue;
+      if (excluded.some((rule) => candidate === rule || candidate.endsWith(`.${rule}`))) continue;
+      leads.set(candidate, {
+        leadType: "domain_candidate",
+        value: candidate,
+        source: "alternate-tld-correlation",
+        confidence: "candidate",
+        matchTerms: [brand],
+        metadata: {
+          rootDomain: root,
+          reason: "Same registrable label on an alternate TLD. Review scope before scanning."
+        }
+      });
+    }
+  }
+  return [...leads.values()].slice(0, 50);
 }
 
 function saveBootstrapDomains({ store, runId, targetName, domains, roots, source }) {
@@ -891,6 +1041,15 @@ async function createReconRun(request, response, store) {
         timeoutMs: Number(body.timeoutMs || 180000)
       });
     } catch (error) {
+      if (isRunControlError(error)) {
+        store.appendEvent(run.id, {
+          phase: "control",
+          severity: "warn",
+          source: "engine",
+          message: error.message
+        });
+        return;
+      }
       store.appendEvent(run.id, {
         phase: "recon",
         severity: "error",
@@ -1147,5 +1306,6 @@ function handleReadEndpoint(response, url, store) {
 module.exports = {
   buildTargetConfigFromRequest,
   filterScopeDomains,
+  generateAlternateTldLeads,
   handleApiRequest
 };
