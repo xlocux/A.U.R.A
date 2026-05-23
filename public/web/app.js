@@ -337,12 +337,14 @@ async function loadTargets() {
   const data = await api("/api/targets");
   targets = data.targets;
   $("target").innerHTML = targets.map((t) => `<option value="${esc(t.target_name)}">${esc(t.target_name)}</option>`).join("");
+  $("deleteTarget").disabled = targets.length === 0;
   if (targets.length === 0) {
     $("status").textContent = "";
     $("targetValidation").textContent = "Create a target in Recon to load its config.";
     $("targetValidation").className = "notice muted";
     $("domains").value = "";
     $("leadRows").innerHTML = "";
+    $("target").innerHTML = "";
     await refreshApiKeys();
     await refreshWordlists();
     return;
@@ -430,6 +432,42 @@ async function createTarget() {
     $("status").textContent = error.errors ? error.errors.join("; ") : error.message;
   } finally {
     $("createTarget").disabled = false;
+  }
+}
+
+async function deleteTarget() {
+  const targetName = $("target").value;
+  if (!targetName) {
+    $("status").textContent = "Select a target to delete.";
+    return;
+  }
+  const confirmed = window.confirm(`Delete target "${targetName}" and its local runs, observations, and artifacts?`);
+  if (!confirmed) return;
+  $("deleteTarget").disabled = true;
+  $("status").textContent = `Deleting target: ${targetName}`;
+  try {
+    await api(`/api/targets/${encodeURIComponent(targetName)}`, { method: "DELETE" });
+    if (activeRunId) {
+      activeRunId = null;
+      lastEventId = 0;
+      if (poll) clearInterval(poll);
+      poll = null;
+    }
+    $("events").innerHTML = "";
+    $("domainRows").innerHTML = "";
+    $("serviceRows").innerHTML = "";
+    $("artifactRows").innerHTML = "";
+    $("leadRows").innerHTML = "";
+    $("runId").textContent = "-";
+    $("runStatus").textContent = "idle";
+    $("domainCount").textContent = "0";
+    $("eventCount").textContent = "0";
+    $("status").textContent = `Target deleted: ${targetName}`;
+    await loadTargets();
+  } catch (error) {
+    $("status").textContent = error.message;
+  } finally {
+    $("deleteTarget").disabled = targets.length === 0;
   }
 }
 
@@ -1130,12 +1168,17 @@ function formatWhoisSuggestionStatus(data) {
   const suggestions = (data.suggestions || [])
     .map((item) => `- ${item.value} (${item.field}, score ${item.score})`)
     .join("\n");
+  const associated = (data.associatedDomains || [])
+    .map((domain) => `- ${domain}`)
+    .join("\n");
   const records = (data.records || [])
     .map((record) => `${record.domain}: ${record.status}${record.error ? ` - ${record.error}` : ""}`)
     .join("\n");
   return [
     data.rationale || "Suggestion complete.",
     suggestions ? `\nSuggested terms:\n${suggestions}` : "",
+    associated ? `\nAssociated domains:\n${associated}` : "",
+    !suggestions && !associated ? "\nNo useful WHOIS/RDAP pivots were found for this target." : "",
     data.skippedPrivate?.length ? `\nSkipped private/noisy terms: ${data.skippedPrivate.join(", ")}` : "",
     records ? `\nChecked records:\n${records}` : ""
   ].filter(Boolean).join("\n");
@@ -1172,6 +1215,7 @@ $("searchQuery").addEventListener("keydown", (event) => {
   if (event.key === "Enter") runSearch();
 });
 $("createTarget").addEventListener("click", createTarget);
+$("deleteTarget").addEventListener("click", deleteTarget);
 $("checkEnvironment").addEventListener("click", checkEnvironment);
 $("installEnvironment").addEventListener("click", installEnvironment);
 $("saveAiSettings").addEventListener("click", saveAiSettings);

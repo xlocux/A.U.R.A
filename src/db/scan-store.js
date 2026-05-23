@@ -305,6 +305,29 @@ class ScanStore {
     return this.db.prepare("SELECT * FROM targets ORDER BY target_name").all().map(hydrateTarget);
   }
 
+  deleteTarget(targetName) {
+    const existing = this.getTarget(targetName);
+    if (!existing) return { deleted: false, runIds: [] };
+    const runIds = this.db.prepare("SELECT id FROM scan_runs WHERE target_name = ?").all(targetName).map((row) => row.id);
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM asset_discovery_queries WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM asset_leads WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM recon_screenshots WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM recon_http_services WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM recon_urls WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM recon_domains WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM recon_jobs WHERE target_name = ?").run(targetName);
+      this.db.prepare("DELETE FROM scan_runs WHERE target_name = ?").run(targetName);
+      const result = this.db.prepare("DELETE FROM targets WHERE target_name = ?").run(targetName);
+      this.db.exec("COMMIT");
+      return { deleted: result.changes > 0, runIds };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   createRun({ targetName, runType = "recon", mode = "blackbox", providerProfile = "wsl-kali", checkpoint = {} }) {
     const result = this.db.prepare(`
       INSERT INTO scan_runs (

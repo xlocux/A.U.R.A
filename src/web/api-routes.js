@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const path = require("node:path");
 const { normalizeDomain, rootForDomain } = require("../recon/domain-utils");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
@@ -135,6 +136,12 @@ async function handleApiRequest({ request, response, url, store }) {
       await updateTargetConfig(request, response, store, decodeURIComponent(targetConfigMatch[1]));
       return true;
     }
+  }
+
+  const targetMatch = url.pathname.match(/^\/api\/targets\/([^/]+)$/);
+  if (targetMatch && request.method === "DELETE") {
+    deleteTarget(response, store, decodeURIComponent(targetMatch[1]));
+    return true;
   }
 
   if (request.method === "POST" && url.pathname === "/api/recon-runs") {
@@ -294,6 +301,38 @@ function startTargetBootstrap({ store, target, config, authorized, wslDistro, ti
   return run;
 }
 
+function deleteTarget(response, store, targetName) {
+  const target = store.getTarget(targetName);
+  if (!target) {
+    sendJson(response, { error: `Target not found: ${targetName}` }, 404);
+    return;
+  }
+  const removed = store.deleteTarget(targetName);
+  removeTargetFiles(targetName, target.config_path, removed.runIds);
+  sendJson(response, { deleted: true, targetName, runIds: removed.runIds });
+}
+
+function removeTargetFiles(targetName, configPath, runIds = []) {
+  const targetsRoot = pathResolveSafe("targets");
+  const targetDir = pathResolveSafe(configPath ? path.dirname(configPath) : `targets/${targetName}`);
+  if (isInsidePath(targetDir, targetsRoot)) {
+    fs.rmSync(targetDir, { recursive: true, force: true });
+  }
+  const runsRoot = pathResolveSafe("data/recon-runs");
+  for (const runId of runIds) {
+    fs.rmSync(pathResolveSafe(runsRoot, String(runId)), { recursive: true, force: true });
+  }
+}
+
+function pathResolveSafe(...segments) {
+  return path.resolve(...segments);
+}
+
+function isInsidePath(candidate, root) {
+  const relative = path.relative(root, candidate);
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
 async function bootstrapTargetRecon({ store, runId, target, config, rootDomains, authorized, wslDistro, timeoutMs }) {
   store.updateRun(runId, {
     status: "running",
@@ -308,12 +347,14 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   });
 
   const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  const suggestionSummary = formatWhoisSuggestionSummary(suggestions);
+  const hasUsefulWhoisPivots = suggestions.includeTerms.length > 0 || suggestions.associatedDomains.length > 0;
   store.appendEvent(runId, {
     phase: "whois-rdap",
-    severity: suggestions.includeTerms.length ? "ok" : "warn",
+    severity: hasUsefulWhoisPivots ? "ok" : "warn",
     source: "rdap",
-    message: suggestions.includeTerms.length
-      ? `RDAP suggested ${suggestions.includeTerms.length} target-related Reverse WHOIS terms`
+    message: hasUsefulWhoisPivots
+      ? `RDAP found useful pivots: ${suggestionSummary}`
       : suggestions.rationale
   });
   const rdapDomains = filterScopeDomains({
@@ -323,6 +364,19 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   });
   if (rdapDomains.length > 0) {
     saveBootstrapDomains({ store, runId, targetName: target.target_name, domains: rdapDomains, roots: rootDomains, source: "rdap-associated-domain" });
+    store.appendEvent(runId, {
+      phase: "whois-rdap",
+      severity: "ok",
+      source: "rdap",
+      message: `RDAP associated domains proposed for enumeration: ${rdapDomains.join(", ")}`
+    });
+  } else if (!hasUsefulWhoisPivots) {
+    store.appendEvent(runId, {
+      phase: "whois-rdap",
+      severity: "warn",
+      source: "rdap",
+      message: "No target-related WHOIS/RDAP pivots were found."
+    });
   }
 
   let providerDomains = [];
@@ -372,6 +426,13 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     subdomainWordlistPath: domainWordlist?.path || null,
     timeoutMs
   });
+}
+
+function formatWhoisSuggestionSummary(suggestions) {
+  const parts = [];
+  if (suggestions.includeTerms?.length) parts.push(`terms: ${suggestions.includeTerms.join(", ")}`);
+  if (suggestions.associatedDomains?.length) parts.push(`associated domains: ${suggestions.associatedDomains.join(", ")}`);
+  return parts.join("; ") || "none";
 }
 
 async function collectReverseWhoisDomains({ store, runId, targetName, config, rootDomains, suggestions }) {

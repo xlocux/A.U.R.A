@@ -111,6 +111,30 @@ test("scan store records recon data and generated wordlists", () => {
   store.close();
 });
 
+test("scan store deletes targets with local recon data", () => {
+  const store = openScanStore(tempDb("delete-target.db"));
+  const target = store.upsertTarget(path.resolve("targets/delete-me/target.json"), {
+    target_name: "delete-me",
+    asset_type: "webapp",
+    program_url: "https://example.com",
+    scope: { in_scope: ["example.com"], out_of_scope: [] }
+  });
+  const run = store.createRun({ targetName: target.target_name });
+  store.saveDomains(run.id, target.target_name, [
+    { domain: "www.example.com", rootDomain: "example.com", kind: "subdomain", source: "test" }
+  ]);
+  store.saveAssetLeads(run.id, target.target_name, [
+    { value: "related.example.com", source: "test", confidence: "candidate" }
+  ]);
+  const deleted = store.deleteTarget(target.target_name);
+  assert.equal(deleted.deleted, true);
+  assert.deepEqual(deleted.runIds, [run.id]);
+  assert.equal(store.getTarget(target.target_name), null);
+  assert.equal(store.listDomains({ targetName: target.target_name }).length, 0);
+  assert.equal(store.listAssetLeads({ targetName: target.target_name }).length, 0);
+  store.close();
+});
+
 test("scan store queues and claims recon jobs", () => {
   const store = openScanStore(tempDb("jobs.db"));
   const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));

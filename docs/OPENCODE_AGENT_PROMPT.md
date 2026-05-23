@@ -560,6 +560,13 @@ Agent suggestions about WHOIS/RDAP must be tied to target evidence. Do not
 suggest registry, reserved, registrar-only, privacy-proxy, or unrelated terms as
 discovery pivots.
 
+When bootstrap finds useful WHOIS/RDAP pivots, surface the exact terms or
+associated domains and explain why they are useful. When no useful pivots are
+found, say that clearly instead of inventing search terms.
+
+Target deletion is a Web UI operation. It should remove the target config, local
+runs, observations, leads, and run artifacts for that target.
+
 When adding new recon capability:
 
 1. Add or update a methodology section if needed.

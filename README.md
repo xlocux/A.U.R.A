@@ -42,6 +42,9 @@ OpenCode, and install/update recon tools. Create targets from the `Recon` tab
 in the browser. Target setup, scope edits, API keys, wordlists, recon runs, and
 results are all managed from the Web UI.
 
+Targets can be deleted from the `Recon` tab. Deleting a target removes its local
+target config, runs, observations, leads, and run artifact folders.
+
 Recommended first run:
 
 1. Open `Settings > Environment` and run `Install / Update Tools`.
@@ -51,6 +54,8 @@ Recommended first run:
 5. A.U.R.A automatically starts a target bootstrap run:
    - RDAP/WHOIS is inspected for target-related terms.
    - Associated RDAP domains such as target-owned nameservers are collected.
+   - Useful Reverse WHOIS terms and associated domains are proposed in the run
+     log; if none are found, A.U.R.A says so explicitly.
    - WhoisXMLAPI Reverse WHOIS expansion runs when an active API key exists.
    - Out-of-scope domains are filtered out.
    - The resulting seeds feed the enumeration pipeline.

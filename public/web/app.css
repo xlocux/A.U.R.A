@@ -215,6 +215,11 @@ button {
 }
 
 button:disabled { opacity: .55; cursor: wait; }
+.danger-button {
+  background: rgba(239, 111, 108, .16);
+  border: 1px solid rgba(239, 111, 108, .55);
+  color: #ffb8b6;
+}
 .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--ink); font-size: 13px; }
 .inline { margin: 0; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
