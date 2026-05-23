@@ -987,9 +987,11 @@ Alternate TLD correlation should run automatically during target bootstrap:
 - Extract the registrable label from in-scope root domains.
 - Generate bounded candidates across common TLDs.
 - Exclude exact existing roots and explicit out-of-scope domains.
-- Store results as `domain_candidate`/asset leads with `scope_status = unknown`.
-- Do not scan or promote alternate TLD candidates unless the user confirms they
-  are authorized.
+- Store results as `domain_candidate`/asset leads with evidence.
+- Include alternate TLD candidates in the enumeration seed set only after the
+  user confirms authorized scope for the run.
+- Keep alternate TLD discoveries clearly attributed to the intel phase so users
+  can audit why they were scanned.
 
 ## Phase 3a: Tracking Identifier Correlation
 

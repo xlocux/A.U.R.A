@@ -43,18 +43,44 @@ const DEFAULT_ALTERNATE_TLDS = [
   "com",
   "net",
   "org",
+  "info",
+  "biz",
   "io",
   "co",
   "app",
   "dev",
   "cloud",
   "ai",
+  "tech",
+  "site",
+  "online",
+  "store",
+  "shop",
+  "me",
+  "tv",
+  "xyz",
+  "security",
   "it",
   "uk",
+  "us",
+  "ca",
+  "au",
   "de",
   "fr",
   "es",
-  "nl"
+  "nl",
+  "ch",
+  "se",
+  "no",
+  "dk",
+  "fi",
+  "pl",
+  "br",
+  "mx",
+  "in",
+  "jp",
+  "kr",
+  "cn"
 ];
 
 function runInBackground(task) {
@@ -453,14 +479,16 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
 
   await waitForApiRunControl(store, runId);
   const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  const brandTerms = extractBrandTerms(rootDomains);
+  const reverseWhoisTerms = [...new Set([...(suggestions.includeTerms || []), ...brandTerms])];
   const suggestionSummary = formatWhoisSuggestionSummary(suggestions);
-  const hasUsefulWhoisPivots = suggestions.includeTerms.length > 0 || suggestions.associatedDomains.length > 0;
+  const hasUsefulWhoisPivots = reverseWhoisTerms.length > 0 || suggestions.associatedDomains.length > 0;
   store.appendEvent(runId, {
     phase: "whois-rdap",
     severity: hasUsefulWhoisPivots ? "ok" : "warn",
     source: "rdap",
     message: hasUsefulWhoisPivots
-      ? `RDAP found useful pivots: ${suggestionSummary}`
+      ? `Intel phase prepared WHOIS pivots: ${formatWhoisSuggestionSummary({ ...suggestions, includeTerms: reverseWhoisTerms })}`
       : suggestions.rationale
   });
   const rdapDomains = filterScopeDomains({
@@ -479,13 +507,14 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   }
 
   const alternateTldLeads = generateAlternateTldLeads({ rootDomains, config });
+  const alternateTldDomains = alternateTldLeads.map((lead) => lead.value);
   if (alternateTldLeads.length > 0) {
     const saved = store.saveAssetLeads(runId, target.target_name, alternateTldLeads);
     store.appendEvent(runId, {
       phase: "bootstrap",
       severity: "ok",
       source: "tld-correlation",
-      message: `Proposed ${saved} alternate TLD domain candidates for review: ${alternateTldLeads.map((lead) => lead.value).join(", ")}`
+      message: `Discovered ${saved} alternate TLD candidates: ${alternateTldDomains.join(", ")}`
     });
   }
 
@@ -499,13 +528,20 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   }
 
   let providerDomains = [];
-  if (suggestions.includeTerms.length > 0) {
+  if (reverseWhoisTerms.length > 0) {
     await waitForApiRunControl(store, runId);
-    providerDomains = await collectReverseWhoisDomains({ store, runId, targetName: target.target_name, config, rootDomains, suggestions });
+    providerDomains = await collectReverseWhoisDomains({
+      store,
+      runId,
+      targetName: target.target_name,
+      config,
+      rootDomains,
+      suggestions: { ...suggestions, includeTerms: reverseWhoisTerms }
+    });
   }
 
   const seeds = filterScopeDomains({
-    domains: [...rootDomains, ...rdapDomains, ...providerDomains],
+    domains: [...rootDomains, ...alternateTldDomains, ...rdapDomains, ...providerDomains],
     config,
     rootDomains
   });
@@ -513,7 +549,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     phase: "bootstrap",
     severity: "ok",
     source: "engine",
-    message: `Bootstrap prepared ${seeds.length} domain seeds after scope filtering`
+    message: `Intel bootstrap prepared ${seeds.length} domain seeds after TLD, WHOIS/RDAP, Reverse WHOIS, and scope filtering`
   });
 
   if (!authorized) {
@@ -521,7 +557,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
       phase: "bootstrap",
       severity: "warn",
       source: "engine",
-      message: "Enumeration was not started because authorized scope was not confirmed."
+      message: "Enumeration was not started because authorized scope was not confirmed. Intel candidates were saved for review."
     });
     store.updateRun(runId, {
       status: "completed",
@@ -605,6 +641,18 @@ function extractRdapRelatedDomains(suggestions) {
   return suggestions.associatedDomains || [];
 }
 
+function extractBrandTerms(rootDomains) {
+  const terms = new Set();
+  const secondLevelTlds = new Set(["ac", "co", "com", "edu", "gov", "net", "org"]);
+  for (const root of rootDomains.map(normalizeDomain).filter(Boolean)) {
+    const labels = root.split(".");
+    const isCountrySecondLevel = labels.length > 2 && labels.at(-1).length === 2 && secondLevelTlds.has(labels.at(-2));
+    const brand = isCountrySecondLevel ? labels.at(-3) : labels.length > 1 ? labels.at(-2) : labels[0];
+    if (/^[a-z0-9][a-z0-9-]{2,62}$/.test(brand)) terms.add(brand);
+  }
+  return [...terms];
+}
+
 function filterScopeDomains({ domains, config, rootDomains }) {
   const excluded = (config.scope?.out_of_scope || []).map(normalizeDomain).filter(Boolean);
   return [...new Set((domains || []).map(normalizeDomain).filter(Boolean))]
@@ -619,7 +667,7 @@ function generateAlternateTldLeads({ rootDomains, config }) {
   for (const root of roots) {
     const labels = root.split(".");
     if (labels.length < 2) continue;
-    const brand = labels[labels.length - 2];
+    const brand = extractBrandTerms([root])[0];
     if (!/^[a-z0-9-]{3,63}$/.test(brand)) continue;
     for (const tld of DEFAULT_ALTERNATE_TLDS) {
       const candidate = normalizeDomain(`${brand}.${tld}`);
@@ -1305,6 +1353,7 @@ function handleReadEndpoint(response, url, store) {
 
 module.exports = {
   buildTargetConfigFromRequest,
+  extractBrandTerms,
   filterScopeDomains,
   generateAlternateTldLeads,
   handleApiRequest

@@ -563,12 +563,17 @@ UX, and English-only product text rules.
 The default target onboarding flow is browser-first:
 
 1. The user creates a target and optional excluded domains in the Web UI.
-2. A.U.R.A immediately starts a passive target bootstrap run.
-3. RDAP/WHOIS data is inspected for target-related terms and associated domains.
-4. Reverse WHOIS expansion may run when the user has configured an approved API
-   key.
-5. Out-of-scope domains are filtered before any follow-up.
-6. Active enumeration starts only when authorized scope has been confirmed.
+2. A.U.R.A normalizes domains and wildcards such as `*.example.com` into root
+   domain seeds.
+3. A.U.R.A runs an intel phase that expands alternate TLD candidates for the
+   same registrable label.
+4. RDAP/WHOIS data is inspected for target-related terms and associated domains.
+5. Reverse WHOIS expansion may run when the user has configured an approved API
+   key; brand labels are allowed as bounded fallback terms when RDAP is private
+   or unhelpful.
+6. Out-of-scope domains are filtered before any follow-up.
+7. Root, alternate-TLD, RDAP, and provider-discovered seeds are enumerated only
+   when authorized scope has been confirmed.
 
 Agent suggestions about WHOIS/RDAP must be tied to target evidence. Do not
 suggest registry, reserved, registrar-only, privacy-proxy, or unrelated terms as

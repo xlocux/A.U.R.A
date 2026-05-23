@@ -54,15 +54,20 @@ Recommended first run:
 3. Confirm authorized scope when you are allowed to enumerate the target.
 4. Create a target in `Recon`.
 5. A.U.R.A automatically starts a target bootstrap run:
+   - Domains and wildcards such as `*.example.com` are normalized to root
+     domains.
+   - An intel phase expands likely alternate TLDs for the same registrable
+     label.
    - RDAP/WHOIS is inspected for target-related terms.
    - Associated RDAP domains such as target-owned nameservers are collected.
    - Useful Reverse WHOIS terms and associated domains are proposed in the run
      log; if none are found, A.U.R.A says so explicitly.
-   - Alternate TLD domain candidates using the same registrable label are added
-     as review leads and are not automatically treated as in scope.
+   - Brand terms from the root domains are used as fallback Reverse WHOIS terms
+     when RDAP does not provide useful organization data.
    - WhoisXMLAPI Reverse WHOIS expansion runs when an active API key exists.
    - Out-of-scope domains are filtered out.
-   - The resulting seeds feed the enumeration pipeline.
+   - The resulting root, alternate-TLD, RDAP, and provider-discovered seeds feed
+     the enumeration pipeline when authorized scope is confirmed.
 6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
 
 Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A

@@ -16,7 +16,7 @@ const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/provid
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
-const { buildTargetConfigFromRequest, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
+const { buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
 
 function tempDb(name) {
@@ -84,6 +84,10 @@ test("alternate TLD discovery creates bounded review leads", () => {
   assert.ok(!leads.some((lead) => lead.value === "acme.example"));
   assert.ok(!leads.some((lead) => lead.value === "acme.net"));
   assert.equal(leads[0].leadType, "domain_candidate");
+});
+
+test("brand term extraction supports wildcard domain intel pivots", () => {
+  assert.deepEqual(extractBrandTerms(["*.google.com", "https://admin.acme.co.uk"]), ["google", "acme"]);
 });
 
 test("scan store records recon data and generated wordlists", () => {
