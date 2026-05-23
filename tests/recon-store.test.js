@@ -102,7 +102,8 @@ test("scan store records recon data and generated wordlists", () => {
   const run = store.createRun({ targetName: target.target_name });
   store.appendEvent(run.id, { phase: "recon", message: "started" });
   store.saveDomains(run.id, "demo", [
-    { domain: "www.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" }
+    { domain: "www.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" },
+    { domain: "api-prod.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" }
   ]);
   store.saveUrls(run.id, "demo", [
     { url: "https://www.example.com/login?next=/admin", host: "www.example.com", path: "/login", query: "next=/admin", params: ["next"] }
@@ -118,6 +119,15 @@ test("scan store records recon data and generated wordlists", () => {
   });
   assert.equal(generated.count, 1);
   assert.match(fs.readFileSync(generated.path, "utf8"), /next/);
+  const smart = generateWordlistFromDb(store, {
+    targetName: "demo",
+    category: "smart-domains",
+    name: "demo-smart-domains",
+    outputDir: fs.mkdtempSync(path.join(os.tmpdir(), "aura-wordlists-"))
+  });
+  const smartContent = fs.readFileSync(smart.path, "utf8");
+  assert.match(smartContent, /api-prod/);
+  assert.match(smartContent, /dev-api/);
   const results = store.searchAll({ query: "nginx", targetName: "demo" });
   assert.equal(results[0].result_type, "http_service");
   assert.equal(results[0].target_name, "demo");

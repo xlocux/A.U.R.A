@@ -1079,12 +1079,21 @@ Permutation inputs:
 - Technology and region hints.
 - Environment naming patterns such as `dev`, `staging`, `qa`, `beta`, `api-v2`,
   and regional suffixes.
+- AI-assisted naming patterns learned from the target's own discovered
+  subdomains.
 
 Permutation outputs:
 
 - Candidate domains.
 - Source derivation metadata.
 - Follow-up DNS validation jobs.
+
+A.U.R.A should generate smart domain wordlists from observed subdomain labels.
+The first implementation can be deterministic: split labels into service,
+environment, product, and region tokens, then generate bounded combinations
+such as `env-token`, `token-env`, `region-token`, and `token-region`. The AI
+copilot may later explain, rank, or refine these candidates, but generated
+entries must remain tied to observed naming evidence.
 
 Wildcard DNS handling:
 

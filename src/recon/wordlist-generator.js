@@ -22,6 +22,7 @@ function generateWordlistFromDb(store, { targetName, category, name, outputDir =
 
 function entriesForCategory(store, targetName, category) {
   if (category === "domains") return domainLabels(store, targetName);
+  if (category === "smart-domains") return smartDomainLabels(store, targetName);
   if (category === "params") return params(store, targetName);
   if (category === "paths") return paths(store, targetName);
   if (category === "technologies") return technologies(store, targetName);
@@ -43,6 +44,95 @@ function domainLabels(store, targetName) {
   }
   return labels;
 }
+
+function smartDomainLabels(store, targetName) {
+  const observed = [...new Set(domainLabels(store, targetName).map(cleanEntry).filter(Boolean))];
+  const tokens = new Set();
+  for (const label of observed) {
+    tokens.add(label);
+    for (const token of label.split(/[-_.]+/).map(cleanEntry).filter(Boolean)) {
+      tokens.add(token);
+    }
+  }
+  const coreTokens = [...tokens]
+    .filter((token) => token.length >= 3 && token.length <= 24)
+    .filter((token) => !COMMON_ENV_TOKENS.has(token))
+    .slice(0, 250);
+  const generated = new Set([...observed, ...COMMON_ENV_TOKENS]);
+
+  for (const token of coreTokens) {
+    for (const env of COMMON_ENV_TOKENS) {
+      generated.add(`${env}-${token}`);
+      generated.add(`${token}-${env}`);
+      generated.add(`${env}${token}`);
+      generated.add(`${token}${env}`);
+    }
+    for (const region of COMMON_REGION_TOKENS) {
+      generated.add(`${token}-${region}`);
+      generated.add(`${region}-${token}`);
+    }
+  }
+
+  for (const env of COMMON_ENV_TOKENS) {
+    for (const region of COMMON_REGION_TOKENS) {
+      generated.add(`${env}-${region}`);
+      generated.add(`${region}-${env}`);
+    }
+  }
+
+  return [...generated].filter(validDnsLabel).slice(0, 5000);
+}
+
+const COMMON_ENV_TOKENS = new Set([
+  "api",
+  "admin",
+  "app",
+  "auth",
+  "beta",
+  "cdn",
+  "cloud",
+  "corp",
+  "dashboard",
+  "dev",
+  "edge",
+  "internal",
+  "login",
+  "m",
+  "mobile",
+  "portal",
+  "preprod",
+  "prod",
+  "qa",
+  "sso",
+  "stage",
+  "staging",
+  "static",
+  "support",
+  "test",
+  "uat",
+  "web",
+  "www"
+]);
+
+const COMMON_REGION_TOKENS = new Set([
+  "ap",
+  "apac",
+  "asia",
+  "au",
+  "br",
+  "ca",
+  "de",
+  "eu",
+  "fr",
+  "in",
+  "jp",
+  "latam",
+  "na",
+  "uk",
+  "us",
+  "us-east",
+  "us-west"
+]);
 
 function params(store, targetName) {
   const rows = queryRows(store, `
@@ -85,6 +175,11 @@ function cleanEntry(value) {
   if (!text || text.length > 120) return null;
   if (/[\s<>:"'`\\|]/.test(text)) return null;
   return text;
+}
+
+function validDnsLabel(value) {
+  const text = cleanEntry(value);
+  return Boolean(text && text.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(text));
 }
 
 function safeFileName(value) {

@@ -26,6 +26,7 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.
 - Generate small derived wordlists from the local DB instead of storing large wordlist contents in SQLite.
+- Generate smart domain wordlists from observed subdomain naming patterns.
 
 ## Quick Start
 
@@ -229,6 +230,10 @@ Generated wordlists are written to:
 ```text
 data/wordlists/generated/
 ```
+
+The `smart-domains` generated category uses collected subdomains to infer likely
+environment, service, and region naming patterns. It is intended for later
+controlled subdomain permutation or brute-force phases.
 
 and that directory is ignored by Git.
 
