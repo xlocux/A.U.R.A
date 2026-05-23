@@ -151,7 +151,9 @@ Full recon currently performs:
 6. DNS validation with `dnsx` / `puredns`.
 7. URL mining with `gau`.
 8. HTTP probing and tech detection with `httpx`.
-9. Screenshot collection with `aquatone` or `EyeWitness`.
+9. Technology stack aggregation in Results and Search.
+10. Screenshot collection with `gowitness` by default, with optional
+    `aquatone` or `EyeWitness`.
 
 ## WSL/Kali Tools
 
@@ -176,6 +178,7 @@ Linux prerequisites installed by setup include:
 - Node.js 24 on apt-based systems
 - DNS utilities
 - SecLists when available from the package manager
+- Chromium when available, for screenshot capture
 
 The initial tool registry includes:
 

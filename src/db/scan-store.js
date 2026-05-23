@@ -634,6 +634,7 @@ class ScanStore {
       domains: countDistinct(this.db, "recon_domains", "domain", runId),
       urls: countDistinct(this.db, "recon_urls", "url", runId),
       httpServices: countDistinct(this.db, "recon_http_services", "url", runId),
+      technologies: this.listTechnologySummary({ runId, limit: 100000 }).length,
       screenshots: countRows(this.db, "recon_screenshots", runId),
       events: countRows(this.db, "scan_events", runId),
       toolResults: countRows(this.db, "recon_tool_results", runId)
@@ -783,6 +784,48 @@ class ScanStore {
       ORDER BY host, port
       LIMIT ?
     `).all(runId, limit).map(hydrateHttpService);
+  }
+
+  listTechnologySummary({ runId, limit = 100 } = {}) {
+    const rows = this.db.prepare(`
+      SELECT url, host, technologies_json, source, observed_at
+      FROM recon_http_services
+      WHERE run_id = ?
+      ORDER BY observed_at DESC
+    `).all(runId);
+    const technologies = new Map();
+    for (const row of rows) {
+      for (const name of JSON.parse(row.technologies_json || "[]")) {
+        const key = String(name || "").trim();
+        if (!key) continue;
+        const normalized = key.toLowerCase();
+        const current = technologies.get(normalized) || {
+          name: key,
+          count: 0,
+          hosts: new Set(),
+          urls: [],
+          sources: new Set(),
+          lastSeenAt: row.observed_at
+        };
+        current.count += 1;
+        if (row.host) current.hosts.add(row.host);
+        if (row.url && current.urls.length < 12) current.urls.push(row.url);
+        if (row.source) current.sources.add(row.source);
+        current.lastSeenAt = [current.lastSeenAt, row.observed_at].filter(Boolean).sort().at(-1) || null;
+        technologies.set(normalized, current);
+      }
+    }
+    return [...technologies.values()]
+      .map((item) => ({
+        name: item.name,
+        count: item.count,
+        hostCount: item.hosts.size,
+        sampleUrls: item.urls,
+        source: [...item.sources].sort().join(","),
+        lastSeenAt: item.lastSeenAt
+      }))
+      .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+      .slice(0, limit);
   }
 
   saveScreenshotRun(runId, targetName, screenshot) {

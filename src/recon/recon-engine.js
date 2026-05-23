@@ -9,7 +9,7 @@ const { commandDisplay, runWslTool } = require("./wsl-tools");
 
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
-const DEFAULT_SCREENSHOT_TOOLS = [];
+const DEFAULT_SCREENSHOT_TOOLS = ["gowitness"];
 const RUN_CONTROL_STATUSES = new Set(["paused", "cancelled"]);
 
 async function runRecon({
@@ -289,7 +289,12 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
       toolName,
       outputDir,
       reportPath: findScreenshotReport(outputDir),
-      metadata: { status: result.status, exitCode: result.exitCode, urlCount: liveUrls.length }
+      metadata: {
+        status: result.status,
+        exitCode: result.exitCode,
+        urlCount: liveUrls.length,
+        screenshotCount: countScreenshotFiles(outputDir)
+      }
     });
     store.appendEvent(runId, {
       phase: "recon",
@@ -349,6 +354,15 @@ function isRunControlError(error) {
 }
 
 function screenshotArgsForTool(toolName, inputPath, outputDir) {
+  if (toolName === "gowitness") {
+    return [
+      "scan",
+      "file",
+      "-f", toWslPath(inputPath),
+      "--screenshot-path", toWslPath(outputDir),
+      "--write-jsonl"
+    ];
+  }
   if (toolName === "aquatone") {
     return ["-out", toWslPath(outputDir), "-ports", "xlarge", "-scan-timeout", "3000"];
   }
@@ -360,10 +374,18 @@ function screenshotArgsForTool(toolName, inputPath, outputDir) {
 
 function findScreenshotReport(outputDir) {
   const candidates = [
+    path.join(outputDir, "gowitness.sqlite3"),
     path.join(outputDir, "aquatone_report.html"),
     path.join(outputDir, "report.html")
   ];
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+function countScreenshotFiles(outputDir) {
+  if (!fs.existsSync(outputDir)) return 0;
+  return fs.readdirSync(outputDir, { recursive: true })
+    .filter((entry) => /\.(png|jpe?g|webp)$/i.test(String(entry)))
+    .length;
 }
 
 function toWslPath(windowsPath) {

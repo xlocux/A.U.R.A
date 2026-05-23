@@ -747,6 +747,9 @@ function buildAgentPromptWithContext({ prompt, body, store }) {
   const events = run ? store.listEvents(run.id, 0, 20) : [];
   const tools = run ? store.listToolResults({ runId: run.id, limit: 10 }) : [];
   const domains = run ? store.listDomains({ runId: run.id, limit: 10 }) : [];
+  const counts = run ? store.getRunObservationCounts(run.id) : null;
+  const technologies = run ? store.listTechnologySummary({ runId: run.id, limit: 10 }) : [];
+  const screenshots = run ? store.listScreenshots({ runId: run.id }) : [];
   const latestEvent = events.at(-1);
   return [
     "Answer in English. Use only the A.U.R.A context below for target-specific facts. If data is missing, say so clearly.",
@@ -754,9 +757,12 @@ function buildAgentPromptWithContext({ prompt, body, store }) {
     "",
     "A.U.R.A context:",
     run ? `- Current run: ${run.id} target=${run.target_name} status=${run.status} phase=${run.active_phase || "-"}` : "- Current run: none loaded",
+    counts ? `- Run totals: domains=${counts.domains} urls=${counts.urls} services=${counts.httpServices} technologies=${counts.technologies} screenshots=${counts.screenshots}` : "- Run totals: none",
     latestEvent ? `- Latest event: ${latestEvent.created_at} ${latestEvent.source || "system"}: ${latestEvent.message}` : "- Latest event: none",
     tools.length ? `- Recent tool results: ${tools.map((tool) => `${tool.toolName}:${tool.status}`).join(", ")}` : "- Recent tool results: none",
     domains.length ? `- Sample domains: ${domains.map((domain) => domain.domain).join(", ")}` : "- Sample domains: none",
+    technologies.length ? `- Technologies: ${technologies.map((tech) => `${tech.name}(${tech.count})`).join(", ")}` : "- Technologies: none",
+    screenshots.length ? `- Screenshot runs: ${screenshots.map((shot) => `${shot.tool_name}:${shot.metadata?.screenshotCount ?? 0}`).join(", ")}` : "- Screenshot runs: none",
     "",
     "User question:",
     prompt
@@ -1386,6 +1392,12 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const technologiesMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/technologies$/);
+  if (technologiesMatch) {
+    sendJson(response, { technologies: store.listTechnologySummary({ runId: Number(technologiesMatch[1]) }) });
+    return true;
+  }
+
   const urlsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/urls$/);
   if (urlsMatch) {
     sendJson(response, { urls: store.listUrls({ runId: Number(urlsMatch[1]) }) });
@@ -1440,6 +1452,7 @@ function buildRunSnapshot(store, runId) {
     counts: store.getRunObservationCounts(runId),
     domains: store.listDomains({ runId, limit: 10000 }),
     httpServices: store.listHttpServices({ runId, limit: 10000 }),
+    technologies: store.listTechnologySummary({ runId, limit: 10000 }),
     urls: store.listUrls({ runId, limit: 10000 }),
     screenshots: store.listScreenshots({ runId }),
     toolResults: store.listToolResults({ runId, limit: 1000 }),
@@ -1544,6 +1557,9 @@ function runSnapshotCsv(snapshot) {
   for (const service of snapshot.httpServices) {
     rows.push(["http_service", service.url, [service.statusCode, service.title, (service.technologies || []).join("|")].filter(Boolean).join(" "), service.source || "", "", service.probed_at || ""]);
   }
+  for (const technology of snapshot.technologies) {
+    rows.push(["technology", technology.name, `${technology.count} services / ${technology.hostCount} hosts`, technology.source || "", "", technology.lastSeenAt || ""]);
+  }
   for (const url of snapshot.urls) {
     rows.push(["url", url.url, (url.params || []).join("|"), url.source || "", "", url.first_seen_at || ""]);
   }
@@ -1579,7 +1595,9 @@ function runSnapshotMarkdown(snapshot) {
     "",
     `- Domains: ${snapshot.counts.domains}`,
     `- HTTP services: ${snapshot.counts.httpServices}`,
+    `- Technologies: ${snapshot.counts.technologies}`,
     `- URLs: ${snapshot.counts.urls}`,
+    `- Screenshots: ${snapshot.counts.screenshots}`,
     `- Tool results: ${snapshot.counts.toolResults}`,
     snapshot.delta?.comparedToRunId ? `- New domains vs run ${snapshot.delta.comparedToRunId}: ${snapshot.delta.domains.addedCount}` : "- New domains: no previous run",
     snapshot.delta?.comparedToRunId ? `- Removed domains vs run ${snapshot.delta.comparedToRunId}: ${snapshot.delta.domains.removedCount}` : "",

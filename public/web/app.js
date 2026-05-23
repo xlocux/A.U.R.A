@@ -538,7 +538,7 @@ async function startRecon() {
       passiveSources: selectedValues(["crtsh", "wayback"]),
       wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),
-      screenshotTools: selectedValues(["aquatone", "eyewitness"]),
+      screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
       useWsl: $("useWsl").checked,
       wslDistro: $("distro").value,
       timeoutMs: Number($("timeout").value || 180000),
@@ -551,6 +551,8 @@ async function startRecon() {
     $("events").innerHTML = "";
     $("domainRows").innerHTML = "";
     $("serviceRows").innerHTML = "";
+    $("technologyRows").innerHTML = "";
+    $("screenshotRows").innerHTML = "";
     $("artifactRows").innerHTML = "";
     renderRunDelta(null);
     localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, $("target").value);
@@ -568,12 +570,13 @@ async function startRecon() {
 
 async function refreshRun() {
   if (!activeRunId) return;
-  const [runData, eventData, countData, domainData, serviceData, urlData, screenshotData, deltaData] = await Promise.all([
+  const [runData, eventData, countData, domainData, serviceData, technologyData, urlData, screenshotData, deltaData] = await Promise.all([
     api(`/api/recon-runs/${activeRunId}`),
     api(`/api/recon-runs/${activeRunId}/events?after=${lastEventId}`),
     api(`/api/recon-runs/${activeRunId}/counts`),
     api(`/api/recon-runs/${activeRunId}/domains`),
     api(`/api/recon-runs/${activeRunId}/http-services`),
+    api(`/api/recon-runs/${activeRunId}/technologies`),
     api(`/api/recon-runs/${activeRunId}/urls`),
     api(`/api/recon-runs/${activeRunId}/screenshots`),
     api(`/api/recon-runs/${activeRunId}/delta`)
@@ -593,9 +596,13 @@ async function refreshRun() {
   $("domainCount").textContent = counts.domains ?? domainData.domains.length;
   $("urlCount").textContent = counts.urls ?? urlData.urls.length;
   $("serviceCount").textContent = counts.httpServices ?? serviceData.services.length;
+  $("technologyCount").textContent = counts.technologies ?? technologyData.technologies.length;
+  $("screenshotCount").textContent = counts.screenshots ?? screenshotData.screenshots.length;
   renderDomains(domainData.domains, counts.domains);
   mergeDomainsIntoScanList(runData.run, domainData.domains);
   renderServices(serviceData.services, counts.httpServices);
+  renderTechnologies(technologyData.technologies, counts.technologies);
+  renderScreenshots(screenshotData.screenshots, counts.screenshots);
   renderArtifacts(urlData.urls, screenshotData.screenshots);
   renderRunDelta(deltaData.delta);
   updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
@@ -681,10 +688,23 @@ function renderArtifacts(urls, screenshots) {
   const urlRows = urls.slice(0, 500).map((u) =>
     `<tr><td>url</td><td>${esc(u.url)}</td><td>${esc((u.params || []).join(", "))}</td></tr>`
   );
-  const screenshotRows = screenshots.map((s) =>
-    `<tr><td>screenshot</td><td>${esc(s.tool_name)}</td><td>${esc(s.report_path || s.output_dir)}</td></tr>`
-  );
-  $("artifactRows").innerHTML = screenshotRows.concat(urlRows).join("");
+  $("artifactRows").innerHTML = urlRows.join("");
+}
+
+function renderTechnologies(technologies, total = technologies.length) {
+  $("technologyRowsHint").textContent = total > technologies.length ? `showing ${technologies.length} of ${total}` : `${technologies.length} shown`;
+  $("technologyRows").innerHTML = technologies.map((tech) =>
+    `<tr><td>${esc(tech.name)}</td><td>${esc(tech.count)}</td><td>${esc(tech.hostCount)}</td><td>${esc(tech.source || "")}</td></tr>`
+  ).join("");
+}
+
+function renderScreenshots(screenshots, total = screenshots.length) {
+  $("screenshotRowsHint").textContent = total > screenshots.length ? `showing ${screenshots.length} of ${total}` : `${screenshots.length} shown`;
+  $("screenshotRows").innerHTML = screenshots.map((shot) => {
+    const count = shot.metadata?.screenshotCount ?? "-";
+    const path = shot.report_path || shot.output_dir || "-";
+    return `<tr><td>${esc(shot.tool_name)}</td><td>${esc(count)}</td><td>${esc(path)}</td></tr>`;
+  }).join("");
 }
 
 function renderRunDelta(delta) {

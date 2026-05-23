@@ -131,6 +131,10 @@ test("scan store records recon data and generated wordlists", () => {
   const results = store.searchAll({ query: "nginx", targetName: "demo" });
   assert.equal(results[0].result_type, "http_service");
   assert.equal(results[0].target_name, "demo");
+  const technologies = store.listTechnologySummary({ runId: run.id });
+  assert.equal(technologies[0].name, "nginx");
+  assert.equal(technologies[0].count, 1);
+  assert.equal(technologies[0].hostCount, 1);
   store.close();
 });
 
@@ -163,6 +167,7 @@ test("scan store automatically compacts duplicate recon observations", () => {
     domains: 1,
     urls: 1,
     httpServices: 1,
+    technologies: 1,
     screenshots: 0,
     events: 0,
     toolResults: 0

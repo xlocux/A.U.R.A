@@ -113,6 +113,7 @@ async function installSystemPrerequisites({ runner, tool }) {
     "  sudo apt-get update",
     "  sudo apt-get install -y ca-certificates curl git build-essential unzip tar jq golang-go dnsutils",
     "  sudo apt-get install -y seclists || true",
+    "  sudo apt-get install -y chromium || sudo apt-get install -y chromium-browser || true",
     "  if ! node -v 2>/dev/null | grep -q '^v24\\.'; then",
     "    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -",
     "    sudo apt-get install -y nodejs",

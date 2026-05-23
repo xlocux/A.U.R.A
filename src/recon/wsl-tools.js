@@ -11,6 +11,7 @@ const ALLOWED_TOOLS = new Set([
   "shuffle-dns",
   "gau",
   "httpx",
+  "gowitness",
   "aquatone",
   "eyewitness"
 ]);

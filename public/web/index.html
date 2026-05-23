@@ -119,6 +119,7 @@
             <div class="check"><input id="httpx" type="checkbox" checked> <span>httpx status/tech</span></div>
 
             <label>Screenshots</label>
+            <div class="check"><input id="gowitness" type="checkbox" checked> <span>gowitness</span></div>
             <div class="check"><input id="aquatone" type="checkbox"> <span>aquatone</span></div>
             <div class="check"><input id="eyewitness" type="checkbox"> <span>EyeWitness</span></div>
           </div>
@@ -318,6 +319,8 @@
         <div class="metric"><span class="muted">Domains</span><strong id="domainCount">0</strong></div>
         <div class="metric"><span class="muted">URLs</span><strong id="urlCount">0</strong></div>
         <div class="metric"><span class="muted">Services</span><strong id="serviceCount">0</strong></div>
+        <div class="metric"><span class="muted">Tech</span><strong id="technologyCount">0</strong></div>
+        <div class="metric"><span class="muted">Screens</span><strong id="screenshotCount">0</strong></div>
         <div class="metric"><span class="muted">Events</span><strong id="eventCount">0</strong></div>
         <div class="run-controls" aria-label="Run controls">
           <button id="pauseRun" type="button" disabled>Pause</button>
@@ -385,8 +388,29 @@
         </div>
       </div>
 
+      <div class="split">
+        <div class="pane">
+          <h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2>
+          <div class="scroll tech-scroll">
+            <table>
+              <thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead>
+              <tbody id="technologyRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2>
+          <div class="scroll tech-scroll">
+            <table>
+              <thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead>
+              <tbody id="screenshotRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="pane">
-        <h2>Wayback URLs & Screenshots</h2>
+        <h2>Wayback URLs</h2>
         <div class="scroll">
           <table>
             <thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead>

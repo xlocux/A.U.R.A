@@ -1739,6 +1739,7 @@ Outputs:
 - Screenshot artifacts.
 - Local report paths.
 - Service metadata.
+- Screenshot counts and visual triage run metadata in the Results UI.
 
 Screenshot tools should only receive scoped live HTTP services.
 
@@ -1761,6 +1762,7 @@ Outputs:
 - Technologies.
 - Versions when available.
 - Confidence/source metadata.
+- Aggregated technology stack summaries by service count and host count.
 
 Technology results should feed follow-up recommendations, including
 technology-specific content discovery, CMS checks, and dependency review. MVP

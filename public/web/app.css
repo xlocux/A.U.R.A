@@ -506,7 +506,7 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 
 .form-body { padding: 10px 12px; }
-.metrics { display: grid; grid-template-columns: repeat(6, minmax(110px, 1fr)) minmax(260px, auto); gap: 10px; margin-bottom: 12px; }
+.metrics { display: grid; grid-template-columns: repeat(8, minmax(95px, 1fr)) minmax(260px, auto); gap: 10px; margin-bottom: 12px; }
 .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .metric strong { display: block; font-size: 22px; }
 .run-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: stretch; }
@@ -540,6 +540,7 @@ button:disabled { opacity: .55; cursor: wait; }
   font-size: 20px;
 }
 .delta-scroll { max-height: 210px; border-top: 1px solid var(--line); }
+.tech-scroll { max-height: 260px; }
 .delta-badge {
   display: inline-block;
   min-width: 64px;
