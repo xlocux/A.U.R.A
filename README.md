@@ -24,6 +24,8 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
 - Export collected run data as JSON, CSV, or Markdown.
 - Automatically compact duplicate observations in UI views, topology, exports,
   and generated wordlists while preserving source evidence.
+- Compare each rescan with the previous run for the same target to show new,
+  removed, and stable domains, URLs, and HTTP services.
 - Inspect current run activity, tool heartbeats, and topology node details from
   the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.

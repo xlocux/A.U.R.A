@@ -376,6 +376,16 @@ class ScanStore {
     return row ? hydrateRun(row) : null;
   }
 
+  getPreviousRunForTarget(targetName, beforeRunId) {
+    const row = this.db.prepare(`
+      SELECT * FROM scan_runs
+      WHERE target_name = ? AND id < ?
+      ORDER BY id DESC
+      LIMIT 1
+    `).get(targetName, beforeRunId);
+    return row ? hydrateRun(row) : null;
+  }
+
   appendEvent(runId, { phase = null, severity = "info", source = null, message, payload = {} }) {
     const result = this.db.prepare(`
       INSERT INTO scan_events (run_id, created_at, phase, severity, source, message, payload_json)

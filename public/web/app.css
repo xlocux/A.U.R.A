@@ -513,6 +513,50 @@ button:disabled { opacity: .55; cursor: wait; }
 .run-controls button { min-height: 100%; }
 .export-pane { margin-bottom: 12px; }
 .export-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.run-delta-pane { margin-bottom: 12px; }
+.delta-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(110px, 150px));
+  gap: 8px;
+  padding: 10px 12px;
+  align-items: stretch;
+}
+.delta-summary,
+.delta-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(15, 17, 22, .72);
+  padding: 10px;
+}
+.delta-summary {
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.delta-card strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 20px;
+}
+.delta-scroll { max-height: 210px; border-top: 1px solid var(--line); }
+.delta-badge {
+  display: inline-block;
+  min-width: 64px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.delta-badge.added {
+  color: #07110e;
+  background: var(--ok);
+}
+.delta-badge.removed {
+  color: #210b0b;
+  background: var(--bad);
+}
 .muted { color: var(--muted); }
 .pane { background: rgba(23, 25, 31, .90); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-height: 0; backdrop-filter: blur(10px); }
 .scroll { max-height: calc(100vh - 225px); overflow: auto; }

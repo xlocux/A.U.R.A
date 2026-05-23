@@ -552,6 +552,7 @@ async function startRecon() {
     $("domainRows").innerHTML = "";
     $("serviceRows").innerHTML = "";
     $("artifactRows").innerHTML = "";
+    renderRunDelta(null);
     localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, $("target").value);
     $("status").textContent = "Recon running";
     activateTab("runs");
@@ -567,13 +568,14 @@ async function startRecon() {
 
 async function refreshRun() {
   if (!activeRunId) return;
-  const [runData, eventData, domainData, serviceData, urlData, screenshotData] = await Promise.all([
+  const [runData, eventData, domainData, serviceData, urlData, screenshotData, deltaData] = await Promise.all([
     api(`/api/recon-runs/${activeRunId}`),
     api(`/api/recon-runs/${activeRunId}/events?after=${lastEventId}`),
     api(`/api/recon-runs/${activeRunId}/domains`),
     api(`/api/recon-runs/${activeRunId}/http-services`),
     api(`/api/recon-runs/${activeRunId}/urls`),
-    api(`/api/recon-runs/${activeRunId}/screenshots`)
+    api(`/api/recon-runs/${activeRunId}/screenshots`),
+    api(`/api/recon-runs/${activeRunId}/delta`)
   ]);
   $("runStatus").textContent = runData.run.status;
   updateRunControlButtons(runData.run.status);
@@ -591,6 +593,7 @@ async function refreshRun() {
   mergeDomainsIntoScanList(runData.run, domainData.domains);
   renderServices(serviceData.services);
   renderArtifacts(urlData.urls, screenshotData.screenshots);
+  renderRunDelta(deltaData.delta);
   updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
   if (runData.run.target_name === $("target").value) {
     refreshLeads().catch(() => {});
@@ -676,6 +679,39 @@ function renderArtifacts(urls, screenshots) {
     `<tr><td>screenshot</td><td>${esc(s.tool_name)}</td><td>${esc(s.report_path || s.output_dir)}</td></tr>`
   );
   $("artifactRows").innerHTML = screenshotRows.concat(urlRows).join("");
+}
+
+function renderRunDelta(delta) {
+  if (!delta) {
+    $("runDeltaSummary").textContent = "No run comparison loaded.";
+    $("deltaNewDomains").textContent = "0";
+    $("deltaRemovedDomains").textContent = "0";
+    $("deltaNewUrls").textContent = "0";
+    $("deltaNewServices").textContent = "0";
+    $("deltaRows").innerHTML = "";
+    return;
+  }
+  if (!delta.comparedToRunId) {
+    $("runDeltaSummary").textContent = "This is the first saved run for this target. Future rescans will show added and removed observations here.";
+  } else {
+    $("runDeltaSummary").textContent = `Compared with run ${delta.comparedToRunId} from ${delta.comparedToStartedAt || "unknown time"}. Stable domains: ${delta.domains.stableCount}.`;
+  }
+  $("deltaNewDomains").textContent = delta.domains.addedCount;
+  $("deltaRemovedDomains").textContent = delta.domains.removedCount;
+  $("deltaNewUrls").textContent = delta.urls.addedCount;
+  $("deltaNewServices").textContent = delta.httpServices.addedCount;
+  const rows = []
+    .concat(deltaRows("added", "domain", delta.domains.added, "domain"))
+    .concat(deltaRows("removed", "domain", delta.domains.removed, "domain"))
+    .concat(deltaRows("added", "url", delta.urls.added, "url"))
+    .concat(deltaRows("added", "http_service", delta.httpServices.added, "url"));
+  $("deltaRows").innerHTML = rows.slice(0, 250).join("");
+}
+
+function deltaRows(change, type, items, valueKey) {
+  return (items || []).map((item) =>
+    `<tr><td><span class="delta-badge ${change}">${esc(change)}</span></td><td>${esc(type)}</td><td>${esc(item[valueKey])}</td><td>${esc(item.source || "")}</td></tr>`
+  );
 }
 
 async function runSearch() {

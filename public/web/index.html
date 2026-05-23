@@ -333,6 +333,35 @@
         </div>
       </div>
 
+      <div class="pane run-delta-pane">
+        <h2>Run Delta</h2>
+        <div class="delta-grid">
+          <div class="delta-summary" id="runDeltaSummary">No run comparison loaded.</div>
+          <div class="delta-card">
+            <span class="muted">New domains</span>
+            <strong id="deltaNewDomains">0</strong>
+          </div>
+          <div class="delta-card">
+            <span class="muted">Removed domains</span>
+            <strong id="deltaRemovedDomains">0</strong>
+          </div>
+          <div class="delta-card">
+            <span class="muted">New URLs</span>
+            <strong id="deltaNewUrls">0</strong>
+          </div>
+          <div class="delta-card">
+            <span class="muted">New services</span>
+            <strong id="deltaNewServices">0</strong>
+          </div>
+        </div>
+        <div class="scroll delta-scroll">
+          <table>
+            <thead><tr><th>Change</th><th>Type</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody id="deltaRows"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="split">
         <div class="pane">
           <h2>Domains & Subdomains</h2>

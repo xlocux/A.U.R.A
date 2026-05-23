@@ -16,7 +16,7 @@ const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/provid
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
-const { buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
+const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
 
 function tempDb(name) {
@@ -170,6 +170,43 @@ test("scan store returns the latest run for a target", () => {
   assert.equal(store.getLatestRunForTarget(target.target_name).id, second.id);
   assert.notEqual(store.getLatestRunForTarget(target.target_name).id, first.id);
   assert.equal(store.getLatestRunForTarget("missing"), null);
+  store.close();
+});
+
+test("run delta compares discoveries with the previous target run", () => {
+  const store = openScanStore(tempDb("run-delta.db"));
+  const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));
+  const first = store.createRun({ targetName: target.target_name });
+  store.saveDomains(first.id, target.target_name, [
+    { domain: "old.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" },
+    { domain: "shared.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" }
+  ]);
+  store.saveUrls(first.id, target.target_name, [
+    { url: "https://shared.example.com/old", host: "shared.example.com", path: "/old", params: [] }
+  ]);
+
+  const second = store.createRun({ targetName: target.target_name });
+  store.saveDomains(second.id, target.target_name, [
+    { domain: "new.example.com", rootDomain: "example.com", kind: "subdomain", source: "subfinder" },
+    { domain: "shared.example.com", rootDomain: "example.com", kind: "subdomain", source: "subfinder" }
+  ]);
+  store.saveUrls(second.id, target.target_name, [
+    { url: "https://shared.example.com/new", host: "shared.example.com", path: "/new", params: [] }
+  ]);
+  store.saveHttpServices(second.id, target.target_name, [
+    { url: "https://new.example.com", host: "new.example.com", scheme: "https", port: 443, statusCode: 200, title: "New", technologies: [], raw: {} }
+  ]);
+
+  const delta = buildRunDelta(store, second.id);
+  assert.equal(delta.comparedToRunId, first.id);
+  assert.equal(delta.domains.addedCount, 1);
+  assert.equal(delta.domains.removedCount, 1);
+  assert.equal(delta.domains.stableCount, 1);
+  assert.equal(delta.domains.added[0].domain, "new.example.com");
+  assert.equal(delta.domains.removed[0].domain, "old.example.com");
+  assert.equal(delta.urls.addedCount, 1);
+  assert.equal(delta.urls.removedCount, 1);
+  assert.equal(delta.httpServices.addedCount, 1);
   store.close();
 });
 

@@ -1901,6 +1901,9 @@ Outputs:
 Rules:
 
 - Delta comparison should run automatically after normalization and promotion.
+- Every rescan should compare the current run with the previous run for the same
+  target and surface added, removed, and stable domains, URLs, and HTTP
+  services in the UI and exports.
 - Users should be able to compare any two runs for the same target.
 - Notifications should be configurable and local-first.
 - Change detection should store evidence and previous/current values.

@@ -1342,6 +1342,12 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const deltaMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/delta$/);
+  if (deltaMatch) {
+    sendJson(response, { delta: buildRunDelta(store, Number(deltaMatch[1])) });
+    return true;
+  }
+
   const domainsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/domains$/);
   if (domainsMatch) {
     sendJson(response, { domains: store.listDomains({ runId: Number(domainsMatch[1]) }) });
@@ -1427,8 +1433,98 @@ function buildRunSnapshot(store, runId) {
     httpServices: store.listHttpServices({ runId, limit: 10000 }),
     urls: store.listUrls({ runId, limit: 10000 }),
     screenshots: store.listScreenshots({ runId }),
-    toolResults: store.listToolResults({ runId, limit: 1000 })
+    toolResults: store.listToolResults({ runId, limit: 1000 }),
+    delta: buildRunDelta(store, runId)
   };
+}
+
+function buildRunDelta(store, runId) {
+  const run = store.getRun(runId);
+  if (!run) return null;
+  const previousRun = store.getPreviousRunForTarget(run.target_name, run.id);
+  if (!previousRun) {
+    return {
+      runId: run.id,
+      targetName: run.target_name,
+      comparedToRunId: null,
+      comparedToStartedAt: null,
+      domains: emptyDeltaSet(),
+      urls: emptyDeltaSet(),
+      httpServices: emptyDeltaSet()
+    };
+  }
+  return {
+    runId: run.id,
+    targetName: run.target_name,
+    comparedToRunId: previousRun.id,
+    comparedToStartedAt: previousRun.started_at,
+    domains: compareValues({
+      current: store.listDomains({ runId: run.id, limit: 100000 }),
+      previous: store.listDomains({ runId: previousRun.id, limit: 100000 }),
+      valueKey: "domain"
+    }),
+    urls: compareValues({
+      current: store.listUrls({ runId: run.id, limit: 100000 }),
+      previous: store.listUrls({ runId: previousRun.id, limit: 100000 }),
+      valueKey: "url"
+    }),
+    httpServices: compareValues({
+      current: store.listHttpServices({ runId: run.id, limit: 100000 }),
+      previous: store.listHttpServices({ runId: previousRun.id, limit: 100000 }),
+      valueKey: "url"
+    })
+  };
+}
+
+function emptyDeltaSet() {
+  return {
+    currentCount: 0,
+    previousCount: 0,
+    addedCount: 0,
+    removedCount: 0,
+    stableCount: 0,
+    added: [],
+    removed: []
+  };
+}
+
+function compareValues({ current, previous, valueKey }) {
+  const currentMap = mapByNormalizedValue(current, valueKey);
+  const previousMap = mapByNormalizedValue(previous, valueKey);
+  const added = [...currentMap.entries()]
+    .filter(([key]) => !previousMap.has(key))
+    .map(([, item]) => item)
+    .sort(compareDeltaItems);
+  const removed = [...previousMap.entries()]
+    .filter(([key]) => !currentMap.has(key))
+    .map(([, item]) => item)
+    .sort(compareDeltaItems);
+  return {
+    currentCount: currentMap.size,
+    previousCount: previousMap.size,
+    addedCount: added.length,
+    removedCount: removed.length,
+    stableCount: [...currentMap.keys()].filter((key) => previousMap.has(key)).length,
+    added: added.slice(0, 250),
+    removed: removed.slice(0, 250)
+  };
+}
+
+function mapByNormalizedValue(items, valueKey) {
+  const mapped = new Map();
+  for (const item of items || []) {
+    const value = String(item?.[valueKey] || "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (!mapped.has(key)) mapped.set(key, item);
+  }
+  return mapped;
+}
+
+function compareDeltaItems(left, right) {
+  const leftValue = String(left.domain || left.url || "");
+  const rightValue = String(right.domain || right.url || "");
+  return leftValue.localeCompare(rightValue);
 }
 
 function runSnapshotCsv(snapshot) {
@@ -1444,6 +1540,14 @@ function runSnapshotCsv(snapshot) {
   }
   for (const tool of snapshot.toolResults) {
     rows.push(["tool_result", tool.toolName, tool.commandDisplay || "", "tool", tool.status || "", tool.finishedAt || tool.startedAt || ""]);
+  }
+  if (snapshot.delta?.comparedToRunId) {
+    for (const domain of snapshot.delta.domains.added) {
+      rows.push(["run_delta_added_domain", domain.domain, `vs run ${snapshot.delta.comparedToRunId}`, domain.source || "", domain.status || "", domain.first_seen_at || ""]);
+    }
+    for (const domain of snapshot.delta.domains.removed) {
+      rows.push(["run_delta_removed_domain", domain.domain, `vs run ${snapshot.delta.comparedToRunId}`, domain.source || "", domain.status || "", domain.last_seen_at || domain.first_seen_at || ""]);
+    }
   }
   return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
 }
@@ -1468,6 +1572,8 @@ function runSnapshotMarkdown(snapshot) {
     `- HTTP services: ${snapshot.httpServices.length}`,
     `- URLs: ${snapshot.urls.length}`,
     `- Tool results: ${snapshot.toolResults.length}`,
+    snapshot.delta?.comparedToRunId ? `- New domains vs run ${snapshot.delta.comparedToRunId}: ${snapshot.delta.domains.addedCount}` : "- New domains: no previous run",
+    snapshot.delta?.comparedToRunId ? `- Removed domains vs run ${snapshot.delta.comparedToRunId}: ${snapshot.delta.domains.removedCount}` : "",
     "",
     "## Recent Events",
     "",
@@ -1477,6 +1583,7 @@ function runSnapshotMarkdown(snapshot) {
 }
 
 module.exports = {
+  buildRunDelta,
   buildTargetConfigFromRequest,
   extractBrandTerms,
   filterScopeDomains,
