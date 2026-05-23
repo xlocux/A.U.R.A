@@ -192,6 +192,25 @@ test("scan store queues and claims recon jobs", () => {
   store.close();
 });
 
+test("scan store lists recorded tool results for run exports", () => {
+  const store = openScanStore(tempDb("tool-results.db"));
+  const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));
+  const run = store.createRun({ targetName: target.target_name });
+  store.recordToolResult(run.id, {
+    toolName: "subfinder",
+    commandDisplay: "subfinder -d example.com",
+    status: "completed",
+    exitCode: 0,
+    startedAt: new Date().toISOString(),
+    finishedAt: new Date().toISOString()
+  });
+  const results = store.listToolResults({ runId: run.id });
+  assert.equal(results.length, 1);
+  assert.equal(results[0].toolName, "subfinder");
+  assert.equal(results[0].commandDisplay, "subfinder -d example.com");
+  store.close();
+});
+
 test("recon parsers normalize domains, archived URLs, and httpx tech", () => {
   assert.equal(normalizeDomain("https://*.App.Example.COM/path"), "app.example.com");
   assert.deepEqual(extractDomains("a.example.com b.other.test", ["example.com"]), ["a.example.com"]);

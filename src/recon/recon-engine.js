@@ -132,7 +132,17 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
         source: toolName,
         message: `Running ${toolName} for ${root}`
       });
+      let heartbeatCount = 0;
+      const heartbeat = setInterval(() => {
+        heartbeatCount += 1;
+        store.appendEvent(runId, {
+          phase: "heartbeat",
+          source: toolName,
+          message: `${toolName} is still running for ${root} (${heartbeatCount * 15}s elapsed)`
+        });
+      }, 15000);
       const result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs });
+      clearInterval(heartbeat);
       const stdoutPath = writeToolArtifact(artifactsDir, `${toolName}-${root}.stdout.txt`, result.stdout);
       const stderrPath = writeToolArtifact(artifactsDir, `${toolName}-${root}.stderr.txt`, result.stderr);
       store.recordToolResult(runId, {
@@ -245,6 +255,15 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
       source: toolName,
       message: `Capturing screenshots for ${liveUrls.length} live URLs`
     });
+    let heartbeatCount = 0;
+    const heartbeat = setInterval(() => {
+      heartbeatCount += 1;
+      store.appendEvent(runId, {
+        phase: "heartbeat",
+        source: toolName,
+        message: `${toolName} screenshot capture is still running (${heartbeatCount * 15}s elapsed)`
+      });
+    }, 15000);
     const result = await runWslTool({
       distro: wslDistro,
       toolName,
@@ -252,6 +271,7 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
       timeoutMs,
       input: toolName === "aquatone" ? `${liveUrls.join("\n")}\n` : null
     });
+    clearInterval(heartbeat);
     const stdoutPath = writeToolArtifact(artifactsDir, `${toolName}-screenshots.stdout.txt`, result.stdout);
     const stderrPath = writeToolArtifact(artifactsDir, `${toolName}-screenshots.stderr.txt`, result.stderr);
     store.recordToolResult(runId, {

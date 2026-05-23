@@ -1008,6 +1008,15 @@ class ScanStore {
       result.errorMessage || null
     );
   }
+
+  listToolResults({ runId, limit = 200 } = {}) {
+    return this.db.prepare(`
+      SELECT * FROM recon_tool_results
+      WHERE run_id = ?
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(runId, limit).map(hydrateToolResult);
+  }
 }
 
 function hydrateTarget(row) {
@@ -1067,6 +1076,20 @@ function hydrateScreenshot(row) {
   return {
     ...row,
     metadata: JSON.parse(row.metadata_json || "{}")
+  };
+}
+
+function hydrateToolResult(row) {
+  return {
+    ...row,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    stdoutPath: row.stdout_path,
+    stderrPath: row.stderr_path,
+    errorMessage: row.error_message,
+    commandDisplay: row.command_display,
+    toolName: row.tool_name,
+    exitCode: row.exit_code
   };
 }
 

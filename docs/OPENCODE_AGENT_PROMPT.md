@@ -523,6 +523,16 @@ workers between phases and tool invocations. Candidate domains found through
 alternate TLD correlation should be saved as review leads with evidence and must
 not be silently promoted into authorized scope.
 
+The AI chat must receive scoped run context from A.U.R.A before answering
+questions about current activity. It should cite the loaded run ID, status,
+active phase, latest event, and recent tool results when available. It must not
+claim that no recon is running if A.U.R.A has an active or recent run in its
+stores.
+
+Run data should be exportable from the Web UI in portable formats such as JSON,
+CSV, and Markdown. Topology views should support zooming and node inspection
+backed by the normalized observations loaded from A.U.R.A stores.
+
 ## AI Runtime Integration
 
 OpenCode, Codex CLI, and Claude Code CLI should run in the Linux execution

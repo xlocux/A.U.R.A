@@ -21,6 +21,9 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   - wordlist metadata
 - Restore the selected target and latest saved run after a browser refresh.
 - Pause, resume, or cancel long-running recon runs from the browser.
+- Export collected run data as JSON, CSV, or Markdown.
+- Inspect current run activity, tool heartbeats, and topology node details from
+  the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.
 - Generate small derived wordlists from the local DB instead of storing large wordlist contents in SQLite.
 
@@ -79,6 +82,10 @@ current graph state.
 Run controls are cooperative. Pause and cancel requests are honored between
 recon phases and tool invocations; a tool process that is already running may
 finish before the run stops.
+
+Exports are available from the `Results` tab for the loaded run. The topology
+view supports zoom controls and node inspection for domains, HTTP services,
+URLs, and screenshot artifacts.
 
 If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
 bootstrap checks but does not start active enumeration.

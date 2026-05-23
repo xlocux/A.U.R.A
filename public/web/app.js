@@ -9,6 +9,8 @@ let topologyFrame = null;
 let topologyPulse = 0;
 let topologyGraph = { nodes: [], edges: [] };
 let topologyData = { domains: [], services: [], urls: [], screenshots: [] };
+let topologyView = { zoom: 1, offsetX: 0, offsetY: 0 };
+let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
@@ -98,6 +100,8 @@ async function postAgentPrompt(prompt) {
     method: "POST",
     body: JSON.stringify({
       prompt,
+      targetName: $("target")?.value || "",
+      runId: activeRunId,
       distro: $("setupDistro")?.value?.trim() || "kali-linux"
     })
   });
@@ -410,8 +414,10 @@ function clearRunView() {
   $("runStatus").textContent = "idle";
   $("domainCount").textContent = "0";
   $("eventCount").textContent = "0";
+  latestRunActivity = "";
   updateRunControlButtons("idle");
   updateTopologyGraph();
+  renderRunActivity();
 }
 
 async function restoreLatestRunForSelectedTarget() {
@@ -571,6 +577,7 @@ async function refreshRun() {
   ]);
   $("runStatus").textContent = runData.run.status;
   updateRunControlButtons(runData.run.status);
+  renderRunActivity(runData.run, eventData.events);
   for (const event of eventData.events) {
     lastEventId = Math.max(lastEventId, event.id);
     const div = document.createElement("div");
@@ -593,6 +600,25 @@ async function refreshRun() {
     poll = null;
     $("status").textContent = `Run ${runData.run.status}`;
   }
+}
+
+function renderRunActivity(run = null, newEvents = []) {
+  if (!run) {
+    $("runActivity").textContent = "No active run loaded.";
+    return;
+  }
+  const latestToolEvent = [...newEvents].reverse().find((event) =>
+    ["recon", "heartbeat", "whois-rdap", "bootstrap"].includes(event.phase) && event.source
+  );
+  if (latestToolEvent) latestRunActivity = `${latestToolEvent.source} - ${latestToolEvent.message}`;
+  const checkpoint = run.checkpoint || {};
+  $("runActivity").textContent = [
+    `Run ${run.id}: ${run.status}`,
+    `Phase: ${run.active_phase || "-"}`,
+    latestRunActivity ? `Latest activity: ${latestRunActivity}` : "",
+    checkpoint.rootDomains?.length ? `Seeds: ${checkpoint.rootDomains.join(", ")}` : "",
+    run.error_message ? `Error: ${run.error_message}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function updateRunControlButtons(status) {
@@ -697,24 +723,24 @@ function updateTopologyGraph(data = null) {
 
   if ($("topologyDomains").checked) {
     domains.slice(0, 120).forEach((domain) => {
-      nodes.push({ id: `domain:${domain.domain}`, label: domain.domain, type: "domain" });
+      nodes.push({ id: `domain:${domain.domain}`, label: domain.domain, type: "domain", data: domain });
       edges.push({ from: rootId, to: `domain:${domain.domain}`, type: domain.source || "discovered" });
     });
   }
   if ($("topologyServices").checked) {
     services.slice(0, 80).forEach((service) => {
-      nodes.push({ id: `service:${service.url}`, label: service.host || service.url, type: "service" });
+      nodes.push({ id: `service:${service.url}`, label: service.host || service.url, type: "service", data: service });
       const serviceParent = nodes.some((node) => node.id === `domain:${service.host}`) ? `domain:${service.host}` : rootId;
       edges.push({ from: serviceParent, to: `service:${service.url}`, type: "http" });
     });
   }
   if ($("topologyArtifacts").checked) {
     urls.slice(0, 80).forEach((url) => {
-      nodes.push({ id: `url:${url.url}`, label: url.path || url.url, type: "url" });
+      nodes.push({ id: `url:${url.url}`, label: url.path || url.url, type: "url", data: url });
       edges.push({ from: rootId, to: `url:${url.url}`, type: "archive" });
     });
     screenshots.slice(0, 30).forEach((shot) => {
-      nodes.push({ id: `screenshot:${shot.id || shot.output_dir}`, label: shot.tool_name || "screenshot", type: "artifact" });
+      nodes.push({ id: `screenshot:${shot.id || shot.output_dir}`, label: shot.tool_name || "screenshot", type: "artifact", data: shot });
       edges.push({ from: rootId, to: `screenshot:${shot.id || shot.output_dir}`, type: "visual" });
     });
   }
@@ -765,8 +791,8 @@ function renderTopology() {
 }
 
 function drawTopology(ctx, width, height) {
-  const centerX = width / 2;
-  const centerY = height / 2;
+  const centerX = width / 2 + topologyView.offsetX;
+  const centerY = height / 2 + topologyView.offsetY;
   ctx.clearRect(0, 0, width, height);
   drawTopologyGrid(ctx, width, height);
   const nodeMap = new Map(topologyGraph.nodes.map((node) => [node.id, node]));
@@ -774,10 +800,10 @@ function drawTopology(ctx, width, height) {
     const from = nodeMap.get(edge.from);
     const to = nodeMap.get(edge.to);
     if (!from || !to) continue;
-    drawEdge(ctx, centerX + from.x, centerY + from.y, centerX + to.x, centerY + to.y, edge.type);
+    drawEdge(ctx, centerX + from.x * topologyView.zoom, centerY + from.y * topologyView.zoom, centerX + to.x * topologyView.zoom, centerY + to.y * topologyView.zoom, edge.type);
   }
   for (const node of topologyGraph.nodes) {
-    drawNode(ctx, centerX + node.x, centerY + node.y, node);
+    drawNode(ctx, centerX + node.x * topologyView.zoom, centerY + node.y * topologyView.zoom, node);
   }
 }
 
@@ -842,15 +868,46 @@ function animateTopology() {
 function selectTopologyNode(event) {
   const canvas = $("topologyCanvas");
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left - rect.width / 2;
-  const y = event.clientY - rect.top - rect.height / 2;
+  const x = (event.clientX - rect.left - rect.width / 2 - topologyView.offsetX) / topologyView.zoom;
+  const y = (event.clientY - rect.top - rect.height / 2 - topologyView.offsetY) / topologyView.zoom;
   const selected = topologyGraph.nodes.find((node) => Math.hypot(node.x - x, node.y - y) < 18);
   if (!selected) return;
-  $("topologySelection").textContent = `${selected.type}: ${selected.label}`;
+  $("topologySelection").textContent = formatTopologyNode(selected);
 }
 
 function resetTopology() {
+  topologyView = { zoom: 1, offsetX: 0, offsetY: 0 };
   updateTopologyGraph();
+}
+
+function zoomTopology(delta) {
+  topologyView.zoom = Math.max(0.35, Math.min(3, topologyView.zoom + delta));
+  renderTopology();
+}
+
+function formatTopologyNode(node) {
+  const data = node.data || {};
+  if (node.type === "domain") {
+    return [`Domain: ${node.label}`, `Kind: ${data.kind || "-"}`, `Source: ${data.source || "-"}`, `Status: ${data.status || "-"}`].join("\n");
+  }
+  if (node.type === "service") {
+    return [`HTTP service: ${data.url || node.label}`, `Status: ${data.statusCode || "-"}`, `Title: ${data.title || "-"}`, `Tech: ${(data.technologies || []).join(", ") || "-"}`].join("\n");
+  }
+  if (node.type === "url") {
+    return [`URL: ${data.url || node.label}`, `Path: ${data.path || "-"}`, `Params: ${(data.params || []).join(", ") || "-"}`, `Source: ${data.source || "-"}`].join("\n");
+  }
+  if (node.type === "artifact") {
+    return [`Artifact: ${node.label}`, `Report: ${data.report_path || "-"}`, `Output: ${data.output_dir || "-"}`].join("\n");
+  }
+  return `${node.type}: ${node.label}`;
+}
+
+function exportRun(format) {
+  if (!activeRunId) {
+    $("status").textContent = "No active run is loaded.";
+    return;
+  }
+  window.location.href = `/api/recon-runs/${activeRunId}/export?format=${encodeURIComponent(format)}`;
 }
 
 function renderSetupTools(tools) {
@@ -1341,6 +1398,11 @@ $("aiPrompt").addEventListener("keydown", (event) => {
 $("topologyCanvas").addEventListener("click", selectTopologyNode);
 $("fitTopology").addEventListener("click", resetTopology);
 $("pulseTopology").addEventListener("click", renderTopology);
+$("zoomTopologyIn").addEventListener("click", () => zoomTopology(0.15));
+$("zoomTopologyOut").addEventListener("click", () => zoomTopology(-0.15));
+$("exportJson").addEventListener("click", () => exportRun("json"));
+$("exportCsv").addEventListener("click", () => exportRun("csv"));
+$("exportMarkdown").addEventListener("click", () => exportRun("markdown"));
 ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => {
   $(id).addEventListener("change", resetTopology);
 });

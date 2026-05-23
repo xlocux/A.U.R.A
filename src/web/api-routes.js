@@ -707,17 +707,18 @@ async function agentChat(request, response, store) {
     sendJson(response, { message: "Ask me what you want to do next." });
     return;
   }
+  const contextualPrompt = buildAgentPromptWithContext({ prompt, body, store });
   const settings = store.getAiSettings();
   if (settings.provider === "openrouter") {
-    sendJson(response, { message: await callOpenRouterAgent({ prompt, settings, store }) });
+    sendJson(response, { message: await callOpenRouterAgent({ prompt: contextualPrompt, settings, store }) });
     return;
   }
   if (settings.provider === "local") {
-    sendJson(response, { message: await callLocalAgent({ prompt, settings }) });
+    sendJson(response, { message: await callLocalAgent({ prompt: contextualPrompt, settings }) });
     return;
   }
   if (settings.provider === "codex" || settings.provider === "claude") {
-    sendJson(response, { message: await callCliAgent({ prompt, provider: settings.provider, distro: body.distro || "kali-linux" }) });
+    sendJson(response, { message: await callCliAgent({ prompt: contextualPrompt, provider: settings.provider, distro: body.distro || "kali-linux" }) });
     return;
   }
   const runner = createEnvironmentRunner({ distro: body.distro || "kali-linux" });
@@ -726,7 +727,7 @@ async function agentChat(request, response, store) {
     const safePrompt = [
       "You are A.U.R.A's local assistant. Answer concisely. Help with setup, tools, recon workflow, and UI usage. Do not suggest unsafe or out-of-scope activity.",
       "",
-      prompt
+      contextualPrompt
     ].join("\n");
     const result = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && opencode run ${shellQuote(safePrompt)}`, 120000);
     if (result.status === "completed" && result.stdout) {
@@ -737,6 +738,29 @@ async function agentChat(request, response, store) {
     return;
   }
   sendJson(response, { message: setupHelpMessage(prompt) });
+}
+
+function buildAgentPromptWithContext({ prompt, body, store }) {
+  const runId = Number(body.runId || 0);
+  const targetName = String(body.targetName || "").trim();
+  const run = runId ? store.getRun(runId) : targetName ? store.getLatestRunForTarget(targetName) : null;
+  const events = run ? store.listEvents(run.id, 0, 20) : [];
+  const tools = run ? store.listToolResults({ runId: run.id, limit: 10 }) : [];
+  const domains = run ? store.listDomains({ runId: run.id, limit: 10 }) : [];
+  const latestEvent = events.at(-1);
+  return [
+    "Answer in English. Use only the A.U.R.A context below for target-specific facts. If data is missing, say so clearly.",
+    "Explain current activity with concrete run IDs, phases, events, and tools.",
+    "",
+    "A.U.R.A context:",
+    run ? `- Current run: ${run.id} target=${run.target_name} status=${run.status} phase=${run.active_phase || "-"}` : "- Current run: none loaded",
+    latestEvent ? `- Latest event: ${latestEvent.created_at} ${latestEvent.source || "system"}: ${latestEvent.message}` : "- Latest event: none",
+    tools.length ? `- Recent tool results: ${tools.map((tool) => `${tool.toolName}:${tool.status}`).join(", ")}` : "- Recent tool results: none",
+    domains.length ? `- Sample domains: ${domains.map((domain) => domain.domain).join(", ")}` : "- Sample domains: none",
+    "",
+    "User question:",
+    prompt
+  ].join("\n");
 }
 
 async function getAiRuntimeStatus(response, url) {
@@ -1306,6 +1330,18 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const toolResultsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/tool-results$/);
+  if (toolResultsMatch) {
+    sendJson(response, { toolResults: store.listToolResults({ runId: Number(toolResultsMatch[1]) }) });
+    return true;
+  }
+
+  const exportMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/export$/);
+  if (exportMatch) {
+    exportRun(response, store, Number(exportMatch[1]), url.searchParams.get("format") || "json");
+    return true;
+  }
+
   const domainsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/domains$/);
   if (domainsMatch) {
     sendJson(response, { domains: store.listDomains({ runId: Number(domainsMatch[1]) }) });
@@ -1349,6 +1385,95 @@ function handleReadEndpoint(response, url, store) {
   }
 
   return false;
+}
+
+function exportRun(response, store, runId, format) {
+  const snapshot = buildRunSnapshot(store, runId);
+  if (!snapshot.run) {
+    sendJson(response, { error: "Run not found" }, 404);
+    return;
+  }
+  if (format === "json") {
+    response.writeHead(200, exportHeaders("application/json; charset=utf-8", `aura-run-${runId}.json`));
+    response.end(JSON.stringify(snapshot, null, 2));
+    return;
+  }
+  if (format === "csv") {
+    response.writeHead(200, exportHeaders("text/csv; charset=utf-8", `aura-run-${runId}.csv`));
+    response.end(runSnapshotCsv(snapshot));
+    return;
+  }
+  if (format === "markdown" || format === "md") {
+    response.writeHead(200, exportHeaders("text/markdown; charset=utf-8", `aura-run-${runId}.md`));
+    response.end(runSnapshotMarkdown(snapshot));
+    return;
+  }
+  sendJson(response, { error: "Unsupported export format. Use json, csv, or markdown." }, 400);
+}
+
+function exportHeaders(contentType, filename) {
+  return {
+    "Content-Type": contentType,
+    "Content-Disposition": `attachment; filename="${filename}"`
+  };
+}
+
+function buildRunSnapshot(store, runId) {
+  return {
+    exportedAt: new Date().toISOString(),
+    run: store.getRun(runId),
+    events: store.listEvents(runId, 0, 5000),
+    domains: store.listDomains({ runId, limit: 10000 }),
+    httpServices: store.listHttpServices({ runId, limit: 10000 }),
+    urls: store.listUrls({ runId, limit: 10000 }),
+    screenshots: store.listScreenshots({ runId }),
+    toolResults: store.listToolResults({ runId, limit: 1000 })
+  };
+}
+
+function runSnapshotCsv(snapshot) {
+  const rows = [["type", "value", "detail", "source", "status", "seen_at"]];
+  for (const domain of snapshot.domains) {
+    rows.push(["domain", domain.domain, domain.kind || "", domain.source || "", domain.status || "", domain.first_seen_at || ""]);
+  }
+  for (const service of snapshot.httpServices) {
+    rows.push(["http_service", service.url, [service.statusCode, service.title, (service.technologies || []).join("|")].filter(Boolean).join(" "), service.source || "", "", service.probed_at || ""]);
+  }
+  for (const url of snapshot.urls) {
+    rows.push(["url", url.url, (url.params || []).join("|"), url.source || "", "", url.first_seen_at || ""]);
+  }
+  for (const tool of snapshot.toolResults) {
+    rows.push(["tool_result", tool.toolName, tool.commandDisplay || "", "tool", tool.status || "", tool.finishedAt || tool.startedAt || ""]);
+  }
+  return `${rows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
+}
+
+function csvCell(value) {
+  return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`;
+}
+
+function runSnapshotMarkdown(snapshot) {
+  const run = snapshot.run;
+  return [
+    `# A.U.R.A Run ${run.id}`,
+    "",
+    `- Target: ${run.target_name}`,
+    `- Status: ${run.status}`,
+    `- Started: ${run.started_at}`,
+    `- Finished: ${run.finished_at || "-"}`,
+    "",
+    "## Counts",
+    "",
+    `- Domains: ${snapshot.domains.length}`,
+    `- HTTP services: ${snapshot.httpServices.length}`,
+    `- URLs: ${snapshot.urls.length}`,
+    `- Tool results: ${snapshot.toolResults.length}`,
+    "",
+    "## Recent Events",
+    "",
+    ...snapshot.events.slice(-50).map((event) => `- ${event.created_at} ${event.source || "system"}: ${event.message}`),
+    ""
+  ].join("\n");
 }
 
 module.exports = {

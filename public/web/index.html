@@ -279,6 +279,8 @@
             <div class="topology-actions">
               <button id="fitTopology">Fit</button>
               <button id="pulseTopology">Pulse</button>
+              <button id="zoomTopologyIn">Zoom +</button>
+              <button id="zoomTopologyOut">Zoom -</button>
             </div>
           </div>
           <canvas id="topologyCanvas" width="1200" height="720" aria-label="Recon topology graph"></canvas>
@@ -321,6 +323,15 @@
         </div>
       </div>
 
+      <div class="pane export-pane">
+        <h2>Export</h2>
+        <div class="form-body export-actions">
+          <button id="exportJson" type="button">JSON</button>
+          <button id="exportCsv" type="button">CSV</button>
+          <button id="exportMarkdown" type="button">Markdown</button>
+        </div>
+      </div>
+
       <div class="split">
         <div class="pane">
           <h2>Domains & Subdomains</h2>
@@ -354,6 +365,10 @@
     </section>
 
     <section id="tab-runs" class="tab-panel">
+      <div class="pane">
+        <h2>Current Activity</h2>
+        <div id="runActivity" class="notice muted">No active run loaded.</div>
+      </div>
       <div class="pane">
         <h2>Live Events</h2>
         <div id="events" class="scroll"></div>

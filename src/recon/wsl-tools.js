@@ -38,6 +38,7 @@ function runWslTool({
       ? { command: "wsl", args: ["-d", distro, "--", "sh", "-lc", command] }
       : { command: "sh", args: ["-lc", command] };
     const child = spawn(shell.command, shell.args, {
+      detached: os.platform() !== "win32",
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -47,7 +48,7 @@ function runWslTool({
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill();
+      killProcess(child);
     }, timeoutMs);
 
     child.stdout.on("data", (chunk) => {
@@ -97,6 +98,25 @@ function runWslTool({
     }
     child.stdin.end();
   });
+}
+
+function killProcess(child) {
+  try {
+    if (os.platform() !== "win32") {
+      process.kill(-child.pid, "SIGTERM");
+      setTimeout(() => {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          // Process group already exited.
+        }
+      }, 2000).unref();
+      return;
+    }
+    child.kill();
+  } catch {
+    child.kill();
+  }
 }
 
 function commandDisplay(distro, toolName, args) {

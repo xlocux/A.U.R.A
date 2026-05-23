@@ -420,6 +420,16 @@ Pause and cancel are cooperative for CLI tools. Workers should honor them
 between provider calls, phases, and tool invocations. A tool process that is
 already running may finish before the worker stops the next step.
 
+Long-running tool invocations should emit heartbeat events so the UI and AI
+assistant can explain what is currently running and when it last produced
+activity.
+
+Collected run data should be exportable in portable formats:
+
+- JSON for full-fidelity machine-readable snapshots.
+- CSV for spreadsheet triage.
+- Markdown for quick human-readable run summaries.
+
 ## Deduplication And Canonicalization
 
 Deduplication must happen before observations become stable normalized rows.
