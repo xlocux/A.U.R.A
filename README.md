@@ -42,6 +42,15 @@ OpenCode, and install/update recon tools. Create targets from the `Recon` tab
 in the browser. Target setup, scope edits, API keys, wordlists, recon runs, and
 results are all managed from the Web UI.
 
+Recommended first run:
+
+1. Open `Settings > Environment` and run `Install / Update Tools`.
+2. Add optional keys in `Settings > API Keys`.
+3. Create a target in `Recon`.
+4. Confirm authorized scope.
+5. Start with `single` mode and the default checked tools.
+6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
+
 The Web UI requires login. The first local user defaults to:
 
 ```text
@@ -118,6 +127,9 @@ Linux prerequisites installed by setup include:
 - `tar`
 - `jq`
 - Go
+- Node.js 24 on apt-based systems
+- DNS utilities
+- SecLists when available from the package manager
 
 The initial tool registry includes:
 
@@ -180,6 +192,13 @@ data/wordlists/generated/
 ```
 
 and that directory is ignored by Git.
+
+After environment setup, A.U.R.A registers default SecLists metadata when those
+paths are available in the Linux environment:
+
+- `/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt`
+- `/usr/share/seclists/Discovery/Web-Content/common.txt`
+- `/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt`
 
 ## Current Commands
 

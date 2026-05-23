@@ -12,6 +12,28 @@ const DEFAULT_EXCLUDE_TERMS = [
   "domains by proxy",
   "gdpr"
 ];
+const RESERVED_DOMAINS = new Set([
+  "example.com",
+  "example.net",
+  "example.org",
+  "invalid",
+  "localhost",
+  "test"
+]);
+const GENERIC_DOMAIN_TOKENS = new Set([
+  "www",
+  "app",
+  "api",
+  "mail",
+  "admin",
+  "login",
+  "portal",
+  "secure",
+  "dev",
+  "stage",
+  "staging",
+  "test"
+]);
 
 const NOISE_PATTERNS = [
   /privacy/i,
@@ -26,7 +48,15 @@ const NOISE_PATTERNS = [
   /abuse/i,
   /gdpr/i,
   /withheld/i,
-  /not disclosed/i
+  /not disclosed/i,
+  /internet assigned numbers authority/i,
+  /\biana\b/i,
+  /\bicann\b/i,
+  /\bregistry\b/i,
+  /\bregistries\b/i,
+  /reserved/i,
+  /verisign/i,
+  /public interest registry/i
 ];
 
 async function suggestReverseWhoisTerms({ domains, fetchImpl = fetch } = {}) {
@@ -63,6 +93,8 @@ async function fetchRdapRecord({ domain, fetchImpl = fetch }) {
 }
 
 function suggestReverseWhoisTermsFromRdapRecords(records, domains = []) {
+  const normalizedDomains = (domains || []).map(normalizeDomain).filter(Boolean);
+  const brandTokens = domainBrandTokens(normalizedDomains);
   const candidates = new Map();
   for (const record of records || []) {
     for (const candidate of extractRdapCandidates(record)) {
@@ -75,15 +107,16 @@ function suggestReverseWhoisTermsFromRdapRecords(records, domains = []) {
 
   const includeTerms = [...candidates.values()]
     .filter((candidate) => !isNoisyTerm(candidate.value))
+    .filter((candidate) => isTargetRelatedTerm(candidate.value, brandTokens))
     .sort((a, b) => b.score - a.score || a.value.localeCompare(b.value))
     .slice(0, MAX_INCLUDE_TERMS);
 
   const skippedPrivate = [...candidates.values()]
-    .filter((candidate) => isNoisyTerm(candidate.value))
+    .filter((candidate) => isNoisyTerm(candidate.value) || !isTargetRelatedTerm(candidate.value, brandTokens))
     .map((candidate) => candidate.value);
 
   return {
-    domains: (domains || []).map(normalizeDomain).filter(Boolean),
+    domains: normalizedDomains,
     includeTerms: includeTerms.map((term) => term.value),
     excludeTerms: DEFAULT_EXCLUDE_TERMS,
     suggestions: includeTerms,
@@ -95,8 +128,8 @@ function suggestReverseWhoisTermsFromRdapRecords(records, domains = []) {
       error: record.error || null
     })),
     rationale: includeTerms.length > 0
-      ? "Suggested terms come from non-private RDAP organization/contact fields."
-      : "No useful organization terms were found. RDAP/WHOIS data may be private, redacted, or registrar-only."
+      ? "Suggested terms come from target-related, non-private RDAP organization/contact fields."
+      : "No useful organization terms were found. RDAP/WHOIS data may be private, redacted, registrar-only, reserved, or not clearly tied to the target."
   };
 }
 
@@ -168,6 +201,25 @@ function normalizeTerm(value) {
 function isNoisyTerm(value) {
   const text = String(value || "").trim();
   return NOISE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function domainBrandTokens(domains) {
+  const tokens = new Set();
+  for (const domain of domains || []) {
+    if (RESERVED_DOMAINS.has(domain)) continue;
+    const labels = domain.split(".").filter(Boolean);
+    const candidate = labels.length > 1 ? labels[labels.length - 2] : labels[0];
+    for (const token of String(candidate || "").toLowerCase().split(/[^a-z0-9]+/)) {
+      if (token.length >= 3 && !GENERIC_DOMAIN_TOKENS.has(token)) tokens.add(token);
+    }
+  }
+  return tokens;
+}
+
+function isTargetRelatedTerm(value, brandTokens) {
+  if (!brandTokens || brandTokens.size === 0) return false;
+  const text = String(value || "").toLowerCase();
+  return [...brandTokens].some((token) => text.includes(token));
 }
 
 module.exports = {

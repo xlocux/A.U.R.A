@@ -777,6 +777,7 @@ async function installEnvironment() {
       tool.stderr ? `stderr:\n${tool.stderr}` : ""
     ].filter(Boolean).join("\n"))).join("\n\n");
     $("setupLog").className = "notice muted";
+    await refreshWordlists();
     $("status").textContent = "Tool installation completed";
   } catch (error) {
     $("setupLog").textContent = error.message;

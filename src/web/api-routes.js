@@ -17,6 +17,27 @@ const { createDefaultTargetConfig, validateTargetConfig } = require("../core/tar
 const { readBody, sendJson, sendNotFound } = require("./http-utils");
 const { discoverTargets, inferRootDomains } = require("./target-service");
 
+const DEFAULT_WORDLISTS = [
+  {
+    name: "SecLists DNS Top 5K",
+    category: "domains",
+    path: "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
+    notes: "Default Kali/SecLists DNS discovery wordlist"
+  },
+  {
+    name: "SecLists Web Common",
+    category: "paths",
+    path: "/usr/share/seclists/Discovery/Web-Content/common.txt",
+    notes: "Default Kali/SecLists web content wordlist"
+  },
+  {
+    name: "SecLists RAFT Small Words",
+    category: "paths",
+    path: "/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt",
+    notes: "Default Kali/SecLists compact content discovery wordlist"
+  }
+];
+
 function runInBackground(task) {
   task().catch(() => {
     // Background tasks record their own run failure in the DB.
@@ -64,6 +85,7 @@ async function handleApiRequest({ request, response, url, store }) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/wordlists") {
+    ensureDefaultWordlists(store);
     sendJson(response, { wordlists: store.listWordlists() });
     return true;
   }
@@ -94,7 +116,7 @@ async function handleApiRequest({ request, response, url, store }) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/environment/install") {
-    await installEnvironment(request, response);
+    await installEnvironment(request, response, store);
     return true;
   }
 
@@ -216,13 +238,21 @@ async function checkEnvironment(response, url) {
   sendJson(response, { environment: result });
 }
 
-async function installEnvironment(request, response) {
+async function installEnvironment(request, response, store) {
   const body = await readBody(request);
   const result = await installWslTools({
     distro: body.distro || "kali-linux",
     toolIds: body.toolIds || null
   });
-  sendJson(response, { environment: result });
+  const wordlists = ensureDefaultWordlists(store);
+  sendJson(response, { environment: result, wordlists });
+}
+
+function ensureDefaultWordlists(store) {
+  return DEFAULT_WORDLISTS.map((wordlist) => store.addWordlist({
+    ...wordlist,
+    status: "active"
+  }));
 }
 
 async function agentChat(request, response, store) {
@@ -593,6 +623,7 @@ async function createReconRun(request, response, store) {
     mode: reconMode,
     providerProfile: body.useWsl ? "wsl-kali" : "passive"
   });
+  ensureDefaultWordlists(store);
   sendJson(response, { run }, 202);
   runInBackground(async () => {
     try {

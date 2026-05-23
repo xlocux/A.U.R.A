@@ -155,18 +155,18 @@ test("reverse whois helpers build bounded requests and parse domain leads", () =
   assert.equal(parsed.leads[0].domain, "yahoo-example.com");
 });
 
-test("rdap suggestions prefer useful org terms and skip private records", () => {
+test("rdap suggestions prefer target-related org terms and skip private records", () => {
   const suggested = suggestReverseWhoisTermsFromRdapRecords([
     {
-      domain: "example.com",
+      domain: "acme.com",
       status: "completed",
       raw: {
         entities: [
           {
             roles: ["registrant"],
             vcardArray: ["vcard", [
-              ["fn", {}, "text", "Example Security Team"],
-              ["org", {}, "text", "Example Assets LLC"]
+              ["fn", {}, "text", "Acme Security Team"],
+              ["org", {}, "text", "Acme Assets LLC"]
             ]]
           },
           {
@@ -178,10 +178,32 @@ test("rdap suggestions prefer useful org terms and skip private records", () => 
         ]
       }
     }
-  ], ["example.com"]);
-  assert.deepEqual(suggested.includeTerms.slice(0, 2), ["Example Assets LLC", "Example Security Team"]);
+  ], ["acme.com"]);
+  assert.deepEqual(suggested.includeTerms.slice(0, 2), ["Acme Assets LLC", "Acme Security Team"]);
   assert.ok(suggested.skippedPrivate.includes("Domains By Proxy LLC"));
   assert.ok(suggested.excludeTerms.includes("privacy"));
+});
+
+test("rdap suggestions reject reserved registry data for example domains", () => {
+  const suggested = suggestReverseWhoisTermsFromRdapRecords([
+    {
+      domain: "example.com",
+      status: "completed",
+      raw: {
+        entities: [
+          {
+            roles: ["registrant"],
+            vcardArray: ["vcard", [
+              ["fn", {}, "text", "RESERVED-Internet Assigned Numbers Authority"],
+              ["org", {}, "text", "Internet Assigned Numbers Authority"]
+            ]]
+          }
+        ]
+      }
+    }
+  ], ["example.com"]);
+  assert.deepEqual(suggested.includeTerms, []);
+  assert.ok(suggested.skippedPrivate.includes("Internet Assigned Numbers Authority"));
 });
 
 test("tool registry loads built-in manifests and validates required fields", () => {

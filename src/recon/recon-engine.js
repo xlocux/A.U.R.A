@@ -8,8 +8,8 @@ const { runPassiveSource } = require("./passive-sources");
 const { commandDisplay, runWslTool } = require("./wsl-tools");
 
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
-const DEFAULT_WSL_TOOLS = ["subfinder", "amass", "dnsx", "gau", "httpx"];
-const DEFAULT_SCREENSHOT_TOOLS = ["aquatone"];
+const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
+const DEFAULT_SCREENSHOT_TOOLS = [];
 
 async function runRecon({
   store,
@@ -152,7 +152,7 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
         phase: "recon",
         severity: result.status === "completed" ? "ok" : "warn",
         source: toolName,
-        message: `${toolName} ${result.status}; parsed ${domains.length} domains`
+        message: `${toolName} ${result.status}; parsed ${domains.length} domains${toolFailureDetail(result)}`
       });
 
       if (toolName === "gau") {
@@ -290,10 +290,26 @@ function findScreenshotReport(outputDir) {
 }
 
 function toWslPath(windowsPath) {
+  if (String(windowsPath).startsWith("/")) return windowsPath;
   const resolved = path.resolve(windowsPath);
   const drive = resolved.slice(0, 1).toLowerCase();
   const rest = resolved.slice(2).replaceAll("\\", "/");
   return `/mnt/${drive}${rest}`;
+}
+
+function toolFailureDetail(result) {
+  if (result.status === "completed") return "";
+  const detail = firstUsefulLine(result.stderr || result.errorMessage || result.stdout);
+  return detail ? `; ${detail}` : "";
+}
+
+function firstUsefulLine(value) {
+  return String(value || "")
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+    ?.slice(0, 240) || "";
 }
 
 function writeToolArtifact(dir, name, content) {

@@ -1,6 +1,7 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
+const os = require("node:os");
 
 const ALLOWED_TOOLS = new Set([
   "subfinder",
@@ -29,7 +30,14 @@ function runWslTool({
 
   return new Promise((resolve) => {
     const startedAt = new Date().toISOString();
-    const child = spawn("wsl", ["-d", distro, "--", toolName, ...args], {
+    const command = [
+      "export PATH=\"$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH\"",
+      [shellQuote(toolName), ...args.map(shellQuote)].join(" ")
+    ].join(" && ");
+    const shell = os.platform() === "win32"
+      ? { command: "wsl", args: ["-d", distro, "--", "sh", "-lc", command] }
+      : { command: "sh", args: ["-lc", command] };
+    const child = spawn(shell.command, shell.args, {
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -92,7 +100,12 @@ function runWslTool({
 }
 
 function commandDisplay(distro, toolName, args) {
-  return `wsl -d ${distro} -- ${[toolName, ...args].join(" ")}`;
+  const display = [toolName, ...args].join(" ");
+  return os.platform() === "win32" ? `wsl -d ${distro} -- ${display}` : display;
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 }
 
 module.exports = {

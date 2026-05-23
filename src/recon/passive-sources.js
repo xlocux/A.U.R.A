@@ -3,12 +3,22 @@
 const https = require("node:https");
 const { extractDomains } = require("./domain-utils");
 
-function fetchText(url, timeoutMs = 20000) {
+function fetchText(url, timeoutMs = 20000, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, {
       headers: { "User-Agent": "AURA recon/0.1" },
       timeout: timeoutMs
     }, (response) => {
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && response.headers.location) {
+        response.resume();
+        if (redirectCount >= 5) {
+          reject(new Error(`Too many redirects from ${url}`));
+          return;
+        }
+        const nextUrl = new URL(response.headers.location, url).toString();
+        fetchText(nextUrl, timeoutMs, redirectCount + 1).then(resolve, reject);
+        return;
+      }
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => {
@@ -30,8 +40,14 @@ function fetchText(url, timeoutMs = 20000) {
 }
 
 async function fetchCrtSh(rootDomain) {
-  const url = `https://crt.sh/?q=%25.${encodeURIComponent(rootDomain)}&output=json`;
-  const body = await fetchText(url);
+  const wildcardUrl = `https://crt.sh/?q=%25.${encodeURIComponent(rootDomain)}&output=json`;
+  const exactUrl = `https://crt.sh/?q=${encodeURIComponent(rootDomain)}&output=json`;
+  let body = "";
+  try {
+    body = await fetchText(wildcardUrl);
+  } catch {
+    body = await fetchText(exactUrl);
+  }
   let rows = [];
   try {
     rows = JSON.parse(body);
