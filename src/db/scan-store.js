@@ -366,6 +366,16 @@ class ScanStore {
     `).all(limit).map(hydrateRun);
   }
 
+  getLatestRunForTarget(targetName) {
+    const row = this.db.prepare(`
+      SELECT * FROM scan_runs
+      WHERE target_name = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `).get(targetName);
+    return row ? hydrateRun(row) : null;
+  }
+
   appendEvent(runId, { phase = null, severity = "info", source = null, message, payload = {} }) {
     const result = this.db.prepare(`
       INSERT INTO scan_events (run_id, created_at, phase, severity, source, message, payload_json)

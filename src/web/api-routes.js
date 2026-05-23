@@ -1112,6 +1112,18 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const latestRunMatch = url.pathname.match(/^\/api\/targets\/([^/]+)\/latest-run$/);
+  if (latestRunMatch) {
+    const targetName = decodeURIComponent(latestRunMatch[1]);
+    const target = store.getTarget(targetName);
+    if (!target) {
+      sendJson(response, { error: "Target not found" }, 404);
+      return true;
+    }
+    sendJson(response, { run: store.getLatestRunForTarget(targetName) });
+    return true;
+  }
+
   const servicesMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/http-services$/);
   if (servicesMatch) {
     sendJson(response, { services: store.listHttpServices({ runId: Number(servicesMatch[1]) }) });

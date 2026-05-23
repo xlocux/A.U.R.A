@@ -19,6 +19,7 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   - screenshot run outputs
   - API key metadata
   - wordlist metadata
+- Restore the selected target and latest saved run after a browser refresh.
 - Run WSL/Kali tools through an allowlisted command runner.
 - Generate small derived wordlists from the local DB instead of storing large wordlist contents in SQLite.
 
@@ -60,6 +61,10 @@ Recommended first run:
    - Out-of-scope domains are filtered out.
    - The resulting seeds feed the enumeration pipeline.
 6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
+
+Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A
+selects the last active target when possible and reloads that target's latest
+saved run, including events, domains, HTTP services, artifacts, and topology.
 
 If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
 bootstrap checks but does not start active enumeration.

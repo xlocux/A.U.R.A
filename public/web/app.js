@@ -15,6 +15,7 @@ let aiRuntimeStatus = null;
 const $ = (id) => document.getElementById(id);
 const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
+const ACTIVE_TARGET_STORAGE_KEY = "aura.activeTarget";
 const API_KEY_PROVIDER_HINTS = {
   openrouter: {
     label: "free-models",
@@ -345,15 +346,22 @@ async function loadTargets() {
     $("domains").value = "";
     $("leadRows").innerHTML = "";
     $("target").innerHTML = "";
+    localStorage.removeItem(ACTIVE_TARGET_STORAGE_KEY);
+    clearRunView();
     await refreshApiKeys();
     await refreshWordlists();
     return;
+  }
+  const savedTarget = localStorage.getItem(ACTIVE_TARGET_STORAGE_KEY);
+  if (savedTarget && targets.some((target) => target.target_name === savedTarget)) {
+    $("target").value = savedTarget;
   }
   fillDomains();
   await loadTargetConfig();
   await refreshApiKeys();
   await refreshWordlists();
   await refreshLeads();
+  await restoreLatestRunForSelectedTarget();
 }
 
 function fillDomains() {
@@ -376,6 +384,7 @@ function updateReconModeUi() {
 async function loadTargetConfig() {
   const target = $("target").value;
   if (!target) return;
+  localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, target);
   const data = await api(`/api/targets/${encodeURIComponent(target)}/config`);
   $("targetValidation").textContent = [
     `Loaded ${data.configPath}`,
@@ -385,6 +394,45 @@ async function loadTargetConfig() {
     `Out of scope: ${(data.config.scope?.out_of_scope || []).join(", ") || "none"}`
   ].join("\n");
   $("targetValidation").className = "notice muted";
+}
+
+function clearRunView() {
+  activeRunId = null;
+  lastEventId = 0;
+  if (poll) clearInterval(poll);
+  poll = null;
+  $("events").innerHTML = "";
+  $("domainRows").innerHTML = "";
+  $("serviceRows").innerHTML = "";
+  $("artifactRows").innerHTML = "";
+  $("runId").textContent = "-";
+  $("runStatus").textContent = "idle";
+  $("domainCount").textContent = "0";
+  $("eventCount").textContent = "0";
+  updateTopologyGraph();
+}
+
+async function restoreLatestRunForSelectedTarget() {
+  const target = $("target").value;
+  if (!target) {
+    clearRunView();
+    return;
+  }
+  const data = await api(`/api/targets/${encodeURIComponent(target)}/latest-run`);
+  if (!data.run) {
+    clearRunView();
+    return;
+  }
+  activeRunId = data.run.id;
+  lastEventId = 0;
+  $("runId").textContent = activeRunId;
+  $("events").innerHTML = "";
+  await refreshRun();
+  if (!["completed", "failed", "cancelled"].includes(data.run.status)) {
+    if (poll) clearInterval(poll);
+    poll = setInterval(refreshRun, 1500);
+  }
+  $("status").textContent = `Loaded saved run ${activeRunId}`;
 }
 
 async function createTarget() {
@@ -423,6 +471,7 @@ async function createTarget() {
       $("domainRows").innerHTML = "";
       $("serviceRows").innerHTML = "";
       $("artifactRows").innerHTML = "";
+      localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, data.target.target_name);
       activateTab("runs");
       if (poll) clearInterval(poll);
       poll = setInterval(refreshRun, 1500);
@@ -447,21 +496,9 @@ async function deleteTarget() {
   $("status").textContent = `Deleting target: ${targetName}`;
   try {
     await api(`/api/targets/${encodeURIComponent(targetName)}`, { method: "DELETE" });
-    if (activeRunId) {
-      activeRunId = null;
-      lastEventId = 0;
-      if (poll) clearInterval(poll);
-      poll = null;
-    }
-    $("events").innerHTML = "";
-    $("domainRows").innerHTML = "";
-    $("serviceRows").innerHTML = "";
-    $("artifactRows").innerHTML = "";
+    clearRunView();
+    localStorage.removeItem(ACTIVE_TARGET_STORAGE_KEY);
     $("leadRows").innerHTML = "";
-    $("runId").textContent = "-";
-    $("runStatus").textContent = "idle";
-    $("domainCount").textContent = "0";
-    $("eventCount").textContent = "0";
     $("status").textContent = `Target deleted: ${targetName}`;
     await loadTargets();
   } catch (error) {
@@ -508,6 +545,7 @@ async function startRecon() {
     $("domainRows").innerHTML = "";
     $("serviceRows").innerHTML = "";
     $("artifactRows").innerHTML = "";
+    localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, $("target").value);
     $("status").textContent = "Recon running";
     activateTab("runs");
     if (poll) clearInterval(poll);
@@ -1199,6 +1237,9 @@ $("target").addEventListener("change", () => {
     $("status").textContent = error.message;
   });
   refreshLeads().catch((error) => {
+    $("status").textContent = error.message;
+  });
+  restoreLatestRunForSelectedTarget().catch((error) => {
     $("status").textContent = error.message;
   });
 });

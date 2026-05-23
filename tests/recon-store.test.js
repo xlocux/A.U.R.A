@@ -111,6 +111,17 @@ test("scan store records recon data and generated wordlists", () => {
   store.close();
 });
 
+test("scan store returns the latest run for a target", () => {
+  const store = openScanStore(tempDb("latest-run.db"));
+  const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));
+  const first = store.createRun({ targetName: target.target_name });
+  const second = store.createRun({ targetName: target.target_name, runType: "target-bootstrap" });
+  assert.equal(store.getLatestRunForTarget(target.target_name).id, second.id);
+  assert.notEqual(store.getLatestRunForTarget(target.target_name).id, first.id);
+  assert.equal(store.getLatestRunForTarget("missing"), null);
+  store.close();
+});
+
 test("scan store deletes targets with local recon data", () => {
   const store = openScanStore(tempDb("delete-target.db"));
   const target = store.upsertTarget(path.resolve("targets/delete-me/target.json"), {

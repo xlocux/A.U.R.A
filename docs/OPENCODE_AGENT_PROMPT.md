@@ -509,6 +509,11 @@ Memory should help answer questions like:
 - Has the user already dismissed this finding?
 - Which surfaces look newly interesting compared with historical baselines?
 
+The Web UI must also restore saved state after reloads. Target selection,
+latest run summaries, events, normalized recon results, artifacts, and topology
+views should be loaded back from A.U.R.A stores instead of relying only on
+browser memory.
+
 ## AI Runtime Integration
 
 OpenCode, Codex CLI, and Claude Code CLI should run in the Linux execution
