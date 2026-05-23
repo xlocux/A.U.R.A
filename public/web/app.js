@@ -8,6 +8,7 @@ let aiWindowDrag = null;
 let topologyFrame = null;
 let topologyPulse = 0;
 let topologyGraph = { nodes: [], edges: [] };
+let topologyData = { domains: [], services: [], urls: [], screenshots: [] };
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
@@ -652,7 +653,16 @@ function renderSearchResults(results) {
   ).join("");
 }
 
-function updateTopologyGraph({ domains = [], services = [], urls = [], screenshots = [] } = {}) {
+function updateTopologyGraph(data = null) {
+  if (data) {
+    topologyData = {
+      domains: data.domains || [],
+      services: data.services || [],
+      urls: data.urls || [],
+      screenshots: data.screenshots || []
+    };
+  }
+  const { domains, services, urls, screenshots } = topologyData;
   const nodes = [];
   const edges = [];
   const rootId = $("target").value || "workspace";
@@ -667,7 +677,8 @@ function updateTopologyGraph({ domains = [], services = [], urls = [], screensho
   if ($("topologyServices").checked) {
     services.slice(0, 80).forEach((service) => {
       nodes.push({ id: `service:${service.url}`, label: service.host || service.url, type: "service" });
-      edges.push({ from: `domain:${service.host}`, to: `service:${service.url}`, type: "http" });
+      const serviceParent = nodes.some((node) => node.id === `domain:${service.host}`) ? `domain:${service.host}` : rootId;
+      edges.push({ from: serviceParent, to: `service:${service.url}`, type: "http" });
     });
   }
   if ($("topologyArtifacts").checked) {

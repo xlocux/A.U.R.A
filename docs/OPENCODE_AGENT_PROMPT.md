@@ -513,6 +513,9 @@ The Web UI must also restore saved state after reloads. Target selection,
 latest run summaries, events, normalized recon results, artifacts, and topology
 views should be loaded back from A.U.R.A stores instead of relying only on
 browser memory.
+Interactive view controls, such as topology filters and fit/pulse buttons, must
+redraw from the latest loaded store-backed data instead of resetting to empty
+client-side defaults.
 
 ## AI Runtime Integration
 

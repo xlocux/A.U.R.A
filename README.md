@@ -65,6 +65,8 @@ Recommended first run:
 Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A
 selects the last active target when possible and reloads that target's latest
 saved run, including events, domains, HTTP services, artifacts, and topology.
+Topology controls redraw the latest loaded run data instead of discarding the
+current graph state.
 
 If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
 bootstrap checks but does not start active enumeration.
