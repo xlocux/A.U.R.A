@@ -1348,6 +1348,14 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const countsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/counts$/);
+  if (countsMatch) {
+    const runId = Number(countsMatch[1]);
+    const run = store.getRun(runId);
+    sendJson(response, run ? { counts: store.getRunObservationCounts(runId) } : { error: "Run not found" }, run ? 200 : 404);
+    return true;
+  }
+
   const domainsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/domains$/);
   if (domainsMatch) {
     sendJson(response, { domains: store.listDomains({ runId: Number(domainsMatch[1]) }) });
@@ -1429,6 +1437,7 @@ function buildRunSnapshot(store, runId) {
     exportedAt: new Date().toISOString(),
     run: store.getRun(runId),
     events: store.listEvents(runId, 0, 5000),
+    counts: store.getRunObservationCounts(runId),
     domains: store.listDomains({ runId, limit: 10000 }),
     httpServices: store.listHttpServices({ runId, limit: 10000 }),
     urls: store.listUrls({ runId, limit: 10000 }),
@@ -1568,10 +1577,10 @@ function runSnapshotMarkdown(snapshot) {
     "",
     "## Counts",
     "",
-    `- Domains: ${snapshot.domains.length}`,
-    `- HTTP services: ${snapshot.httpServices.length}`,
-    `- URLs: ${snapshot.urls.length}`,
-    `- Tool results: ${snapshot.toolResults.length}`,
+    `- Domains: ${snapshot.counts.domains}`,
+    `- HTTP services: ${snapshot.counts.httpServices}`,
+    `- URLs: ${snapshot.counts.urls}`,
+    `- Tool results: ${snapshot.counts.toolResults}`,
     snapshot.delta?.comparedToRunId ? `- New domains vs run ${snapshot.delta.comparedToRunId}: ${snapshot.delta.domains.addedCount}` : "- New domains: no previous run",
     snapshot.delta?.comparedToRunId ? `- Removed domains vs run ${snapshot.delta.comparedToRunId}: ${snapshot.delta.domains.removedCount}` : "",
     "",

@@ -506,9 +506,9 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 
 .form-body { padding: 10px 12px; }
-.metrics { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)) minmax(260px, auto); gap: 10px; margin-bottom: 16px; }
+.metrics { display: grid; grid-template-columns: repeat(6, minmax(110px, 1fr)) minmax(260px, auto); gap: 10px; margin-bottom: 12px; }
 .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-.metric strong { display: block; font-size: 24px; }
+.metric strong { display: block; font-size: 22px; }
 .run-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: stretch; }
 .run-controls button { min-height: 100%; }
 .export-pane { margin-bottom: 12px; }
@@ -558,6 +558,11 @@ button:disabled { opacity: .55; cursor: wait; }
   background: var(--bad);
 }
 .muted { color: var(--muted); }
+.heading-hint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
 .pane { background: rgba(23, 25, 31, .90); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-height: 0; backdrop-filter: blur(10px); }
 .scroll { max-height: calc(100vh - 225px); overflow: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -745,6 +750,7 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   .row,
   .row3,
   .metrics,
+  .delta-grid,
   .tool-grid { grid-template-columns: 1fr; }
   .tabs { padding: 0 10px; }
   .workspace {

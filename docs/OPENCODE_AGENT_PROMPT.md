@@ -507,6 +507,7 @@ Memory should help answer questions like:
 
 - What changed since the last run?
 - Which domains, URLs, and HTTP services are new or missing in this rescan?
+- What are the true run totals, independent from UI table limits?
 - Why was this asset promoted?
 - Which evidence connects this domain to the target?
 - Has the user already dismissed this finding?

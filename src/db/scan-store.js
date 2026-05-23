@@ -629,6 +629,17 @@ class ScanStore {
     `).all(limit).map(hydrateDomain);
   }
 
+  getRunObservationCounts(runId) {
+    return {
+      domains: countDistinct(this.db, "recon_domains", "domain", runId),
+      urls: countDistinct(this.db, "recon_urls", "url", runId),
+      httpServices: countDistinct(this.db, "recon_http_services", "url", runId),
+      screenshots: countRows(this.db, "recon_screenshots", runId),
+      events: countRows(this.db, "scan_events", runId),
+      toolResults: countRows(this.db, "recon_tool_results", runId)
+    };
+  }
+
   saveUrls(runId, targetName, urls, source = "gau") {
     const insert = this.db.prepare(`
       INSERT INTO recon_urls (
@@ -1126,6 +1137,21 @@ function uniqueBy(items, keyFn) {
     unique.push(item);
   }
   return unique;
+}
+
+function countDistinct(db, tableName, columnName, runId) {
+  return db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM (
+      SELECT 1 FROM ${tableName}
+      WHERE run_id = ?
+      GROUP BY lower(${columnName})
+    )
+  `).get(runId).count;
+}
+
+function countRows(db, tableName, runId) {
+  return db.prepare(`SELECT COUNT(*) AS count FROM ${tableName} WHERE run_id = ?`).get(runId).count;
 }
 
 function hydrateTarget(row) {

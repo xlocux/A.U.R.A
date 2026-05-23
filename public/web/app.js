@@ -568,9 +568,10 @@ async function startRecon() {
 
 async function refreshRun() {
   if (!activeRunId) return;
-  const [runData, eventData, domainData, serviceData, urlData, screenshotData, deltaData] = await Promise.all([
+  const [runData, eventData, countData, domainData, serviceData, urlData, screenshotData, deltaData] = await Promise.all([
     api(`/api/recon-runs/${activeRunId}`),
     api(`/api/recon-runs/${activeRunId}/events?after=${lastEventId}`),
+    api(`/api/recon-runs/${activeRunId}/counts`),
     api(`/api/recon-runs/${activeRunId}/domains`),
     api(`/api/recon-runs/${activeRunId}/http-services`),
     api(`/api/recon-runs/${activeRunId}/urls`),
@@ -587,11 +588,14 @@ async function refreshRun() {
     div.textContent = `[${event.created_at}] ${event.source || "system"}: ${event.message}`;
     $("events").appendChild(div);
   }
-  $("eventCount").textContent = lastEventId;
-  $("domainCount").textContent = domainData.domains.length;
-  renderDomains(domainData.domains);
+  const counts = countData.counts || {};
+  $("eventCount").textContent = counts.events ?? lastEventId;
+  $("domainCount").textContent = counts.domains ?? domainData.domains.length;
+  $("urlCount").textContent = counts.urls ?? urlData.urls.length;
+  $("serviceCount").textContent = counts.httpServices ?? serviceData.services.length;
+  renderDomains(domainData.domains, counts.domains);
   mergeDomainsIntoScanList(runData.run, domainData.domains);
-  renderServices(serviceData.services);
+  renderServices(serviceData.services, counts.httpServices);
   renderArtifacts(urlData.urls, screenshotData.screenshots);
   renderRunDelta(deltaData.delta);
   updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
@@ -659,13 +663,15 @@ function mergeDomainsIntoScanList(run, domains) {
   if (changed) $("domains").value = [...current].sort().join("\n");
 }
 
-function renderDomains(domains) {
+function renderDomains(domains, total = domains.length) {
+  $("domainRowsHint").textContent = total > domains.length ? `showing ${domains.length} of ${total}` : `${domains.length} shown`;
   $("domainRows").innerHTML = domains.map((d) =>
     `<tr><td>${esc(d.domain)}</td><td>${esc(d.kind)}</td><td>${esc(d.source)}</td></tr>`
   ).join("");
 }
 
-function renderServices(services) {
+function renderServices(services, total = services.length) {
+  $("serviceRowsHint").textContent = total > services.length ? `showing ${services.length} of ${total}` : `${services.length} shown`;
   $("serviceRows").innerHTML = services.map((s) =>
     `<tr><td>${esc(s.url)}</td><td>${esc(s.statusCode || "")}</td><td>${esc(s.title || "")}</td><td>${esc((s.technologies || []).join(", "))}</td></tr>`
   ).join("");
@@ -756,18 +762,39 @@ function updateTopologyGraph(data = null) {
   const edges = [];
   const rootId = $("target").value || "workspace";
   nodes.push({ id: rootId, label: rootId, type: "target", x: 0, y: 0 });
+  const nodeIds = new Set([rootId]);
 
   if ($("topologyDomains").checked) {
-    domains.slice(0, 120).forEach((domain) => {
-      nodes.push({ id: `domain:${domain.domain}`, label: domain.domain, type: "domain", data: domain });
-      edges.push({ from: rootId, to: `domain:${domain.domain}`, type: domain.source || "discovered" });
-    });
+    const grouped = groupDomainsForTopology(domains);
+    let shownDomains = 0;
+    for (const group of grouped.slice(0, 18)) {
+      const clusterId = `cluster:${group.root}`;
+      nodes.push({ id: clusterId, label: `${group.root} (${group.items.length})`, type: "cluster", data: { root: group.root, count: group.items.length } });
+      nodeIds.add(clusterId);
+      edges.push({ from: rootId, to: clusterId, type: "domain cluster" });
+      for (const domain of group.items.slice(0, Math.max(4, Math.floor(120 / Math.max(1, grouped.length))))) {
+        if (shownDomains >= 160) break;
+        const domainId = `domain:${domain.domain}`;
+        nodes.push({ id: domainId, label: domain.domain, type: "domain", data: domain });
+        nodeIds.add(domainId);
+        edges.push({ from: clusterId, to: domainId, type: domain.source || "discovered" });
+        shownDomains += 1;
+      }
+      if (shownDomains >= 160) break;
+    }
+    $("topologyHint").textContent = `Clustered topology. Showing ${Math.min(shownDomains, domains.length)} of ${domains.length} domains plus services and artifacts for the loaded run.`;
+  } else {
+    $("topologyHint").textContent = "Topology layers are filtered. Enable domains for the clustered domain map.";
   }
   if ($("topologyServices").checked) {
-    services.slice(0, 80).forEach((service) => {
-      nodes.push({ id: `service:${service.url}`, label: service.host || service.url, type: "service", data: service });
-      const serviceParent = nodes.some((node) => node.id === `domain:${service.host}`) ? `domain:${service.host}` : rootId;
-      edges.push({ from: serviceParent, to: `service:${service.url}`, type: "http" });
+    services.slice(0, 100).forEach((service) => {
+      const serviceId = `service:${service.url}`;
+      nodes.push({ id: serviceId, label: service.host || service.url, type: "service", data: service });
+      nodeIds.add(serviceId);
+      const domainParent = `domain:${service.host}`;
+      const clusterParent = `cluster:${rootForTopology(service.host || "")}`;
+      const serviceParent = nodeIds.has(domainParent) ? domainParent : nodeIds.has(clusterParent) ? clusterParent : rootId;
+      edges.push({ from: serviceParent, to: serviceId, type: "http" });
     });
   }
   if ($("topologyArtifacts").checked) {
@@ -785,6 +812,25 @@ function updateTopologyGraph(data = null) {
   $("topologyNodeCount").textContent = topologyGraph.nodes.length;
   $("topologyEdgeCount").textContent = topologyGraph.edges.length;
   renderTopology();
+}
+
+function groupDomainsForTopology(domains) {
+  const groups = new Map();
+  for (const domain of domains) {
+    const root = domain.rootDomain || rootForTopology(domain.domain || "");
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(domain);
+  }
+  return [...groups.entries()]
+    .map(([root, items]) => ({ root, items: items.sort((left, right) => String(left.domain).localeCompare(String(right.domain))) }))
+    .sort((left, right) => right.items.length - left.items.length || left.root.localeCompare(right.root));
+}
+
+function rootForTopology(hostname) {
+  const clean = String(hostname || "").split(":")[0].toLowerCase();
+  const parts = clean.split(".").filter(Boolean);
+  if (parts.length <= 2) return clean || "unknown";
+  return parts.slice(-2).join(".");
 }
 
 function previewTopology(rootId) {
@@ -875,6 +921,7 @@ function drawEdge(ctx, x1, y1, x2, y2) {
 function drawNode(ctx, x, y, node) {
   const colors = {
     target: ["#43c59e", 15],
+    cluster: ["#49d8ff", 12],
     domain: ["#8fdcc3", 9],
     service: ["#f2b84b", 8],
     url: ["#9da6b5", 6],
@@ -925,6 +972,9 @@ function formatTopologyNode(node) {
   const data = node.data || {};
   if (node.type === "domain") {
     return [`Domain: ${node.label}`, `Kind: ${data.kind || "-"}`, `Source: ${data.source || "-"}`, `Status: ${data.status || "-"}`].join("\n");
+  }
+  if (node.type === "cluster") {
+    return [`Domain cluster: ${data.root || node.label}`, `Domains: ${data.count || "-"}`, "Expand the run table or search to inspect individual domains."].join("\n");
   }
   if (node.type === "service") {
     return [`HTTP service: ${data.url || node.label}`, `Status: ${data.statusCode || "-"}`, `Title: ${data.title || "-"}`, `Tech: ${(data.technologies || []).join(", ") || "-"}`].join("\n");

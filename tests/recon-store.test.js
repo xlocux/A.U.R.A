@@ -159,6 +159,14 @@ test("scan store automatically compacts duplicate recon observations", () => {
   assert.match(domains[0].source, /wayback/);
   assert.equal(store.listUrls({ runId: run.id }).length, 1);
   assert.equal(store.listHttpServices({ runId: run.id }).length, 1);
+  assert.deepEqual(store.getRunObservationCounts(run.id), {
+    domains: 1,
+    urls: 1,
+    httpServices: 1,
+    screenshots: 0,
+    events: 0,
+    toolResults: 0
+  });
   store.close();
 });
 

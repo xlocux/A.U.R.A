@@ -275,7 +275,7 @@
           <div class="topology-head">
             <div>
               <h2>Recon Topology</h2>
-              <p class="muted">Live relationship map for targets, observations, services, artifacts, and future graph edges.</p>
+              <p class="muted" id="topologyHint">Live relationship map for targets, observations, services, artifacts, and future graph edges.</p>
             </div>
             <div class="topology-actions">
               <button id="fitTopology">Fit</button>
@@ -316,20 +316,13 @@
         <div class="metric"><span class="muted">Run</span><strong id="runId">-</strong></div>
         <div class="metric"><span class="muted">Status</span><strong id="runStatus">idle</strong></div>
         <div class="metric"><span class="muted">Domains</span><strong id="domainCount">0</strong></div>
+        <div class="metric"><span class="muted">URLs</span><strong id="urlCount">0</strong></div>
+        <div class="metric"><span class="muted">Services</span><strong id="serviceCount">0</strong></div>
         <div class="metric"><span class="muted">Events</span><strong id="eventCount">0</strong></div>
         <div class="run-controls" aria-label="Run controls">
           <button id="pauseRun" type="button" disabled>Pause</button>
           <button id="resumeRun" type="button" disabled>Resume</button>
           <button id="cancelRun" class="danger-button" type="button" disabled>Cancel</button>
-        </div>
-      </div>
-
-      <div class="pane export-pane">
-        <h2>Export</h2>
-        <div class="form-body export-actions">
-          <button id="exportJson" type="button">JSON</button>
-          <button id="exportCsv" type="button">CSV</button>
-          <button id="exportMarkdown" type="button">Markdown</button>
         </div>
       </div>
 
@@ -362,9 +355,18 @@
         </div>
       </div>
 
+      <div class="pane export-pane">
+        <h2>Export</h2>
+        <div class="form-body export-actions">
+          <button id="exportJson" type="button">JSON</button>
+          <button id="exportCsv" type="button">CSV</button>
+          <button id="exportMarkdown" type="button">Markdown</button>
+        </div>
+      </div>
+
       <div class="split">
         <div class="pane">
-          <h2>Domains & Subdomains</h2>
+          <h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2>
           <div class="scroll">
             <table>
               <thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead>
@@ -373,7 +375,7 @@
           </div>
         </div>
         <div class="pane">
-          <h2>HTTP Services</h2>
+          <h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2>
           <div class="scroll">
             <table>
               <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead>

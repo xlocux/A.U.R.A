@@ -1904,6 +1904,8 @@ Rules:
 - Every rescan should compare the current run with the previous run for the same
   target and surface added, removed, and stable domains, URLs, and HTTP
   services in the UI and exports.
+- Result views should show true aggregate counts from the database separately
+  from paged table rows so large runs are understandable at a glance.
 - Users should be able to compare any two runs for the same target.
 - Notifications should be configurable and local-first.
 - Change detection should store evidence and previous/current values.

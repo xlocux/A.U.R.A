@@ -26,6 +26,8 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   and generated wordlists while preserving source evidence.
 - Compare each rescan with the previous run for the same target to show new,
   removed, and stable domains, URLs, and HTTP services.
+- Show real run totals separately from paged result tables so large scans do not
+  appear capped by UI limits.
 - Inspect current run activity, tool heartbeats, and topology node details from
   the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.
