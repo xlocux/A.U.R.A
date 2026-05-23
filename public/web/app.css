@@ -715,6 +715,11 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   background: rgba(23, 55, 47, .76);
 }
 
+.ai-message.insight {
+  border-color: rgba(242, 184, 75, .48);
+  background: rgba(61, 46, 18, .72);
+}
+
 .ai-message.user {
   margin-left: 28px;
   border-color: rgba(143, 220, 195, .58);

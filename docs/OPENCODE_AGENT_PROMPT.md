@@ -534,6 +534,10 @@ questions about current activity. It should cite the loaded run ID, status,
 active phase, latest event, and recent tool results when available. It must not
 claim that no recon is running if A.U.R.A has an active or recent run in its
 stores.
+The UI may also post automatic run insights into the chat. These should be
+evidence-based milestones only: major count changes, new run deltas, technology
+stack discoveries, screenshot progress, tool failures, timeouts, and final run
+status. Do not post low-value heartbeat noise.
 
 Run data should be exportable from the Web UI in portable formats such as JSON,
 CSV, and Markdown. Topology views should support zooming and node inspection

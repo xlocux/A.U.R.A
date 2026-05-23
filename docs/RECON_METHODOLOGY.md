@@ -188,6 +188,8 @@ The Web UI should cover:
 - Recon profile selection and per-phase configuration.
 - Rate limits, timeouts, concurrency, and stop conditions.
 - Run creation, pause/cancel/resume, and live job/event monitoring.
+- Automatic AI chat milestones for high-signal scan progress, tool failures,
+  technology stack changes, screenshot progress, and run deltas.
 - Artifact browsing and raw artifact search.
 - Observation, asset, review item, and graph/correlation views.
 - Playbook authoring, test runs, and trigger audit.

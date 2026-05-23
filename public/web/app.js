@@ -14,6 +14,14 @@ let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
+let aiRunFeed = {
+  runId: null,
+  eventIds: new Set(),
+  lastTotals: null,
+  lastDelta: null,
+  lastTechKeys: new Set(),
+  lastScreenshotCount: 0
+};
 
 const $ = (id) => document.getElementById(id);
 const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
@@ -404,6 +412,7 @@ async function loadTargetConfig() {
 function clearRunView() {
   activeRunId = null;
   lastEventId = 0;
+  resetAiRunFeed(null);
   if (poll) clearInterval(poll);
   poll = null;
   $("events").innerHTML = "";
@@ -473,6 +482,7 @@ async function createTarget() {
     if (data.bootstrapRun?.id) {
       activeRunId = data.bootstrapRun.id;
       lastEventId = 0;
+      resetAiRunFeed(activeRunId);
       $("runId").textContent = activeRunId;
       $("events").innerHTML = "";
       $("domainRows").innerHTML = "";
@@ -547,6 +557,8 @@ async function startRecon() {
     const data = await api("/api/recon-runs", { method: "POST", body: JSON.stringify(payload) });
     activeRunId = data.run.id;
     lastEventId = 0;
+    resetAiRunFeed(activeRunId);
+    resetAiRunFeed(activeRunId);
     $("runId").textContent = activeRunId;
     $("events").innerHTML = "";
     $("domainRows").innerHTML = "";
@@ -614,6 +626,14 @@ async function refreshRun() {
     poll = null;
     $("status").textContent = `Run ${runData.run.status}`;
   }
+  publishAiRunInsights({
+    run: runData.run,
+    events: eventData.events,
+    counts,
+    delta: deltaData.delta,
+    technologies: technologyData.technologies,
+    screenshots: screenshotData.screenshots
+  });
 }
 
 function renderRunActivity(run = null, newEvents = []) {
@@ -633,6 +653,111 @@ function renderRunActivity(run = null, newEvents = []) {
     checkpoint.rootDomains?.length ? `Seeds: ${checkpoint.rootDomains.join(", ")}` : "",
     run.error_message ? `Error: ${run.error_message}` : ""
   ].filter(Boolean).join("\n");
+}
+
+function resetAiRunFeed(runId) {
+  aiRunFeed = {
+    runId,
+    eventIds: new Set(),
+    lastTotals: null,
+    lastDelta: null,
+    lastTechKeys: new Set(),
+    lastScreenshotCount: 0
+  };
+}
+
+function publishAiRunInsights({ run, events, counts, delta, technologies, screenshots }) {
+  if (!run) return;
+  if (aiRunFeed.runId !== run.id) resetAiRunFeed(run.id);
+  const messages = [];
+  for (const event of events || []) {
+    if (aiRunFeed.eventIds.has(event.id)) continue;
+    aiRunFeed.eventIds.add(event.id);
+    const insight = insightFromEvent(event);
+    if (insight) messages.push(insight);
+  }
+  const totalInsight = insightFromTotals(counts);
+  if (totalInsight) messages.push(totalInsight);
+  const deltaInsight = insightFromDelta(delta);
+  if (deltaInsight) messages.push(deltaInsight);
+  const techInsight = insightFromTechnologies(technologies);
+  if (techInsight) messages.push(techInsight);
+  const screenshotInsight = insightFromScreenshots(screenshots);
+  if (screenshotInsight) messages.push(screenshotInsight);
+  if (["completed", "failed", "cancelled"].includes(run.status)) {
+    const finalKey = `final:${run.id}:${run.status}`;
+    if (!aiRunFeed.eventIds.has(finalKey)) {
+      aiRunFeed.eventIds.add(finalKey);
+      messages.push(`Run ${run.id} finished with status ${run.status}. Totals: ${counts.domains || 0} domains, ${counts.httpServices || 0} services, ${counts.technologies || 0} technologies, ${counts.screenshots || 0} screenshot runs.`);
+    }
+  }
+  for (const message of messages.slice(0, 3)) {
+    appendAiMessage("assistant insight", message);
+  }
+}
+
+function insightFromEvent(event) {
+  const text = String(event.message || "");
+  if (event.severity === "error") return `Attention: ${event.source || "system"} reported an error: ${text}`;
+  if (event.severity === "warn" && /(timeout|failed|error)/i.test(text)) return `Tool warning: ${event.source || "tool"} ${text}`;
+  if (/parsed \d+ HTTP services/i.test(text)) return `HTTP probing update: ${text}`;
+  if (/parsed \d+ archived URLs/i.test(text)) return `Archive mining update: ${text}`;
+  if (/screenshot run completed/i.test(text)) return `Visual triage update: ${text}`;
+  if (/Recon completed with/i.test(text)) return text;
+  return null;
+}
+
+function insightFromTotals(counts = {}) {
+  const current = {
+    domains: counts.domains || 0,
+    services: counts.httpServices || 0,
+    technologies: counts.technologies || 0,
+    screenshots: counts.screenshots || 0
+  };
+  const previous = aiRunFeed.lastTotals;
+  aiRunFeed.lastTotals = current;
+  if (!previous) return null;
+  const domainGrowth = current.domains - previous.domains;
+  const serviceGrowth = current.services - previous.services;
+  if (domainGrowth >= 1000) return `Discovery jump: ${domainGrowth} new domains loaded since the last update (${current.domains} total).`;
+  if (serviceGrowth >= 25) return `HTTP surface expanded: ${serviceGrowth} new live services since the last update (${current.services} total).`;
+  return null;
+}
+
+function insightFromDelta(delta) {
+  if (!delta?.comparedToRunId) return null;
+  const current = {
+    addedDomains: delta.domains.addedCount || 0,
+    addedServices: delta.httpServices.addedCount || 0,
+    addedUrls: delta.urls.addedCount || 0
+  };
+  const previous = aiRunFeed.lastDelta;
+  aiRunFeed.lastDelta = current;
+  if (previous && previous.addedDomains === current.addedDomains && previous.addedServices === current.addedServices && previous.addedUrls === current.addedUrls) return null;
+  if (current.addedDomains || current.addedServices || current.addedUrls) {
+    return `Rescan delta vs run ${delta.comparedToRunId}: ${current.addedDomains} new domains, ${current.addedServices} new services, ${current.addedUrls} new URLs.`;
+  }
+  return null;
+}
+
+function insightFromTechnologies(technologies = []) {
+  const keys = new Set(technologies.map((tech) => String(tech.name || "").toLowerCase()).filter(Boolean));
+  const newTech = [...keys].filter((key) => !aiRunFeed.lastTechKeys.has(key));
+  aiRunFeed.lastTechKeys = keys;
+  if (newTech.length === 0) return null;
+  const top = technologies
+    .filter((tech) => newTech.includes(String(tech.name || "").toLowerCase()))
+    .slice(0, 5)
+    .map((tech) => `${tech.name} (${tech.count})`);
+  return top.length ? `Technology stack update: ${top.join(", ")}.` : null;
+}
+
+function insightFromScreenshots(screenshots = []) {
+  const total = screenshots.reduce((sum, shot) => sum + Number(shot.metadata?.screenshotCount || 0), 0);
+  if (total <= aiRunFeed.lastScreenshotCount) return null;
+  const delta = total - aiRunFeed.lastScreenshotCount;
+  aiRunFeed.lastScreenshotCount = total;
+  return `Visual triage captured ${delta} new screenshots (${total} total).`;
 }
 
 function updateRunControlButtons(status) {

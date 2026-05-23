@@ -28,6 +28,9 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   removed, and stable domains, URLs, and HTTP services.
 - Show real run totals separately from paged result tables so large scans do not
   appear capped by UI limits.
+- Post useful scan milestones into the AI chat as recon progresses, including
+  major discovery jumps, tool failures, run deltas, technologies, and screenshot
+  progress.
 - Inspect current run activity, tool heartbeats, and topology node details from
   the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.
