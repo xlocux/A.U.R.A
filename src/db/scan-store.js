@@ -533,7 +533,7 @@ class ScanStore {
     let saved = 0;
     this.db.exec("BEGIN");
     try {
-      for (const item of domains) {
+      for (const item of uniqueBy(domains, (domain) => `${String(domain.domain || "").toLowerCase()}|${domain.source || ""}`)) {
         insert.run(
           runId,
           targetName,
@@ -559,15 +559,64 @@ class ScanStore {
   listDomains({ runId = null, targetName = null, limit = 1000 } = {}) {
     if (runId !== null) {
       return this.db.prepare(`
-        SELECT * FROM recon_domains WHERE run_id = ? ORDER BY domain LIMIT ?
+        SELECT
+          MIN(id) AS id,
+          MAX(run_id) AS run_id,
+          target_name,
+          MIN(domain) AS domain,
+          COALESCE(MAX(root_domain), '') AS root_domain,
+          COALESCE(MAX(kind), 'subdomain') AS kind,
+          group_concat(DISTINCT source) AS source,
+          COALESCE(MAX(status), 'discovered') AS status,
+          MIN(first_seen_at) AS first_seen_at,
+          MAX(last_seen_at) AS last_seen_at,
+          '{}' AS metadata_json
+        FROM recon_domains
+        WHERE run_id = ?
+        GROUP BY target_name, lower(domain)
+        ORDER BY domain
+        LIMIT ?
       `).all(runId, limit).map(hydrateDomain);
     }
     if (targetName !== null) {
       return this.db.prepare(`
-        SELECT * FROM recon_domains WHERE target_name = ? ORDER BY domain LIMIT ?
+        SELECT
+          MIN(id) AS id,
+          MAX(run_id) AS run_id,
+          target_name,
+          MIN(domain) AS domain,
+          COALESCE(MAX(root_domain), '') AS root_domain,
+          COALESCE(MAX(kind), 'subdomain') AS kind,
+          group_concat(DISTINCT source) AS source,
+          COALESCE(MAX(status), 'discovered') AS status,
+          MIN(first_seen_at) AS first_seen_at,
+          MAX(last_seen_at) AS last_seen_at,
+          '{}' AS metadata_json
+        FROM recon_domains
+        WHERE target_name = ?
+        GROUP BY target_name, lower(domain)
+        ORDER BY domain
+        LIMIT ?
       `).all(targetName, limit).map(hydrateDomain);
     }
-    return this.db.prepare("SELECT * FROM recon_domains ORDER BY last_seen_at DESC LIMIT ?").all(limit).map(hydrateDomain);
+    return this.db.prepare(`
+      SELECT
+        MIN(id) AS id,
+        MAX(run_id) AS run_id,
+        target_name,
+        MIN(domain) AS domain,
+        COALESCE(MAX(root_domain), '') AS root_domain,
+        COALESCE(MAX(kind), 'subdomain') AS kind,
+        group_concat(DISTINCT source) AS source,
+        COALESCE(MAX(status), 'discovered') AS status,
+        MIN(first_seen_at) AS first_seen_at,
+        MAX(last_seen_at) AS last_seen_at,
+        '{}' AS metadata_json
+      FROM recon_domains
+      GROUP BY target_name, lower(domain)
+      ORDER BY last_seen_at DESC
+      LIMIT ?
+    `).all(limit).map(hydrateDomain);
   }
 
   saveUrls(runId, targetName, urls, source = "gau") {
@@ -589,7 +638,7 @@ class ScanStore {
     let saved = 0;
     this.db.exec("BEGIN");
     try {
-      for (const item of urls) {
+      for (const item of uniqueBy(urls, (url) => `${String(url.url || "").toLowerCase()}|${source}`)) {
         insert.run(
           runId,
           targetName,
@@ -615,7 +664,24 @@ class ScanStore {
 
   listUrls({ runId, limit = 1000 }) {
     return this.db.prepare(`
-      SELECT * FROM recon_urls WHERE run_id = ? ORDER BY host, path LIMIT ?
+      SELECT
+        MIN(id) AS id,
+        MAX(run_id) AS run_id,
+        target_name,
+        MIN(url) AS url,
+        COALESCE(MAX(host), '') AS host,
+        COALESCE(MAX(path), '') AS path,
+        COALESCE(MAX(query), '') AS query,
+        COALESCE(MAX(params_json), '[]') AS params_json,
+        group_concat(DISTINCT source) AS source,
+        MIN(first_seen_at) AS first_seen_at,
+        MAX(last_seen_at) AS last_seen_at,
+        '{}' AS metadata_json
+      FROM recon_urls
+      WHERE run_id = ?
+      GROUP BY target_name, lower(url)
+      ORDER BY host, path
+      LIMIT ?
     `).all(runId, limit).map(hydrateUrl);
   }
 
@@ -643,7 +709,7 @@ class ScanStore {
     let saved = 0;
     this.db.exec("BEGIN");
     try {
-      for (const item of services) {
+      for (const item of uniqueBy(services, (service) => `${String(service.url || "").toLowerCase()}|${source}`)) {
         insert.run(
           runId,
           targetName,
@@ -673,7 +739,28 @@ class ScanStore {
 
   listHttpServices({ runId, limit = 1000 }) {
     return this.db.prepare(`
-      SELECT * FROM recon_http_services WHERE run_id = ? ORDER BY host, port LIMIT ?
+      SELECT
+        MIN(id) AS id,
+        MAX(run_id) AS run_id,
+        target_name,
+        MIN(url) AS url,
+        COALESCE(MAX(host), '') AS host,
+        COALESCE(MAX(scheme), '') AS scheme,
+        MAX(port) AS port,
+        MAX(status_code) AS status_code,
+        COALESCE(MAX(title), '') AS title,
+        COALESCE(MAX(webserver), '') AS webserver,
+        COALESCE(MAX(technologies_json), '[]') AS technologies_json,
+        COALESCE(MAX(final_url), '') AS final_url,
+        MAX(content_length) AS content_length,
+        group_concat(DISTINCT source) AS source,
+        MAX(observed_at) AS observed_at,
+        '{}' AS raw_json
+      FROM recon_http_services
+      WHERE run_id = ?
+      GROUP BY target_name, lower(url)
+      ORDER BY host, port
+      LIMIT ?
     `).all(runId, limit).map(hydrateHttpService);
   }
 
@@ -1017,6 +1104,18 @@ class ScanStore {
       LIMIT ?
     `).all(runId, limit).map(hydrateToolResult);
   }
+}
+
+function uniqueBy(items, keyFn) {
+  const seen = new Set();
+  const unique = [];
+  for (const item of items || []) {
+    const key = keyFn(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
 }
 
 function hydrateTarget(row) {

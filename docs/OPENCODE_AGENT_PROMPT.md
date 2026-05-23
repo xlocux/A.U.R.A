@@ -24,6 +24,8 @@ the system modular, auditable, and safe.
 - Treat the AI chat agent as a contextual assistant for every major workflow and
   recon phase.
 - Preserve raw tool and provider output before parsing.
+- Compact duplicate observations automatically in user-facing views and
+  exports while preserving source evidence.
 - Prefer mature recon tools and provider APIs over custom scanners.
 - Treat every tool, provider, parser, phase, and model as replaceable.
 - Keep scope, authorization, rate limits, job state, artifacts, and audit logs

@@ -22,6 +22,8 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
 - Restore the selected target and latest saved run after a browser refresh.
 - Pause, resume, or cancel long-running recon runs from the browser.
 - Export collected run data as JSON, CSV, or Markdown.
+- Automatically compact duplicate observations in UI views, topology, exports,
+  and generated wordlists while preserving source evidence.
 - Inspect current run activity, tool heartbeats, and topology node details from
   the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.

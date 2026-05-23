@@ -167,6 +167,11 @@ input
 
 Raw output must be kept even when parsing fails.
 
+User-facing reads should automatically compact duplicate normalized
+observations for UI tables, topology, exports, search summaries, and generated
+wordlists. Compaction must aggregate source attribution and evidence links
+instead of deleting raw artifacts or per-source observations.
+
 ## UI-First Workflow
 
 Every major A.U.R.A capability should be available from the Web UI. CLI scripts

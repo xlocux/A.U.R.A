@@ -134,6 +134,34 @@ test("scan store records recon data and generated wordlists", () => {
   store.close();
 });
 
+test("scan store automatically compacts duplicate recon observations", () => {
+  const store = openScanStore(tempDb("dedup.db"));
+  const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));
+  const run = store.createRun({ targetName: target.target_name });
+  store.saveDomains(run.id, target.target_name, [
+    { domain: "www.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" },
+    { domain: "www.example.com", rootDomain: "example.com", kind: "subdomain", source: "crtsh" },
+    { domain: "WWW.EXAMPLE.COM", rootDomain: "example.com", kind: "subdomain", source: "wayback" }
+  ]);
+  store.saveUrls(run.id, target.target_name, [
+    { url: "https://www.example.com/login", host: "www.example.com", path: "/login", params: [] },
+    { url: "https://www.example.com/login", host: "www.example.com", path: "/login", params: [] }
+  ], "gau");
+  store.saveHttpServices(run.id, target.target_name, [
+    { url: "https://www.example.com", host: "www.example.com", scheme: "https", port: 443, statusCode: 200, title: "Example", technologies: ["nginx"], raw: {} },
+    { url: "https://www.example.com", host: "www.example.com", scheme: "https", port: 443, statusCode: 200, title: "Example", technologies: ["nginx"], raw: {} }
+  ]);
+
+  const domains = store.listDomains({ runId: run.id });
+  assert.equal(domains.length, 1);
+  assert.equal(domains[0].domain.toLowerCase(), "www.example.com");
+  assert.match(domains[0].source, /crtsh/);
+  assert.match(domains[0].source, /wayback/);
+  assert.equal(store.listUrls({ runId: run.id }).length, 1);
+  assert.equal(store.listHttpServices({ runId: run.id }).length, 1);
+  store.close();
+});
+
 test("scan store returns the latest run for a target", () => {
   const store = openScanStore(tempDb("latest-run.db"));
   const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));
