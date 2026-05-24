@@ -5,6 +5,7 @@
   const $ = (id) => document.getElementById(id);
 
   injectStylesheet("/proxy-dashboard.css", "aura-proxy-dashboard-css");
+  injectScript("/projects-view.js", "aura-projects-view-js");
 
   function injectStylesheet(href, id) {
     if (document.getElementById(id)) return;
@@ -13,6 +14,15 @@
     link.rel = "stylesheet";
     link.href = href;
     document.head.appendChild(link);
+  }
+
+  function injectScript(src, id) {
+    if (document.getElementById(id)) return;
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.defer = true;
+    document.head.appendChild(script);
   }
 
   function getSettings() {
