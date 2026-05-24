@@ -14,6 +14,7 @@ let resultsData = {
   technologies: [],
   urls: [],
   screenshots: [],
+  toolResults: [],
   delta: null,
   totals: {}
 };
@@ -53,6 +54,11 @@ const API_KEY_PROVIDER_HINTS = {
     label: "public-code-search",
     placeholder: "GitHub personal access token",
     monthlyLimit: "5000"
+  },
+  rapid7: {
+    label: "open-data",
+    placeholder: "Rapid7 Open Data user key",
+    monthlyLimit: "30 download URL requests / 24h"
   },
   whoisxmlapi: {
     label: "trial",
@@ -563,7 +569,8 @@ async function startRecon() {
         searchType: $("fullWhoisType").value,
         maxAssetLeads: Number($("maxAssetLeads").value || 250)
       },
-      passiveSources: selectedValues(["crtsh", "wayback"]),
+      intelPreflight: $("intelPreflight").checked,
+      passiveSources: selectedValues(["crtsh", "wayback", "rapid7"]),
       wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),
       screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
@@ -584,6 +591,7 @@ async function startRecon() {
     $("technologyRows").innerHTML = "";
     $("screenshotRows").innerHTML = "";
     $("artifactRows").innerHTML = "";
+    $("toolLogRows").innerHTML = "";
     renderRunDelta(null);
     localStorage.setItem(ACTIVE_TARGET_STORAGE_KEY, $("target").value);
     $("status").textContent = "Recon running";
@@ -600,7 +608,7 @@ async function startRecon() {
 
 async function refreshRun() {
   if (!activeRunId) return;
-  const [runData, eventData, countData, domainData, serviceData, technologyData, urlData, screenshotData, deltaData] = await Promise.all([
+  const [runData, eventData, countData, domainData, serviceData, technologyData, urlData, screenshotData, toolResultData, deltaData] = await Promise.all([
     api(`/api/recon-runs/${activeRunId}`),
     api(`/api/recon-runs/${activeRunId}/events?after=${lastEventId}`),
     api(`/api/recon-runs/${activeRunId}/counts`),
@@ -609,6 +617,7 @@ async function refreshRun() {
     api(`/api/recon-runs/${activeRunId}/technologies`),
     api(`/api/recon-runs/${activeRunId}/urls`),
     api(`/api/recon-runs/${activeRunId}/screenshots`),
+    api(`/api/recon-runs/${activeRunId}/tool-results`),
     api(`/api/recon-runs/${activeRunId}/delta`)
   ]);
   $("runStatus").textContent = runData.run.status;
@@ -628,6 +637,7 @@ async function refreshRun() {
     technologies: technologyData.technologies,
     urls: urlData.urls,
     screenshots: screenshotData.screenshots,
+    toolResults: toolResultData.toolResults,
     delta: deltaData.delta,
     totals: counts
   };
@@ -730,6 +740,7 @@ async function runHttpFollowup() {
     $("technologyRows").innerHTML = "";
     $("screenshotRows").innerHTML = "";
     $("artifactRows").innerHTML = "";
+    $("toolLogRows").innerHTML = "";
     renderRunDelta(null);
     $("status").textContent = `HTTP/tech follow-up running for ${data.sourceDomainCount} saved domains`;
     activateTab("runs");
@@ -800,11 +811,30 @@ function renderScreenshots(screenshots, total = screenshots.length) {
   $("screenshotRows").innerHTML = groupedRows(rows, 3) || `<tr><td colspan="3" class="muted">No screenshot runs recorded for this run.</td></tr>`;
 }
 
+function renderToolLogs(toolResults, total = toolResults.length) {
+  $("toolLogRowsHint").textContent = total > toolResults.length ? `showing ${toolResults.length} of ${total}` : `${toolResults.length} shown`;
+  const rows = toolResults.map((result) => ({
+    item: result,
+    group: resultGroupValue("toolLog", result),
+    html: `<tr><td>${esc(result.toolName)}</td><td>${esc(result.status)}</td><td>${esc(result.exitCode ?? "")}</td><td>${esc(result.startedAt || "")}</td><td>${toolLogButtons(result)}</td></tr>`
+  }));
+  $("toolLogRows").innerHTML = groupedRows(rows, 5) || `<tr><td colspan="5" class="muted">No tool results for this run.</td></tr>`;
+}
+
+function toolLogButtons(result) {
+  const buttons = [];
+  if (result.stdoutPath) buttons.push(`<button class="tool-log-button" type="button" data-tool-result-id="${esc(result.id)}" data-log-stream="stdout">stdout</button>`);
+  if (result.stderrPath) buttons.push(`<button class="tool-log-button" type="button" data-tool-result-id="${esc(result.id)}" data-log-stream="stderr">stderr</button>`);
+  if (!buttons.length && result.errorMessage) return `<span class="muted">${esc(result.errorMessage)}</span>`;
+  return buttons.join(" ") || `<span class="muted">No log artifact</span>`;
+}
+
 function renderAllResultTables() {
   renderDomains(resultsData.domains, resultsData.totals.domains);
   renderServices(resultsData.services, resultsData.totals.httpServices);
   renderTechnologies(resultsData.technologies, resultsData.totals.technologies);
   renderScreenshots(resultsData.screenshots, resultsData.totals.screenshots);
+  renderToolLogs(resultsData.toolResults, resultsData.totals.toolResults);
   renderArtifacts(resultsData.urls, resultsData.screenshots);
   renderRunDelta(resultsData.delta);
 }
@@ -837,6 +867,10 @@ function resultGroupValue(type, item) {
   if (type === "screenshot") {
     if (mode === "tool") return item.tool_name || "unknown tool";
     if (mode === "status") return item.metadata?.status || "unknown status";
+  }
+  if (type === "toolLog") {
+    if (mode === "tool") return item.toolName || "unknown tool";
+    if (mode === "status") return item.status || "unknown status";
   }
   if (type === "delta") {
     if (mode === "change") return item.change;
@@ -927,6 +961,50 @@ function closeImageModal() {
   if (image) image.src = "";
   imagePreviewGallery = [];
   imagePreviewIndex = 0;
+}
+
+function ensureToolLogModal() {
+  let modal = $("toolLogModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "toolLogModal";
+  modal.className = "tool-log-modal hidden";
+  modal.innerHTML = `
+    <div class="tool-log-dialog" role="dialog" aria-modal="true" aria-label="Tool log">
+      <button class="tool-log-close" type="button" aria-label="Close log">&times;</button>
+      <div id="toolLogModalTitle" class="tool-log-title"></div>
+      <pre id="toolLogModalBody"></pre>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal || event.target.closest(".tool-log-close")) closeToolLogModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeToolLogModal();
+  });
+  return modal;
+}
+
+async function openToolLogModal(toolResultId, stream) {
+  const modal = ensureToolLogModal();
+  $("toolLogModalTitle").textContent = `Loading ${stream || "log"}...`;
+  $("toolLogModalBody").textContent = "";
+  modal.classList.remove("hidden");
+  try {
+    const data = await api(`/api/recon-tool-results/${encodeURIComponent(toolResultId)}/log?stream=${encodeURIComponent(stream || "stdout")}`);
+    $("toolLogModalTitle").textContent = `${data.toolName || "tool"} ${data.stream || stream}`;
+    $("toolLogModalBody").textContent = data.content || "(empty log)";
+  } catch (error) {
+    $("toolLogModalTitle").textContent = "Log unavailable";
+    $("toolLogModalBody").textContent = error.message;
+  }
+}
+
+function closeToolLogModal() {
+  const modal = $("toolLogModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
 }
 
 function countBucket(value, label) {
@@ -1335,6 +1413,11 @@ document.addEventListener("click", (event) => {
     .map((node) => ({ url: node.dataset.imageUrl, name: node.dataset.imageName }))
     .filter((image) => image.url);
   openImageModal(thumb.dataset.imageUrl, thumb.dataset.imageName, gallery);
+});
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".tool-log-button");
+  if (!button) return;
+  openToolLogModal(button.dataset.toolResultId, button.dataset.logStream);
 });
 $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);

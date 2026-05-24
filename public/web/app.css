@@ -851,6 +851,74 @@ button:disabled { opacity: .55; cursor: wait; }
   font-size: 12px;
   padding: 10px 4px 2px;
 }
+.tool-log-button {
+  padding: 5px 8px;
+  min-height: 28px;
+}
+.tool-log-modal {
+  align-items: center;
+  background: rgba(5, 6, 12, .84);
+  backdrop-filter: blur(10px);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 28px;
+  position: fixed;
+  z-index: 1000;
+}
+.tool-log-modal.hidden { display: none; }
+.tool-log-dialog {
+  background: rgba(18, 16, 28, .97);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .56);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: min(760px, 92vh);
+  max-width: min(1120px, 94vw);
+  padding: 12px;
+  position: relative;
+  width: min(1120px, 94vw);
+}
+.tool-log-title {
+  color: var(--accent-2);
+  font-weight: 800;
+  padding: 4px 44px 10px 4px;
+}
+.tool-log-dialog pre {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-log-close {
+  align-items: center;
+  background: rgba(8, 10, 14, .86);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: 22px;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 34px;
+}
+.tool-log-close:hover {
+  border-color: var(--accent);
+  color: var(--accent-2);
+}
 .artifact-path {
   display: block;
   color: var(--muted);

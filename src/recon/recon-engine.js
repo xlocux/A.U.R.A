@@ -241,15 +241,21 @@ function appendAiLog(store, runId, message, payload = {}) {
 }
 
 async function collectPassive({ store, runId, targetName, roots, passiveSources, discovered }) {
+  const apiKeys = {
+    rapid7: store.getActiveApiKey("rapid7")
+  };
   for (const root of roots) {
     for (const source of passiveSources) {
       await waitForRunControl(store, runId);
       store.appendEvent(runId, { phase: "recon", source, message: `Querying passive source for ${root}` });
       try {
-        const domains = await runPassiveSource(source, root);
+        const passiveResult = await runPassiveSource(source, root, { apiKeys });
+        const domains = Array.isArray(passiveResult) ? passiveResult : passiveResult.domains || [];
+        const metadata = Array.isArray(passiveResult) ? {} : passiveResult.metadata || {};
         for (const domain of domains) discovered.add(domain);
-        store.saveDomains(runId, targetName, domains.map((domain) => ({ domain, rootDomain: rootForDomain(domain, roots), kind: domain === root ? "root" : "subdomain", source })));
-        store.appendEvent(runId, { phase: "recon", severity: "ok", source, message: `${source} returned ${domains.length} domains for ${root}` });
+        store.saveDomains(runId, targetName, domains.map((domain) => ({ domain, rootDomain: rootForDomain(domain, roots), kind: domain === root ? "root" : "subdomain", source, metadata })));
+        const metadataNote = metadata.reason ? ` (${metadata.reason})` : "";
+        store.appendEvent(runId, { phase: "recon", severity: domains.length || !metadata.reason ? "ok" : "warn", source, message: `${source} returned ${domains.length} domains for ${root}${metadataNote}` });
       } catch (error) {
         store.appendEvent(runId, { phase: "recon", severity: "warn", source, message: `${source} failed for ${root}: ${error.message}` });
       }

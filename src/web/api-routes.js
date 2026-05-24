@@ -1153,9 +1153,12 @@ async function createReconRun(request, response, store) {
   runInBackground(async () => {
     try {
       const domainWordlist = store.getActiveWordlist("domains");
+      const intelSeeds = body.intelPreflight === false
+        ? rootDomains
+        : await runReconIntelPreflight({ store, runId: run.id, targetName: target.target_name, rootDomains, config: targetConfig });
       const rootsToScan = reconMode === "full"
-        ? await expandFullReconRoots({ store, runId: run.id, targetName: target.target_name, rootDomains, config: targetConfig, fullRecon: body.fullRecon || {} })
-        : rootDomains;
+        ? await expandFullReconRoots({ store, runId: run.id, targetName: target.target_name, rootDomains: intelSeeds, config: targetConfig, fullRecon: body.fullRecon || {} })
+        : intelSeeds;
       await runRecon({
         store,
         runId: run.id,
@@ -1269,6 +1272,42 @@ function validateReconMode(mode, rootDomains) {
     return "Single domain mode requires exactly one valid domain";
   }
   return null;
+}
+
+async function runReconIntelPreflight({ store, runId, targetName, rootDomains, config }) {
+  store.appendEvent(runId, {
+    phase: "whois-rdap",
+    severity: "ok",
+    source: "engine",
+    message: "Running WHOIS/RDAP and alternate TLD intel preflight before enumeration."
+  });
+  const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  const rdapDomains = filterScopeDomains({
+    domains: extractRdapRelatedDomains(suggestions),
+    config,
+    rootDomains
+  });
+  if (rdapDomains.length > 0) {
+    saveBootstrapDomains({ store, runId, targetName, domains: rdapDomains, roots: rootDomains, source: "rdap-associated-domain" });
+  }
+  const alternateTldLeads = generateAlternateTldLeads({ rootDomains, config });
+  if (alternateTldLeads.length > 0) {
+    store.saveAssetLeads(runId, targetName, alternateTldLeads);
+  }
+  runCandidateCorrelation({
+    store,
+    runId,
+    targetName,
+    rootDomains,
+    leads: alternateTldLeads
+  });
+  store.appendEvent(runId, {
+    phase: "whois-rdap",
+    severity: rdapDomains.length || alternateTldLeads.length ? "ok" : "warn",
+    source: "rdap",
+    message: `Intel preflight saved ${rdapDomains.length} RDAP-associated seeds and ${alternateTldLeads.length} alternate TLD review leads.`
+  });
+  return [...new Set([...rootDomains, ...rdapDomains])];
 }
 
 async function expandFullReconRoots({ store, runId, targetName, rootDomains, config, fullRecon }) {
@@ -1481,6 +1520,12 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const toolLogMatch = url.pathname.match(/^\/api\/recon-tool-results\/(\d+)\/log$/);
+  if (toolLogMatch) {
+    serveToolResultLog(response, store, Number(toolLogMatch[1]), url.searchParams.get("stream") || "stdout");
+    return true;
+  }
+
   const exportMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/export$/);
   if (exportMatch) {
     exportRun(response, store, Number(exportMatch[1]), url.searchParams.get("format") || "json");
@@ -1588,6 +1633,37 @@ function exportRun(response, store, runId, format) {
     return;
   }
   sendJson(response, { error: "Unsupported export format. Use json, csv, or markdown." }, 400);
+}
+
+function serveToolResultLog(response, store, toolResultId, streamName) {
+  const result = store.getToolResult(toolResultId);
+  if (!result) {
+    sendJson(response, { error: "Tool result not found" }, 404);
+    return;
+  }
+  const stream = streamName === "stderr" ? "stderr" : "stdout";
+  const filePath = stream === "stderr" ? result.stderrPath : result.stdoutPath;
+  if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    sendJson(response, { error: `${stream} log artifact is not available` }, 404);
+    return;
+  }
+  const maxBytes = 1024 * 1024;
+  const stat = fs.statSync(filePath);
+  const start = Math.max(0, stat.size - maxBytes);
+  const handle = fs.openSync(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(stat.size - start);
+    fs.readSync(handle, buffer, 0, buffer.length, start);
+    sendJson(response, {
+      toolResultId: result.id,
+      toolName: result.toolName,
+      stream,
+      truncated: start > 0,
+      content: buffer.toString("utf8")
+    });
+  } finally {
+    fs.closeSync(handle);
+  }
 }
 
 function exportHeaders(contentType, filename) {

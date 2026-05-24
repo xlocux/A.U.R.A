@@ -92,6 +92,7 @@
                 </div>
               </div>
             </div>
+            <label class="check"><input id="intelPreflight" type="checkbox" checked> <span>WHOIS/RDAP + alternate TLD intel</span></label>
             <div class="row">
               <div>
                 <label for="distro">WSL distro</label>
@@ -113,6 +114,7 @@
             <label>Passive sources</label>
             <div class="check"><input id="crtsh" type="checkbox" checked> <span>crt.sh</span></div>
             <div class="check"><input id="wayback" type="checkbox" checked> <span>Wayback CDX</span></div>
+            <div class="check"><input id="rapid7" type="checkbox"> <span>Rapid7 FDNS</span></div>
 
             <label>WSL/Kali tools</label>
             <div class="check"><input id="useWsl" type="checkbox" checked> <span>Use WSL/Kali</span></div>
@@ -341,8 +343,9 @@
         <button class="result-subtab" data-results-view="services" type="button">Services</button>
         <button class="result-subtab" data-results-view="urls" type="button">URLs</button>
         <button class="result-subtab" data-results-view="technologies" type="button">Tech</button>
-        <button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button>
-        <button class="result-subtab" data-results-view="export" type="button">Export</button>
+            <button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button>
+            <button class="result-subtab" data-results-view="tool-logs" type="button">Tool Logs</button>
+            <button class="result-subtab" data-results-view="export" type="button">Export</button>
       </div>
 
       <div id="results-delta" class="pane run-delta-pane result-view">
@@ -514,6 +517,24 @@
           <table>
             <thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead>
             <tbody id="artifactRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="results-tool-logs" class="pane result-view">
+        <h2>Tool Logs <span id="toolLogRowsHint" class="heading-hint"></span></h2>
+        <div class="result-view-toolbar">
+          <label for="toolLogGroupBy">Group by</label>
+          <select id="toolLogGroupBy">
+            <option value="tool">Tool</option>
+            <option value="status">Status</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+        <div class="scroll result-table-scroll">
+          <table>
+            <thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th><th>Logs</th></tr></thead>
+            <tbody id="toolLogRows"><tr><td colspan="5" class="muted">No tool results for this run.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -757,6 +778,7 @@
                       <option value="securitytrails">SecurityTrails - DNS intelligence</option>
                       <option value="chaos">ProjectDiscovery Chaos - subdomains</option>
                       <option value="github">GitHub - code search</option>
+                      <option value="rapid7">Rapid7 Open Data - FDNS metadata/local extract</option>
                       <option value="whoisxmlapi">WhoisXMLAPI - Reverse WHOIS</option>
                       <option value="custom">Custom provider</option>
                     </select>

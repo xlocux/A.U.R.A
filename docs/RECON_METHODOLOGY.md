@@ -48,6 +48,13 @@ Typical phases:
 - Search engine dorking metadata.
 - Domain intelligence.
 
+Current UI behavior:
+
+- Recon can run a WHOIS/RDAP + alternate TLD intel preflight before enumeration.
+  RDAP-associated domains are only added as seeds when they remain inside the
+  configured scope. Alternate TLD matches are saved as review leads and are not
+  scanned automatically.
+
 ### Standard
 
 Adds validation and lightweight active discovery.
@@ -861,6 +868,11 @@ Notes:
 
 - Rapid7 Open Data datasets can be very large, so the adapter should support
   streaming, local caching, suffix filtering, and partial artifact indexing.
+- Current A.U.R.A behavior exposes `Rapid7 FDNS` as an optional passive source.
+  It does not automatically download Open Data files. With a Rapid7 Open Data
+  key it can inspect dataset metadata; with `AURA_RAPID7_FDNS_PATH` pointing to
+  an authorized local `.json` or `.json.gz` FDNS extract it streams the file and
+  suffix-filters names for the current root domain.
 - GitHub/code search should use official APIs or user-provided tokens where
   available, with rate limits and clear attribution.
 - Search engine dorking should prefer official/custom search APIs or manual
@@ -1805,6 +1817,11 @@ or screenshots did not complete, A.U.R.A should support a follow-up run that
 uses the saved domain set as input and executes only HTTP probing, technology
 enrichment, and screenshot capture. The follow-up run must preserve its own
 artifacts, tool results, events, and run delta.
+
+Tool stdout/stderr artifacts should be visible from the Web UI without requiring
+the user to leave the run context. The Results `Tool Logs` view lists each tool
+result and opens stdout/stderr artifacts in a modal, capped to the most recent
+log bytes so very large outputs remain navigable.
 
 ## Phase 16a: Informational Template Checks
 

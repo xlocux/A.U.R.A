@@ -1174,6 +1174,11 @@ class ScanStore {
       LIMIT ?
     `).all(runId, limit).map(hydrateToolResult);
   }
+
+  getToolResult(id) {
+    const row = this.db.prepare("SELECT * FROM recon_tool_results WHERE id = ?").get(Number(id));
+    return row ? hydrateToolResult(row) : null;
+  }
 }
 
 function uniqueBy(items, keyFn) {

@@ -2,6 +2,7 @@
 
 const https = require("node:https");
 const { extractDomains } = require("./domain-utils");
+const { queryRapid7Fdns } = require("./providers/rapid7-opendata");
 
 function fetchText(url, timeoutMs = 20000, redirectCount = 0) {
   return new Promise((resolve, reject) => {
@@ -64,14 +65,20 @@ async function fetchWayback(rootDomain) {
   return extractDomains(body, [rootDomain]);
 }
 
-async function runPassiveSource(source, rootDomain) {
-  if (source === "crtsh") return fetchCrtSh(rootDomain);
-  if (source === "wayback") return fetchWayback(rootDomain);
+async function runPassiveSource(source, rootDomain, options = {}) {
+  if (source === "crtsh") return { domains: await fetchCrtSh(rootDomain), metadata: { mode: "crtsh" } };
+  if (source === "wayback") return { domains: await fetchWayback(rootDomain), metadata: { mode: "wayback-cdx" } };
+  if (source === "rapid7") return queryRapid7Fdns({
+    rootDomain,
+    apiKey: options.apiKeys?.rapid7?.api_key || null,
+    localPath: options.rapid7FdnsPath || process.env.AURA_RAPID7_FDNS_PATH || null
+  });
   throw new Error(`Unknown passive source: ${source}`);
 }
 
 module.exports = {
   fetchCrtSh,
   fetchWayback,
+  queryRapid7Fdns,
   runPassiveSource
 };
