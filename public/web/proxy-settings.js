@@ -6,6 +6,7 @@
 
   injectStylesheet("/proxy-dashboard.css", "aura-proxy-dashboard-css");
   injectScript("/projects-view.js", "aura-projects-view-js");
+  injectScript("/aura-modern.js", "aura-modern-js");
 
   function injectStylesheet(href, id) {
     if (document.getElementById(id)) return;

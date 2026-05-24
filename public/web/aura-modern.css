@@ -1,0 +1,605 @@
+@import url("/aura-light.css");
+
+/* A.U.R.A Modern UI Skin
+   Additive layer over app.css. It respects Settings theme variables and --font-scale. */
+
+:root {
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-soft: 0 18px 55px rgba(0, 0, 0, .32);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .045);
+  --glass: color-mix(in srgb, var(--panel) 74%, transparent);
+  --glass-strong: color-mix(in srgb, var(--panel) 88%, transparent);
+  --soft-line: color-mix(in srgb, var(--line) 62%, transparent);
+  --field-bg: color-mix(in srgb, var(--panel-2) 88%, transparent);
+  --hover-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent-2) 20%, transparent);
+  --scroll-thumb: color-mix(in srgb, var(--accent-2) 52%, var(--line) 48%);
+  --scroll-thumb-hover: color-mix(in srgb, var(--accent) 62%, var(--accent-2) 38%);
+  --scroll-track: color-mix(in srgb, var(--panel-2) 76%, transparent);
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid var(--scroll-track);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--scroll-thumb), color-mix(in srgb, var(--accent) 34%, var(--scroll-thumb)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--scroll-thumb-hover), var(--scroll-thumb));
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 34%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--accent-2) 18%, transparent), transparent 32%),
+    radial-gradient(circle at 70% 88%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 36%),
+    linear-gradient(135deg, color-mix(in srgb, var(--bg) 94%, black 6%) 0%, var(--bg) 48%, color-mix(in srgb, var(--bg) 88%, black 12%) 100%);
+  letter-spacing: .005em;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255,255,255,.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.026) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at 50% 35%, black, transparent 78%);
+}
+
+body::after {
+  opacity: .10;
+}
+
+.background-scope {
+  opacity: .28;
+  filter: blur(.2px) saturate(1.25);
+}
+
+header,
+.tabs {
+  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+  border-color: var(--soft-line);
+  backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow: 0 1px 0 rgba(255,255,255,.04);
+}
+
+header {
+  padding: calc(14px * var(--font-scale)) 20px;
+}
+
+h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: calc(20px * var(--font-scale));
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+h1::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+h2 {
+  padding: 13px 15px;
+  border-color: var(--soft-line);
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 90%, var(--accent-2) 10%);
+}
+
+label {
+  color: color-mix(in srgb, var(--muted) 86%, var(--ink) 14%);
+  font-weight: 650;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.tabs {
+  gap: 6px;
+  padding: 8px 14px;
+}
+
+.tab,
+.result-subtab,
+.settings-tab,
+.projects-subtabs button,
+.topology-smartbar button,
+.proxy-step button,
+.proxy-toolbar button,
+.proxy-hero-actions button {
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease;
+}
+
+.tab {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 9px 14px;
+  color: var(--muted);
+}
+
+.tab:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--line) 62%, transparent);
+  background: rgba(255, 255, 255, .045);
+}
+
+.tab.active {
+  color: color-mix(in srgb, var(--bg) 82%, black 18%);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 23%, transparent);
+}
+
+.workspace {
+  padding: 16px;
+}
+
+.pane,
+.metric,
+.mini-metric,
+.embedded-window,
+.tree-group,
+.model-card,
+.ai-local-toggle,
+.projects-metric,
+.project-card,
+.proxy-card,
+.proxy-step,
+.proxy-table-wrap,
+.projects-table-wrap,
+.topology-main,
+.topology-side .pane,
+.result-explorer-pane,
+.export-pane {
+  border-color: var(--soft-line) !important;
+  border-radius: var(--radius-md) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.045), transparent 90%),
+    var(--glass) !important;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(16px) saturate(1.25);
+}
+
+.pane {
+  overflow: hidden;
+}
+
+.form-body {
+  padding: 14px 15px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="search"],
+select,
+textarea {
+  border-radius: var(--radius-sm) !important;
+  border-color: color-mix(in srgb, var(--line) 68%, transparent) !important;
+  background: var(--field-bg) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  outline: none;
+  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: color-mix(in srgb, var(--accent-2) 70%, var(--ink) 0%) !important;
+  box-shadow: 0 0 0 3px var(--focus-ring), inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+textarea,
+pre,
+code,
+.proxy-table td strong {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+button {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: color-mix(in srgb, var(--bg) 82%, black 18%);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: .55;
+  cursor: progress;
+  filter: grayscale(.25);
+}
+
+.danger-button {
+  background: color-mix(in srgb, var(--bad) 16%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--bad) 48%, transparent) !important;
+  color: color-mix(in srgb, var(--bad) 32%, var(--ink) 68%) !important;
+  box-shadow: none;
+}
+
+.check {
+  border-radius: 10px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.notice {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--soft-line);
+  background: color-mix(in srgb, var(--panel) 56%, transparent);
+}
+
+.notice.ok,
+.ok {
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+}
+
+.notice.warn,
+.warn {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+.notice.error,
+.error,
+.bad {
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th {
+  color: color-mix(in srgb, var(--ink) 86%, var(--accent-2) 14%);
+  font-size: calc(11px * var(--font-scale));
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+th,
+td {
+  border-color: color-mix(in srgb, var(--line) 50%, transparent) !important;
+}
+
+tbody tr {
+  transition: background .14s ease;
+}
+
+tbody tr:hover {
+  background: color-mix(in srgb, var(--accent-2) 7%, transparent);
+}
+
+.metric strong,
+.projects-metric strong,
+.proxy-card strong,
+.mini-metric strong {
+  background: linear-gradient(135deg, var(--ink), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.metrics,
+.projects-summary,
+.proxy-dashboard,
+.result-summary {
+  gap: 12px;
+}
+
+.result-subtabs {
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom-color: var(--soft-line);
+}
+
+.result-subtab {
+  border: 1px solid var(--soft-line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--panel) 46%, transparent);
+}
+
+.result-subtab.active {
+  color: color-mix(in srgb, var(--bg) 82%, black 18%);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.settings-layout {
+  gap: 14px;
+}
+
+.settings-tab {
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.settings-tab.active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.topology-head,
+.output-title,
+.result-view-toolbar,
+.result-filter-bar,
+.proxy-toolbar,
+.projects-runbar,
+.projects-ai-bar,
+.topology-smartbar {
+  background: color-mix(in srgb, var(--panel) 50%, transparent);
+  border-color: var(--soft-line) !important;
+}
+
+#topologyCanvas {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background:
+    radial-gradient(circle at 25% 20%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 28%),
+    radial-gradient(circle at 76% 70%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 30%),
+    color-mix(in srgb, var(--panel-2) 76%, transparent);
+}
+
+.proxy-hero,
+.projects-sidebar .pane,
+.topology-selection-card code,
+.projects-detail-card code,
+#setupLog {
+  border-radius: var(--radius-md) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 48%),
+    color-mix(in srgb, var(--panel-2) 70%, transparent) !important;
+}
+
+.proxy-step > span,
+.topology-dot,
+.projects-pill,
+.pill,
+.status-pill,
+.model-tags em {
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.project-card:hover,
+.project-card.active,
+.model-card.active,
+.tree-item:hover,
+.tree-item.active {
+  border-color: color-mix(in srgb, var(--accent-2) 52%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel) 62%) !important;
+}
+
+.projects-screenshot-grid img {
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(0,0,0,.22);
+  transition: transform .16s ease, filter .16s ease;
+}
+
+.projects-screenshot-grid img:hover {
+  transform: scale(1.025);
+  filter: brightness(1.08);
+}
+
+.headerbar #status {
+  justify-self: end;
+  max-width: min(720px, 60vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--muted) 78%, var(--ink) 22%);
+}
+
+@media (max-width: 1280px) {
+  .metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .result-filter-bar {
+    grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(100px, auto));
+  }
+
+  .triple,
+  .projects-grid,
+  .ai-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    padding: 12px;
+  }
+
+  .metrics,
+  .projects-summary,
+  .proxy-dashboard,
+  .result-summary,
+  .ai-metric-row,
+  .export-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .split,
+  .target-grid,
+  .settings-layout,
+  .topology-shell,
+  .result-explorer-grid,
+  .proxy-toolbar,
+  .projects-runbar,
+  .projects-ai-bar,
+  .topology-smartbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .settings-tabs {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .runtime-window {
+    grid-template-columns: 1fr;
+  }
+
+  .runtime-window h2 {
+    border-right: 0;
+    border-bottom: 1px solid var(--soft-line);
+  }
+
+  .headerbar {
+    grid-template-columns: 1fr;
+  }
+
+  .headerbar #status {
+    justify-self: start;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  body {
+    overflow: auto;
+    display: block;
+  }
+
+  header {
+    padding: 12px;
+  }
+
+  .tabs {
+    padding: 8px 10px;
+  }
+
+  .workspace,
+  .workspace-main,
+  .tab-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .workspace {
+    padding: 10px;
+  }
+
+  .row,
+  .row3,
+  .tool-grid,
+  .proxy-steps,
+  .metrics,
+  .projects-summary,
+  .proxy-dashboard,
+  .result-summary,
+  .ai-metric-row,
+  .export-actions,
+  .run-controls {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pane,
+  .metric,
+  .projects-metric,
+  .proxy-card,
+  .proxy-step {
+    border-radius: 12px !important;
+  }
+
+  .form-body {
+    padding: 12px;
+  }
+
+  button,
+  .topology-actions button,
+  .proxy-hero-actions button,
+  .proxy-toolbar button,
+  .projects-runbar button,
+  .projects-ai-bar button {
+    width: 100% !important;
+  }
+
+  .topology-actions,
+  .proxy-hero-actions,
+  .result-subtabs,
+  .projects-subtabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .scroll,
+  .result-tree,
+  .result-detail,
+  .project-list,
+  .projects-table-wrap,
+  .projects-detail,
+  .proxy-table-wrap {
+    max-height: none !important;
+  }
+
+  table {
+    min-width: 680px;
+  }
+
+  .proxy-table-wrap,
+  .projects-table-wrap,
+  .scroll {
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
