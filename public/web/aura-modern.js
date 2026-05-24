@@ -76,6 +76,7 @@
     bindLightTheme();
     restoreLightThemeIfNeeded();
     injectScript("/api-key-actions.js", "aura-api-key-actions-js");
+    injectScript("/guide-view.js", "aura-guide-view-js");
     window.addEventListener("aura:appearance-change", () => {
       ensureLightOption();
       if (document.documentElement.dataset.theme !== "light") clearLightFlag();
