@@ -1,0 +1,100 @@
+.topology-smartbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 150px 150px auto;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(15, 17, 22, .72);
+}
+
+.topology-smartbar input,
+.topology-smartbar select {
+  height: 34px;
+}
+
+.topology-smartbar button {
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.topology-legend {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.topology-legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.topology-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.topology-dot.target { color: #43c59e; background: #43c59e; }
+.topology-dot.cluster { color: #49d8ff; background: #49d8ff; }
+.topology-dot.domain { color: #8fdcc3; background: #8fdcc3; }
+.topology-dot.service { color: #f2b84b; background: #f2b84b; }
+.topology-dot.tech { color: #a78bfa; background: #a78bfa; }
+.topology-dot.artifact { color: #ef6f6c; background: #ef6f6c; }
+.topology-dot.url { color: #9da6b5; background: #9da6b5; }
+
+.topology-selection-card {
+  display: grid;
+  gap: 7px;
+  padding: 2px;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  white-space: normal;
+}
+
+.topology-selection-card strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.topology-selection-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.topology-selection-card code {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px;
+  background: rgba(8, 10, 14, .42);
+  color: var(--accent-2);
+  overflow-wrap: anywhere;
+}
+
+.topology-tip {
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .topology-smartbar {
+    grid-template-columns: 1fr;
+  }
+
+  .topology-smartbar button {
+    width: 100%;
+  }
+}
