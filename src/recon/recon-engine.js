@@ -12,7 +12,12 @@ const { commandDisplay, redactProxyUrl, runWslTool } = require("./wsl-tools");
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
 const DEFAULT_SCREENSHOT_TOOLS = ["gowitness"];
-const DEFAULT_HTTPX_PORTS = [80, 443, 8009, 8080, 8081, 8090, 8180, 8443, 27000, 27001, 5000, 5001, 9001, 81, 9443, 25, 23];
+const HTTPX_PORT_PRESETS = {
+  small: [80, 443, 8080, 8443],
+  medium: [80, 443, 8009, 8080, 8081, 8090, 8180, 8443, 27000, 27001, 5000, 5001, 9001, 81, 9443, 25, 23],
+  large: [21, 22, 23, 25, 53, 80, 81, 110, 143, 443, 465, 587, 993, 995, 3000, 3001, 4000, 5000, 5001, 5601, 7000, 7001, 8000, 8001, 8008, 8009, 8080, 8081, 8082, 8088, 8090, 8180, 8443, 8888, 9000, 9001, 9090, 9200, 9443, 10000, 27000, 27001]
+};
+const DEFAULT_HTTPX_PORTS = HTTPX_PORT_PRESETS.medium;
 const RUN_CONTROL_STATUSES = new Set(["paused", "cancelled"]);
 const API_PASSIVE_PROVIDERS = [
   "rapid7",
@@ -284,37 +289,38 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
   }
 
   for (const root of roots) {
-    for (const toolName of wslTools) {
+    for (const toolSpec of wslTools) {
       await waitForRunControl(store, runId);
+      const spec = parseToolSpec(toolSpec);
       let args;
       try {
-        args = argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlistPath);
+        args = argsForTool(spec, root, artifactsDir, discovered, subdomainWordlistPath);
       } catch (error) {
-        recordNonBlockingToolError({ store, runId, toolName, root, error });
+        recordNonBlockingToolError({ store, runId, toolName: spec.name, root, error });
         continue;
       }
       if (!args) continue;
-      store.appendEvent(runId, { phase: "recon", source: toolName, message: `Running ${toolName} for ${root}` });
+      store.appendEvent(runId, { phase: "recon", source: spec.name, message: `Running ${spec.name} for ${root}` });
       let result;
       try {
         result = await runToolWithRecovery({
           store,
           runId,
           phase: "heartbeat",
-          source: toolName,
-          heartbeatMessage: (elapsed) => `${toolName} is still running for ${root} (${elapsed}s elapsed)`,
+          source: spec.name,
+          heartbeatMessage: (elapsed) => `${spec.name} is still running for ${root} (${elapsed}s elapsed)`,
           maxAttempts: proxyController?.hasPool() ? 1 : DEFAULT_TOOL_RECOVERY_ATTEMPTS,
-          task: () => runWslToolWithProxy({ proxyController, distro: wslDistro, toolName, args, timeoutMs, proxyUrl })
+          task: () => runWslToolWithProxy({ proxyController, distro: wslDistro, toolName: spec.name, args, timeoutMs, proxyUrl })
         });
       } catch (error) {
-        recordNonBlockingToolError({ store, runId, toolName, root, args, error, wslDistro });
+        recordNonBlockingToolError({ store, runId, toolName: spec.name, root, args, error, wslDistro });
         continue;
       }
-      const stdoutPath = writeToolArtifact(artifactsDir, `${toolName}-${root}.stdout.txt`, result.stdout);
-      const stderrPath = writeToolArtifact(artifactsDir, `${toolName}-${root}.stderr.txt`, result.stderr);
+      const stdoutPath = writeToolArtifact(artifactsDir, `${spec.name}-${root}.stdout.txt`, result.stdout);
+      const stderrPath = writeToolArtifact(artifactsDir, `${spec.name}-${root}.stderr.txt`, result.stderr);
       store.recordToolResult(runId, {
-        toolName,
-        commandDisplay: commandDisplay(wslDistro, toolName, args),
+        toolName: spec.name,
+        commandDisplay: commandDisplay(wslDistro, spec.name, args),
         status: result.status,
         exitCode: result.exitCode,
         startedAt: result.startedAt,
@@ -324,30 +330,30 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
         errorMessage: result.errorMessage
       });
 
-      const domains = extractDomains(result.stdout, roots);
+      const domains = spec.name === "nmap" ? [] : extractDomains(result.stdout, roots);
       for (const domain of domains) discovered.add(domain);
       store.saveDomains(runId, targetName, domains.map((domain) => ({
         domain,
         rootDomain: rootForDomain(domain, roots),
         kind: domain === root ? "root" : "subdomain",
-        source: toolName,
+        source: spec.name,
         metadata: { exitCode: result.exitCode, status: result.status, proxyRotation: result.proxyRotation || null }
       })));
       store.appendEvent(runId, {
         phase: "recon",
         severity: result.status === "completed" ? "ok" : "warn",
-        source: toolName,
-        message: `${toolName} ${result.status}; parsed ${domains.length} domains${toolFailureDetail(result)}`
+        source: spec.name,
+        message: `${spec.name} ${result.status}; parsed ${domains.length} domains${toolFailureDetail(result)}`
       });
 
-      if (toolName === "gau") {
+      if (spec.name === "gau") {
         const urls = parseGauUrls(result.stdout, roots);
         context.urls.push(...urls);
         store.saveUrls(runId, targetName, urls, "gau");
         store.appendEvent(runId, { phase: "recon", severity: "ok", source: "gau", message: `gau parsed ${urls.length} archived URLs and parameters` });
       }
 
-      if (toolName === "httpx") {
+      if (spec.name === "httpx") {
         const services = parseHttpxJsonLines(result.stdout);
         context.httpServices.push(...services);
         store.saveHttpServices(runId, targetName, services, "httpx");
@@ -363,7 +369,9 @@ function recordNonBlockingToolError({ store, runId, toolName, root, args = [], e
   store.appendEvent(runId, { phase: "recon", severity: "warn", source: toolName, message: `${toolName} skipped for ${root}: ${error.message}. Continuing with remaining recon steps.` });
 }
 
-function argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlistPath = null) {
+function argsForTool(toolSpec, root, artifactsDir, discovered, subdomainWordlistPath = null) {
+  const spec = typeof toolSpec === "string" ? parseToolSpec(toolSpec) : toolSpec;
+  const toolName = spec.name;
   if (toolName === "subfinder") return ["-d", root, "-silent", "-all"];
   if (toolName === "amass") return ["enum", "-passive", "-d", root];
   if (toolName === "dnsx") {
@@ -382,9 +390,35 @@ function argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlist
     const inputPath = path.join(artifactsDir, `httpx-${root}.input.txt`);
     const hosts = [...discovered].sort();
     fs.writeFileSync(inputPath, hosts.join("\n"), "utf8");
-    return httpxArgsForInput(inputPath);
+    return httpxArgsForInput(inputPath, spec.ports);
+  }
+  if (toolName === "nmap") {
+    const inputPath = path.join(artifactsDir, `nmap-${root}.input.txt`);
+    const hosts = [...discovered].sort();
+    fs.writeFileSync(inputPath, hosts.join("\n"), "utf8");
+    return ["-iL", toWslPath(inputPath), "-p", uniquePorts(spec.ports || DEFAULT_HTTPX_PORTS).join(","), "-sV", "--open", "-T3", "-oA", toWslPath(path.join(artifactsDir, `nmap-${root}`))];
   }
   return null;
+}
+
+function parseToolSpec(value) {
+  if (typeof value === "object" && value) {
+    return { name: String(value.name || value.tool || ""), ports: resolveHttpPorts(value) };
+  }
+  const raw = String(value || "");
+  const [name, encoded] = raw.split(":", 2);
+  return { name, ports: encoded ? resolveHttpPorts({ customPorts: encoded }) : DEFAULT_HTTPX_PORTS };
+}
+
+function resolveHttpPorts({ preset = "medium", customPorts = "", ports = null } = {}) {
+  if (Array.isArray(ports)) return uniquePorts(ports).length ? uniquePorts(ports) : DEFAULT_HTTPX_PORTS;
+  const custom = parsePortList(customPorts);
+  if (custom.length) return custom;
+  return HTTPX_PORT_PRESETS[preset] || DEFAULT_HTTPX_PORTS;
+}
+
+function parsePortList(value) {
+  return uniquePorts(String(value || "").split(/[^0-9]+/).filter(Boolean));
 }
 
 function httpxArgsForInput(inputPath, ports = DEFAULT_HTTPX_PORTS) {
@@ -583,8 +617,12 @@ module.exports = {
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
   DEFAULT_WSL_TOOLS,
+  HTTPX_PORT_PRESETS,
   httpxArgsForInput,
   isRunControlError,
+  parsePortList,
+  parseToolSpec,
+  resolveHttpPorts,
   runHttpFollowup,
   runRecon,
   shouldRetryToolResult,
