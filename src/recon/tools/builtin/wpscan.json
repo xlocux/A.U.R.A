@@ -14,8 +14,8 @@
   "parser": "wpscan_json",
   "tags": ["active", "cms", "wordpress", "technology"],
   "install": {
-    "method": "apt",
-    "source": "wpscan"
+    "method": "shell",
+    "source": "if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && (sudo apt-get install -y wpscan || sudo apt-get install -y ruby ruby-dev make gcc pkg-config libcurl4-openssl-dev); fi; if ! command -v wpscan >/dev/null 2>&1; then gem install --user-install wpscan; fi; mkdir -p \"$HOME/.local/bin\"; if ! command -v wpscan >/dev/null 2>&1; then gem_bin=\"$(find \"$HOME/.gem\" -type f -path '*/bin/wpscan' 2>/dev/null | sort | tail -n 1)\"; [ -n \"$gem_bin\" ] && ln -sf \"$gem_bin\" \"$HOME/.local/bin/wpscan\"; fi"
   },
   "safety": {
     "requires_authorization": true,

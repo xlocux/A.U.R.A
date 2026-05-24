@@ -84,7 +84,7 @@ async function installTool({ runner, tool }) {
     ? [
       "command -v curl >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y curl)",
       tool.install.source,
-      `export PATH="$HOME/go/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"`,
+      `export PATH="$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"`,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ")
     : tool.install.method === "npm_global"
@@ -127,7 +127,7 @@ async function installSystemPrerequisites({ runner, tool }) {
     "if command -v apt-get >/dev/null 2>&1; then",
     "  export DEBIAN_FRONTEND=noninteractive",
     "  sudo apt-get update",
-    "  sudo apt-get install -y ca-certificates curl git build-essential unzip tar jq golang-go dnsutils",
+    "  sudo apt-get install -y ca-certificates curl git build-essential unzip tar jq golang-go dnsutils python3 ruby ruby-dev pkg-config libcurl4-openssl-dev",
     "  sudo apt-get install -y seclists || true",
     "  sudo apt-get install -y chromium || sudo apt-get install -y chromium-browser || true",
     "  if ! node -v 2>/dev/null | grep -q '^v24\\.'; then",

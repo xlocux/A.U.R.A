@@ -5,7 +5,7 @@
   "binary": "cmseek",
   "version_check": {
     "command": "cmseek",
-    "args": ["--version"]
+    "args": ["--help"]
   },
   "input_type": "url_list",
   "output_format": "text",
@@ -14,8 +14,8 @@
   "parser": "cmseek_text",
   "tags": ["active", "cms", "technology"],
   "install": {
-    "method": "apt",
-    "source": "cmseek"
+    "method": "shell",
+    "source": "mkdir -p \"$HOME/.local/bin\" \"$HOME/.local/share\"; if command -v apt-get >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y python3 git; fi; if ! command -v cmseek >/dev/null 2>&1; then if [ ! -d \"$HOME/.local/share/cmseek/.git\" ]; then git clone --depth 1 https://github.com/Tuhinshubhra/CMSeeK \"$HOME/.local/share/cmseek\"; else git -C \"$HOME/.local/share/cmseek\" pull --ff-only; fi; printf '%s\\n' '#!/bin/sh' 'exec python3 \"$HOME/.local/share/cmseek/cmseek.py\" \"$@\"' > \"$HOME/.local/bin/cmseek\"; chmod +x \"$HOME/.local/bin/cmseek\"; fi"
   },
   "safety": {
     "requires_authorization": true,

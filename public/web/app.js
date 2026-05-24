@@ -4,7 +4,6 @@ let targets = [];
 let activeRunId = null;
 let lastEventId = 0;
 let poll = null;
-let aiWindowDrag = null;
 let topologyFrame = null;
 let topologyPulse = 0;
 let topologyGraph = { nodes: [], edges: [] };
@@ -14,17 +13,8 @@ let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
-let aiRunFeed = {
-  runId: null,
-  eventIds: new Set(),
-  lastTotals: null,
-  lastDelta: null,
-  lastTechKeys: new Set(),
-  lastScreenshotCount: 0
-};
 
 const $ = (id) => document.getElementById(id);
-const AI_WINDOW_STORAGE_KEY = "aura.aiWindow";
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
 const ACTIVE_TARGET_STORAGE_KEY = "aura.activeTarget";
 const API_KEY_PROVIDER_HINTS = {
@@ -108,18 +98,12 @@ async function api(path, options = {}) {
   return data;
 }
 
-async function postAgentPrompt(prompt) {
-  const data = await api("/api/agent/chat", {
-    method: "POST",
-    body: JSON.stringify({
-      prompt,
-      targetName: $("target")?.value || "",
-      runId: activeRunId,
-      distro: $("setupDistro")?.value?.trim() || "kali-linux"
-    })
-  });
-  return data.message;
-}
+window.auraApi = api;
+window.getAuraAgentContext = () => ({
+  targetName: $("target")?.value || "",
+  runId: activeRunId,
+  distro: $("setupDistro")?.value?.trim() || "kali-linux"
+});
 
 async function loadAiSettings() {
   const data = await api("/api/ai-settings");
@@ -165,7 +149,7 @@ async function testAiSettings() {
   $("aiSettingsStatus").textContent = "Testing AI provider...";
   try {
     await saveAiSettings();
-    const message = await postAgentPrompt("Reply with one short sentence confirming that the A.U.R.A AI provider is connected.");
+    const message = await window.AuraAiAgent.ask("Reply with one short sentence confirming that the A.U.R.A AI provider is connected.");
     $("aiSettingsStatus").textContent = message;
     $("aiSettingsStatus").className = "notice ok";
   } catch (error) {
@@ -417,7 +401,7 @@ async function loadTargetConfig() {
 function clearRunView() {
   activeRunId = null;
   lastEventId = 0;
-  resetAiRunFeed(null);
+  window.AuraAiAgent.resetRunFeed(null);
   if (poll) clearInterval(poll);
   poll = null;
   $("events").innerHTML = "";
@@ -494,7 +478,7 @@ async function createTarget() {
     if (data.bootstrapRun?.id) {
       activeRunId = data.bootstrapRun.id;
       lastEventId = 0;
-      resetAiRunFeed(activeRunId);
+      window.AuraAiAgent.resetRunFeed(activeRunId);
       $("runId").textContent = activeRunId;
       $("events").innerHTML = "";
       $("domainRows").innerHTML = "";
@@ -569,8 +553,7 @@ async function startRecon() {
     const data = await api("/api/recon-runs", { method: "POST", body: JSON.stringify(payload) });
     activeRunId = data.run.id;
     lastEventId = 0;
-    resetAiRunFeed(activeRunId);
-    resetAiRunFeed(activeRunId);
+    window.AuraAiAgent.resetRunFeed(activeRunId);
     $("runId").textContent = activeRunId;
     $("events").innerHTML = "";
     $("domainRows").innerHTML = "";
@@ -638,7 +621,7 @@ async function refreshRun() {
     poll = null;
     $("status").textContent = `Run ${runData.run.status}`;
   }
-  publishAiRunInsights({
+  window.AuraAiAgent.publishRunInsights({
     run: runData.run,
     events: eventData.events,
     counts,
@@ -665,111 +648,6 @@ function renderRunActivity(run = null, newEvents = []) {
     checkpoint.rootDomains?.length ? `Seeds: ${checkpoint.rootDomains.join(", ")}` : "",
     run.error_message ? `Error: ${run.error_message}` : ""
   ].filter(Boolean).join("\n");
-}
-
-function resetAiRunFeed(runId) {
-  aiRunFeed = {
-    runId,
-    eventIds: new Set(),
-    lastTotals: null,
-    lastDelta: null,
-    lastTechKeys: new Set(),
-    lastScreenshotCount: 0
-  };
-}
-
-function publishAiRunInsights({ run, events, counts, delta, technologies, screenshots }) {
-  if (!run) return;
-  if (aiRunFeed.runId !== run.id) resetAiRunFeed(run.id);
-  const messages = [];
-  for (const event of events || []) {
-    if (aiRunFeed.eventIds.has(event.id)) continue;
-    aiRunFeed.eventIds.add(event.id);
-    const insight = insightFromEvent(event);
-    if (insight) messages.push(insight);
-  }
-  const totalInsight = insightFromTotals(counts);
-  if (totalInsight) messages.push(totalInsight);
-  const deltaInsight = insightFromDelta(delta);
-  if (deltaInsight) messages.push(deltaInsight);
-  const techInsight = insightFromTechnologies(technologies);
-  if (techInsight) messages.push(techInsight);
-  const screenshotInsight = insightFromScreenshots(screenshots);
-  if (screenshotInsight) messages.push(screenshotInsight);
-  if (["completed", "failed", "cancelled"].includes(run.status)) {
-    const finalKey = `final:${run.id}:${run.status}`;
-    if (!aiRunFeed.eventIds.has(finalKey)) {
-      aiRunFeed.eventIds.add(finalKey);
-      messages.push(`Run ${run.id} finished with status ${run.status}. Totals: ${counts.domains || 0} domains, ${counts.httpServices || 0} services, ${counts.technologies || 0} technologies, ${counts.screenshots || 0} screenshot runs.`);
-    }
-  }
-  for (const message of messages.slice(0, 3)) {
-    appendAiMessage("assistant insight", message);
-  }
-}
-
-function insightFromEvent(event) {
-  const text = String(event.message || "");
-  if (event.severity === "error") return `Attention: ${event.source || "system"} reported an error: ${text}`;
-  if (event.severity === "warn" && /(timeout|failed|error)/i.test(text)) return `Tool warning: ${event.source || "tool"} ${text}`;
-  if (/parsed \d+ HTTP services/i.test(text)) return `HTTP probing update: ${text}`;
-  if (/parsed \d+ archived URLs/i.test(text)) return `Archive mining update: ${text}`;
-  if (/screenshot run completed/i.test(text)) return `Visual triage update: ${text}`;
-  if (/Recon completed with/i.test(text)) return text;
-  return null;
-}
-
-function insightFromTotals(counts = {}) {
-  const current = {
-    domains: counts.domains || 0,
-    services: counts.httpServices || 0,
-    technologies: counts.technologies || 0,
-    screenshots: counts.screenshots || 0
-  };
-  const previous = aiRunFeed.lastTotals;
-  aiRunFeed.lastTotals = current;
-  if (!previous) return null;
-  const domainGrowth = current.domains - previous.domains;
-  const serviceGrowth = current.services - previous.services;
-  if (domainGrowth >= 1000) return `Discovery jump: ${domainGrowth} new domains loaded since the last update (${current.domains} total).`;
-  if (serviceGrowth >= 25) return `HTTP surface expanded: ${serviceGrowth} new live services since the last update (${current.services} total).`;
-  return null;
-}
-
-function insightFromDelta(delta) {
-  if (!delta?.comparedToRunId) return null;
-  const current = {
-    addedDomains: delta.domains.addedCount || 0,
-    addedServices: delta.httpServices.addedCount || 0,
-    addedUrls: delta.urls.addedCount || 0
-  };
-  const previous = aiRunFeed.lastDelta;
-  aiRunFeed.lastDelta = current;
-  if (previous && previous.addedDomains === current.addedDomains && previous.addedServices === current.addedServices && previous.addedUrls === current.addedUrls) return null;
-  if (current.addedDomains || current.addedServices || current.addedUrls) {
-    return `Rescan delta vs run ${delta.comparedToRunId}: ${current.addedDomains} new domains, ${current.addedServices} new services, ${current.addedUrls} new URLs.`;
-  }
-  return null;
-}
-
-function insightFromTechnologies(technologies = []) {
-  const keys = new Set(technologies.map((tech) => String(tech.name || "").toLowerCase()).filter(Boolean));
-  const newTech = [...keys].filter((key) => !aiRunFeed.lastTechKeys.has(key));
-  aiRunFeed.lastTechKeys = keys;
-  if (newTech.length === 0) return null;
-  const top = technologies
-    .filter((tech) => newTech.includes(String(tech.name || "").toLowerCase()))
-    .slice(0, 5)
-    .map((tech) => `${tech.name} (${tech.count})`);
-  return top.length ? `Technology stack update: ${top.join(", ")}.` : null;
-}
-
-function insightFromScreenshots(screenshots = []) {
-  const total = screenshots.reduce((sum, shot) => sum + Number(shot.metadata?.screenshotCount || 0), 0);
-  if (total <= aiRunFeed.lastScreenshotCount) return null;
-  const delta = total - aiRunFeed.lastScreenshotCount;
-  aiRunFeed.lastScreenshotCount = total;
-  return `Visual triage captured ${delta} new screenshots (${total} total).`;
 }
 
 function updateRunControlButtons(status) {
@@ -815,7 +693,7 @@ async function runHttpFollowup() {
     });
     activeRunId = data.run.id;
     lastEventId = 0;
-    resetAiRunFeed(activeRunId);
+    window.AuraAiAgent.resetRunFeed(activeRunId);
     $("runId").textContent = activeRunId;
     $("events").innerHTML = "";
     $("domainRows").innerHTML = "";
@@ -1274,167 +1152,6 @@ async function installEnvironment() {
   }
 }
 
-function appendAiMessage(role, text) {
-  const message = document.createElement("div");
-  message.className = `ai-message ${role}`;
-  message.textContent = text;
-  $("aiMessages").appendChild(message);
-  $("aiMessages").scrollTop = $("aiMessages").scrollHeight;
-}
-
-async function sendAiPrompt() {
-  const prompt = $("aiPrompt").value.trim();
-  if (!prompt) return;
-  $("sendAiPrompt").disabled = true;
-  appendAiMessage("user", prompt);
-  $("aiPrompt").value = "";
-  try {
-    const message = await postAgentPrompt(prompt);
-    appendAiMessage("assistant", message);
-  } catch (error) {
-    appendAiMessage("assistant", error.message);
-  } finally {
-    $("sendAiPrompt").disabled = false;
-    $("aiPrompt").focus();
-  }
-}
-
-function getAiWindowState() {
-  try {
-    return JSON.parse(localStorage.getItem(AI_WINDOW_STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function saveAiWindowState() {
-  const panel = $("aiPanel");
-  const rect = panel.getBoundingClientRect();
-  localStorage.setItem(AI_WINDOW_STORAGE_KEY, JSON.stringify({
-    left: Math.round(rect.left),
-    top: Math.round(rect.top),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-    minimized: panel.classList.contains("minimized")
-  }));
-}
-
-function applyAiWindowState() {
-  const panel = $("aiPanel");
-  const state = getAiWindowState();
-  if (Number.isFinite(state.width)) panel.style.width = `${state.width}px`;
-  if (Number.isFinite(state.height)) panel.style.height = `${state.height}px`;
-  if (Number.isFinite(state.left)) panel.style.left = `${state.left}px`;
-  if (Number.isFinite(state.top)) panel.style.top = `${state.top}px`;
-  if (state.minimized) {
-    panel.classList.add("minimized");
-    $("aiRestore").classList.add("active");
-  }
-  clampAiPanel();
-}
-
-function clampAiPanel() {
-  const panel = $("aiPanel");
-  if (panel.classList.contains("minimized")) return;
-  const margin = 16;
-  const minWidth = 280;
-  const minHeight = 240;
-  const maxWidth = Math.max(minWidth, window.innerWidth - margin * 2);
-  const maxHeight = Math.max(minHeight, window.innerHeight - margin * 2);
-  const rect = panel.getBoundingClientRect();
-  const width = Math.min(Math.max(rect.width, minWidth), maxWidth);
-  const height = Math.min(Math.max(rect.height, minHeight), maxHeight);
-  const left = Math.min(Math.max(rect.left, margin), window.innerWidth - width - margin);
-  const top = Math.min(Math.max(rect.top, margin), window.innerHeight - height - margin);
-  panel.style.width = `${width}px`;
-  panel.style.height = `${height}px`;
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
-}
-
-function minimizeAiPanel() {
-  $("aiPanel").classList.add("minimized");
-  $("aiRestore").classList.add("active");
-  saveAiWindowState();
-}
-
-function restoreAiPanel() {
-  $("aiPanel").classList.remove("minimized");
-  $("aiRestore").classList.remove("active");
-  clampAiPanel();
-  saveAiWindowState();
-}
-
-function startAiDrag(event) {
-  if (event.target.closest("button")) return;
-  const panel = $("aiPanel");
-  const rect = panel.getBoundingClientRect();
-  aiWindowDrag = {
-    type: "move",
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-    height: rect.height
-  };
-  $("aiDragHandle").setPointerCapture(event.pointerId);
-}
-
-function startAiResize(event) {
-  const panel = $("aiPanel");
-  const rect = panel.getBoundingClientRect();
-  aiWindowDrag = {
-    type: "resize",
-    edge: event.target.dataset.resize,
-    pointerId: event.pointerId,
-    startX: event.clientX,
-    startY: event.clientY,
-    left: rect.left,
-    top: rect.top,
-    width: rect.width,
-    height: rect.height
-  };
-  event.target.setPointerCapture(event.pointerId);
-  event.preventDefault();
-}
-
-function updateAiWindow(event) {
-  if (!aiWindowDrag) return;
-  const panel = $("aiPanel");
-  const deltaX = event.clientX - aiWindowDrag.startX;
-  const deltaY = event.clientY - aiWindowDrag.startY;
-  let { left, top, width, height } = aiWindowDrag;
-  if (aiWindowDrag.type === "move") {
-    left += deltaX;
-    top += deltaY;
-  } else {
-    if (aiWindowDrag.edge.includes("e")) width += deltaX;
-    if (aiWindowDrag.edge.includes("s")) height += deltaY;
-    if (aiWindowDrag.edge.includes("w")) {
-      width -= deltaX;
-      left += deltaX;
-    }
-    if (aiWindowDrag.edge.includes("n")) {
-      height -= deltaY;
-      top += deltaY;
-    }
-  }
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
-  panel.style.width = `${width}px`;
-  panel.style.height = `${height}px`;
-  clampAiPanel();
-}
-
-function endAiWindowEdit() {
-  if (!aiWindowDrag) return;
-  aiWindowDrag = null;
-  clampAiPanel();
-  saveAiWindowState();
-}
-
 async function saveApiKey() {
   $("saveApiKey").disabled = true;
   $("status").textContent = "Saving API key...";
@@ -1662,24 +1379,7 @@ $("aiAutonomyLevel").addEventListener("input", () => {
   updateAiAutonomyLabel();
   updateAiSettingsPreview();
 });
-$("sendAiPrompt").addEventListener("click", sendAiPrompt);
-$("aiMinimize").addEventListener("click", minimizeAiPanel);
-$("aiRestore").addEventListener("click", restoreAiPanel);
-$("aiDragHandle").addEventListener("pointerdown", startAiDrag);
-document.querySelectorAll(".ai-resize-handle").forEach((handle) => {
-  handle.addEventListener("pointerdown", startAiResize);
-});
-window.addEventListener("pointermove", updateAiWindow);
-window.addEventListener("pointerup", endAiWindowEdit);
-window.addEventListener("resize", () => {
-  clampAiPanel();
-  saveAiWindowState();
-});
-$("aiPrompt").addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-    sendAiPrompt();
-  }
-});
+window.AuraAiAgent.bind();
 $("topologyCanvas").addEventListener("click", selectTopologyNode);
 $("fitTopology").addEventListener("click", resetTopology);
 $("pulseTopology").addEventListener("click", renderTopology);
@@ -1712,7 +1412,6 @@ updateReconModeUi();
 updateApiKeyProviderHints();
 applyTheme(getUiSettings().theme || "aura");
 applyBackgroundEffect(getUiSettings().backgroundEffect || "random");
-applyAiWindowState();
 applyFontScale(getUiSettings().fontScale || 100);
 updateTopologyGraph();
 if (!topologyFrame) animateTopology();

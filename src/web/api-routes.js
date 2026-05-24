@@ -758,9 +758,11 @@ function buildAgentPromptWithContext({ prompt, body, store }) {
   const technologies = run ? store.listTechnologySummary({ runId: run.id, limit: 10 }) : [];
   const screenshots = run ? store.listScreenshots({ runId: run.id }) : [];
   const latestEvent = events.at(-1);
+  const conversation = Array.isArray(body.conversation) ? body.conversation.slice(-12) : [];
   return [
     "Answer in English. Use only the A.U.R.A context below for target-specific facts. If data is missing, say so clearly.",
     "Explain current activity with concrete run IDs, phases, events, and tools.",
+    "Use the recent chat history for continuity. Do not repeat automatic log-style insights unless the user asks for logs.",
     "",
     "A.U.R.A context:",
     run ? `- Current run: ${run.id} target=${run.target_name} status=${run.status} phase=${run.active_phase || "-"}` : "- Current run: none loaded",
@@ -770,10 +772,17 @@ function buildAgentPromptWithContext({ prompt, body, store }) {
     domains.length ? `- Sample domains: ${domains.map((domain) => domain.domain).join(", ")}` : "- Sample domains: none",
     technologies.length ? `- Technologies: ${technologies.map((tech) => `${tech.name}(${tech.count})`).join(", ")}` : "- Technologies: none",
     screenshots.length ? `- Screenshot runs: ${screenshots.map((shot) => `${shot.tool_name}:${shot.metadata?.screenshotCount ?? 0}`).join(", ")}` : "- Screenshot runs: none",
+    conversation.length ? `- Recent chat:\n${formatConversationForPrompt(conversation)}` : "- Recent chat: none",
     "",
     "User question:",
     prompt
   ].join("\n");
+}
+
+function formatConversationForPrompt(conversation) {
+  return conversation
+    .map((message) => `  ${message.role === "user" ? "user" : "assistant"}: ${String(message.content || "").replace(/\s+/g, " ").slice(0, 1000)}`)
+    .join("\n");
 }
 
 async function getAiRuntimeStatus(response, url) {
