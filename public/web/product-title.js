@@ -1,7 +1,7 @@
 "use strict";
 
 (function initAuraProductTitle() {
-  const fullName = "Asset Unveiling & Reconnaissance Automation";
+  const fullName = "A.U.R.A - Asset Unveiling & Reconnaissance Automation";
 
   function applyTitle() {
     document.title = fullName;
