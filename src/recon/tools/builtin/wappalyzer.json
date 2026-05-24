@@ -1,0 +1,25 @@
+{
+  "tool_id": "wappalyzer",
+  "type": "cli",
+  "phase": "technology_fingerprinting",
+  "binary": "wappalyzer",
+  "version_check": {
+    "command": "wappalyzer",
+    "args": ["--version"]
+  },
+  "input_type": "url_list",
+  "output_format": "json",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "wappalyzer_json",
+  "tags": ["active", "technology", "fingerprinting"],
+  "install": {
+    "method": "npm_global",
+    "source": "wappalyzer"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "standard"
+  }
+}

@@ -12,6 +12,7 @@ const {
   DEFAULT_SCREENSHOT_TOOLS,
   DEFAULT_WSL_TOOLS,
   isRunControlError,
+  runHttpFollowup,
   runRecon
 } = require("../recon/recon-engine");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
@@ -211,6 +212,12 @@ async function handleApiRequest({ request, response, url, store }) {
   const runActionMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/(pause|resume|cancel)$/);
   if (runActionMatch && request.method === "POST") {
     updateRunControl(response, store, Number(runActionMatch[1]), runActionMatch[2]);
+    return true;
+  }
+
+  const httpFollowupMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/follow-up\/http$/);
+  if (httpFollowupMatch && request.method === "POST") {
+    await createHttpFollowupRun(request, response, store, Number(httpFollowupMatch[1]));
     return true;
   }
 
@@ -1130,6 +1137,64 @@ async function createReconRun(request, response, store) {
       }
       store.appendEvent(run.id, {
         phase: "recon",
+        severity: "error",
+        source: "engine",
+        message: error.message
+      });
+      store.updateRun(run.id, {
+        status: "failed",
+        activePhase: "failed",
+        finishedAt: new Date().toISOString(),
+        errorMessage: error.message
+      });
+    }
+  });
+}
+
+async function createHttpFollowupRun(request, response, store, sourceRunId) {
+  const sourceRun = store.getRun(sourceRunId);
+  if (!sourceRun) {
+    sendJson(response, { error: "Source run not found" }, 404);
+    return;
+  }
+  const domains = store.listDomains({ runId: sourceRunId, limit: 1000000 });
+  if (domains.length === 0) {
+    sendJson(response, { error: "The source run has no saved domains to probe" }, 400);
+    return;
+  }
+  const body = await readBody(request);
+  const run = store.createRun({
+    targetName: sourceRun.target_name,
+    runType: "http-followup",
+    mode: "http-tech-followup",
+    providerProfile: body.useWsl === false ? "passive" : "wsl-kali",
+    checkpoint: { sourceRunId, sourceDomainCount: domains.length }
+  });
+  sendJson(response, { run, sourceRunId, sourceDomainCount: domains.length }, 202);
+  runInBackground(async () => {
+    try {
+      await runHttpFollowup({
+        store,
+        runId: run.id,
+        targetName: sourceRun.target_name,
+        domains: domains.map((item) => item.domain),
+        screenshotTools: body.screenshotTools || DEFAULT_SCREENSHOT_TOOLS,
+        wslDistro: body.wslDistro || "kali-linux",
+        useWsl: body.useWsl !== false,
+        timeoutMs: Number(body.timeoutMs || 180000)
+      });
+    } catch (error) {
+      if (isRunControlError(error)) {
+        store.appendEvent(run.id, {
+          phase: "control",
+          severity: "warn",
+          source: "engine",
+          message: error.message
+        });
+        return;
+      }
+      store.appendEvent(run.id, {
+        phase: "http-tech-followup",
         severity: "error",
         source: "engine",
         message: error.message

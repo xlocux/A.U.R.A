@@ -32,7 +32,7 @@ function runWslTool({
   return new Promise((resolve) => {
     const startedAt = new Date().toISOString();
     const command = [
-      "export PATH=\"$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH\"",
+      "export PATH=\"$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH\"",
       [shellQuote(toolName), ...args.map(shellQuote)].join(" ")
     ].join(" && ");
     const shell = os.platform() === "win32"

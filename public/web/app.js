@@ -63,6 +63,11 @@ const API_KEY_PROVIDER_HINTS = {
     placeholder: "WhoisXMLAPI key",
     monthlyLimit: "50"
   },
+  builtwith: {
+    label: "technology-provider",
+    placeholder: "BuiltWith API key",
+    monthlyLimit: ""
+  },
   custom: {
     label: "custom",
     placeholder: "Provider API key",
@@ -418,11 +423,18 @@ function clearRunView() {
   $("events").innerHTML = "";
   $("domainRows").innerHTML = "";
   $("serviceRows").innerHTML = "";
+  $("technologyRows").innerHTML = "";
+  $("screenshotRows").innerHTML = "";
   $("artifactRows").innerHTML = "";
   $("runId").textContent = "-";
   $("runStatus").textContent = "idle";
   $("domainCount").textContent = "0";
+  $("urlCount").textContent = "0";
+  $("serviceCount").textContent = "0";
+  $("technologyCount").textContent = "0";
+  $("screenshotCount").textContent = "0";
   $("eventCount").textContent = "0";
+  renderRunDelta(null);
   latestRunActivity = "";
   updateRunControlButtons("idle");
   updateTopologyGraph();
@@ -765,6 +777,7 @@ function updateRunControlButtons(status) {
   $("pauseRun").disabled = !hasRun || !["queued", "running"].includes(status);
   $("resumeRun").disabled = !hasRun || status !== "paused";
   $("cancelRun").disabled = !hasRun || ["completed", "failed", "cancelled", "idle"].includes(status);
+  $("runHttpFollowup").disabled = !hasRun || !["completed", "failed", "cancelled"].includes(status);
 }
 
 async function updateRunControl(action) {
@@ -780,6 +793,46 @@ async function updateRunControl(action) {
     await refreshRun();
   } catch (error) {
     $("status").textContent = error.message;
+  }
+}
+
+async function runHttpFollowup() {
+  if (!activeRunId) {
+    $("status").textContent = "Load a completed run before starting an HTTP/tech follow-up.";
+    return;
+  }
+  $("runHttpFollowup").disabled = true;
+  $("status").textContent = `Starting HTTP/tech follow-up from run ${activeRunId}...`;
+  try {
+    const data = await api(`/api/recon-runs/${activeRunId}/follow-up/http`, {
+      method: "POST",
+      body: JSON.stringify({
+        screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
+        useWsl: $("useWsl").checked,
+        wslDistro: $("distro").value,
+        timeoutMs: Number($("timeout").value || 180000)
+      })
+    });
+    activeRunId = data.run.id;
+    lastEventId = 0;
+    resetAiRunFeed(activeRunId);
+    $("runId").textContent = activeRunId;
+    $("events").innerHTML = "";
+    $("domainRows").innerHTML = "";
+    $("serviceRows").innerHTML = "";
+    $("technologyRows").innerHTML = "";
+    $("screenshotRows").innerHTML = "";
+    $("artifactRows").innerHTML = "";
+    renderRunDelta(null);
+    $("status").textContent = `HTTP/tech follow-up running for ${data.sourceDomainCount} saved domains`;
+    activateTab("runs");
+    if (poll) clearInterval(poll);
+    poll = setInterval(refreshRun, 1500);
+    await refreshRun();
+  } catch (error) {
+    $("status").textContent = error.message;
+  } finally {
+    updateRunControlButtons($("runStatus").textContent);
   }
 }
 
@@ -1581,6 +1634,7 @@ $("start").addEventListener("click", startRecon);
 $("pauseRun").addEventListener("click", () => updateRunControl("pause"));
 $("resumeRun").addEventListener("click", () => updateRunControl("resume"));
 $("cancelRun").addEventListener("click", () => updateRunControl("cancel"));
+$("runHttpFollowup").addEventListener("click", runHttpFollowup);
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);

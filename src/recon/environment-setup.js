@@ -57,7 +57,7 @@ async function installWslTools({ distro = "kali-linux", toolIds = null, registry
 
 async function checkTool({ runner, tool }) {
   const binary = shellQuote(tool.binary);
-  const command = `export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
+  const command = `export PATH="$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH" && command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
   const result = await runner.run(command, 60000);
   return {
     tool_id: tool.tool_id,
@@ -73,7 +73,7 @@ async function installTool({ runner, tool }) {
   if (tool.install?.method === "system_prerequisites") {
     return installSystemPrerequisites({ runner, tool });
   }
-  if (!tool.install || !["go_install", "shell"].includes(tool.install.method) || !tool.install.source) {
+  if (!tool.install || !["go_install", "shell", "npm_global", "apt"].includes(tool.install.method) || !tool.install.source) {
     return {
       tool_id: tool.tool_id,
       status: "skipped",
@@ -84,10 +84,26 @@ async function installTool({ runner, tool }) {
     ? [
       "command -v curl >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y curl)",
       tool.install.source,
-      `export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH"`,
+      `export PATH="$HOME/go/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"`,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ")
-    : [
+    : tool.install.method === "npm_global"
+      ? [
+        "command -v npm >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y nodejs npm)",
+        "mkdir -p \"$HOME/.npm-global\"",
+        "npm config set prefix \"$HOME/.npm-global\"",
+        `export PATH="$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"`,
+        `npm install -g ${shellQuote(tool.install.source)}`,
+        `command -v ${shellQuote(tool.binary)}`
+      ].join(" && ")
+      : tool.install.method === "apt"
+        ? [
+          "command -v apt-get >/dev/null 2>&1 || exit 127",
+          "sudo apt-get update",
+          `sudo apt-get install -y ${shellQuote(tool.install.source)}`,
+          `command -v ${shellQuote(tool.binary)}`
+        ].join(" && ")
+        : [
       "command -v go >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y golang-go git)",
       `export PATH="$HOME/go/bin:$PATH"`,
       `go install ${shellQuote(tool.install.source)}`,

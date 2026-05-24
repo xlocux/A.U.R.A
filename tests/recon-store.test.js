@@ -15,6 +15,8 @@ const { loadToolRegistry, validateToolManifest } = require("../src/recon/tool-re
 const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/providers/rdap-suggestions");
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
+const { httpxArgsForInput } = require("../src/recon/recon-engine");
+const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWappalyzerTechnologies, parseWpscanTechnologies } = require("../src/recon/technology-detectors");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
 const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
@@ -84,6 +86,22 @@ test("alternate TLD discovery creates bounded review leads", () => {
   assert.ok(!leads.some((lead) => lead.value === "acme.example"));
   assert.ok(!leads.some((lead) => lead.value === "acme.net"));
   assert.equal(leads[0].leadType, "domain_candidate");
+});
+
+test("HTTP follow-up uses ProjectDiscovery httpx list and tech flags", () => {
+  const args = httpxArgsForInput("/tmp/aura-hosts.txt");
+  assert.deepEqual(args.slice(0, 2), ["-l", "/tmp/aura-hosts.txt"]);
+  assert.ok(args.includes("-tech-detect"));
+  assert.ok(args.includes("-json"));
+});
+
+test("technology detector parsers normalize optional enrichment output", () => {
+  assert.deepEqual(parseWappalyzerTechnologies(JSON.stringify({
+    technologies: [{ name: "React" }, { name: "nginx" }]
+  })), ["React", "nginx"]);
+  assert.ok(parseRetireTechnologies(JSON.stringify({ data: [{ component: "jquery", version: "3.6.0" }] })).includes("jquery"));
+  assert.ok(parseWpscanTechnologies(JSON.stringify({ version: { number: "6.4" }, plugins: { akismet: {} } })).includes("WordPress 6.4"));
+  assert.ok(parseBuiltWithTechnologies(JSON.stringify({ Results: [{ Result: { Paths: [{ Technologies: [{ Name: "Cloudflare" }] }] } }] })).includes("Cloudflare"));
 });
 
 test("brand term extraction supports wildcard domain intel pivots", () => {

@@ -512,7 +512,7 @@ button:disabled { opacity: .55; cursor: wait; }
 .run-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: stretch; }
 .run-controls button { min-height: 100%; }
 .export-pane { margin-bottom: 12px; }
-.export-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.export-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .run-delta-pane { margin-bottom: 12px; }
 .delta-grid {
   display: grid;

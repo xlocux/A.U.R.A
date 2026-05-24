@@ -1,0 +1,25 @@
+{
+  "tool_id": "cmseek",
+  "type": "cli",
+  "phase": "cms_fingerprinting",
+  "binary": "cmseek",
+  "version_check": {
+    "command": "cmseek",
+    "args": ["--version"]
+  },
+  "input_type": "url_list",
+  "output_format": "text",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_conservative",
+  "parser": "cmseek_text",
+  "tags": ["active", "cms", "technology"],
+  "install": {
+    "method": "apt",
+    "source": "cmseek"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "full"
+  }
+}

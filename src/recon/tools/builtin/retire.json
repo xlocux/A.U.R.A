@@ -1,0 +1,25 @@
+{
+  "tool_id": "retire",
+  "type": "cli",
+  "phase": "javascript_dependency_review",
+  "binary": "retire",
+  "version_check": {
+    "command": "retire",
+    "args": ["--version"]
+  },
+  "input_type": "url_list",
+  "output_format": "json",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "retire_json",
+  "tags": ["active", "javascript", "dependency", "technology"],
+  "install": {
+    "method": "npm_global",
+    "source": "retire"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "standard"
+  }
+}

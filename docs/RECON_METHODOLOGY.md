@@ -1751,7 +1751,7 @@ Default:
 
 - `httpx -tech-detect`
 
-Future:
+Additional detector inputs when available:
 
 - Wappalyzer engine or package.
 - Headless browser pass.
@@ -1769,6 +1769,12 @@ Outputs:
 Technology results should feed follow-up recommendations, including
 technology-specific content discovery, CMS checks, and dependency review. MVP
 should record these as review suggestions, not automated exploitation.
+
+If a run already contains saved domains but HTTP probing, technology detection,
+or screenshots did not complete, A.U.R.A should support a follow-up run that
+uses the saved domain set as input and executes only HTTP probing, technology
+enrichment, and screenshot capture. The follow-up run must preserve its own
+artifacts, tool results, events, and run delta.
 
 ## Phase 16a: Informational Template Checks
 

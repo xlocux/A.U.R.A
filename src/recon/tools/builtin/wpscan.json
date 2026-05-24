@@ -1,0 +1,25 @@
+{
+  "tool_id": "wpscan",
+  "type": "cli",
+  "phase": "cms_fingerprinting",
+  "binary": "wpscan",
+  "version_check": {
+    "command": "wpscan",
+    "args": ["--version"]
+  },
+  "input_type": "url_list",
+  "output_format": "json",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_conservative",
+  "parser": "wpscan_json",
+  "tags": ["active", "cms", "wordpress", "technology"],
+  "install": {
+    "method": "apt",
+    "source": "wpscan"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "full"
+  }
+}

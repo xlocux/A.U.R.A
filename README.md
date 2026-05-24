@@ -21,6 +21,8 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
   - wordlist metadata
 - Restore the selected target and latest saved run after a browser refresh.
 - Pause, resume, or cancel long-running recon runs from the browser.
+- Run an HTTP/tech follow-up against domains already saved in a previous run,
+  so missing probes can be completed without repeating full discovery.
 - Export collected run data as JSON, CSV, or Markdown.
 - Automatically compact duplicate observations in UI views, topology, exports,
   and generated wordlists while preserving source evidence.
@@ -154,9 +156,16 @@ Full recon currently performs:
 6. DNS validation with `dnsx` / `puredns`.
 7. URL mining with `gau`.
 8. HTTP probing and tech detection with `httpx`.
-9. Technology stack aggregation in Results and Search.
-10. Screenshot collection with `gowitness` by default, with optional
+9. Optional technology enrichment with Wappalyzer, BuiltWith-style provider
+   data, retire.js, WPScan, and CMSeeK when those tools or API keys are
+   available.
+10. Technology stack aggregation in Results and Search.
+11. Screenshot collection with `gowitness` by default, with optional
     `aquatone` or `EyeWitness`.
+
+If a previous run found domains but missed HTTP probing, use
+`Results > HTTP/Tech Follow-up`. A.U.R.A creates a new run from the saved domain
+set and runs only HTTP probing, technology enrichment, and screenshots.
 
 ## WSL/Kali Tools
 
@@ -193,6 +202,10 @@ The initial tool registry includes:
 - `naabu`
 - `nuclei`
 - `gowitness`
+- `wappalyzer`
+- `retire`
+- `wpscan`
+- `cmseek`
 
 The default distro name is `kali-linux`, configurable from the UI.
 
@@ -209,6 +222,7 @@ Current providers:
 - `chaos` for ProjectDiscovery Chaos subdomain data when configured.
 - `github` for code search when configured.
 - `whoisxmlapi` for Reverse WHOIS.
+- `builtwith` for optional technology intelligence.
 
 The runtime selects the first active key for the provider whose usage is below its configured limit.
 

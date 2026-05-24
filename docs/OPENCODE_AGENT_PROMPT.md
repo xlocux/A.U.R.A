@@ -548,6 +548,16 @@ subdomain naming patterns. Suggestions must be based on stored domains and
 should produce bounded candidate labels for controlled DNS enumeration, not
 unbounded guesses.
 
+When a previous run has saved domains but missing HTTP services, technologies,
+or screenshots, the agent should suggest the HTTP/Tech Follow-up action instead
+of recommending a full rescan. This action reuses stored domains and runs only
+HTTP probing, technology enrichment, and screenshot capture.
+
+Technology enrichment should remain modular and best effort. The agent may help
+install or troubleshoot Wappalyzer, retire.js, WPScan, CMSeeK, and
+BuiltWith-style provider keys, but missing optional detectors should not be
+treated as recon failure when `httpx -tech-detect` has already produced data.
+
 ## AI Runtime Integration
 
 OpenCode, Codex CLI, and Claude Code CLI should run in the Linux execution
