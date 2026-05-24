@@ -22,10 +22,17 @@
   async function postAgentPrompt(prompt) {
     const context = window.getAuraAgentContext ? window.getAuraAgentContext() : {};
     const guideContext = window.AuraGuide?.agentContext ? window.AuraGuide.agentContext() : "";
+    const enrichedPrompt = guideContext ? [
+      "A.U.R.A Guide context:",
+      guideContext,
+      "",
+      "User question:",
+      prompt
+    ].join("\n") : prompt;
     const data = await window.auraApi("/api/agent/chat", {
       method: "POST",
       body: JSON.stringify({
-        prompt,
+        prompt: enrichedPrompt,
         targetName: context.targetName || "",
         runId: context.runId || null,
         distro: context.distro || "kali-linux",
