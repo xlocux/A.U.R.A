@@ -78,6 +78,7 @@
     injectScript("/product-title.js", "aura-product-title-js");
     injectScript("/api-key-actions.js", "aura-api-key-actions-js");
     injectScript("/http-port-options.js", "aura-http-port-options-js");
+    injectScript("/guide-data.js", "aura-guide-data-js");
     injectScript("/guide-view.js", "aura-guide-view-js");
     window.addEventListener("aura:appearance-change", () => {
       ensureLightOption();
