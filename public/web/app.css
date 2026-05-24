@@ -814,9 +814,16 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 .warn { color: var(--warn); }
 .error { color: var(--bad); }
 .correlation-techniques { display: grid; gap: 8px; padding: 12px; }
-.correlation-technique { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: rgba(8, 10, 14, .42); }
-.correlation-technique strong { display: block; margin-bottom: 4px; color: var(--text); }
+.correlation-technique { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: rgba(8, 10, 14, .42); transition: border-color .15s ease, background .15s ease; }
+.correlation-technique-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.correlation-technique strong { color: var(--text); }
+.correlation-technique small { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); flex: 0 0 auto; font-size: 11px; padding: 2px 8px; }
 .correlation-technique span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.correlation-technique.considered { border-color: rgba(134, 160, 255, .45); background: rgba(89, 111, 255, .10); }
+.correlation-technique.considered small { border-color: rgba(134, 160, 255, .55); color: #b8c5ff; }
+.correlation-technique.completed { border-color: rgba(82, 211, 145, .62); background: rgba(40, 150, 95, .14); }
+.correlation-technique.completed strong { color: #d9ffe7; }
+.correlation-technique.completed small { border-color: rgba(82, 211, 145, .7); color: #94f0ba; }
 
 .ai-panel {
   min-height: 0;

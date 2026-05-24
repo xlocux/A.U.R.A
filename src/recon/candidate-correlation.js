@@ -123,7 +123,12 @@ function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads 
   } else {
     appendAiLog(store, runId, `Correlation complete: ${reviewable.length} candidates look worth review. They are all saved and filterable in Discovery Leads and Results Explorer.`, {
       stage: "summary",
-      best: reviewable.map((item) => ({ domain: item.domain, score: item.score, rationale: item.rationale }))
+      best: reviewable.map((item) => ({
+        domain: item.domain,
+        score: item.score,
+        rationale: item.rationale,
+        techniques: item.techniques
+      }))
     });
   }
   return rescoredLeads;

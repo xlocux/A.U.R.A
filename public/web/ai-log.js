@@ -10,22 +10,30 @@
     }
     try {
       const data = await window.auraApi(`/api/recon-runs/${runId}/ai-log`);
-      renderTechniques(data.techniques || []);
-      renderEvents(data.events || []);
+      const events = data.events || [];
+      renderTechniques(data.techniques || [], events);
+      renderEvents(events);
     } catch (error) {
       renderEmpty(error.message);
     }
   }
 
-  function renderTechniques(techniques) {
+  function renderTechniques(techniques, events = []) {
     const container = $("aiCorrelationTechniques");
     if (!container) return;
-    container.innerHTML = techniques.map((technique) => `
-      <div class="correlation-technique">
-        <strong>${escapeHtml(technique.label)}</strong>
+    const state = techniqueStates(events);
+    container.innerHTML = techniques.map((technique) => {
+      const itemState = state.get(technique.id) || { status: "idle", label: "Not run" };
+      return `
+      <div class="correlation-technique ${escapeHtml(itemState.status)}">
+        <div class="correlation-technique-head">
+          <strong>${escapeHtml(technique.label)}</strong>
+          <small>${escapeHtml(itemState.label)}</small>
+        </div>
         <span>${escapeHtml(technique.description)}</span>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
 
   function renderEvents(events) {
@@ -55,6 +63,22 @@
     if (payload.technique) return payload.technique;
     if (payload.best?.length) return payload.best.map((item) => `${item.domain}: ${item.score}`).join(", ");
     return payload.stage || "";
+  }
+
+  function techniqueStates(events) {
+    const states = new Map();
+    for (const event of events) {
+      const payload = event.payload || {};
+      if (payload.stage === "technique" && payload.technique) {
+        states.set(payload.technique, { status: "considered", label: "Considered" });
+      }
+      for (const item of payload.best || []) {
+        for (const technique of item.techniques || []) {
+          states.set(technique, { status: "completed", label: "Evidence found" });
+        }
+      }
+    }
+    return states;
   }
 
   function escapeHtml(value) {
