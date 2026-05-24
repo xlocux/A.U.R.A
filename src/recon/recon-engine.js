@@ -12,6 +12,7 @@ const { commandDisplay, redactProxyUrl, runWslTool } = require("./wsl-tools");
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
 const DEFAULT_SCREENSHOT_TOOLS = ["gowitness"];
+const DEFAULT_HTTPX_PORTS = [80, 443, 8009, 8080, 8081, 8090, 8180, 8443, 27000, 27001, 5000, 5001, 9001, 81, 9443, 25, 23];
 const RUN_CONTROL_STATUSES = new Set(["paused", "cancelled"]);
 const API_PASSIVE_PROVIDERS = [
   "rapid7",
@@ -386,8 +387,12 @@ function argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlist
   return null;
 }
 
-function httpxArgsForInput(inputPath) {
-  return ["-l", toWslPath(inputPath), "-json", "-silent", "-status-code", "-title", "-tech-detect", "-follow-host-redirects"];
+function httpxArgsForInput(inputPath, ports = DEFAULT_HTTPX_PORTS) {
+  return ["-l", toWslPath(inputPath), "-ports", uniquePorts(ports).join(","), "-json", "-silent", "-status-code", "-title", "-tech-detect", "-follow-host-redirects"];
+}
+
+function uniquePorts(ports) {
+  return [...new Set((ports || []).map((port) => Number.parseInt(port, 10)).filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
 }
 
 async function collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl = null, proxyController = null }) {
@@ -574,6 +579,7 @@ function writeToolArtifact(dir, name, content) {
 }
 
 module.exports = {
+  DEFAULT_HTTPX_PORTS,
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
   DEFAULT_WSL_TOOLS,
@@ -581,5 +587,6 @@ module.exports = {
   isRunControlError,
   runHttpFollowup,
   runRecon,
-  shouldRetryToolResult
+  shouldRetryToolResult,
+  uniquePorts
 };
