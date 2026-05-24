@@ -3,6 +3,7 @@
 const { extractDomains, normalizeDomain } = require("./domain-utils");
 
 const INTELX_BASE_URL = "https://free.intelx.io";
+const ZOOMEYE_BASE_URL = "https://api.zoomeye.ai";
 
 const PROVIDERS = {
   censys: {
@@ -137,9 +138,9 @@ const PROVIDERS = {
     docs: "https://www.zoomeye.ai/doc",
     usefulFor: ["web/host asset search"],
     auth: (secret) => ({ "API-KEY": secret }),
-    preflight: { url: "https://api.zoomeye.org/resources-info" },
+    preflight: { url: `${ZOOMEYE_BASE_URL}/resources-info` },
     domains: async ({ rootDomain, secret }) => {
-      const response = await requestJson(`https://api.zoomeye.org/web/search?query=${encodeURIComponent(`site:${rootDomain}`)}&page=1`, {
+      const response = await requestJson(`${ZOOMEYE_BASE_URL}/web/search?query=${encodeURIComponent(`site:${rootDomain}`)}&page=1`, {
         headers: { "API-KEY": secret }
       });
       return extractDomains(JSON.stringify(response), [rootDomain]);
@@ -247,6 +248,7 @@ function bearerAuth(secret) {
 module.exports = {
   INTELX_BASE_URL,
   PROVIDERS,
+  ZOOMEYE_BASE_URL,
   collectProviderDomains,
   providerCatalog,
   validateProviderKey
