@@ -2,7 +2,14 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { DEFAULT_HTTPX_PORTS, httpxArgsForInput, uniquePorts } = require("../src/recon/recon-engine");
+const {
+  DEFAULT_HTTPX_PORTS,
+  HTTPX_PORT_PRESETS,
+  httpxArgsForInput,
+  parsePortList,
+  parseToolSpec,
+  uniquePorts
+} = require("../src/recon/recon-engine");
 
 test("default httpx ports include common web and service ports", () => {
   for (const port of [80, 443, 8009, 8080, 8081, 8090, 8180, 8443, 27000, 27001, 5000, 5001, 9001, 81, 9443, 25, 23]) {
@@ -10,13 +17,26 @@ test("default httpx ports include common web and service ports", () => {
   }
 });
 
-test("httpxArgsForInput passes the expanded port set to httpx", () => {
-  const args = httpxArgsForInput("/tmp/hosts.txt");
+test("httpxArgsForInput passes the selected port set to httpx", () => {
+  const args = httpxArgsForInput("/tmp/hosts.txt", HTTPX_PORT_PRESETS.small);
   const portsIndex = args.indexOf("-ports");
   assert.notEqual(portsIndex, -1);
-  assert.equal(args[portsIndex + 1], DEFAULT_HTTPX_PORTS.join(","));
+  assert.equal(args[portsIndex + 1], HTTPX_PORT_PRESETS.small.join(","));
 });
 
 test("uniquePorts removes invalid, duplicate, and zero ports", () => {
   assert.deepEqual(uniquePorts([0, 80, "80", 443, 70000, "abc", 23]), [80, 443, 23]);
+});
+
+test("parsePortList accepts comma, space, and newline separated custom ports", () => {
+  assert.deepEqual(parsePortList("80,443 8080\n8443"), [80, 443, 8080, 8443]);
+});
+
+test("parseToolSpec resolves httpx presets and custom port strings", () => {
+  assert.deepEqual(parseToolSpec({ name: "httpx", preset: "small" }), { name: "httpx", ports: HTTPX_PORT_PRESETS.small });
+  assert.deepEqual(parseToolSpec({ name: "httpx", customPorts: "80,443,9001" }), { name: "httpx", ports: [80, 443, 9001] });
+});
+
+test("parseToolSpec supports nmap with the same port selection model", () => {
+  assert.deepEqual(parseToolSpec({ name: "nmap", preset: "large" }), { name: "nmap", ports: HTTPX_PORT_PRESETS.large });
 });
