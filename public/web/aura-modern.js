@@ -63,9 +63,19 @@
     }
   }
 
+  function injectScript(src, id) {
+    if (document.getElementById(id)) return;
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   function boot() {
     bindLightTheme();
     restoreLightThemeIfNeeded();
+    injectScript("/api-key-actions.js", "aura-api-key-actions-js");
     window.addEventListener("aura:appearance-change", () => {
       ensureLightOption();
       if (document.documentElement.dataset.theme !== "light") clearLightFlag();
