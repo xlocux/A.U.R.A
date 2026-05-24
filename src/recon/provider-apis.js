@@ -2,6 +2,8 @@
 
 const { extractDomains, normalizeDomain } = require("./domain-utils");
 
+const INTELX_BASE_URL = "https://free.intelx.io";
+
 const PROVIDERS = {
   censys: {
     label: "Censys",
@@ -160,12 +162,12 @@ const PROVIDERS = {
   intelx: {
     label: "Intelligence X",
     secretFormat: "api_key",
-    docs: "https://help.intelx.io/api/",
+    docs: "https://free.intelx.io/",
     usefulFor: ["domain mentions", "phonebook emails/URLs"],
     auth: (secret) => ({ "X-Key": secret }),
-    preflight: { url: "https://2.intelx.io/authenticate/info" },
+    preflight: { url: `${INTELX_BASE_URL}/authenticate/info` },
     domains: async ({ rootDomain, secret }) => {
-      const response = await requestJson(`https://2.intelx.io/phonebook/search?term=${encodeURIComponent(rootDomain)}&target=1&maxresults=100&timeout=20&media=0`, {
+      const response = await requestJson(`${INTELX_BASE_URL}/phonebook/search?term=${encodeURIComponent(rootDomain)}&target=1&maxresults=100&timeout=20&media=0`, {
         method: "POST",
         headers: { "X-Key": secret }
       });
@@ -243,6 +245,7 @@ function bearerAuth(secret) {
 }
 
 module.exports = {
+  INTELX_BASE_URL,
   PROVIDERS,
   collectProviderDomains,
   providerCatalog,
