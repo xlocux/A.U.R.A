@@ -570,7 +570,7 @@ async function startRecon() {
         maxAssetLeads: Number($("maxAssetLeads").value || 250)
       },
       intelPreflight: $("intelPreflight").checked,
-      passiveSources: selectedValues(["crtsh", "wayback", "rapid7"]),
+      passiveSources: selectedValues(["crtsh", "wayback", "rapiddns", "rapid7"]),
       wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),
       screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),

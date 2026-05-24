@@ -852,6 +852,7 @@ Default tools/providers:
 - `subfinder`
 - `amass` passive mode
 - `crt.sh`
+- RapidDNS export (`rapiddns.io/subdomain/<domain>?full=1&down=1`)
 - GitHub subdomain search
 - Search engine dorks
 - Rapid7 Open Data / Project Sonar FDNS

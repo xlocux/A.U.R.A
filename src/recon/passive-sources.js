@@ -2,6 +2,7 @@
 
 const https = require("node:https");
 const { extractDomains } = require("./domain-utils");
+const { queryRapidDns } = require("./providers/rapiddns");
 const { queryRapid7Fdns } = require("./providers/rapid7-opendata");
 
 function fetchText(url, timeoutMs = 20000, redirectCount = 0) {
@@ -68,6 +69,7 @@ async function fetchWayback(rootDomain) {
 async function runPassiveSource(source, rootDomain, options = {}) {
   if (source === "crtsh") return { domains: await fetchCrtSh(rootDomain), metadata: { mode: "crtsh" } };
   if (source === "wayback") return { domains: await fetchWayback(rootDomain), metadata: { mode: "wayback-cdx" } };
+  if (source === "rapiddns") return queryRapidDns({ rootDomain, fetchText });
   if (source === "rapid7") return queryRapid7Fdns({
     rootDomain,
     apiKey: options.apiKeys?.rapid7?.api_key || null,
@@ -79,6 +81,7 @@ async function runPassiveSource(source, rootDomain, options = {}) {
 module.exports = {
   fetchCrtSh,
   fetchWayback,
+  queryRapidDns,
   queryRapid7Fdns,
   runPassiveSource
 };
