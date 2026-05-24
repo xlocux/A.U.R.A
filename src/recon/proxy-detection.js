@@ -1,7 +1,6 @@
-// Proxy Detection - Module for detecting blocks and implementing intelligent responses
-// Analyzes responses to determine if blocking is occurring and suggests actions
+"use strict";
 
-const crypto = require('crypto');
+// Proxy Detection - Module for detecting blocks and recommending conservative operator actions.
 
 class ProxyDetection {
   constructor() {
@@ -242,12 +241,6 @@ class ProxyDetection {
     // Based on severity and type, suggest appropriate actions
     switch (detectionResult.severity) {
       case 'high':
-        actions.push({
-          action: 'rotate_proxy',
-          priority: 'high',
-          description: 'Immediately rotate to a new proxy'
-        });
-        
         if (detectionResult.type === 'captcha' || detectionResult.type === 'human_verification') {
           actions.push({
             action: 'pause_and_investigate',
@@ -258,20 +251,14 @@ class ProxyDetection {
         
         if (detectionResult.type === 'access_denied' || detectionResult.type === 'blocked') {
           actions.push({
-            action: 'change_proxy_type',
+            action: 'review_scope_and_proxy',
             priority: 'high',
-            description: 'Consider changing proxy type (e.g., HTTP to SOCKS5)'
+            description: 'Review scope, authorization, and configured proxy before continuing'
           });
         }
         break;
         
       case 'medium':
-        actions.push({
-          action: 'rotate_proxy',
-          priority: 'medium',
-          description: 'Rotate proxy after current operation completes'
-        });
-        
         if (detectionResult.type === 'rate_limit') {
           actions.push({
             action: 'reduce_rate',
@@ -294,6 +281,19 @@ class ProxyDetection {
           description: 'Monitor for increasing blocking signs'
         });
         break;
+    }
+
+    if (detectionResult.type === 'rate_limit' && !actions.some((action) => action.action === 'reduce_rate')) {
+      actions.push({
+        action: 'reduce_rate',
+        priority: 'high',
+        description: 'Reduce request rate before continuing'
+      });
+      actions.push({
+        action: 'increase_delay',
+        priority: 'medium',
+        description: 'Increase delay between requests'
+      });
     }
 
     // Add general recommendations
@@ -367,18 +367,16 @@ class ProxyDetection {
     const recommendations = [];
     
     if (prediction.includes('blocking_likely') || prediction === 'increasing_blocking') {
-      recommendations.push('Consider proactive proxy rotation');
-      recommendations.push('Increase use of high-anonymity proxies');
+      recommendations.push('Review request rate and scan scope before continuing');
       
       if (blockRate > 0.5) {
         recommendations.push('Implement stricter rate limiting');
-        recommendations.push('Consider using residential proxies');
       }
     }
     
     if (prediction === 'decreasing_blocking') {
-      recommendations.append('Current measures appear effective');
-      recommendations.append('Consider gradually increasing request rate');
+      recommendations.push('Current rate controls appear effective');
+      recommendations.push('Keep monitoring for renewed blocking signals');
     }
 
     if (confidence < 30) {

@@ -21,6 +21,7 @@ const { normalizeProxyUrl } = require("../recon/wsl-tools");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../core/target-config");
 const { readBody, sendFile, sendJson, sendNotFound } = require("./http-utils");
+const proxyRoutes = require("./proxy-routes");
 const { discoverTargets, inferRootDomains } = require("./target-service");
 
 const DEFAULT_WORDLISTS = [
@@ -93,12 +94,8 @@ function runInBackground(task) {
   });
 }
 
-// Import proxy routes
-const proxyRoutes = require('./proxy-routes');
-
 async function handleApiRequest({ request, response, url, store }) {
-  // Handle proxy routes
-  if (url.pathname.startsWith('/api/proxies/')) {
+  if (url.pathname.startsWith("/api/proxies")) {
     return proxyRoutes.handleApiRequest({ request, response, url, store });
   }
 

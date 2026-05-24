@@ -1,18 +1,25 @@
 // Proxy Store - SQLite persistence layer for proxy management
 // Handles storage and retrieval of proxy information and metrics
 
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const fs = require("node:fs");
+const path = require("node:path");
+const { DatabaseSync } = require("node:sqlite");
+
+function nowIso() {
+  return new Date().toISOString();
+}
 
 class ProxyStore {
-  constructor(dbPath = path.join(__dirname, '../../data/proxies.db')) {
-    this.db = new sqlite3.Database(dbPath);
+  constructor(dbPath = process.env.AURA_PROXY_DB || path.join(__dirname, "../../data/proxies.db")) {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+    this.db = new DatabaseSync(dbPath);
+    this.db.exec("PRAGMA journal_mode = WAL");
+    this.db.exec("PRAGMA foreign_keys = ON");
     this._initTables();
   }
 
   _initTables() {
-    // Proxies table
-    this.db.run(`
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS proxies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         address TEXT NOT NULL,
@@ -25,11 +32,8 @@ class ProxyStore {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(address, port, type)
-      )
-    `);
+      );
 
-    // Proxy metrics table
-    this.db.run(`
       CREATE TABLE IF NOT EXISTS proxy_metrics (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         proxy_id INTEGER NOT NULL,
@@ -42,11 +46,8 @@ class ProxyStore {
         successful_tests INTEGER DEFAULT 0,
         avg_response_time REAL,
         FOREIGN KEY (proxy_id) REFERENCES proxies(id) ON DELETE CASCADE
-      )
-    `);
+      );
 
-    // Proxy test runs table
-    this.db.run(`
       CREATE TABLE IF NOT EXISTS proxy_test_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         run_id TEXT NOT NULL,
@@ -58,18 +59,16 @@ class ProxyStore {
         error_message TEXT,
         http_status INTEGER,
         FOREIGN KEY (proxy_id) REFERENCES proxies(id) ON DELETE CASCADE
-      )
-    `);
+      );
 
-    // Create indices for better performance
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_proxies_status ON proxies(status)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_proxy_metrics_proxy_id ON proxy_metrics(proxy_id)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_proxy_metrics_last_tested ON proxy_metrics(last_tested)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_proxy_test_runs_run_id ON proxy_test_runs(run_id)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_proxy_test_runs_proxy_id ON proxy_test_runs(proxy_id)`);
+      CREATE INDEX IF NOT EXISTS idx_proxies_status ON proxies(status);
+      CREATE INDEX IF NOT EXISTS idx_proxy_metrics_proxy_id ON proxy_metrics(proxy_id);
+      CREATE INDEX IF NOT EXISTS idx_proxy_metrics_last_tested ON proxy_metrics(last_tested);
+      CREATE INDEX IF NOT EXISTS idx_proxy_test_runs_run_id ON proxy_test_runs(run_id);
+      CREATE INDEX IF NOT EXISTS idx_proxy_test_runs_proxy_id ON proxy_test_runs(proxy_id);
+    `);
   }
 
-  // Add a new proxy or update if exists
   async addProxy(address, port, type, metadata = {}) {
     const {
       country = null,
@@ -78,21 +77,25 @@ class ProxyStore {
       status = 'unknown'
     } = metadata;
 
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT OR REPLACE INTO proxies 
-         (address, port, type, country, username, password, status, updated_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [address, port, type, country, username, password, status],
-        function(err) {
-          if (err) return reject(err);
-          resolve(this.lastID);
-        }
-      );
-    });
+    const existing = this.db.prepare(
+      "SELECT id FROM proxies WHERE address = ? AND port = ? AND type = ?"
+    ).get(address, port, type);
+    const timestamp = nowIso();
+    if (existing) {
+      this.db.prepare(`
+        UPDATE proxies
+        SET country = ?, username = ?, password = ?, status = ?, updated_at = ?
+        WHERE id = ?
+      `).run(country, username, password, status, timestamp, existing.id);
+      return existing.id;
+    }
+    const result = this.db.prepare(`
+      INSERT INTO proxies (address, port, type, country, username, password, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(address, port, type, country, username, password, status, timestamp, timestamp);
+    return Number(result.lastInsertRowid);
   }
 
-  // Update proxy status and metrics
   async updateProxyStatus(proxyId, status, metrics = {}) {
     const {
       latency_ms = null,
@@ -103,71 +106,91 @@ class ProxyStore {
       avg_response_time = null
     } = metrics;
 
-    return new Promise((resolve, reject) => {
-      // Update proxies table
-      this.db.run(
-        `UPDATE proxies SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [status, proxyId],
-        function(err) {
-          if (err) return reject(err);
-          
-          // Update or insert metrics
-          if (latency_ms !== null || success_rate !== null) {
-            this.db.run(
-              `INSERT OR REPLACE INTO proxy_metrics 
-               (proxy_id, latency_ms, success_rate, failures_count, total_tests, 
-                successful_tests, avg_response_time, last_tested) 
-               VALUES (
-                 ?, 
-                 COALESCE(?, (SELECT latency_ms FROM proxy_metrics WHERE proxy_id = ?)),
-                 COALESCE(?, (SELECT success_rate FROM proxy_metrics WHERE proxy_id = ?)),
-                 COALESCE(?, (SELECT failures_count FROM proxy_metrics WHERE proxy_id = ?)),
-                 COALESCE(?, (SELECT total_tests FROM proxy_metrics WHERE proxy_id = ?)),
-                 COALESCE(?, (SELECT successful_tests FROM proxy_metrics WHERE proxy_id = ?)),
-                 COALESCE(?, (SELECT avg_response_time FROM proxy_metrics WHERE proxy_id = ?)),
-                 CURRENT_TIMESTAMP
-               )`,
-              [
-                proxyId,
-                latency_ms, proxyId,
-                success_rate, proxyId,
-                failures_count, proxyId,
-                total_tests, proxyId,
-                successful_tests, proxyId,
-                avg_response_time, proxyId
-              ],
-              function(err2) {
-                if (err2) return reject(err2);
-                resolve({ proxyId, status, metrics });
-              }
-            );
-          } else {
-            resolve({ proxyId, status, metrics });
-          }
-        }
-      );
-    });
+    this.db.prepare("UPDATE proxies SET status = ?, updated_at = ? WHERE id = ?")
+      .run(status, nowIso(), proxyId);
+
+    if (latency_ms !== null || success_rate !== null) {
+      const current = this.db.prepare("SELECT * FROM proxy_metrics WHERE proxy_id = ?").get(proxyId);
+      if (current) {
+        this.db.prepare(`
+          UPDATE proxy_metrics
+          SET latency_ms = ?, success_rate = ?, failures_count = ?, total_tests = ?,
+              successful_tests = ?, avg_response_time = ?, last_tested = ?
+          WHERE proxy_id = ?
+        `).run(
+          latency_ms ?? current.latency_ms,
+          success_rate ?? current.success_rate,
+          failures_count ?? current.failures_count,
+          total_tests ?? current.total_tests,
+          successful_tests ?? current.successful_tests,
+          avg_response_time ?? current.avg_response_time,
+          nowIso(),
+          proxyId
+        );
+      } else {
+        this.db.prepare(`
+          INSERT INTO proxy_metrics
+            (proxy_id, latency_ms, success_rate, failures_count, total_tests,
+             successful_tests, avg_response_time, last_tested)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          proxyId,
+          latency_ms,
+          success_rate,
+          failures_count ?? 0,
+          total_tests ?? 0,
+          successful_tests ?? 0,
+          avg_response_time,
+          nowIso()
+        );
+      }
+    }
+    return { proxyId, status, metrics };
   }
 
-  // Get active proxies
   async getActiveProxies() {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        `SELECT p.*, pm.latency_ms, pm.success_rate, pm.last_tested 
-         FROM proxies p 
-         LEFT JOIN proxy_metrics pm ON p.id = pm.proxy_id 
-         WHERE p.status = 'active' 
-         ORDER BY pm.success_rate DESC, pm.latency_ms ASC`,
-        [],
-        (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows);
-        }
-      );
-    });
+    return this.getProxies({ status: "active" });
   }
 
-  // Get best proxies based on filters
+  async getProxies(filters = {}) {
+    const {
+      status = null,
+      type = null,
+      country = null,
+      minSuccessRate = null,
+      maxLatency = null
+    } = filters;
+    let query = `
+      SELECT p.*, pm.latency_ms, pm.success_rate, pm.last_tested
+      FROM proxies p
+      LEFT JOIN proxy_metrics pm ON p.id = pm.proxy_id
+      WHERE 1 = 1
+    `;
+    const params = [];
+    if (status && status !== "all") {
+      query += " AND p.status = ?";
+      params.push(status);
+    }
+    if (type) {
+      query += " AND p.type = ?";
+      params.push(type);
+    }
+    if (country) {
+      query += " AND p.country = ?";
+      params.push(String(country).toUpperCase());
+    }
+    if (Number.isFinite(minSuccessRate)) {
+      query += " AND COALESCE(pm.success_rate, 0) >= ?";
+      params.push(minSuccessRate);
+    }
+    if (Number.isInteger(maxLatency)) {
+      query += " AND pm.latency_ms <= ?";
+      params.push(maxLatency);
+    }
+    query += " ORDER BY pm.success_rate DESC, pm.latency_ms ASC, p.updated_at DESC";
+    return this.db.prepare(query).all(...params);
+  }
+
   async getBestProxies(count = 10, filters = {}) {
     const {
       minSuccessRate = 0,
@@ -214,83 +237,91 @@ class ProxyStore {
     query += ` ORDER BY pm.success_rate DESC, pm.latency_ms ASC LIMIT ?`;
     params.push(count);
 
-    return new Promise((resolve, reject) => {
-      this.db.all(query, params, (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows);
-      });
-    });
+    return this.db.prepare(query).all(...params);
   }
 
-  // Get proxy metrics
   async getProxyMetrics(proxyId) {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        `SELECT * FROM proxy_metrics WHERE proxy_id = ?`,
-        [proxyId],
-        (err, row) => {
-          if (err) return reject(err);
-          resolve(row);
-        }
-      );
-    });
+    return this.db.prepare("SELECT * FROM proxy_metrics WHERE proxy_id = ?").get(proxyId);
   }
 
-  // Record a proxy test run
   async recordTestRun(runId, proxyId, targetUrl, success, latencyMs, errorMessage = null, httpStatus = null) {
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT INTO proxy_test_runs 
-         (run_id, proxy_id, target_url, success, latency_ms, error_message, http_status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [runId, proxyId, targetUrl, success ? 1 : 0, latencyMs, errorMessage, httpStatus],
-        function(err) {
-          if (err) return reject(err);
-          resolve(this.lastID);
-        }
-      );
-    });
+    const result = this.db.prepare(`
+      INSERT INTO proxy_test_runs
+        (run_id, proxy_id, target_url, success, latency_ms, error_message, http_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(runId, proxyId, targetUrl, success ? 1 : 0, latencyMs, errorMessage, httpStatus);
+    return Number(result.lastInsertRowid);
   }
 
-  // Get proxy test history
   async getProxyTestHistory(proxyId, limit = 50) {
-    return new Promise((resolve, reject) => {
-      this.db.all(
-        `SELECT * FROM proxy_test_runs 
-         WHERE proxy_id = ? 
-         ORDER BY timestamp DESC 
-         LIMIT ?`,
-        [proxyId, limit],
-        (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows);
-        }
-      );
-    });
+    return this.db.prepare(`
+      SELECT * FROM proxy_test_runs
+      WHERE proxy_id = ?
+      ORDER BY timestamp DESC
+      LIMIT ?
+    `).all(proxyId, limit);
   }
 
-  // Delete a proxy
   async deleteProxy(proxyId) {
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `DELETE FROM proxies WHERE id = ?`,
-        [proxyId],
-        function(err) {
-          if (err) return reject(err);
-          resolve(this.changes > 0);
-        }
-      );
-    });
+    const result = this.db.prepare("DELETE FROM proxies WHERE id = ?").run(proxyId);
+    return result.changes > 0;
   }
 
-  // Close database connection
+  async getProxy(proxyId) {
+    return this.db.prepare("SELECT * FROM proxies WHERE id = ?").get(proxyId);
+  }
+
+  async updateProxy(proxyId, proxy) {
+    this.db.prepare(`
+      UPDATE proxies
+      SET address = ?, port = ?, type = ?, country = ?, username = ?, password = ?,
+          status = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      proxy.address,
+      proxy.port,
+      proxy.type,
+      proxy.country,
+      proxy.username,
+      proxy.password,
+      proxy.status,
+      nowIso(),
+      proxyId
+    );
+  }
+
+  async countProxies() {
+    const row = this.db.prepare("SELECT COUNT(*) as count FROM proxies").get();
+    return row.count;
+  }
+
+  async listStatusCounts() {
+    return this.db.prepare("SELECT status, COUNT(*) as count FROM proxies GROUP BY status").all();
+  }
+
+  async getAverages() {
+    return this.db.prepare(`
+      SELECT AVG(success_rate) as avg_success_rate,
+             AVG(latency_ms) as avg_latency,
+             COUNT(*) as total_with_metrics
+      FROM proxy_metrics
+    `).get();
+  }
+
+  async getRecentTests() {
+    return this.db.prepare(`
+      SELECT DATE(timestamp) as date,
+             COUNT(*) as total_tests,
+             SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_tests
+      FROM proxy_test_runs
+      WHERE timestamp >= datetime('now', '-7 days')
+      GROUP BY DATE(timestamp)
+      ORDER BY date DESC
+    `).all();
+  }
+
   close() {
-    return new Promise((resolve, reject) => {
-      this.db.close(err => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
+    this.db.close();
   }
 }
 

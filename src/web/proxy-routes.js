@@ -1,522 +1,305 @@
-// Proxy Routes - API endpoints for proxy management
-// Provides RESTful API for proxy configuration, testing, and monitoring
+"use strict";
 
-const express = require('express');
-const router = express.Router();
-const ProxyService = require('../recon/proxy-service');
-const ProxyPreflight = require('../recon/proxy-preflight');
-const ProxySources = require('../recon/proxy-sources');
-const ProxyDetection = require('../recon/proxy-detection');
+const ProxyDetection = require("../recon/proxy-detection");
+const ProxyPreflight = require("../recon/proxy-preflight");
+const ProxyService = require("../recon/proxy-service");
+const ProxySources = require("../recon/proxy-sources");
+const { readBody, sendJson } = require("./http-utils");
 
-let proxyService = null;
-let proxyPreflight = null;
-let proxySources = null;
-let proxyDetection = null;
+let proxyService;
+let proxyPreflight;
+let proxySources;
+let proxyDetection;
 
-// Initialize services
 function initServices() {
   if (!proxyService) {
     proxyService = new ProxyService();
-    proxyPreflight = new ProxyPreflight();
+    proxyPreflight = new ProxyPreflight({ proxyService });
     proxySources = new ProxySources();
     proxyDetection = new ProxyDetection();
   }
 }
 
-// Middleware to ensure services are initialized
-router.use((req, res, next) => {
+async function handleApiRequest({ request, response, url }) {
+  if (!url.pathname.startsWith("/api/proxies")) return false;
   initServices();
-  next();
-});
 
-/**
- * GET /api/proxies
- * Get list of proxies with optional filtering
- */
-router.get('/', async (req, res) => {
   try {
-    const {
-      status = 'active',
-      limit = 50,
-      offset = 0,
-      sortBy = 'success_rate',
-      sortOrder = 'desc',
-      type = null,
-      country = null,
-      minSuccessRate = null,
-      maxLatency = null
-    } = req.query;
+    const pathParts = url.pathname.replace(/^\/api\/proxies\/?/, "").split("/").filter(Boolean);
 
-    let proxies;
-    if (status === 'all') {
-      proxies = await proxyService.store.getBestProxies(parseInt(limit), {
-        minSuccessRate: minSuccessRate ? parseFloat(minSuccessRate) : 0,
-        maxLatency: maxLatency ? parseInt(maxLatency) : null,
-        proxyType: type,
-        country: country
-      });
-    } else {
-      // For now, we'll use getActiveProxies and filter later
-      // A more sophisticated implementation would have direct DB queries with filters
-      proxies = await proxyService.store.getActiveProxies();
-      
-      // Apply filters
-      if (type) proxies = proxies.filter(p => p.type === type);
-      if (country) proxies = proxies.filter(p => p.country === country.toUpperCase());
-      if (minSuccessRate !== null) proxies = proxies.filter(p => (p.success_rate || 0) >= parseFloat(minSuccessRate));
-      if (maxLatency !== null) proxies = proxies.filter(p => (p.latency_ms || Infinity) <= parseInt(maxLatency));
+    if (request.method === "GET" && pathParts.length === 0) {
+      await listProxies(response, url);
+      return true;
     }
 
-    // Apply pagination
-    const start = parseInt(offset);
-    const end = start + parseInt(limit);
-    const paginated = proxies.slice(start, end);
-
-    res.json({
-      proxies: paginated,
-      total: proxies.length,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/proxies
- * Add a new proxy
- */
-router.post('/', async (req, res) => {
-  try {
-    const { address, port, type, country, username, password } = req.body;
-
-    if (!address || !port || !type) {
-      return res.status(400).json({ 
-        error: 'Address, port, and type are required' 
-      });
+    if (request.method === "POST" && pathParts.length === 0) {
+      await createProxy(request, response);
+      return true;
     }
 
-    const proxyId = await proxyService.store.addProxy(
-      address,
-      parseInt(port),
-      type,
-      {
-        country: country || null,
-        username: username || null,
-        password: password || null,
-        status: 'unknown'
+    if (request.method === "POST" && pathParts[0] === "test") {
+      await testProxies(request, response);
+      return true;
+    }
+
+    if (request.method === "POST" && pathParts[0] === "preflight") {
+      await preflightActiveProxies(request, response);
+      return true;
+    }
+
+    if (request.method === "GET" && pathParts[0] === "sources") {
+      listSources(response);
+      return true;
+    }
+
+    if (request.method === "POST" && pathParts[0] === "sources" && pathParts[1]) {
+      await importFromSource(request, response, pathParts[1]);
+      return true;
+    }
+
+    if (request.method === "POST" && pathParts[0] === "detect") {
+      await detectBlocking(request, response);
+      return true;
+    }
+
+    if (request.method === "GET" && pathParts[0] === "stats") {
+      await getStats(response);
+      return true;
+    }
+
+    if (request.method === "GET" && pathParts[0] === "health") {
+      await getHealth(response);
+      return true;
+    }
+
+    const proxyId = Number.parseInt(pathParts[0], 10);
+    if (Number.isInteger(proxyId)) {
+      if (request.method === "GET") {
+        await getProxy(response, proxyId);
+        return true;
       }
-    );
-
-    res.status(201).json({ 
-      id: proxyId,
-      message: 'Proxy added successfully'
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/proxies/:id
- * Get a specific proxy by ID
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const proxyId = parseInt(req.params.id);
-    const proxy = await proxyService.store.db.get(
-      `SELECT * FROM proxies WHERE id = ?`,
-      [proxyId]
-    );
-
-    if (!proxy) {
-      return res.status(404).json({ error: 'Proxy not found' });
-    }
-
-    // Get metrics
-    const metrics = await proxyService.store.getProxyMetrics(proxyId);
-
-    res.json({
-      ...proxy,
-      metrics: metrics || null
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * PUT /api/proxies/:id
- * Update a proxy
- */
-router.put('/:id', async (req, res) => {
-  try {
-    const proxyId = parseInt(req.params.id);
-    const { address, port, type, country, username, password, status } = req.body;
-
-    // Check if proxy exists
-    const existing = await proxyService.store.db.get(
-      `SELECT * FROM proxies WHERE id = ?`,
-      [proxyId]
-    );
-
-    if (!existing) {
-      return res.status(404).json({ error: 'Proxy not found' });
-    }
-
-    // Update proxy
-    await proxyService.store.db.run(
-      `UPDATE proxies SET 
-       address = COALESCE(?, address),
-       port = COALESCE(?, port),
-       type = COALESCE(?, type),
-       country = COALESCE(?, country),
-       username = COALESCE(?, username),
-       password = COALESCE(?, password),
-       status = COALESCE(?, status),
-       updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [
-        address || undefined,
-        port !== undefined ? parseInt(port) : undefined,
-        type || undefined,
-        country || undefined,
-        username || undefined,
-        password || undefined,
-        status || undefined,
-        proxyId
-      ]
-    );
-
-    res.json({ message: 'Proxy updated successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * DELETE /api/proxies/:id
- * Delete a proxy
- */
-router.delete('/:id', async (req, res) => {
-  try {
-    const proxyId = parseInt(req.params.id);
-    const deleted = await proxyService.store.deleteProxy(proxyId);
-
-    if (!deleted) {
-      return res.status(404).json({ error: 'Proxy not found' });
-    }
-
-    res.json({ message: 'Proxy deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/proxies/test
- * Test a single proxy or list of proxies
- */
-router.post('/test', async (req, res) => {
-  try {
-    const { proxies, options = {} } = req.body;
-
-    if (!proxies || !Array.isArray(proxies) || proxies.length === 0) {
-      return res.status(400).json({ 
-        error: 'Proxies array is required' 
-      });
-    }
-
-    // Test each proxy
-    const results = await proxyPreflight.batchTest(proxies, options);
-
-    res.json({
-      results,
-      summary: {
-        total: results.length,
-        successful: results.filter(r => r.success).length,
-        failed: results.filter(r => !r.success).length,
-        averageLatency: results.reduce((sum, r) => sum + (r.latency || 0), 0) / results.length
+      if (request.method === "PUT") {
+        await updateProxy(request, response, proxyId);
+        return true;
       }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/proxies/preflight
- * Run preflight test on active proxies
- */
-router.post('/preflight', async (req, res) => {
-  try {
-    const { options = {} } = req.body;
-
-    // Get active proxies
-    const proxies = await proxyService.store.getActiveProxies();
-
-    if (proxies.length === 0) {
-      return res.status(400).json({ 
-        error: 'No active proxies to test' 
-      });
-    }
-
-    // Run preflight test
-    const results = await proxyPreflight.batchTest(proxies, options);
-
-    res.json({
-      results,
-      summary: {
-        total: results.length,
-        successful: results.filter(r => r.success).length,
-        failed: results.filter(r => !r.success).length,
-        averageLatency: results.reduce((sum, r) => sum + (r.latency || 0), 0) / results.length
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/proxies/sources
- * Get list of available proxy sources
- */
-router.get('/sources', async (req, res) => {
-  try {
-    const sources = [
-      {
-        id: 'spysone',
-        name: 'spys.one',
-        description: 'Free proxy list from spys.one with filtering options',
-        supportsFilters: true,
-        filterOptions: {
-          proxyType: ['http', 'https', 'socks4', 'socks5'],
-          country: ['US', 'DE', 'FR', 'GB', 'CA', 'NL', 'RU', 'JP', 'AU', 'SE'],
-          anonymity: ['high', 'medium', 'low'],
-          speed: [0.5, 1, 2, 5, 10] // seconds
-        }
-      },
-      {
-        id: 'github',
-        name: 'GitHub Raw',
-        description: 'Fetch proxy list from GitHub repository (raw file)',
-        supportsFilters: false
-      },
-      {
-        id: 'txt',
-        name: 'Text File',
-        description: 'Upload plain text file with proxy list (one per line)',
-        supportsFilters: false
-      },
-      {
-        id: 'json',
-        name: 'JSON File',
-        description: 'Upload JSON file with proxy list',
-        supportsFilters: false
-      },
-      {
-        id: 'csv',
-        name: 'CSV File',
-        description: 'Upload CSV file with proxy list',
-        supportsFilters: false
-      }
-    ];
-
-    res.json({ sources });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/proxies/sources/:source
- * Fetch proxies from a specific source
- */
-router.post('/sources/:source', async (req, res) => {
-  try {
-    const { source } = req.params;
-    const { params = {} } = req.body;
-
-    let proxies;
-    switch (source.toLowerCase()) {
-      case 'spysone':
-        proxies = await proxySources.fetchFromSpysOne(params);
-        break;
-      case 'github':
-        if (!params.url) {
-          return res.status(400).json({ error: 'GitHub URL is required' });
-        }
-        proxies = await proxySources.fetchFromGitHub(params.url, params.branch || 'main');
-        break;
-      case 'txt':
-        if (!params.content) {
-          return res.status(400).json({ error: 'Text content is required' });
-        }
-        proxies = proxySources.parseTxtFile(params.content);
-        break;
-      case 'json':
-        if (!params.content) {
-          return res.status(400).json({ error: 'JSON content is required' });
-        }
-        proxies = proxySources.parseJsonFile(params.content);
-        break;
-      case 'csv':
-        if (!params.content) {
-          return res.status(400).json({ error: 'CSV content is required' });
-        }
-        proxies = proxySources.parseCsvFile(params.content);
-        break;
-      default:
-        return res.status(400).json({ error: `Unsupported source: ${source}` });
-    }
-
-    // Add fetched proxies to database
-    const added = [];
-    for (const proxy of proxies) {
-      try {
-        const proxyId = await proxyService.store.addProxy(
-          proxy.address,
-          proxy.port,
-          proxy.type,
-          {
-            country: proxy.country,
-            username: proxy.username,
-            password: proxy.password,
-            status: 'unknown'
-          }
-        );
-        added.push({ ...proxy, id: proxyId });
-      } catch (proxyError) {
-        // Skip duplicates or invalid proxies
-        continue;
+      if (request.method === "DELETE") {
+        await deleteProxy(response, proxyId);
+        return true;
       }
     }
 
-    res.json({
-      fetched: proxies.length,
-      added: added.length,
-      proxies: added
-    });
+    sendJson(response, { error: "Proxy endpoint not found" }, 404);
+    return true;
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    sendJson(response, { error: error.message }, 500);
+    return true;
   }
-});
+}
 
-/**
- * POST /api/proxies/detect
- * Detect blocking in a response
- */
-router.post('/detect', async (req, res) => {
-  try {
-    const { response, body } = req.body;
+async function listProxies(response, url) {
+  const status = url.searchParams.get("status") || "active";
+  const limit = parseInteger(url.searchParams.get("limit"), 50);
+  const offset = parseInteger(url.searchParams.get("offset"), 0);
+  const type = url.searchParams.get("type");
+  const country = url.searchParams.get("country");
+  const minSuccessRate = url.searchParams.has("minSuccessRate") ? Number.parseFloat(url.searchParams.get("minSuccessRate")) : null;
+  const maxLatency = url.searchParams.has("maxLatency") ? parseInteger(url.searchParams.get("maxLatency"), null) : null;
 
-    if (!response) {
-      return res.status(400).json({ error: 'Response object is required' });
-    }
+  let proxies = status === "all"
+    ? await proxyService.store.getBestProxies(Math.max(limit + offset, limit), {
+      minSuccessRate: Number.isFinite(minSuccessRate) ? minSuccessRate : 0,
+      maxLatency,
+      proxyType: type,
+      country
+    })
+    : await proxyService.store.getProxies({ status, type, country, minSuccessRate, maxLatency });
 
-    const detection = proxyDetection.detectBlockage(response, body || '');
+  const paginated = proxies.slice(offset, offset + limit);
+  sendJson(response, { proxies: paginated.map(redactProxy), total: proxies.length, limit, offset });
+}
 
-    res.json({ detection });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+async function createProxy(request, response) {
+  const body = await readBody(request);
+  const proxy = normalizeProxyRecord(body);
+  const id = await proxyService.store.addProxy(proxy.address, proxy.port, proxy.type, {
+    country: proxy.country,
+    username: proxy.username,
+    password: proxy.password,
+    status: proxy.status || "unknown"
+  });
+  sendJson(response, { id, message: "Proxy added successfully" }, 201);
+}
+
+async function getProxy(response, proxyId) {
+  const proxy = await proxyService.store.getProxy(proxyId);
+  if (!proxy) {
+    sendJson(response, { error: "Proxy not found" }, 404);
+    return;
   }
-});
+  const metrics = await proxyService.store.getProxyMetrics(proxyId);
+  sendJson(response, { ...redactProxy(proxy), metrics: metrics || null });
+}
 
-/**
- * GET /api/proxies/stats
- * Get proxy statistics
- */
-router.get('/stats', async (req, res) => {
-  try {
-    // Get basic counts
-    const counts = await proxyService.store.db.all(`
-      SELECT 
-        status,
-        COUNT(*) as count
-      FROM proxies
-      GROUP BY status
-    `);
-
-    // Get average success rate and latency
-    const averages = await proxyService.store.db.get(`
-      SELECT 
-        AVG(success_rate) as avg_success_rate,
-        AVG(latency_ms) as avg_latency,
-        COUNT(*) as total_with_metrics
-      FROM proxy_metrics
-    `);
-
-    // Get recent test runs
-    const recentTests = await proxyService.store.db.all(`
-      SELECT 
-        DATE(timestamp) as date,
-        COUNT(*) as total_tests,
-        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_tests
-      FROM proxy_test_runs
-      WHERE timestamp >= datetime('now', '-7 days')
-      GROUP BY DATE(timestamp)
-      ORDER BY date DESC
-    `);
-
-    res.json({
-      counts: counts.reduce((acc, row) => {
-        acc[row.status] = row.count;
-        return acc;
-      }, {}),
-      averages: {
-        successRate: averages.avg_success_rate || 0,
-        latencyMs: averages.avg_latency || 0,
-        totalWithMetrics: averages.total_with_metrics || 0
-      },
-      recentTests: recentTests
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+async function updateProxy(request, response, proxyId) {
+  const existing = await proxyService.store.getProxy(proxyId);
+  if (!existing) {
+    sendJson(response, { error: "Proxy not found" }, 404);
+    return;
   }
-});
+  const body = await readBody(request);
+  const next = normalizeProxyRecord({ ...existing, ...body });
+  await proxyService.store.updateProxy(proxyId, next);
+  sendJson(response, { message: "Proxy updated successfully" });
+}
 
-/**
- * GET /api/proxies/health
- * Health check for proxy system
- */
-router.get('/health', async (req, res) => {
-  try {
-    // Check database connection
-    const dbHealth = await new Promise((resolve, reject) => {
-      proxyService.store.db.get('SELECT 1 as health', (err, row) => {
-        if (err) reject(err);
-        else resolve(row.health === 1);
+async function deleteProxy(response, proxyId) {
+  const deleted = await proxyService.store.deleteProxy(proxyId);
+  if (!deleted) {
+    sendJson(response, { error: "Proxy not found" }, 404);
+    return;
+  }
+  sendJson(response, { message: "Proxy deleted successfully" });
+}
+
+async function testProxies(request, response) {
+  const body = await readBody(request);
+  const proxies = Array.isArray(body.proxies) ? body.proxies.map(normalizeProxyRecord) : [];
+  if (proxies.length === 0) {
+    sendJson(response, { error: "Proxies array is required" }, 400);
+    return;
+  }
+  const results = await proxyPreflight.batchTest(proxies, body.options || {});
+  sendJson(response, { results, summary: summarizeResults(results) });
+}
+
+async function preflightActiveProxies(request, response) {
+  const body = await readBody(request);
+  const proxies = await proxyService.store.getActiveProxies();
+  if (proxies.length === 0) {
+    sendJson(response, { error: "No active proxies to test" }, 400);
+    return;
+  }
+  const results = await proxyPreflight.batchTest(proxies, body.options || {});
+  sendJson(response, { results, summary: summarizeResults(results) });
+}
+
+function listSources(response) {
+  sendJson(response, {
+    sources: [
+      { id: "txt", name: "Text", description: "Manual proxy list, one entry per line" },
+      { id: "json", name: "JSON", description: "Manual JSON proxy list" },
+      { id: "csv", name: "CSV", description: "Manual CSV proxy list" },
+      { id: "github", name: "GitHub Raw", description: "User-provided raw text URL" }
+    ]
+  });
+}
+
+async function importFromSource(request, response, source) {
+  const body = await readBody(request);
+  const params = body.params || {};
+  let proxies;
+  if (source === "txt") proxies = proxySources.parseTxtFile(params.content || "");
+  else if (source === "json") proxies = proxySources.parseJsonFile(params.content || "[]");
+  else if (source === "csv") proxies = proxySources.parseCsvFile(params.content || "");
+  else if (source === "github") proxies = await proxySources.fetchFromGitHub(params.url);
+  else {
+    sendJson(response, { error: `Unsupported source: ${source}` }, 400);
+    return;
+  }
+
+  const added = [];
+  for (const proxy of proxies) {
+    try {
+      const normalized = normalizeProxyRecord(proxy);
+      const id = await proxyService.store.addProxy(normalized.address, normalized.port, normalized.type, {
+        country: normalized.country,
+        username: normalized.username,
+        password: normalized.password,
+        status: "unknown"
       });
-    });
-
-    // Check if we have any proxies
-    const proxyCount = await proxyService.store.db.get(
-      'SELECT COUNT(*) as count FROM proxies'
-    );
-
-    res.json({
-      status: dbHealth && proxyCount.count > 0 ? 'healthy' : 'degraded',
-      database: dbHealth ? 'connected' : 'disconnected',
-      proxyCount: proxyCount.count,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      status: 'unhealthy',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
+      added.push(redactProxy({ ...normalized, id }));
+    } catch {
+      // Keep importing valid entries when one row is malformed.
+    }
   }
-});
+  sendJson(response, { fetched: proxies.length, added: added.length, proxies: added });
+}
 
-// Cleanup on router removal
-router.use((err, req, res, next) => {
-  if (err) {
-    console.error('Proxy API error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+async function detectBlocking(request, response) {
+  const body = await readBody(request);
+  if (!body.response) {
+    sendJson(response, { error: "Response object is required" }, 400);
+    return;
   }
-});
+  sendJson(response, { detection: proxyDetection.detectBlockage(body.response, body.body || "") });
+}
 
-module.exports = router;
+async function getStats(response) {
+  const counts = await proxyService.store.listStatusCounts();
+  const averages = await proxyService.store.getAverages();
+  const recentTests = await proxyService.store.getRecentTests();
+  sendJson(response, {
+    counts: counts.reduce((acc, row) => ({ ...acc, [row.status]: row.count }), {}),
+    averages: {
+      successRate: averages?.avg_success_rate || 0,
+      latencyMs: averages?.avg_latency || 0,
+      totalWithMetrics: averages?.total_with_metrics || 0
+    },
+    recentTests
+  });
+}
+
+async function getHealth(response) {
+  const proxyCount = await proxyService.store.countProxies();
+  sendJson(response, {
+    status: "healthy",
+    database: "connected",
+    proxyCount,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function normalizeProxyRecord(input) {
+  const address = String(input.address || input.host || "").trim();
+  const port = Number.parseInt(input.port, 10);
+  const type = String(input.type || "http").toLowerCase();
+  if (!address) throw new Error("Proxy address is required");
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error("Proxy port must be between 1 and 65535");
+  if (!["http", "https", "socks4", "socks5"].includes(type)) throw new Error("Proxy type must be http, https, socks4, or socks5");
+  return {
+    address,
+    port,
+    type,
+    country: input.country ? String(input.country).toUpperCase() : null,
+    username: input.username || null,
+    password: input.password || null,
+    status: input.status || "unknown"
+  };
+}
+
+function redactProxy(proxy) {
+  return {
+    ...proxy,
+    password: proxy.password ? "****" : null
+  };
+}
+
+function summarizeResults(results) {
+  return {
+    total: results.length,
+    successful: results.filter((result) => result.success).length,
+    failed: results.filter((result) => !result.success).length,
+    averageLatency: results.length
+      ? results.reduce((sum, result) => sum + (result.latency || 0), 0) / results.length
+      : 0
+  };
+}
+
+function parseInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? parsed : fallback;
+}
+
+module.exports = {
+  handleApiRequest
+};

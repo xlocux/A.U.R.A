@@ -22,20 +22,11 @@ class WslToolRunner {
    */
   async run({ tool, args = [], proxy = null, input = null, timeoutMs = 180000, useProxy = false }) {
     let finalArgs = [...args];
-    const env = {};
+    const proxyUrl = useProxy && proxy ? this.proxyService.formatProxyUrl(proxy) : null;
 
-    // If proxy is enabled and provided, add proxy support
-    if (useProxy && proxy) {
-      // Get proxy environment variables
-      const proxyEnv = this.proxyService.getProxyEnvVars(proxy);
-      Object.assign(env, proxyEnv);
-
-      // Add proxy-specific arguments to tools that support them
+    if (proxyUrl) {
       finalArgs = this._addProxyArgsToTool(tool.binary, finalArgs, proxy);
     }
-
-    // Merge with process environment
-    const finalEnv = { ...process.env, ...env };
 
     const result = await runWslTool({
       distro: this.distro,
@@ -43,7 +34,7 @@ class WslToolRunner {
       args: finalArgs,
       input,
       timeoutMs,
-      env: finalEnv
+      proxyUrl
     });
     
     return {
