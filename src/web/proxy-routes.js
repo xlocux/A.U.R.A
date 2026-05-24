@@ -56,18 +56,18 @@ router.get('/', async (req, res) => {
         country: country
       });
     } else {
-      # For now, we'll use getActiveProxies and filter later
-      # A more sophisticated implementation would have direct DB queries with filters
+      // For now, we'll use getActiveProxies and filter later
+      // A more sophisticated implementation would have direct DB queries with filters
       proxies = await proxyService.store.getActiveProxies();
       
-      # Apply filters
+      // Apply filters
       if (type) proxies = proxies.filter(p => p.type === type);
       if (country) proxies = proxies.filter(p => p.country === country.toUpperCase());
       if (minSuccessRate !== null) proxies = proxies.filter(p => (p.success_rate || 0) >= parseFloat(minSuccessRate));
       if (maxLatency !== null) proxies = proxies.filter(p => (p.latency_ms || Infinity) <= parseInt(maxLatency));
     }
 
-    # Apply pagination
+    // Apply pagination
     const start = parseInt(offset);
     const end = start + parseInt(limit);
     const paginated = proxies.slice(start, end);
@@ -134,7 +134,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Proxy not found' });
     }
 
-    # Get metrics
+    // Get metrics
     const metrics = await proxyService.store.getProxyMetrics(proxyId);
 
     res.json({
@@ -155,7 +155,7 @@ router.put('/:id', async (req, res) => {
     const proxyId = parseInt(req.params.id);
     const { address, port, type, country, username, password, status } = req.body;
 
-    # Check if proxy exists
+    // Check if proxy exists
     const existing = await proxyService.store.db.get(
       `SELECT * FROM proxies WHERE id = ?`,
       [proxyId]
@@ -165,7 +165,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Proxy not found' });
     }
 
-    # Update proxy
+    // Update proxy
     await proxyService.store.db.run(
       `UPDATE proxies SET 
        address = COALESCE(?, address),
@@ -228,7 +228,7 @@ router.post('/test', async (req, res) => {
       });
     }
 
-    # Test each proxy
+    // Test each proxy
     const results = await proxyPreflight.batchTest(proxies, options);
 
     res.json({
@@ -253,7 +253,7 @@ router.post('/preflight', async (req, res) => {
   try {
     const { options = {} } = req.body;
 
-    # Get active proxies
+    // Get active proxies
     const proxies = await proxyService.store.getActiveProxies();
 
     if (proxies.length === 0) {
@@ -262,7 +262,7 @@ router.post('/preflight', async (req, res) => {
       });
     }
 
-    # Run preflight test
+    // Run preflight test
     const results = await proxyPreflight.batchTest(proxies, options);
 
     res.json({
@@ -295,7 +295,7 @@ router.get('/sources', async (req, res) => {
           proxyType: ['http', 'https', 'socks4', 'socks5'],
           country: ['US', 'DE', 'FR', 'GB', 'CA', 'NL', 'RU', 'JP', 'AU', 'SE'],
           anonymity: ['high', 'medium', 'low'],
-          speed: [0.5, 1, 2, 5, 10] # seconds
+          speed: [0.5, 1, 2, 5, 10] // seconds
         }
       },
       {
@@ -372,7 +372,7 @@ router.post('/sources/:source', async (req, res) => {
         return res.status(400).json({ error: `Unsupported source: ${source}` });
     }
 
-    # Add fetched proxies to database
+    // Add fetched proxies to database
     const added = [];
     for (const proxy of proxies) {
       try {
@@ -389,7 +389,7 @@ router.post('/sources/:source', async (req, res) => {
         );
         added.push({ ...proxy, id: proxyId });
       } catch (proxyError) {
-        # Skip duplicates or invalid proxies
+        // Skip duplicates or invalid proxies
         continue;
       }
     }
@@ -430,7 +430,7 @@ router.post('/detect', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    # Get basic counts
+    // Get basic counts
     const counts = await proxyService.store.db.all(`
       SELECT 
         status,
@@ -439,7 +439,7 @@ router.get('/stats', async (req, res) => {
       GROUP BY status
     `);
 
-    # Get average success rate and latency
+    // Get average success rate and latency
     const averages = await proxyService.store.db.get(`
       SELECT 
         AVG(success_rate) as avg_success_rate,
@@ -448,7 +448,7 @@ router.get('/stats', async (req, res) => {
       FROM proxy_metrics
     `);
 
-    # Get recent test runs
+    // Get recent test runs
     const recentTests = await proxyService.store.db.all(`
       SELECT 
         DATE(timestamp) as date,
@@ -483,7 +483,7 @@ router.get('/stats', async (req, res) => {
  */
 router.get('/health', async (req, res) => {
   try {
-    # Check database connection
+    // Check database connection
     const dbHealth = await new Promise((resolve, reject) => {
       proxyService.store.db.get('SELECT 1 as health', (err, row) => {
         if (err) reject(err);
@@ -491,7 +491,7 @@ router.get('/health', async (req, res) => {
       });
     });
 
-    # Check if we have any proxies
+    // Check if we have any proxies
     const proxyCount = await proxyService.store.db.get(
       'SELECT COUNT(*) as count FROM proxies'
     );
@@ -511,7 +511,7 @@ router.get('/health', async (req, res) => {
   }
 });
 
-# Cleanup on router removal
+// Cleanup on router removal
 router.use((err, req, res, next) => {
   if (err) {
     console.error('Proxy API error:', err);

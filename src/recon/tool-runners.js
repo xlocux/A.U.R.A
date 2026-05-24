@@ -24,17 +24,17 @@ class WslToolRunner {
     let finalArgs = [...args];
     const env = {};
 
-    # If proxy is enabled and provided, add proxy support
+    // If proxy is enabled and provided, add proxy support
     if (useProxy && proxy) {
-      # Get proxy environment variables
+      // Get proxy environment variables
       const proxyEnv = this.proxyService.getProxyEnvVars(proxy);
       Object.assign(env, proxyEnv);
 
-      # Add proxy-specific arguments to tools that support them
+      // Add proxy-specific arguments to tools that support them
       finalArgs = this._addProxyArgsToTool(tool.binary, finalArgs, proxy);
     }
 
-    # Merge with process environment
+    // Merge with process environment
     const finalEnv = { ...process.env, ...env };
 
     const result = await runWslTool({
@@ -62,16 +62,16 @@ class WslToolRunner {
    * @private
    */
   _addProxyArgsToTool(toolName, args, proxy) {
-    # Tools that support native proxy arguments
+    // Tools that support native proxy arguments
     const proxyTools = {
-      # Tools that use -x or --proxy for HTTP proxy
+      // Tools that use -x or --proxy for HTTP proxy
       'curl': ['-x', `${proxy.type}://${proxy.address}:${proxy.port}`],
       'wget': ['-e', `use_proxy=yes`, '-e', `http_proxy=${proxy.type}://${proxy.address}:${proxy.port}`],
       
-      # Tools that use --proxy for SOCKS
+      // Tools that use --proxy for SOCKS
       'nmap': ['--proxy', `${proxy.type}://${proxy.address}:${proxy.port}`],
       
-      # Tools that use specific proxy arguments
+      // Tools that use specific proxy arguments
       'masscan': ['--proxy', `${proxy.address}:${proxy.port}`],
       'ffuf': ['-x', `${proxy.type}://${proxy.address}:${proxy.port}`],
       'gobuster': ['-p', `${proxy.address}:${proxy.port}`],
@@ -79,12 +79,12 @@ class WslToolRunner {
       'aquatone': ['-http-proxy', `${proxy.address}:${proxy.port}`]
     };
 
-    # If tool supports native proxy args, add them
+    // If tool supports native proxy args, add them
     if (proxyTools[toolName]) {
       return [...args, ...proxyTools[toolName]];
     }
 
-    # For tools that don't support native proxy args, rely on environment variables
+    // For tools that don't support native proxy args, rely on environment variables
     return args;
   }
 

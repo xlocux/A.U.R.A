@@ -96,16 +96,16 @@ class ProxyPreflight {
         // Test for DNS leaks
         results.dnsLeakTest = await this._testDNSLeak(proxy, timeout);
         
-        # Perform speed test
+        // Perform speed test
         results.speedTest = await this._testSpeed(proxy, timeout);
         
-        # Detect anonymity level
+        // Detect anonymity level
         results.anonymityLevel = await this._detectAnonymityLevel(proxy, timeout);
         
-        # Verify proxy type
+        // Verify proxy type
         results.typeVerified = await this._verifyProxyType(proxy, timeout);
         
-        # Extract country from IP if available
+        // Extract country from IP if available
         if (results.ipAddress) {
           results.countryDetected = await this._getCountryFromIP(results.ipAddress);
         }
@@ -118,11 +118,11 @@ class ProxyPreflight {
       results.success = false;
     }
 
-    # Store or update proxy in database
+    // Store or update proxy in database
     try {
       results.proxyId = await this.proxyService._getOrCreateProxyId(proxy);
       
-      # Update proxy metrics based on test results
+      // Update proxy metrics based on test results
       await this.proxyService.store.updateProxyStatus(
         results.proxyId,
         results.success ? 'active' : 'failed',
@@ -136,7 +136,7 @@ class ProxyPreflight {
         }
       );
       
-      # Record detailed test run
+      // Record detailed test run
       await this.proxyService.store.recordTestRun(
         runId,
         results.proxyId,
@@ -175,10 +175,10 @@ class ProxyPreflight {
         let response;
         
         if (target.type === 'dns') {
-          # DNS-specific test
+          // DNS-specific test
           response = await this._testDNSResolution(proxy, target.host, timeout);
         } else {
-          # HTTP/HTTPS test
+          // HTTP/HTTPS test
           response = await axios.get(target.url, {
             proxy: {
               host: proxy.address,
@@ -205,11 +205,11 @@ class ProxyPreflight {
           headers: response.headers || {}
         };
 
-        # Extract IP from ipify or similar services
+        // Extract IP from ipify or similar services
         if (target.name === 'ipify' && response.data && response.data.ip) {
           results.ipAddress = response.data.ip;
         } else if (target.name === 'cloudflare' && response.data) {
-          # Cloudflare trace contains IP information
+          // Cloudflare trace contains IP information
           const ipMatch = response.data.match(/ip=([^\s]+)/);
           if (ipMatch) {
             results.ipAddress = ipMatch[1];
@@ -239,14 +239,14 @@ class ProxyPreflight {
    */
   async _testDNSResolution(proxy, hostname, timeout) {
     return new Promise((resolve, reject) => {
-      # For SOCKS proxies, we'd need to use a SOCKS-capable DNS resolver
-      # For now, we'll do a simple TCP connection test to port 53
-      # A full implementation would use a SOCKS client library
+      // For SOCKS proxies, we'd need to use a SOCKS-capable DNS resolver
+      // For now, we'll do a simple TCP connection test to port 53
+      // A full implementation would use a SOCKS client library
       
       const socket = new net.Socket();
       socket.setTimeout(timeout);
       
-      const dnsServer = '8.8.8.8'; # Google DNS
+      const dnsServer = '8.8.8.8'; // Google DNS
       const dnsPort = 53;
       
       socket.once('connect', () => {
@@ -264,8 +264,8 @@ class ProxyPreflight {
         reject(new Error(`DNS connection failed: ${err.message}`));
       });
       
-      # Note: This doesn't actually use the proxy for DNS
-      # A real implementation would route through the SOCKS proxy
+      // Note: This doesn't actually use the proxy for DNS
+      // A real implementation would route through the SOCKS proxy
       socket.connect(dnsPort, dnsServer);
     });
   }
@@ -283,7 +283,7 @@ class ProxyPreflight {
     };
 
     try {
-      # Test using a DNS leak test service
+      // Test using a DNS leak test service
       const response = await axios.get('https://dnsleaktest.com/json/', {
         proxy: {
           host: proxy.address,
@@ -291,7 +291,7 @@ class ProxyPreflight {
           auth: proxy.username && proxy.password ?
             { username: proxy.username, password: proxy.password } : false
         },
-        timeout: timeout * 2, # DNS tests might take longer
+        timeout: timeout * 2, // DNS tests might take longer
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AURA-ProxyTest/1.0)' }
       });
 
@@ -304,8 +304,8 @@ class ProxyPreflight {
         results.dnsServersUsed = response.data.DNServers || [];
       }
     } catch (error) {
-      # If we can't reach the DNS leak test service, we can't determine leak status
-      results.leakDetected = null; # Unknown
+      // If we can't reach the DNS leak test service, we can't determine leak status
+      results.leakDetected = null; // Unknown
       results.leakDetails = `Unable to test DNS leak: ${error.message}`;
     }
 
@@ -325,7 +325,7 @@ class ProxyPreflight {
     };
 
     try {
-      # Ping test (simplified)
+      // Ping test (simplified)
       const pingStart = Date.now();
       await axios.get('https://www.google.com/generate_204', {
         proxy: {
@@ -339,7 +339,7 @@ class ProxyPreflight {
       });
       results.pingMs = Date.now() - pingStart;
 
-      # Download speed test (using a known file)
+      // Download speed test (using a known file)
       const downloadStart = Date.now();
       const downloadResponse = await axios.get('https://speed.hetzner.de/100MB.bin', {
         proxy: {
@@ -348,15 +348,15 @@ class ProxyPreflight {
           auth: proxy.username && proxy.password ?
             { username: proxy.username, password: proxy.password } : false
         },
-        timeout: timeout * 3, # Allow more time for download
+        timeout: timeout * 3, // Allow more time for download
         responseType: 'stream'
       });
 
-      # Calculate download speed
-      const downloadTime = (Date.now() - downloadStart) / 1000; # seconds
-      # Note: We're not actually downloading the full file, just measuring time to first byte
-      # A real implementation would measure actual throughput
-      results.downloadSpeedMbps = downloadTime > 0 ? 800 / downloadTime : null; # Rough estimate
+      // Calculate download speed
+      const downloadTime = (Date.now() - downloadStart) / 1000; // seconds
+      // Note: We're not actually downloading the full file, just measuring time to first byte
+      // A real implementation would measure actual throughput
+      results.downloadSpeedMbps = downloadTime > 0 ? 800 / downloadTime : null; // Rough estimate
 
     } catch (error) {
       results.error = error.message;
@@ -371,7 +371,7 @@ class ProxyPreflight {
    */
   async _detectAnonymityLevel(proxy, timeout) {
     try {
-      # Test using a service that shows what headers are visible
+      // Test using a service that shows what headers are visible
       const response = await axios.get('http://httpbin.org/headers', {
         proxy: {
           host: proxy.address,
@@ -382,25 +382,25 @@ class ProxyPreflight {
         timeout: timeout,
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; AURA-ProxyTest/1.0)',
-          'X-Forwarded-For': '1.2.3.4', # Test if this is forwarded
-          'X-Real-IP': '5.6.7.8'       # Test if this is forwarded
+          'X-Forwarded-For': '1.2.3.4', // Test if this is forwarded
+          'X-Real-IP': '5.6.7.8'       // Test if this is forwarded
         }
       });
 
       const headers = response.data.headers || {};
       
-      # Check if our custom headers are forwarded
+      // Check if our custom headers are forwarded
       const forwardedHeaders = Object.keys(headers).filter(h =>
         ['x-forwarded-for', 'x-real-ip', 'forwarded', 'via'].includes(h.toLowerCase())
       );
 
       if (forwardedHeaders.length === 0) {
-        return 'elite'; # No headers leaked
+        return 'elite'; // No headers leaked
       } else if (headers['x-forwarded-for'] && 
                  headers['x-forwarded-for'].includes('1.2.3.4, 5.6.7.8')) {
-        return 'transparent'; # Headers clearly show original IP
+        return 'transparent'; // Headers clearly show original IP
       } else {
-        return 'anonymous'; # Some headers but not revealing true IP
+        return 'anonymous'; // Some headers but not revealing true IP
       }
     } catch (error) {
       return 'unknown';
@@ -413,12 +413,12 @@ class ProxyPreflight {
    */
   async _verifyProxyType(proxy, timeout) {
     try {
-      # Try to connect using the specified proxy type
-      # For HTTP/HTTPS proxies, test with HTTP request
-      # For SOCKS proxies, test with TCP connection
+      // Try to connect using the specified proxy type
+      // For HTTP/HTTPS proxies, test with HTTP request
+      // For SOCKS proxies, test with TCP connection
       
       if (proxy.type === 'http' || proxy.type === 'https') {
-        # Test HTTP CONNECT capability
+        // Test HTTP CONNECT capability
         await axios.get('http://detectportal.firefox.com/success.txt', {
           proxy: {
             host: proxy.address,
@@ -430,9 +430,9 @@ class ProxyPreflight {
         });
         return true;
       } else if (proxy.type === 'socks4' || proxy.type === 'socks5') {
-        # For SOCKS, we'd need a SOCKS client library
-        # For now, we'll assume if HTTP test works, the type is correct
-        # A real implementation would use socks-proxy-agent or similar
+        // For SOCKS, we'd need a SOCKS client library
+        // For now, we'll assume if HTTP test works, the type is correct
+        // A real implementation would use socks-proxy-agent or similar
         try {
           await axios.get('http://detectportal.firefox.com/success.txt', {
             proxy: {
@@ -445,8 +445,8 @@ class ProxyPreflight {
           });
           return true;
         } catch (httpError) {
-          # If HTTP fails, it might still be a working SOCKS proxy
-          # Just return true if we can establish TCP connection
+          // If HTTP fails, it might still be a working SOCKS proxy
+          // Just return true if we can establish TCP connection
           return await this._testTCPSocket(proxy.address, proxy.port, timeout);
         }
       }
@@ -526,11 +526,11 @@ class ProxyPreflight {
       }
     };
 
-    # Execute all tests
+    // Execute all tests
     const promises = proxies.map(proxy => testProxyWithSemaphore(proxy));
     await Promise.all(promises);
 
-    # Sort results by success and performance
+    // Sort results by success and performance
     results.sort((a, b) => {
       if (a.success !== b.success) return b.success - a.success;
       if (a.latency !== b.latency) return a.latency - b.latency;

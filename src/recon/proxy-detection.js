@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 class ProxyDetection {
   constructor() {
-    # Signs of various types of blocking
+    // Signs of various types of blocking
     this.blockSigns = {
       httpStatus: {
         403: { type: 'forbidden', severity: 'high', message: 'Access forbidden' },
@@ -33,7 +33,7 @@ class ProxyDetection {
         'server': { pattern: /cloudflare/i, type: 'cloudflare', severity: 'medium' },
         'x-amzn-errortype': { pattern: /Throttled/i, type: 'rate_limit', severity: 'medium' },
         'x-rate-limit-remaining': { pattern: /^0$/, type: 'rate_limit', severity: 'medium' },
-        'retry-after': { type: 'rate_limit', severity: 'medium' } # Any value indicates rate limit
+        'retry-after': { type: 'rate_limit', severity: 'medium' } // Any value indicates rate limit
       }
     };
   }
@@ -47,7 +47,7 @@ class ProxyDetection {
    */
   detectBlockage(response, body = '', options = {}) {
     const {
-      sensitivity = 'medium', # low, medium, high
+      sensitivity = 'medium', // low, medium, high
       checkHeaders = true,
       checkContent = true,
       checkStatus = true
@@ -55,8 +55,8 @@ class ProxyDetection {
 
     const result = {
       isBlocked: false,
-      severity: 'none', # none, low, medium, high
-      confidence: 0, # 0-100
+      severity: 'none', // none, low, medium, high
+      confidence: 0, // 0-100
       type: null,
       message: '',
       details: {},
@@ -68,7 +68,7 @@ class ProxyDetection {
     const maxScore = 100;
     const details = {};
 
-    # Check HTTP status code
+    // Check HTTP status code
     if (checkStatus && response.statusCode) {
       const statusSign = this.blockSigns.httpStatus[response.statusCode];
       if (statusSign) {
@@ -80,14 +80,14 @@ class ProxyDetection {
           message: statusSign.message
         };
         
-        # If we have a definitive blocking status, we can be confident
+        // If we have a definitive blocking status, we can be confident
         if ([403, 429].includes(response.statusCode)) {
           score += 40;
         }
       }
     }
 
-    # Check headers for blocking signs
+    // Check headers for blocking signs
     if (checkHeaders && response.headers) {
       for (const [headerName, headerConfig] of Object.entries(this.blockSigns.headers)) {
         const headerValue = response.headers[headerName];
@@ -114,7 +114,7 @@ class ProxyDetection {
             }
           }
         } else if (headerConfig.type) {
-          # Header exists, so it's a sign
+          // Header exists, so it's a sign
           score += 15;
           details[headerName] = {
             value: headerValue,
@@ -125,7 +125,7 @@ class ProxyDetection {
       }
     }
 
-    # Check content for blocking patterns
+    // Check content for blocking patterns
     if (checkContent && body && typeof body === 'string') {
       for (const patternObj of this.blockSigns.contentPatterns) {
         if (patternObj.pattern.test(body)) {
@@ -137,16 +137,16 @@ class ProxyDetection {
             message: patternObj.message
           };
           
-          # Some patterns are very definitive
+          // Some patterns are very definitive
           if (patternObj.type === 'access_denied' || patternObj.type === 'captcha') {
             score += 25;
           }
-          break; # Only count first match to avoid over-scoring
+          break; // Only count first match to avoid over-scoring
         }
       }
     }
 
-    # Apply sensitivity multiplier
+    // Apply sensitivity multiplier
     const sensitivityMultipliers = {
       low: 0.7,
       medium: 1.0,
@@ -154,12 +154,12 @@ class ProxyDetection {
     };
     
     score = Math.floor(score * (sensitivityMultipliers[sensitivity] || 1.0));
-    score = Math.min(score, maxScore); # Cap at 100
+    score = Math.min(score, maxScore); // Cap at 100
 
     result.confidence = score;
-    result.isBlocked = score >= 30; # Threshold for considering blocked
+    result.isBlocked = score >= 30; // Threshold for considering blocked
     
-    # Determine severity based on score and details
+    // Determine severity based on score and details
     if (score >= 80) {
       result.severity = 'high';
     } else if (score >= 50) {
@@ -170,7 +170,7 @@ class ProxyDetection {
       result.severity = 'none';
     }
 
-    # Set type and message based on strongest indicator
+    // Set type and message based on strongest indicator
     if (details.statusCode) {
       result.type = details.statusCode.type;
       result.message = details.statusCode.message;
@@ -178,7 +178,7 @@ class ProxyDetection {
       result.type = details.contentMatch.type;
       result.message = details.contentMatch.message;
     } else {
-      # Check headers for type
+      // Check headers for type
       for (const [key, value] of Object.entries(details)) {
         if (key !== 'statusCode' && key !== 'contentMatch' && value.type) {
           result.type = value.type;
@@ -188,7 +188,7 @@ class ProxyDetection {
       }
     }
 
-    # Generate suggested actions
+    // Generate suggested actions
     result.suggestedActions = this._generateSuggestedActions(result, details);
 
     result.details = details;
@@ -234,25 +234,25 @@ class ProxyDetection {
       actions.push({
         action: 'continue',
         priority: 'low',
-        description': 'No blocking detected, continue normal operations'
+        description: 'No blocking detected, continue normal operations'
       });
       return actions;
     }
 
-    # Based on severity and type, suggest appropriate actions
+    // Based on severity and type, suggest appropriate actions
     switch (detectionResult.severity) {
       case 'high':
         actions.push({
           action: 'rotate_proxy',
           priority: 'high',
-          description': 'Immediately rotate to a new proxy'
+          description: 'Immediately rotate to a new proxy'
         });
         
         if (detectionResult.type === 'captcha' || detectionResult.type === 'human_verification') {
           actions.push({
             action: 'pause_and_investigate',
             priority: 'high',
-            description': 'Pause operations and investigate CAPTCHA/human verification challenge'
+            description: 'Pause operations and investigate CAPTCHA/human verification challenge'
           });
         }
         
@@ -260,7 +260,7 @@ class ProxyDetection {
           actions.push({
             action: 'change_proxy_type',
             priority: 'high',
-            description': 'Consider changing proxy type (e.g., HTTP to SOCKS5)'
+            description: 'Consider changing proxy type (e.g., HTTP to SOCKS5)'
           });
         }
         break;
@@ -269,20 +269,20 @@ class ProxyDetection {
         actions.push({
           action: 'rotate_proxy',
           priority: 'medium',
-          description': 'Rotate proxy after current operation completes'
+          description: 'Rotate proxy after current operation completes'
         });
         
         if (detectionResult.type === 'rate_limit') {
           actions.push({
             action: 'reduce_rate',
             priority: 'medium',
-            description': 'Reduce request rate to avoid further rate limiting'
+            description: 'Reduce request rate to avoid further rate limiting'
           });
           
           actions.push({
             action: 'increase_delay',
             priority: 'medium',
-            description': 'Increase delay between requests'
+            description: 'Increase delay between requests'
           });
         }
         break;
@@ -291,19 +291,19 @@ class ProxyDetection {
         actions.push({
           action: 'monitor',
           priority: 'low',
-          description': 'Monitor for increasing blocking signs'
+          description: 'Monitor for increasing blocking signs'
         });
         break;
     }
 
-    # Add general recommendations
+    // Add general recommendations
     actions.push({
       action: 'log_event',
       priority: 'low',
-      description': 'Log blocking event for analysis and pattern recognition'
+      description: 'Log blocking event for analysis and pattern recognition'
     });
 
-    # Sort by priority (high -> medium -> low)
+    // Sort by priority (high -> medium -> low)
     const priorityOrder = { high: 3, medium: 2, low: 1 };
     actions.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
     
@@ -324,26 +324,26 @@ class ProxyDetection {
       };
     }
 
-    # Calculate blocking frequency
-    const recent = detectionHistory.slice(-10); # Last 10 detections
+    // Calculate blocking frequency
+    const recent = detectionHistory.slice(-10); // Last 10 detections
     const blockedCount = recent.filter(d => d.isBlocked).length;
     const blockRate = blockedCount / recent.length;
 
-    # Calculate average severity score
+    // Calculate average severity score
     const severityScores = { none: 0, low: 1, medium: 2, high: 3 };
     const totalSeverity = recent.reduce((sum, d) => sum + severityScores[d.severity], 0);
     const avgSeverity = totalSeverity / recent.length;
 
-    # Determine trend
+    // Determine trend
     const firstHalf = recent.slice(0, Math.ceil(recent.length / 2));
     const secondHalf = recent.slice(Math.floor(recent.length / 2));
     
     const firstHalfBlocked = firstHalf.filter(d => d.isBlocked).length / firstHalf.length;
     const secondHalfBlocked = secondHalf.filter(d => d.isBlocked).length / secondHalf.length;
-    const trend = secondHalfBlocked - firstHalfBlocked; # Positive = increasing blocking
+    const trend = secondHalfBlocked - firstHalfBlocked; // Positive = increasing blocking
 
     let prediction = 'stable';
-    let confidence = Math.min(avgSeverity * 25, 75); # Base confidence on severity
+    let confidence = Math.min(avgSeverity * 25, 75); // Base confidence on severity
     
     if (blockRate > 0.7) {
       prediction = 'high_blocking_likely';
@@ -363,7 +363,7 @@ class ProxyDetection {
       confidence += 10;
     }
 
-    # Generate recommendations based on prediction
+    // Generate recommendations based on prediction
     const recommendations = [];
     
     if (prediction.includes('blocking_likely') || prediction === 'increasing_blocking') {
