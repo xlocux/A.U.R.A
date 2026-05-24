@@ -422,6 +422,7 @@ function clearRunView() {
   latestRunActivity = "";
   updateRunControlButtons("idle");
   updateTopologyGraph();
+  window.AuraAiLog.refresh(null);
   renderRunActivity();
 }
 
@@ -628,6 +629,7 @@ async function refreshRun() {
     technologies: technologyData.technologies,
     screenshots: screenshotData.screenshots
   });
+  window.AuraAiLog.refresh(activeRunId);
 }
 
 function renderRunActivity(run = null, newEvents = []) {
@@ -1316,9 +1318,11 @@ async function refreshLeads() {
   const target = $("target").value;
   if (!target) return;
   const data = await api(`/api/targets/${encodeURIComponent(target)}/asset-leads`);
-  $("leadRows").innerHTML = data.leads.map((lead) =>
-    `<tr><td>${esc(lead.value)}</td><td>${esc(lead.source)}</td><td>${esc(lead.confidence)}</td><td>${esc((lead.matchTerms || []).join(", "))}</td></tr>`
-  ).join("");
+  $("leadRows").innerHTML = data.leads.map((lead) => {
+    const score = lead.metadata?.correlationScore ?? "";
+    const rationale = lead.metadata?.correlationRationale || [];
+    return `<tr><td>${esc(lead.value)}</td><td>${esc(lead.source)}</td><td>${esc(lead.status || lead.confidence)}</td><td>${esc(score)}</td><td>${esc(rationale.join("; "))}</td><td>${esc((lead.matchTerms || []).join(", "))}</td></tr>`;
+  }).join("");
 }
 
 $("target").addEventListener("change", () => {

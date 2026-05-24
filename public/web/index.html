@@ -21,6 +21,7 @@
     <button class="tab" data-tab="search">Search</button>
     <button class="tab" data-tab="topology">Topology</button>
     <button class="tab" data-tab="results">Results</button>
+    <button class="tab" data-tab="ai-log">AI Log</button>
     <button class="tab" data-tab="runs">Runs & Logs</button>
     <button class="tab active" data-tab="settings">Settings</button>
   </nav>
@@ -169,7 +170,7 @@
           <h2>Discovery Leads</h2>
           <div class="scroll">
             <table>
-              <thead><tr><th>Value</th><th>Source</th><th>Confidence</th><th>Terms</th></tr></thead>
+              <thead><tr><th>Value</th><th>Source</th><th>Status</th><th>Score</th><th>Rationale</th><th>Terms</th></tr></thead>
               <tbody id="leadRows"></tbody>
             </table>
           </div>
@@ -425,6 +426,28 @@
       </div>
     </section>
 
+    <section id="tab-ai-log" class="tab-panel">
+      <div class="split">
+        <div class="pane">
+          <h2>AI Correlation Log</h2>
+          <div class="notice muted">
+            This log records what the AI-assisted correlation layer is doing.
+            It is separate from chat so the assistant stays clean and useful.
+          </div>
+          <div class="scroll">
+            <table>
+              <thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Evidence</th></tr></thead>
+              <tbody id="aiLogRows"><tr><td colspan="4" class="muted">No run loaded.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pane">
+          <h2>Correlation Techniques</h2>
+          <div id="aiCorrelationTechniques" class="correlation-techniques"></div>
+        </div>
+      </div>
+    </section>
+
     <section id="tab-runs" class="tab-panel">
       <div class="pane">
         <h2>Current Activity</h2>
@@ -666,6 +689,7 @@
 
   <script src="/wave-background.js"></script>
   <script src="/ai-agent.js"></script>
+  <script src="/ai-log.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

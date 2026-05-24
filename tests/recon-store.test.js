@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { openScanStore } = require("../src/db/scan-store");
+const { CORRELATION_TECHNIQUES, scoreCandidate } = require("../src/recon/candidate-correlation");
 const { extractDomains, normalizeDomain } = require("../src/recon/domain-utils");
 const { parseGauUrls, parseHttpxJsonLines } = require("../src/recon/parsers");
 const { generateWordlistFromDb } = require("../src/recon/wordlist-generator");
@@ -99,6 +100,33 @@ test("alternate TLD discovery creates bounded review leads", () => {
   assert.ok(!leads.some((lead) => lead.value === "acme.example"));
   assert.ok(!leads.some((lead) => lead.value === "acme.net"));
   assert.equal(leads[0].leadType, "domain_candidate");
+});
+
+test("candidate correlation scores review leads without promoting alternate TLDs", () => {
+  assert.ok(CORRELATION_TECHNIQUES.some((technique) => technique.id === "whois_rdap_overlap"));
+  const alternate = scoreCandidate({
+    rootDomains: ["acme.com"],
+    lead: {
+      value: "acme.net",
+      source: "alternate-tld-correlation",
+      matchTerms: ["acme"],
+      metadata: {}
+    }
+  });
+  assert.equal(alternate.score, 30);
+  assert.ok(alternate.techniques.includes("brand_string_matching"));
+
+  const scoped = scoreCandidate({
+    rootDomains: ["acme.com"],
+    lead: {
+      value: "api.acme.com",
+      source: "whoisxmlapi",
+      matchTerms: ["acme"],
+      metadata: {}
+    }
+  });
+  assert.equal(scoped.score, 100);
+  assert.ok(scoped.rationale.some((item) => item.includes("authorized root")));
 });
 
 test("HTTP follow-up uses ProjectDiscovery httpx list and tech flags", () => {
@@ -274,6 +302,29 @@ test("scan store deletes targets with local recon data", () => {
   assert.equal(store.getTarget(target.target_name), null);
   assert.equal(store.listDomains({ targetName: target.target_name }).length, 0);
   assert.equal(store.listAssetLeads({ targetName: target.target_name }).length, 0);
+  store.close();
+});
+
+test("scan store refreshes asset lead correlation status", () => {
+  const store = openScanStore(tempDb("asset-lead-status.db"));
+  const target = store.upsertTarget(path.resolve("targets/leads/target.json"), createDefaultTargetConfig("leads"));
+  const run = store.createRun({ targetName: target.target_name });
+  store.saveAssetLeads(run.id, target.target_name, [
+    { value: "acme.net", source: "alternate-tld-correlation", confidence: "candidate", status: "new" }
+  ]);
+  store.saveAssetLeads(run.id, target.target_name, [
+    {
+      value: "acme.net",
+      source: "alternate-tld-correlation",
+      confidence: "weak_candidate",
+      status: "weak_lead",
+      metadata: { correlationScore: 30 }
+    }
+  ]);
+  const [lead] = store.listAssetLeads({ targetName: target.target_name });
+  assert.equal(lead.status, "weak_lead");
+  assert.equal(lead.confidence, "weak_candidate");
+  assert.equal(lead.metadata.correlationScore, 30);
   store.close();
 });
 

@@ -885,6 +885,7 @@ class ScanStore {
         run_id = excluded.run_id,
         confidence = excluded.confidence,
         match_terms_json = excluded.match_terms_json,
+        status = excluded.status,
         last_seen_at = excluded.last_seen_at,
         metadata_json = excluded.metadata_json
     `);

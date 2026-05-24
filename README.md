@@ -33,6 +33,8 @@ The project is intentionally scoped to recon for now. Agentic analysis, triage, 
 - Post useful scan milestones into the AI chat as recon progresses, including
   major discovery jumps, tool failures, run deltas, technologies, and screenshot
   progress.
+- Keep detailed AI correlation activity in a separate `AI Log` tab so chat stays
+  focused on questions and answers.
 - Inspect current run activity, tool heartbeats, and topology node details from
   the Web UI.
 - Run WSL/Kali tools through an allowlisted command runner.
@@ -85,6 +87,9 @@ Recommended first run:
      authorized scope is confirmed.
    - Alternate TLDs are saved as review leads only and are not scanned unless
      the user explicitly adds them to authorized scope.
+   - The AI correlation layer scores review leads with visible evidence in
+     `AI Log`, including WHOIS/RDAP, nameserver, MX/SPF/DMARC, certificate,
+     tracking ID, fingerprint, JavaScript, code search, and archive techniques.
 6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
 
 Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A

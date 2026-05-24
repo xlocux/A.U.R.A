@@ -518,6 +518,18 @@ Useful graph queries:
 - Find websites related by analytics IDs, tag manager IDs, or tracking pixels.
 - Find assets newly connected to the target since the last run.
 
+Candidate correlation should be logged as an AI-visible reasoning trail before
+any unknown-scope candidate is scanned. The AI log should state which techniques
+are being used, including WHOIS/RDAP overlap, nameserver correlation,
+MX/SPF/DMARC correlation, certificate correlation, analytics/pixel IDs, favicon
+hashes, HTTP fingerprints, technology stack similarity, brand/string matching,
+ASN/IP/passive DNS, CSP/header intelligence, JavaScript references, app
+association files, code search, and archive/crawl correlation.
+
+The output should be a review score and rationale. Strong candidates may be
+recommended to the user, but unknown-scope candidates must not be promoted or
+scanned automatically.
+
 ## Conditional Recon Playbooks
 
 Static phases should be complemented by conditional playbooks. A playbook rule

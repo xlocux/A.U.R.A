@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { normalizeDomain, rootForDomain } = require("../recon/domain-utils");
+const { CORRELATION_TECHNIQUES, runCandidateCorrelation } = require("../recon/candidate-correlation");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
@@ -515,6 +516,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
 
   const alternateTldLeads = generateAlternateTldLeads({ rootDomains, config });
   const alternateTldDomains = alternateTldLeads.map((lead) => lead.value);
+  let correlationInputs = [...alternateTldLeads];
   if (alternateTldLeads.length > 0) {
     const saved = store.saveAssetLeads(runId, target.target_name, alternateTldLeads);
     store.appendEvent(runId, {
@@ -545,7 +547,17 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
       rootDomains,
       suggestions: { ...suggestions, includeTerms: reverseWhoisTerms }
     });
+    correlationInputs = correlationInputs.concat(store.listAssetLeads({ targetName: target.target_name })
+      .filter((lead) => lead.run_id === runId && lead.source === "whoisxmlapi"));
   }
+
+  runCandidateCorrelation({
+    store,
+    runId,
+    targetName: target.target_name,
+    rootDomains,
+    leads: correlationInputs
+  });
 
   const seeds = filterScopeDomains({
     domains: [...rootDomains, ...rdapDomains, ...providerDomains],
@@ -1318,6 +1330,14 @@ async function runReverseWhois(request, response, store) {
     });
     if (selectedKey) store.markApiKeyUsed(selectedKey.id);
     const savedLeads = saveReverseWhoisResult(store, run.id, target.target_name, result);
+    runCandidateCorrelation({
+      store,
+      runId: run.id,
+      targetName: target.target_name,
+      rootDomains: inferRootDomains(target),
+      leads: store.listAssetLeads({ targetName: target.target_name })
+        .filter((lead) => lead.run_id === run.id)
+    });
     store.updateRun(run.id, {
       status: "completed",
       activePhase: "completed",
@@ -1412,6 +1432,20 @@ function handleReadEndpoint(response, url, store) {
   if (eventsMatch) {
     const after = Number(url.searchParams.get("after") || 0);
     sendJson(response, { events: store.listEvents(Number(eventsMatch[1]), after) });
+    return true;
+  }
+
+  const aiLogMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/ai-log$/);
+  if (aiLogMatch) {
+    const runId = Number(aiLogMatch[1]);
+    const run = store.getRun(runId);
+    if (!run) {
+      sendJson(response, { error: "Run not found" }, 404);
+      return true;
+    }
+    const events = store.listEvents(runId, 0, 5000)
+      .filter((event) => String(event.phase || "").startsWith("ai-"));
+    sendJson(response, { events, techniques: CORRELATION_TECHNIQUES });
     return true;
   }
 

@@ -539,6 +539,12 @@ evidence-based milestones only: major count changes, new run deltas, technology
 stack discoveries, screenshot progress, tool failures, timeouts, and final run
 status. Do not post low-value heartbeat noise.
 
+Detailed correlation reasoning belongs in the AI Log, not in the chat. When
+candidate correlation starts, the agent-facing log should state exactly which
+techniques are being used, then record evidence, scores, and recommended next
+actions. Unknown-scope candidates remain review leads until the user explicitly
+adds them to authorized seeds.
+
 Run data should be exportable from the Web UI in portable formats such as JSON,
 CSV, and Markdown. Topology views should support zooming and node inspection
 backed by the normalized observations loaded from A.U.R.A stores.
