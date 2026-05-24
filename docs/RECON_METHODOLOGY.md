@@ -530,6 +530,26 @@ The output should be a review score and rationale. Strong candidates may be
 recommended to the user, but unknown-scope candidates must not be promoted or
 scanned automatically.
 
+## Results Exploration
+
+Recon output should be readable as a domain-centered tree, not only as separate
+tables. The default results view should let users expand a root domain or
+subdomain and inspect:
+
+- HTTP services.
+- URLs and pages.
+- Parameters.
+- Technologies and detectors.
+- Screenshot runs and visual evidence.
+- Tool sources.
+- Run delta state.
+- Correlation-scored candidate domains.
+
+The tree should be filterable by text, scope/status, HTTP availability,
+technology presence, URL presence, run delta, source, and correlation score.
+Users should be able to export the full run, the current filtered result view,
+or a selected node/subtree.
+
 ## Conditional Recon Playbooks
 
 Static phases should be complemented by conditional playbooks. A playbook rule

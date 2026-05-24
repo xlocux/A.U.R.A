@@ -91,6 +91,12 @@ Recommended first run:
      `AI Log`, including WHOIS/RDAP, nameserver, MX/SPF/DMARC, certificate,
      tracking ID, fingerprint, JavaScript, code search, and archive techniques.
 6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
+   - `Results` includes a Results Explorer tree that groups roots,
+     subdomains, HTTP services, URLs, technologies, parameters, screenshot
+     runs, and candidate domains into one filterable view.
+   - Use Results Explorer filters to isolate live HTTP assets, technologies,
+     new run deltas, URLs, or correlation-scored candidates, then export the
+     current filtered view as JSON or CSV.
 
 Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A
 selects the last active target when possible and reloads that target's latest
@@ -102,9 +108,9 @@ Run controls are cooperative. Pause and cancel requests are honored between
 recon phases and tool invocations; a tool process that is already running may
 finish before the run stops.
 
-Exports are available from the `Results` tab for the loaded run. The topology
-view supports zoom controls and node inspection for domains, HTTP services,
-URLs, and screenshot artifacts.
+Exports are available from the `Results` tab for the loaded run and for the
+current Results Explorer filtered view. The topology view supports zoom controls
+and node inspection for domains, HTTP services, URLs, and screenshot artifacts.
 
 If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
 bootstrap checks but does not start active enumeration.

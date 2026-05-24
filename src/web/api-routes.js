@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { normalizeDomain, rootForDomain } = require("../recon/domain-utils");
 const { CORRELATION_TECHNIQUES, runCandidateCorrelation } = require("../recon/candidate-correlation");
+const { buildResultTree } = require("../recon/result-tree");
 const { generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
@@ -1461,6 +1462,14 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  const resultTreeMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/result-tree$/);
+  if (resultTreeMatch) {
+    const runId = Number(resultTreeMatch[1]);
+    const tree = buildRunResultTree(store, runId);
+    sendJson(response, tree ? { tree } : { error: "Run not found" }, tree ? 200 : 404);
+    return true;
+  }
+
   const deltaMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/delta$/);
   if (deltaMatch) {
     sendJson(response, { delta: buildRunDelta(store, Number(deltaMatch[1])) });
@@ -1571,6 +1580,23 @@ function buildRunSnapshot(store, runId) {
     toolResults: store.listToolResults({ runId, limit: 1000 }),
     delta: buildRunDelta(store, runId)
   };
+}
+
+function buildRunResultTree(store, runId) {
+  const run = store.getRun(runId);
+  if (!run) return null;
+  return buildResultTree({
+    run,
+    target: store.getTarget(run.target_name),
+    counts: store.getRunObservationCounts(runId),
+    domains: store.listDomains({ runId, limit: 100000 }),
+    httpServices: store.listHttpServices({ runId, limit: 100000 }),
+    urls: store.listUrls({ runId, limit: 100000 }),
+    screenshots: store.listScreenshots({ runId }),
+    assetLeads: store.listAssetLeads({ targetName: run.target_name, limit: 100000 })
+      .filter((lead) => !lead.run_id || lead.run_id === runId),
+    delta: buildRunDelta(store, runId)
+  });
 }
 
 function buildRunDelta(store, runId) {

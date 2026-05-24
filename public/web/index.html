@@ -373,6 +373,36 @@
         </div>
       </div>
 
+      <div class="pane result-explorer-pane">
+        <h2>Results Explorer</h2>
+        <div class="result-filter-bar">
+          <input id="resultFilterQuery" type="search" placeholder="Filter domains, URLs, technologies, sources, candidates">
+          <select id="resultFilterStatus">
+            <option value="all">All status</option>
+            <option value="discovered">Discovered</option>
+            <option value="best_candidate">Best candidates</option>
+            <option value="review">Review candidates</option>
+            <option value="weak_lead">Weak leads</option>
+          </select>
+          <input id="resultFilterScore" type="number" min="0" max="100" step="5" placeholder="Min score">
+          <label class="check"><input id="resultFilterHttp" type="checkbox"> <span>Has HTTP</span></label>
+          <label class="check"><input id="resultFilterTech" type="checkbox"> <span>Has tech</span></label>
+          <label class="check"><input id="resultFilterUrls" type="checkbox"> <span>Has URLs</span></label>
+          <label class="check"><input id="resultFilterNew" type="checkbox"> <span>New only</span></label>
+          <button id="exportFilteredJson" type="button">Export View JSON</button>
+          <button id="exportFilteredCsv" type="button">Export View CSV</button>
+        </div>
+        <div id="resultExplorerSummary" class="result-summary"></div>
+        <div class="result-explorer-grid">
+          <div id="resultTree" class="result-tree">
+            <div class="empty-state">No run loaded.</div>
+          </div>
+          <div id="resultDetail" class="result-detail">
+            <div class="empty-state">Select a domain, service, URL, technology, screenshot run, or candidate.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="split">
         <div class="pane">
           <h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2>
@@ -690,6 +720,7 @@
   <script src="/wave-background.js"></script>
   <script src="/ai-agent.js"></script>
   <script src="/ai-log.js"></script>
+  <script src="/results-explorer.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

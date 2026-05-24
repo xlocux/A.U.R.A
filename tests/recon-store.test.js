@@ -9,6 +9,7 @@ const { openScanStore } = require("../src/db/scan-store");
 const { CORRELATION_TECHNIQUES, scoreCandidate } = require("../src/recon/candidate-correlation");
 const { extractDomains, normalizeDomain } = require("../src/recon/domain-utils");
 const { parseGauUrls, parseHttpxJsonLines } = require("../src/recon/parsers");
+const { buildResultTree } = require("../src/recon/result-tree");
 const { generateWordlistFromDb } = require("../src/recon/wordlist-generator");
 const { LocalArtifactStore } = require("../src/recon/artifact-store");
 const { FunctionToolRunner, runOneJob } = require("../src/recon/local-worker");
@@ -194,6 +195,23 @@ test("scan store records recon data and generated wordlists", () => {
   assert.equal(technologies[0].name, "nginx");
   assert.equal(technologies[0].count, 1);
   assert.equal(technologies[0].hostCount, 1);
+  const tree = buildResultTree({
+    run,
+    target,
+    counts: store.getRunObservationCounts(run.id),
+    domains: store.listDomains({ runId: run.id }),
+    httpServices: store.listHttpServices({ runId: run.id }),
+    urls: store.listUrls({ runId: run.id }),
+    screenshots: store.listScreenshots({ runId: run.id }),
+    assetLeads: [],
+    delta: null
+  });
+  assert.equal(tree.roots[0].domain, "example.com");
+  assert.equal(tree.roots[0].summary.domains, 2);
+  const www = tree.roots[0].children.find((node) => node.domain === "www.example.com");
+  assert.equal(www.services.length, 1);
+  assert.equal(www.urls.length, 1);
+  assert.deepEqual(www.technologies, ["nginx"]);
   store.close();
 });
 

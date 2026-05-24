@@ -423,6 +423,7 @@ function clearRunView() {
   updateRunControlButtons("idle");
   updateTopologyGraph();
   window.AuraAiLog.refresh(null);
+  window.AuraResultsExplorer.refresh(null);
   renderRunActivity();
 }
 
@@ -630,6 +631,7 @@ async function refreshRun() {
     screenshots: screenshotData.screenshots
   });
   window.AuraAiLog.refresh(activeRunId);
+  window.AuraResultsExplorer.refresh(activeRunId);
 }
 
 function renderRunActivity(run = null, newEvents = []) {

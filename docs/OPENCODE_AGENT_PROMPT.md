@@ -549,6 +549,12 @@ Run data should be exportable from the Web UI in portable formats such as JSON,
 CSV, and Markdown. Topology views should support zooming and node inspection
 backed by the normalized observations loaded from A.U.R.A stores.
 
+Results should be presented through a domain-centered explorer tree whenever
+possible. When adding new observations, make them attachable to a root domain,
+subdomain, service, URL, technology, screenshot run, or candidate node so users
+can filter, inspect, and export recon data without mentally joining separate
+tables.
+
 The AI copilot should help derive target-specific domain wordlists from observed
 subdomain naming patterns. Suggestions must be based on stored domains and
 should produce bounded candidate labels for controlled DNS enumeration, not

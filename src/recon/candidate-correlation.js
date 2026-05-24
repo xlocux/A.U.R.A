@@ -114,16 +114,16 @@ function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads 
   }));
   store.saveAssetLeads(runId, targetName, rescoredLeads);
 
-  const best = scored.filter((item) => item.score >= 50).sort((a, b) => b.score - a.score).slice(0, 10);
-  if (best.length === 0) {
+  const reviewable = scored.filter((item) => item.score >= 50).sort((a, b) => b.score - a.score);
+  if (reviewable.length === 0) {
     appendAiLog(store, runId, "Correlation complete: no strong candidates found. Keep these as leads, but do not spend scan time on them yet.", {
       stage: "summary",
       bestCount: 0
     });
   } else {
-    appendAiLog(store, runId, `Correlation complete: ${best.length} candidates look worth review. Best candidates: ${best.map((item) => `${item.domain} (${item.score})`).join(", ")}.`, {
+    appendAiLog(store, runId, `Correlation complete: ${reviewable.length} candidates look worth review. They are all saved and filterable in Discovery Leads and Results Explorer.`, {
       stage: "summary",
-      best: best.map((item) => ({ domain: item.domain, score: item.score, rationale: item.rationale }))
+      best: reviewable.map((item) => ({ domain: item.domain, score: item.score, rationale: item.rationale }))
     });
   }
   return rescoredLeads;
