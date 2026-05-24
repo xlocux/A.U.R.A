@@ -155,6 +155,11 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/api-keys/preflight-all") {
+    await preflightAllApiKeys(response, store);
+    return true;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/ai-settings") {
     await saveAiSettings(request, response, store);
     return true;
@@ -255,6 +260,24 @@ async function createApiKey(request, response, store) {
     notes: preflight.message
   });
   sendJson(response, { apiKey, preflight }, preflight.ok ? 201 : 202);
+}
+
+async function preflightAllApiKeys(response, store) {
+  const keys = store.listApiKeys({ includeSecret: true });
+  const results = [];
+  for (const key of keys) {
+    const preflight = await validateProviderKey(key.provider, key.api_key);
+    const status = preflight.ok ? "active" : "failed";
+    store.updateApiKeyStatus(key.id, status);
+    results.push({
+      id: key.id,
+      provider: key.provider,
+      label: key.label,
+      status,
+      preflight
+    });
+  }
+  sendJson(response, { results, apiKeys: store.listApiKeys() });
 }
 
 async function saveAiSettings(request, response, store) {

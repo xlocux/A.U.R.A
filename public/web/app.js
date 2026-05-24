@@ -8,6 +8,8 @@ let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
+let apiKeysData = [];
+let apiKeySort = { key: "provider", direction: "asc" };
 let resultsData = {
   domains: [],
   services: [],
@@ -1302,9 +1304,60 @@ async function refreshWordlists() {
 
 async function refreshApiKeys() {
   const data = await api("/api/api-keys");
-  $("apiKeyRows").innerHTML = data.apiKeys.map((key) =>
-    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${esc(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td></tr>`
+  apiKeysData = data.apiKeys || [];
+  renderApiKeys();
+}
+
+function renderApiKeys() {
+  const rows = [...apiKeysData].sort(compareApiKeys);
+  $("apiKeyRows").innerHTML = rows.map((key) =>
+    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td></tr>`
   ).join("");
+  document.querySelectorAll("[data-api-sort]").forEach((button) => {
+    const active = button.dataset.apiSort === apiKeySort.key;
+    button.classList.toggle("active", active);
+    button.textContent = `${button.textContent.replace(/\s+[↑↓]$/, "")}${active ? apiKeySort.direction === "asc" ? " ↑" : " ↓" : ""}`;
+  });
+}
+
+function compareApiKeys(left, right) {
+  const direction = apiKeySort.direction === "desc" ? -1 : 1;
+  if (apiKeySort.key === "usage") {
+    return direction * (Number(left.used_count || 0) - Number(right.used_count || 0));
+  }
+  return direction * String(left[apiKeySort.key] || "").localeCompare(String(right[apiKeySort.key] || ""), undefined, { numeric: true });
+}
+
+function apiStatusBadge(status) {
+  const normalized = String(status || "unknown").toLowerCase();
+  const safe = ["active", "failed", "disabled"].includes(normalized) ? normalized : "unknown";
+  return `<span class="api-status-badge ${safe}">${esc(status || "unknown")}</span>`;
+}
+
+function sortApiKeys(key) {
+  apiKeySort = {
+    key,
+    direction: apiKeySort.key === key && apiKeySort.direction === "asc" ? "desc" : "asc"
+  };
+  renderApiKeys();
+}
+
+async function testAllApiKeys() {
+  $("testAllApiKeys").disabled = true;
+  $("saveApiKey").disabled = true;
+  setApiPreflightState("running", "Testing all API keys...", "Running provider-specific preflight checks.");
+  try {
+    const data = await api("/api/api-keys/preflight-all", { method: "POST" });
+    const okCount = (data.results || []).filter((result) => result.preflight?.ok).length;
+    const total = (data.results || []).length;
+    setApiPreflightState(okCount === total ? "ok" : "failed", `API preflight finished: ${okCount}/${total} active`, "Badges updated in the API key table.");
+    await refreshApiKeys();
+  } catch (error) {
+    setApiPreflightState("failed", "API preflight failed", error.message);
+  } finally {
+    $("testAllApiKeys").disabled = false;
+    $("saveApiKey").disabled = false;
+  }
 }
 
 async function runReverseWhois() {
@@ -1423,6 +1476,10 @@ $("runHttpFollowup").addEventListener("click", runHttpFollowup);
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);
+$("testAllApiKeys").addEventListener("click", testAllApiKeys);
+document.querySelectorAll("[data-api-sort]").forEach((button) => {
+  button.addEventListener("click", () => sortApiKeys(button.dataset.apiSort));
+});
 $("keyProvider").addEventListener("change", updateApiKeyProviderHints);
 $("saveWordlist").addEventListener("click", saveWordlist);
 $("generateWordlist").addEventListener("click", generateWordlist);

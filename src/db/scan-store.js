@@ -1014,6 +1014,11 @@ class ScanStore {
     return row ? hydrateApiKey(row) : null;
   }
 
+  getApiKeySecret(id) {
+    const row = this.db.prepare("SELECT * FROM api_keys WHERE id = ?").get(Number(id));
+    return row ? hydrateApiKey(row, true) : null;
+  }
+
   getApiKeyByLabel(provider, label) {
     const row = this.db.prepare("SELECT * FROM api_keys WHERE provider = ? AND label = ?").get(provider, label);
     return row ? hydrateApiKey(row) : null;
@@ -1021,8 +1026,8 @@ class ScanStore {
 
   listApiKeys({ provider = null, includeSecret = false } = {}) {
     const rows = provider
-      ? this.db.prepare("SELECT * FROM api_keys WHERE provider = ? ORDER BY status, label").all(provider)
-      : this.db.prepare("SELECT * FROM api_keys ORDER BY provider, status, label").all();
+      ? this.db.prepare("SELECT * FROM api_keys WHERE provider = ? ORDER BY lower(provider), lower(label), status").all(provider)
+      : this.db.prepare("SELECT * FROM api_keys ORDER BY lower(provider), lower(label), status").all();
     return rows.map((row) => hydrateApiKey(row, includeSecret));
   }
 

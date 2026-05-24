@@ -965,6 +965,46 @@ button:disabled { opacity: .55; cursor: wait; }
   background: var(--bad);
   width: 100%;
 }
+.api-status-badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 68px;
+  padding: 3px 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+.api-status-badge.active {
+  background: rgba(123, 216, 143, .16);
+  border-color: rgba(123, 216, 143, .58);
+  color: var(--ok);
+}
+.api-status-badge.failed {
+  background: rgba(239, 111, 108, .14);
+  border-color: rgba(239, 111, 108, .62);
+  color: var(--bad);
+}
+.api-status-badge.disabled,
+.api-status-badge.unknown {
+  background: rgba(157, 166, 181, .12);
+  color: var(--muted);
+}
+.table-sort {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+}
+.table-sort.active {
+  color: var(--accent-2);
+}
 @keyframes api-preflight-scan {
   from { transform: translateX(-80%); }
   to { transform: translateX(220%); }
