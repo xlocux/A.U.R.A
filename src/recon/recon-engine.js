@@ -107,6 +107,12 @@ async function runHttpFollowup({
     checkpoint: { domainCount: hosts.length, screenshotTools, useWsl }
   });
   store.appendEvent(runId, { phase: "http-tech-followup", severity: "ok", source: "engine", message: `HTTP/tech follow-up started for ${hosts.length} saved domains` });
+  appendAiLog(store, runId, "HTTP/Tech follow-up started. I will probe saved domains with httpx, enrich live services with technology detectors, and keep each detector best-effort so one tool failure does not stop the run.", {
+    stage: "start",
+    domainCount: hosts.length,
+    screenshotTools,
+    useWsl
+  });
 
   if (!useWsl) throw new Error("HTTP follow-up requires the Linux tool runner");
   const proxyController = await createProxyController({ store, runId, proxyUrl, phase: "http-tech-followup" });
@@ -164,12 +170,25 @@ async function runHttpFollowup({
     source: "httpx",
     message: `httpx ${result.status}; parsed ${services.length} HTTP services with status/tech${toolFailureDetail(result)}`
   });
+  appendAiLog(store, runId, `httpx ${result.status}; ${services.length} live HTTP services were parsed for technology enrichment.`, {
+    stage: "httpx",
+    status: result.status,
+    services: services.length
+  });
 
   await waitForRunControl(store, runId);
   await runTechnologyEnrichment({ store, runId, targetName, wslDistro, useWsl, timeoutMs, artifactsDir, context, waitForRunControl, proxyUrl: selectedProxyUrl });
+  appendAiLog(store, runId, "Technology enrichment completed. Detector failures, when present, are kept as warnings and the remaining enrichment/screenshot steps continue.", {
+    stage: "technology-enrichment",
+    services: services.length
+  });
   await waitForRunControl(store, runId);
   await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl: selectedProxyUrl, proxyController });
   store.appendEvent(runId, { phase: "http-tech-followup", severity: "ok", source: "engine", message: `HTTP/tech follow-up completed with ${services.length} live services` });
+  appendAiLog(store, runId, `HTTP/Tech follow-up completed with ${services.length} live services. Review Results tabs for grouped statuses, technologies, URLs, and screenshots.`, {
+    stage: "summary",
+    services: services.length
+  });
   return store.updateRun(runId, {
     status: "completed",
     activePhase: "completed",
@@ -197,6 +216,16 @@ async function createProxyController({ store, runId, proxyUrl = null, phase = "r
 function runWslToolWithProxy({ proxyController, distro, toolName, args, timeoutMs, input = null, proxyUrl = null }) {
   if (proxyController?.hasPool()) return proxyController.runTool({ distro, toolName, args, timeoutMs, input });
   return runWslTool({ distro, toolName, args, timeoutMs, input, proxyUrl });
+}
+
+function appendAiLog(store, runId, message, payload = {}) {
+  store.appendEvent(runId, {
+    phase: "ai-followup",
+    severity: payload.stage === "summary" ? "ok" : "info",
+    source: "ai-runbook",
+    message,
+    payload
+  });
 }
 
 async function collectPassive({ store, runId, targetName, roots, passiveSources, discovered }) {

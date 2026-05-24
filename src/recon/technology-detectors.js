@@ -59,12 +59,12 @@ async function runTechnologyEnrichment({
 }
 
 async function runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
-  const args = ["--js", "--url", service.url, "--outputformat", "json"];
+  const args = retireArgsForUrl(service.url);
   const result = await runDetectorTool({ store, runId, wslDistro, toolName: "retire", args, timeoutMs: Math.min(timeoutMs, 60000), proxyUrl });
   const artifacts = writeDetectorArtifacts(artifactsDir, "retire", service, result);
   store.recordToolResult(runId, {
     toolName: "retire",
-    commandDisplay: commandDisplay(wslDistro, "retire", args),
+    commandDisplay: commandDisplay(wslDistro, "retire", result.args || args),
     status: result.status,
     exitCode: result.exitCode,
     startedAt: result.startedAt,
@@ -75,6 +75,10 @@ async function runRetireOnService({ store, runId, targetName, service, wslDistro
   });
   const technologies = parseRetireTechnologies(result.stdout);
   saveTechnologyService(store, runId, targetName, service, "retire.js", technologies, result);
+}
+
+function retireArgsForUrl(url) {
+  return ["--url", url, "--outputformat", "json"];
 }
 
 async function runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
@@ -313,5 +317,6 @@ module.exports = {
   parseBuiltWithTechnologies,
   parseRetireTechnologies,
   parseWpscanTechnologies,
+  retireArgsForUrl,
   runTechnologyEnrichment
 };
