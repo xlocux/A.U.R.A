@@ -33,7 +33,7 @@ class ProxySources {
       return normalizeProxyObject({
         address: values[0],
         port: values[1],
-        type: values[2] || "http",
+        type: values[2] || inferProxyTypeFromPort(values[1]),
         country: values[3] || null,
         username: values[4] || null,
         password: values[5] || null
@@ -70,20 +70,35 @@ function parseProxyString(value) {
 
   const authMatch = text.match(/^([^:@]+):([^:@]+)@(.+)$/);
   const clean = authMatch ? authMatch[3] : text;
-  const parts = clean.split(":");
+  const parsed = parseHostPortType(clean);
+  if (!parsed) return null;
   return normalizeProxyObject({
-    address: parts[0],
-    port: parts[1],
-    type: parts[2] || "http",
+    address: parsed.address,
+    port: parsed.port,
+    type: parsed.type || inferProxyTypeFromPort(parsed.port),
     username: authMatch ? authMatch[1] : null,
     password: authMatch ? authMatch[2] : null
   });
 }
 
+function parseHostPortType(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const bracketMatch = text.match(/^\[([^\]]+)]:(\d+)(?::([a-z0-9]+))?$/i);
+  if (bracketMatch) return { address: bracketMatch[1], port: bracketMatch[2], type: normalizeProxyType(bracketMatch[3]) };
+  const parts = text.split(":");
+  if (parts.length < 2) return null;
+  const maybeType = normalizeProxyType(parts.at(-1));
+  const hasTypeSuffix = Boolean(maybeType) && parts.length >= 3;
+  const port = hasTypeSuffix ? parts.at(-2) : parts.at(-1);
+  const address = parts.slice(0, hasTypeSuffix ? -2 : -1).join(":");
+  return { address, port, type: maybeType };
+}
+
 function normalizeProxyObject(input) {
   const address = String(input.address || input.host || input.ip || "").trim();
   const port = Number.parseInt(input.port, 10);
-  const type = String(input.type || "http").toLowerCase();
+  const type = normalizeProxyType(input.type) || inferProxyTypeFromPort(port);
   if (!address || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
   if (!["http", "https", "socks4", "socks5"].includes(type)) return null;
   return {
@@ -96,6 +111,20 @@ function normalizeProxyObject(input) {
     source: input.source || "manual",
     lastChecked: new Date().toISOString()
   };
+}
+
+function inferProxyTypeFromPort(portValue) {
+  const port = Number.parseInt(portValue, 10);
+  if ([1080, 1081, 1085, 9050, 9150].includes(port)) return "socks5";
+  if ([8080, 8000, 3128, 8888, 8118, 80].includes(port)) return "http";
+  if ([443, 8443].includes(port)) return "https";
+  return "http";
+}
+
+function normalizeProxyType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  if (type === "socks") return "socks5";
+  return ["http", "https", "socks4", "socks5"].includes(type) ? type : null;
 }
 
 function normalizeGithubRawUrl(value) {

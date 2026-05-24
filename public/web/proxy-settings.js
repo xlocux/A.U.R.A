@@ -69,7 +69,7 @@
         <div>
           <span class="eyebrow">Automatic rotation</span>
           <strong>Preflight picks the fastest healthy proxy before WSL runs.</strong>
-          <p>Rotation retries proxy/network failures only. CAPTCHA or rate-limit signals pause for review/backoff.</p>
+          <p>Paste proxies as host:port or with a scheme. Port 1080 is inferred as SOCKS5; common web proxy ports are inferred as HTTP/HTTPS.</p>
         </div>
         <div class="proxy-hero-actions">
           <button id="proxyRefresh" type="button">Refresh</button>
@@ -96,7 +96,7 @@
       </div>
     `);
     const oldNotice = form.querySelector(".compact-notice");
-    if (oldNotice) oldNotice.textContent = "Add authorized proxies, then run Preflight. A.U.R.A chooses the fastest healthy proxy and rotates only on proxy/network failures.";
+    if (oldNotice) oldNotice.textContent = "You can paste host:port lists, full proxy URLs, user:pass@host:port, or host:port:socks5. Run Preflight before recon.";
   }
 
   function render() {
@@ -110,7 +110,7 @@
 
   function readForm() {
     const mode = $("proxyMode")?.value || "http";
-    return { enabled: $("proxyEnabled")?.checked || false, url: normalizeFormUrl($("proxyUrl")?.value?.trim() || "", mode), mode, purpose: $("proxyPurpose")?.value || "interception", proxies: getSettings().proxies || [] };
+    return { enabled: $("proxyEnabled")?.checked || false, url: normalizeProxyInput($("proxyUrl")?.value?.trim() || "", mode), mode, purpose: $("proxyPurpose")?.value || "interception", proxies: getSettings().proxies || [] };
   }
 
   function saveSettings() {
@@ -147,7 +147,7 @@
     let skipped = 0;
     for (const line of lines) {
       try {
-        const normalized = validateProxyUrl(normalizeFormUrl(line, $("proxyMode").value));
+        const normalized = validateProxyUrl(normalizeProxyInput(line, $("proxyMode").value));
         if (!existing.has(normalized)) {
           existing.set(normalized, { url: normalized, mode: inferProxyMode(normalized), addedAt: new Date().toISOString() });
           imported += 1;
@@ -243,10 +243,27 @@
     return parsed.toString();
   }
 
-  function normalizeFormUrl(value, mode) {
-    if (!value || /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
-    const scheme = mode === "socks5" ? "socks5" : mode === "socks4" ? "socks4" : "http";
-    return `${scheme}://${value}`;
+  function normalizeProxyInput(value, mode) {
+    const text = String(value || "").trim();
+    if (!text || /^[a-z][a-z0-9+.-]*:\/\//i.test(text)) return text;
+    const inferred = inferSchemeFromProxyText(text, mode);
+    return `${inferred}://${text}`;
+  }
+
+  function inferSchemeFromProxyText(value, mode) {
+    const explicitMode = mode === "socks5" || mode === "socks4" || mode === "https" ? mode : null;
+    const port = extractPort(value);
+    if (port === 1080 || port === 1081 || port === 1085 || port === 9050 || port === 9150) return "socks5";
+    if (port === 443 || port === 8443) return "https";
+    if (port === 8080 || port === 8000 || port === 3128 || port === 8888 || port === 8118 || port === 80) return "http";
+    return explicitMode || "http";
+  }
+
+  function extractPort(value) {
+    const text = String(value || "").trim();
+    const withoutType = text.replace(/:(http|https|socks4|socks5)$/i, "");
+    const match = withoutType.match(/:(\d{1,5})$/);
+    return match ? Number.parseInt(match[1], 10) : null;
   }
 
   function redactProxyUrl(value) {
@@ -260,6 +277,7 @@
     const text = String(value || "");
     if (text.startsWith("socks5:")) return "socks5";
     if (text.startsWith("socks4:")) return "socks4";
+    if (text.startsWith("https:")) return "https";
     return "http";
   }
 
