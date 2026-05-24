@@ -1,7 +1,25 @@
 "use strict";
 
-function parseGauUrls(stdout, rootDomains = []) {
+const DEFAULT_EXCLUDED_URL_EXTENSIONS = new Set([
+  "jpg",
+  "jpeg",
+  "gif",
+  "css",
+  "tif",
+  "tiff",
+  "png",
+  "ttf",
+  "woff",
+  "woff2",
+  "ico",
+  "pdf",
+  "svg",
+  "txt"
+]);
+
+function parseGauUrls(stdout, rootDomains = [], options = {}) {
   const roots = rootDomains.map((d) => String(d).toLowerCase());
+  const excludedExtensions = options.excludedExtensions || DEFAULT_EXCLUDED_URL_EXTENSIONS;
   const urls = new Map();
   for (const line of String(stdout || "").split(/\r?\n/)) {
     const raw = line.trim();
@@ -16,6 +34,7 @@ function parseGauUrls(stdout, rootDomains = []) {
     if (roots.length > 0 && !roots.some((root) => host === root || host.endsWith(`.${root}`))) {
       continue;
     }
+    if (hasExcludedUrlExtension(parsed.pathname, excludedExtensions)) continue;
     const key = `${parsed.protocol}//${host}${parsed.pathname}${parsed.search}`;
     const params = [...parsed.searchParams.keys()].sort();
     urls.set(key, {
@@ -27,6 +46,13 @@ function parseGauUrls(stdout, rootDomains = []) {
     });
   }
   return [...urls.values()].sort((a, b) => a.url.localeCompare(b.url));
+}
+
+function hasExcludedUrlExtension(pathname, excludedExtensions = DEFAULT_EXCLUDED_URL_EXTENSIONS) {
+  const pathOnly = String(pathname || "").toLowerCase();
+  const filename = pathOnly.split("/").pop() || "";
+  const match = filename.match(/\.([a-z0-9]+)$/i);
+  return Boolean(match && excludedExtensions.has(match[1].toLowerCase()));
 }
 
 function parseHttpxJsonLines(stdout) {
@@ -66,6 +92,8 @@ function parseHttpxJsonLines(stdout) {
 }
 
 module.exports = {
+  DEFAULT_EXCLUDED_URL_EXTENSIONS,
+  hasExcludedUrlExtension,
   parseGauUrls,
   parseHttpxJsonLines
 };
