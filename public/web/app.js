@@ -606,7 +606,6 @@ async function refreshRun() {
   $("technologyCount").textContent = counts.technologies ?? technologyData.technologies.length;
   $("screenshotCount").textContent = counts.screenshots ?? screenshotData.screenshots.length;
   renderDomains(domainData.domains, counts.domains);
-  mergeDomainsIntoScanList(runData.run, domainData.domains);
   renderServices(serviceData.services, counts.httpServices);
   renderTechnologies(technologyData.technologies, counts.technologies);
   renderScreenshots(screenshotData.screenshots, counts.screenshots);
@@ -712,18 +711,6 @@ async function runHttpFollowup() {
   } finally {
     updateRunControlButtons($("runStatus").textContent);
   }
-}
-
-function mergeDomainsIntoScanList(run, domains) {
-  if (!run || run.target_name !== $("target").value || domains.length === 0) return;
-  const current = new Set($("domains").value.split(/\s+/).map((value) => value.trim()).filter(Boolean));
-  let changed = false;
-  for (const item of domains) {
-    if (!item.domain || current.has(item.domain)) continue;
-    current.add(item.domain);
-    changed = true;
-  }
-  if (changed) $("domains").value = [...current].sort().join("\n");
 }
 
 function renderDomains(domains, total = domains.length) {

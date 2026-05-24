@@ -56,15 +56,20 @@
 
       <div class="split">
         <div class="pane">
-          <h2>Scope</h2>
+          <h2>Authorized Seeds</h2>
           <div class="form-body">
+            <div class="notice muted compact-notice">
+              This area contains only domains the user intends to enumerate.
+              Discovery results and alternate TLDs are shown as review leads,
+              not automatically added here.
+            </div>
             <label for="reconMode">Scan mode</label>
             <select id="reconMode">
               <option value="single">Single domain</option>
               <option value="list">Domain list</option>
               <option value="full">Full recon</option>
             </select>
-            <label for="domains">Domain input</label>
+            <label for="domains">Seed domains from authorized scope</label>
             <textarea id="domains" placeholder="example.com&#10;app.example.com"></textarea>
             <div id="fullReconOptions">
               <label for="fullWhoisInclude">Full recon provider search terms</label>
@@ -81,7 +86,7 @@
                   <select id="fullWhoisType"><option value="current">current</option><option value="historic">historic</option></select>
                 </div>
                 <div>
-                  <label for="maxAssetLeads">Max leads to scan</label>
+                  <label for="maxAssetLeads">Max provider leads to review</label>
                   <input id="maxAssetLeads" type="number" value="250">
                 </div>
               </div>
@@ -128,13 +133,12 @@
 
       <div class="split">
         <div class="pane">
-          <h2>Provider & Surface Discovery</h2>
+          <h2>Advanced Provider Leads</h2>
           <div class="form-body">
             <div class="notice muted">
-              Runs passive provider pivots for related domains and asset leads.
-              WhoisXML Reverse WHOIS is available now; Censys, Shodan, RDAP,
-              Rapid7, JavaScript, endpoints, history, and parameters belong to
-              the same Recon discovery area as adapters are added.
+              Target creation already runs safe intel bootstrap automatically.
+              Use this optional area only to preview or save extra provider
+              leads. Leads are review items until they match authorized scope.
             </div>
             <label>Discovery sources</label>
             <div class="check"><input id="sourceWhoisXml" type="checkbox" checked disabled> <span>WhoisXML Reverse WHOIS</span></div>

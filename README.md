@@ -81,8 +81,10 @@ Recommended first run:
      when RDAP does not provide useful organization data.
    - WhoisXMLAPI Reverse WHOIS expansion runs when an active API key exists.
    - Out-of-scope domains are filtered out.
-   - The resulting root, alternate-TLD, RDAP, and provider-discovered seeds feed
-     the enumeration pipeline when authorized scope is confirmed.
+   - Authorized root/RDAP/provider seeds feed the enumeration pipeline when
+     authorized scope is confirmed.
+   - Alternate TLDs are saved as review leads only and are not scanned unless
+     the user explicitly adds them to authorized scope.
 6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
 
 Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A

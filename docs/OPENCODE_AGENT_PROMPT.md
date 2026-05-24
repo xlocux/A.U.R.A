@@ -607,8 +607,10 @@ The default target onboarding flow is browser-first:
    key; brand labels are allowed as bounded fallback terms when RDAP is private
    or unhelpful.
 6. Out-of-scope domains are filtered before any follow-up.
-7. Root, alternate-TLD, RDAP, and provider-discovered seeds are enumerated only
-   when authorized scope has been confirmed.
+7. Root, RDAP, and provider-discovered domains are enumerated only when they
+   match authorized scope and authorization has been confirmed.
+8. Alternate TLDs are review leads only until the user explicitly adds them to
+   authorized scope.
 
 Agent suggestions about WHOIS/RDAP must be tied to target evidence. Do not
 suggest registry, reserved, registrar-only, privacy-proxy, or unrelated terms as

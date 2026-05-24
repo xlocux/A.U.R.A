@@ -521,7 +521,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
       phase: "bootstrap",
       severity: "ok",
       source: "tld-correlation",
-      message: `Discovered ${saved} alternate TLD candidates: ${alternateTldDomains.join(", ")}`
+      message: `Saved ${saved} alternate TLD candidates for review only: ${alternateTldDomains.join(", ")}`
     });
   }
 
@@ -548,7 +548,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   }
 
   const seeds = filterScopeDomains({
-    domains: [...rootDomains, ...alternateTldDomains, ...rdapDomains, ...providerDomains],
+    domains: [...rootDomains, ...rdapDomains, ...providerDomains],
     config,
     rootDomains
   });
@@ -556,7 +556,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     phase: "bootstrap",
     severity: "ok",
     source: "engine",
-    message: `Intel bootstrap prepared ${seeds.length} domain seeds after TLD, WHOIS/RDAP, Reverse WHOIS, and scope filtering`
+    message: `Intel bootstrap prepared ${seeds.length} authorized domain seeds after WHOIS/RDAP, Reverse WHOIS, and scope filtering. Alternate TLDs remain review leads.`
   });
 
   if (!authorized) {
@@ -570,7 +570,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
       status: "completed",
       activePhase: "authorization-required",
       finishedAt: new Date().toISOString(),
-      checkpoint: { rootDomains, seeds, authorized: false }
+      checkpoint: { rootDomains, seeds, reviewOnlyAlternateTlds: alternateTldDomains, authorized: false }
     });
     return;
   }
@@ -630,7 +630,7 @@ async function collectReverseWhoisDomains({ store, runId, targetName, config, ro
       phase: "whois-rdap",
       severity: "ok",
       source: "whoisxmlapi",
-      message: `Reverse WHOIS saved ${savedLeads} leads and added ${domains.length} scoped seeds`
+      message: `Reverse WHOIS saved ${savedLeads} leads and added ${domains.length} authorized seeds`
     });
     return domains;
   } catch (error) {
@@ -662,9 +662,10 @@ function extractBrandTerms(rootDomains) {
 
 function filterScopeDomains({ domains, config, rootDomains }) {
   const excluded = (config.scope?.out_of_scope || []).map(normalizeDomain).filter(Boolean);
+  const roots = (rootDomains || []).map(normalizeDomain).filter(Boolean);
   return [...new Set((domains || []).map(normalizeDomain).filter(Boolean))]
     .filter((domain) => !excluded.some((rule) => domain === rule || domain.endsWith(`.${rule}`)))
-    .filter((domain) => rootDomains.length === 0 || domain.length > 0);
+    .filter((domain) => roots.length === 0 || roots.some((root) => domain === root || domain.endsWith(`.${root}`)));
 }
 
 function generateAlternateTldLeads({ rootDomains, config }) {
@@ -1119,7 +1120,7 @@ async function createReconRun(request, response, store) {
     try {
       const domainWordlist = store.getActiveWordlist("domains");
       const rootsToScan = reconMode === "full"
-        ? await expandFullReconRoots({ store, runId: run.id, targetName: target.target_name, rootDomains, fullRecon: body.fullRecon || {} })
+        ? await expandFullReconRoots({ store, runId: run.id, targetName: target.target_name, rootDomains, config: targetConfig, fullRecon: body.fullRecon || {} })
         : rootDomains;
       await runRecon({
         store,
@@ -1232,7 +1233,7 @@ function validateReconMode(mode, rootDomains) {
   return null;
 }
 
-async function expandFullReconRoots({ store, runId, targetName, rootDomains, fullRecon }) {
+async function expandFullReconRoots({ store, runId, targetName, rootDomains, config, fullRecon }) {
   const include = (fullRecon.include || []).map((value) => String(value || "").trim()).filter(Boolean);
   const maxAssetLeads = Math.max(0, Math.min(5000, Number(fullRecon.maxAssetLeads || 250)));
   if (include.length === 0) {
@@ -1257,13 +1258,17 @@ async function expandFullReconRoots({ store, runId, targetName, rootDomains, ful
     if (selectedKey) store.markApiKeyUsed(selectedKey.id);
     const savedLeads = saveReverseWhoisResult(store, runId, targetName, result);
     const candidateDomains = result.mode === "purchase"
-      ? normalizeDomainList(result.leads.map((lead) => lead.domain)).slice(0, maxAssetLeads)
+      ? filterScopeDomains({
+        domains: normalizeDomainList(result.leads.map((lead) => lead.domain)).slice(0, maxAssetLeads),
+        config,
+        rootDomains
+      })
       : [];
     store.appendEvent(runId, {
       phase: "provider-discovery",
       severity: "ok",
       source: "whoisxmlapi",
-      message: `Full recon added ${candidateDomains.length} candidate domains to ${rootDomains.length} seeds (${savedLeads} leads saved)`
+      message: `Full recon saved ${savedLeads} provider leads and kept ${candidateDomains.length} authorized domains as seeds`
     });
     return [...new Set([...rootDomains, ...candidateDomains])];
   } catch (error) {

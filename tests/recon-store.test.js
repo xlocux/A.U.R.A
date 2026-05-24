@@ -66,7 +66,7 @@ test("web target creation builds valid target configs", () => {
 
 test("bootstrap scope filtering removes excluded domains", () => {
   const domains = filterScopeDomains({
-    domains: ["example.com", "api.example.com", "dev.example.com", "nested.dev.example.com"],
+    domains: ["example.com", "api.example.com", "dev.example.com", "nested.dev.example.com", "example.net"],
     rootDomains: ["example.com"],
     config: {
       scope: {
@@ -75,6 +75,19 @@ test("bootstrap scope filtering removes excluded domains", () => {
     }
   });
   assert.deepEqual(domains, ["example.com", "api.example.com"]);
+});
+
+test("bootstrap scope filtering keeps alternate TLDs out of scan seeds", () => {
+  const domains = filterScopeDomains({
+    domains: ["acme.com", "api.acme.com", "acme.net", "acme.io"],
+    rootDomains: ["acme.com"],
+    config: {
+      scope: {
+        out_of_scope: []
+      }
+    }
+  });
+  assert.deepEqual(domains, ["acme.com", "api.acme.com"]);
 });
 
 test("alternate TLD discovery creates bounded review leads", () => {
