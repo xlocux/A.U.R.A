@@ -83,7 +83,7 @@
     if (event.severity === "warn" && /No such option: -l/i.test(text) && source === "httpx") {
       return once("httpx-cli-mismatch", "httpx looks like the Python package instead of ProjectDiscovery httpx. Run Settings > Environment > Install / Update Tools, then use HTTP/Tech Follow-up on the saved domains.");
     }
-    if (event.severity === "warn" && /not found|exit 127|No such file|command/i.test(text) && /(wappalyzer|retire|wpscan|cmseek)/i.test(source)) {
+    if (event.severity === "warn" && /not found|exit 127|No such file|command/i.test(text) && /(retire|wpscan|cmseek)/i.test(source)) {
       return once(`missing-detector:${source}`, `${source} is missing. Re-run Settings > Environment > Install / Update Tools so technology enrichment can use it.`);
     }
     if (event.severity === "warn" && /timeout/i.test(text)) {

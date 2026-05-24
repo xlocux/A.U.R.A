@@ -566,9 +566,9 @@ of recommending a full rescan. This action reuses stored domains and runs only
 HTTP probing, technology enrichment, and screenshot capture.
 
 Technology enrichment should remain modular and best effort. The agent may help
-install or troubleshoot Wappalyzer, retire.js, WPScan, CMSeeK, and
-BuiltWith-style provider keys, but missing optional detectors should not be
-treated as recon failure when `httpx -tech-detect` has already produced data.
+install or troubleshoot retire.js, WPScan, CMSeeK, and BuiltWith-style provider
+keys, but missing optional detectors should not be treated as recon failure when
+`httpx -tech-detect` has already produced data.
 
 ## AI Runtime Integration
 

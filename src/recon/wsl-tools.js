@@ -13,7 +13,10 @@ const ALLOWED_TOOLS = new Set([
   "httpx",
   "gowitness",
   "aquatone",
-  "eyewitness"
+  "eyewitness",
+  "retire",
+  "wpscan",
+  "cmseek"
 ]);
 
 function runWslTool({

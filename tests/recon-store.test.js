@@ -18,7 +18,8 @@ const { suggestReverseWhoisTermsFromRdapRecords } = require("../src/recon/provid
 const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/recon/providers/whoisxmlapi");
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { httpxArgsForInput } = require("../src/recon/recon-engine");
-const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWappalyzerTechnologies, parseWpscanTechnologies } = require("../src/recon/technology-detectors");
+const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWpscanTechnologies } = require("../src/recon/technology-detectors");
+const { ALLOWED_TOOLS } = require("../src/recon/wsl-tools");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
 const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
@@ -138,12 +139,17 @@ test("HTTP follow-up uses ProjectDiscovery httpx list and tech flags", () => {
 });
 
 test("technology detector parsers normalize optional enrichment output", () => {
-  assert.deepEqual(parseWappalyzerTechnologies(JSON.stringify({
-    technologies: [{ name: "React" }, { name: "nginx" }]
-  })), ["React", "nginx"]);
   assert.ok(parseRetireTechnologies(JSON.stringify({ data: [{ component: "jquery", version: "3.6.0" }] })).includes("jquery"));
   assert.ok(parseWpscanTechnologies(JSON.stringify({ version: { number: "6.4" }, plugins: { akismet: {} } })).includes("WordPress 6.4"));
   assert.ok(parseBuiltWithTechnologies(JSON.stringify({ Results: [{ Result: { Paths: [{ Technologies: [{ Name: "Cloudflare" }] }] } }] })).includes("Cloudflare"));
+});
+
+test("enabled optional technology detector CLIs are allowed by the Linux runner", () => {
+  for (const toolName of ["retire", "wpscan", "cmseek"]) {
+    assert.equal(ALLOWED_TOOLS.has(toolName), true);
+  }
+  assert.equal(ALLOWED_TOOLS.has("wappalyzer"), false);
+  assert.equal(setupToolIds().includes("wappalyzer"), false);
 });
 
 test("brand term extraction supports wildcard domain intel pivots", () => {

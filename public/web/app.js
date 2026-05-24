@@ -336,6 +336,15 @@ function activateSettingsPanel(name) {
   });
 }
 
+function activateResultsView(name) {
+  document.querySelectorAll(".result-subtab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.resultsView === name);
+  });
+  document.querySelectorAll(".result-view").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `results-${name}`);
+  });
+}
+
 async function loadTargets() {
   const data = await api("/api/targets");
   targets = data.targets;
@@ -1386,6 +1395,9 @@ $("exportMarkdown").addEventListener("click", () => exportRun("markdown"));
 });
 document.querySelectorAll(".settings-tab").forEach((button) => {
   button.addEventListener("click", () => activateSettingsPanel(button.dataset.settingsPanel));
+});
+document.querySelectorAll(".result-subtab").forEach((button) => {
+  button.addEventListener("click", () => activateResultsView(button.dataset.resultsView));
 });
 $("fontScale").addEventListener("input", () => applyFontScale($("fontScale").value));
 $("themeSelect").addEventListener("change", () => applyTheme($("themeSelect").value));

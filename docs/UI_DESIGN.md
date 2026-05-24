@@ -103,7 +103,8 @@ Recommended macro tab patterns:
 - Wordlists: Saved Lists, Generated Lists, Tool Presets.
 - Search: Cross-Data Search, Saved Queries, Technology Impact Review.
 - Topology: Explorer, Correlations, Paths, Saved Queries.
-- Results: Domains, Services, URLs, Parameters, Technologies, Artifacts.
+- Results: Explorer, Delta, Domains, Services, URLs, Parameters,
+  Technologies, Screenshots, Export.
 - Runs & Logs: Live Run, Jobs, Events, Artifacts.
 - Settings: Environment, Appearance, AI Models, API Keys, Notifications,
   Safety, Storage.

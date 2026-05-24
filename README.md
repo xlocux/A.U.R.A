@@ -94,6 +94,9 @@ Recommended first run:
    - `Results` includes a Results Explorer tree that groups roots,
      subdomains, HTTP services, URLs, technologies, parameters, screenshot
      runs, and candidate domains into one filterable view.
+   - Results also has sub-views for delta, domains, services, URLs,
+     technologies, screenshots, and export actions so large runs stay
+     navigable without stacking multiple scrolling tables on one page.
    - Use Results Explorer filters to isolate live HTTP assets, technologies,
      new run deltas, URLs, or correlation-scored candidates, then export the
      current filtered view as JSON or CSV.
@@ -169,9 +172,8 @@ Full recon currently performs:
 6. DNS validation with `dnsx` / `puredns`.
 7. URL mining with `gau`.
 8. HTTP probing and tech detection with `httpx`.
-9. Optional technology enrichment with Wappalyzer, BuiltWith-style provider
-   data, retire.js, WPScan, and CMSeeK when those tools or API keys are
-   available.
+9. Optional technology enrichment with BuiltWith-style provider data, retire.js,
+   WPScan, and CMSeeK when those tools or API keys are available.
 10. Technology stack aggregation in Results and Search.
 11. Screenshot collection with `gowitness` by default, with optional
     `aquatone` or `EyeWitness`.
@@ -215,7 +217,6 @@ The initial tool registry includes:
 - `naabu`
 - `nuclei`
 - `gowitness`
-- `wappalyzer`
 - `retire`
 - `wpscan`
 - `cmseek`

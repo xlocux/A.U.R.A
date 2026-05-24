@@ -51,31 +51,10 @@ async function runTechnologyEnrichment({
 
   for (const service of sampled) {
     await waitForRunControl(store, runId);
-    await runWappalyzer({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir });
-    await waitForRunControl(store, runId);
     await runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir });
     await waitForRunControl(store, runId);
     await runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir });
   }
-}
-
-async function runWappalyzer({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir }) {
-  const args = [service.url, "--json"];
-  const result = await runDetectorTool({ store, runId, wslDistro, toolName: "wappalyzer", args, timeoutMs });
-  const artifacts = writeDetectorArtifacts(artifactsDir, "wappalyzer", service, result);
-  store.recordToolResult(runId, {
-    toolName: "wappalyzer",
-    commandDisplay: commandDisplay(wslDistro, "wappalyzer", args),
-    status: result.status,
-    exitCode: result.exitCode,
-    startedAt: result.startedAt,
-    finishedAt: result.finishedAt,
-    stdoutPath: artifacts.stdoutPath,
-    stderrPath: artifacts.stderrPath,
-    errorMessage: result.errorMessage
-  });
-  const technologies = parseWappalyzerTechnologies(result.stdout);
-  saveTechnologyService(store, runId, targetName, service, "wappalyzer", technologies, result);
 }
 
 async function runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir }) {
@@ -187,7 +166,22 @@ async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeou
     source: toolName,
     message: `Running ${toolName}`
   });
-  const result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs });
+  let result;
+  try {
+    result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs });
+  } catch (error) {
+    result = {
+      toolName,
+      args,
+      status: "failed",
+      exitCode: null,
+      startedAt: new Date().toISOString(),
+      finishedAt: new Date().toISOString(),
+      stdout: "",
+      stderr: "",
+      errorMessage: error.message
+    };
+  }
   store.appendEvent(runId, {
     phase: "technology-enrichment",
     severity: result.status === "completed" ? "ok" : "warn",
@@ -209,21 +203,6 @@ function saveTechnologyService(store, runId, targetName, service, source, techno
       detectorArtifact: result.rawArtifact || null
     }
   }], source);
-}
-
-function parseWappalyzerTechnologies(stdout) {
-  const parsed = parseJson(stdout);
-  if (!parsed) return [];
-  const values = [];
-  const candidates = Array.isArray(parsed) ? parsed : [parsed];
-  for (const item of candidates) {
-    const technologies = item.technologies || item.apps || item.detected || [];
-    for (const tech of Array.isArray(technologies) ? technologies : Object.values(technologies || {})) {
-      if (typeof tech === "string") values.push(tech);
-      if (tech?.name) values.push(tech.name);
-    }
-  }
-  return unique(values);
 }
 
 function parseRetireTechnologies(stdout) {
@@ -332,7 +311,6 @@ function toToolPath(value) {
 module.exports = {
   parseBuiltWithTechnologies,
   parseRetireTechnologies,
-  parseWappalyzerTechnologies,
   parseWpscanTechnologies,
   runTechnologyEnrichment
 };

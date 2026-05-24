@@ -334,7 +334,18 @@
         </div>
       </div>
 
-      <div class="pane run-delta-pane">
+      <div class="result-subtabs" aria-label="Results views">
+        <button class="result-subtab active" data-results-view="explorer" type="button">Explorer</button>
+        <button class="result-subtab" data-results-view="delta" type="button">Delta</button>
+        <button class="result-subtab" data-results-view="domains" type="button">Domains</button>
+        <button class="result-subtab" data-results-view="services" type="button">Services</button>
+        <button class="result-subtab" data-results-view="urls" type="button">URLs</button>
+        <button class="result-subtab" data-results-view="technologies" type="button">Tech</button>
+        <button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button>
+        <button class="result-subtab" data-results-view="export" type="button">Export</button>
+      </div>
+
+      <div id="results-delta" class="pane run-delta-pane result-view">
         <h2>Run Delta</h2>
         <div class="delta-grid">
           <div class="delta-summary" id="runDeltaSummary">No run comparison loaded.</div>
@@ -363,7 +374,7 @@
         </div>
       </div>
 
-      <div class="pane export-pane">
+      <div id="results-export" class="pane export-pane result-view">
         <h2>Export</h2>
         <div class="form-body export-actions">
           <button id="runHttpFollowup" type="button" disabled>HTTP/Tech Follow-up</button>
@@ -373,7 +384,7 @@
         </div>
       </div>
 
-      <div class="pane result-explorer-pane">
+      <div id="results-explorer" class="pane result-explorer-pane result-view active">
         <h2>Results Explorer</h2>
         <div class="result-filter-bar">
           <input id="resultFilterQuery" type="search" placeholder="Filter domains, URLs, technologies, sources, candidates">
@@ -403,51 +414,49 @@
         </div>
       </div>
 
-      <div class="split">
-        <div class="pane">
-          <h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2>
-          <div class="scroll">
-            <table>
-              <thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead>
-              <tbody id="domainRows"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="pane">
-          <h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2>
-          <div class="scroll">
-            <table>
-              <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead>
-              <tbody id="serviceRows"></tbody>
-            </table>
-          </div>
+      <div id="results-domains" class="pane result-view">
+        <h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2>
+        <div class="scroll result-table-scroll">
+          <table>
+            <thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead>
+            <tbody id="domainRows"></tbody>
+          </table>
         </div>
       </div>
 
-      <div class="split">
-        <div class="pane">
-          <h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2>
-          <div class="scroll tech-scroll">
-            <table>
-              <thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead>
-              <tbody id="technologyRows"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="pane">
-          <h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2>
-          <div class="scroll tech-scroll">
-            <table>
-              <thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead>
-              <tbody id="screenshotRows"></tbody>
-            </table>
-          </div>
+      <div id="results-services" class="pane result-view">
+        <h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2>
+        <div class="scroll result-table-scroll">
+          <table>
+            <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead>
+            <tbody id="serviceRows"></tbody>
+          </table>
         </div>
       </div>
 
-      <div class="pane">
+      <div id="results-technologies" class="pane result-view">
+        <h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2>
+        <div class="scroll result-table-scroll">
+          <table>
+            <thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead>
+            <tbody id="technologyRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="results-screenshots" class="pane result-view">
+        <h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2>
+        <div class="scroll result-table-scroll">
+          <table>
+            <thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead>
+            <tbody id="screenshotRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="results-urls" class="pane result-view">
         <h2>Wayback URLs</h2>
-        <div class="scroll">
+        <div class="scroll result-table-scroll">
           <table>
             <thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead>
             <tbody id="artifactRows"></tbody>

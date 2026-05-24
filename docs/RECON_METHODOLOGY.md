@@ -1785,7 +1785,6 @@ Default:
 
 Additional detector inputs when available:
 
-- Wappalyzer engine or package.
 - Headless browser pass.
 - BuiltWith-style provider integration where available.
 - `retire.js` for JavaScript dependency metadata.

@@ -511,6 +511,34 @@ button:disabled { opacity: .55; cursor: wait; }
 .metric strong { display: block; font-size: 22px; }
 .run-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: stretch; }
 .run-controls button { min-height: 100%; }
+.result-subtabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+.result-subtab {
+  width: auto;
+  margin: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 11px;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.result-subtab.active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.result-view {
+  display: none;
+}
+.result-view.active {
+  display: block;
+}
 .export-pane { margin-bottom: 12px; }
 .export-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .result-explorer-pane { margin-bottom: 12px; }
@@ -703,6 +731,9 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .delta-scroll { max-height: 210px; border-top: 1px solid var(--line); }
 .tech-scroll { max-height: 260px; }
+.result-table-scroll {
+  max-height: calc(100vh - 255px);
+}
 .delta-badge {
   display: inline-block;
   min-width: 64px;
