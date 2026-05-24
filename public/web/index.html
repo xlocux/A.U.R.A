@@ -708,6 +708,8 @@
             </div>
             <label for="proxyUrl">Proxy URL</label>
             <input id="proxyUrl" type="text" placeholder="http://127.0.0.1:8080">
+            <label for="proxySavedList">Saved proxies</label>
+            <select id="proxySavedList"></select>
             <div class="row">
               <div>
                 <label for="proxyMode">Mode</label>
@@ -724,6 +726,12 @@
                   <option value="lab-egress">Lab egress</option>
                 </select>
               </div>
+            </div>
+            <label for="proxyImportList">Import authorized proxies</label>
+            <textarea id="proxyImportList" placeholder="http://127.0.0.1:8080&#10;socks5://proxy.local:1080"></textarea>
+            <div class="row">
+              <button id="importProxyList" type="button">Import Proxy List</button>
+              <button id="clearProxyList" class="danger-button" type="button">Clear Saved Proxies</button>
             </div>
             <button id="saveProxySettings" type="button">Save Proxy Settings</button>
             <div id="proxySettingsStatus" class="notice muted">Proxy settings are stored locally in this browser and applied to WSL recon tool runs.</div>

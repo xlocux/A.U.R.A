@@ -117,9 +117,13 @@ window.getAuraAgentContext = () => ({
 
 function getProxySettings() {
   try {
-    return JSON.parse(localStorage.getItem(PROXY_SETTINGS_STORAGE_KEY) || "{}");
+    const settings = JSON.parse(localStorage.getItem(PROXY_SETTINGS_STORAGE_KEY) || "{}");
+    return {
+      ...settings,
+      proxies: Array.isArray(settings.proxies) ? settings.proxies : []
+    };
   } catch {
-    return {};
+    return { proxies: [] };
   }
 }
 
@@ -129,7 +133,8 @@ function readProxySettingsForm() {
     enabled: $("proxyEnabled")?.checked || false,
     url: normalizeProxyFormUrl($("proxyUrl")?.value?.trim() || "", mode),
     mode,
-    purpose: $("proxyPurpose")?.value || "interception"
+    purpose: $("proxyPurpose")?.value || "interception",
+    proxies: getProxySettings().proxies || []
   };
 }
 
@@ -145,6 +150,7 @@ function renderProxySettings() {
   $("proxyUrl").value = settings.url || "";
   $("proxyMode").value = settings.mode || inferProxyMode(settings.url);
   $("proxyPurpose").value = settings.purpose || "interception";
+  renderProxySavedList(settings);
 }
 
 function saveProxySettings() {
@@ -160,6 +166,62 @@ function saveProxySettings() {
     $("proxySettingsStatus").textContent = error.message;
     $("proxySettingsStatus").className = "notice error";
   }
+}
+
+function renderProxySavedList(settings = getProxySettings()) {
+  if (!$("proxySavedList")) return;
+  const proxies = settings.proxies || [];
+  $("proxySavedList").innerHTML = [
+    `<option value="">Manual entry</option>`,
+    ...proxies.map((proxy) => `<option value="${esc(proxy.url)}">${esc(redactProxyUrl(proxy.url))}</option>`)
+  ].join("");
+  $("proxySavedList").value = proxies.some((proxy) => proxy.url === settings.url) ? settings.url : "";
+}
+
+function selectSavedProxy() {
+  const selected = $("proxySavedList").value;
+  if (!selected) return;
+  $("proxyUrl").value = selected;
+  $("proxyMode").value = inferProxyMode(selected);
+}
+
+function importProxyList() {
+  const current = getProxySettings();
+  const existing = new Map((current.proxies || []).map((proxy) => [proxy.url, proxy]));
+  const lines = $("proxyImportList").value.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let imported = 0;
+  let skipped = 0;
+  for (const line of lines) {
+    try {
+      const normalized = validateProxyUrl(normalizeProxyFormUrl(line, $("proxyMode").value));
+      if (!existing.has(normalized)) {
+        existing.set(normalized, {
+          url: normalized,
+          mode: inferProxyMode(normalized),
+          addedAt: new Date().toISOString()
+        });
+        imported += 1;
+      }
+    } catch {
+      skipped += 1;
+    }
+  }
+  const proxies = [...existing.values()].sort((left, right) => left.url.localeCompare(right.url));
+  localStorage.setItem(PROXY_SETTINGS_STORAGE_KEY, JSON.stringify({ ...current, proxies }));
+  $("proxyImportList").value = "";
+  renderProxySettings();
+  $("proxySettingsStatus").textContent = `Imported ${imported} proxies. Skipped ${skipped} invalid entries. Saved proxies: ${proxies.length}.`;
+  $("proxySettingsStatus").className = skipped ? "notice warn" : "notice ok";
+}
+
+function clearProxyList() {
+  const current = getProxySettings();
+  localStorage.setItem(PROXY_SETTINGS_STORAGE_KEY, JSON.stringify({ ...current, proxies: [] }));
+  renderProxySettings();
+  $("proxySettingsStatus").textContent = "Saved proxy list cleared.";
+  $("proxySettingsStatus").className = "notice ok";
 }
 
 function validateProxyUrl(value) {
@@ -1592,6 +1654,9 @@ $("installEnvironment").addEventListener("click", installEnvironment);
 $("saveAiSettings").addEventListener("click", saveAiSettings);
 $("testAiSettings").addEventListener("click", testAiSettings);
 $("saveProxySettings").addEventListener("click", saveProxySettings);
+$("importProxyList").addEventListener("click", importProxyList);
+$("clearProxyList").addEventListener("click", clearProxyList);
+$("proxySavedList").addEventListener("change", selectSavedProxy);
 $("aiProvider").addEventListener("change", updateAiSettingsPreview);
 $("useLocalModel").addEventListener("change", updateAiSettingsPreview);
 $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
