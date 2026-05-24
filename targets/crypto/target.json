@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "target_name": "crypto",
+  "default_mode": "blackbox",
+  "allowed_modes": [
+    "blackbox"
+  ],
+  "program_url": "https://crypto.com",
+  "logs_dir": "./logs",
+  "intelligence_dir": "./intelligence",
+  "scope": {
+    "in_scope": [
+      "*.crypto.com"
+    ],
+    "out_of_scope": []
+  },
+  "recon": {
+    "notes": [],
+    "rules": [
+      "Only scan assets explicitly authorized for this target"
+    ]
+  }
+}

@@ -93,7 +93,15 @@ function runInBackground(task) {
   });
 }
 
+// Import proxy routes
+const proxyRoutes = require('./proxy-routes');
+
 async function handleApiRequest({ request, response, url, store }) {
+  // Handle proxy routes
+  if (url.pathname.startsWith('/api/proxies/')) {
+    return proxyRoutes.handleApiRequest({ request, response, url, store });
+  }
+
   if (request.method === "GET" && url.pathname === "/api/targets") {
     const targets = discoverTargets(store).map((target) => ({
       ...target,
