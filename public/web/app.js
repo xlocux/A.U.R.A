@@ -17,6 +17,8 @@ let resultsData = {
   delta: null,
   totals: {}
 };
+let imagePreviewGallery = [];
+let imagePreviewIndex = 0;
 
 const $ = (id) => document.getElementById(id);
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
@@ -875,26 +877,46 @@ function ensureImageModal() {
   modal.innerHTML = `
     <div class="image-modal-dialog" role="dialog" aria-modal="true" aria-label="Screenshot preview">
       <button class="image-modal-close" type="button" aria-label="Close preview">&times;</button>
+      <button class="image-modal-nav image-modal-prev" type="button" aria-label="Previous screenshot">&#8249;</button>
       <img id="imagePreviewModalImg" alt="">
+      <button class="image-modal-nav image-modal-next" type="button" aria-label="Next screenshot">&#8250;</button>
       <div id="imagePreviewModalCaption" class="image-modal-caption"></div>
     </div>
   `;
   document.body.appendChild(modal);
   modal.addEventListener("click", (event) => {
     if (event.target === modal || event.target.closest(".image-modal-close")) closeImageModal();
+    if (event.target.closest(".image-modal-prev")) showImageAt(imagePreviewIndex - 1);
+    if (event.target.closest(".image-modal-next")) showImageAt(imagePreviewIndex + 1);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeImageModal();
+    if ($("imagePreviewModal")?.classList.contains("hidden")) return;
+    if (event.key === "ArrowLeft") showImageAt(imagePreviewIndex - 1);
+    if (event.key === "ArrowRight") showImageAt(imagePreviewIndex + 1);
   });
   return modal;
 }
 
-function openImageModal(url, name) {
+function openImageModal(url, name, gallery = []) {
   const modal = ensureImageModal();
-  $("imagePreviewModalImg").src = url;
-  $("imagePreviewModalImg").alt = name || "Screenshot preview";
-  $("imagePreviewModalCaption").textContent = name || "";
+  imagePreviewGallery = gallery.length ? gallery : [{ url, name }];
+  imagePreviewIndex = Math.max(0, imagePreviewGallery.findIndex((image) => image.url === url));
+  showImageAt(imagePreviewIndex);
   modal.classList.remove("hidden");
+}
+
+function showImageAt(index) {
+  if (!imagePreviewGallery.length) return;
+  imagePreviewIndex = (index + imagePreviewGallery.length) % imagePreviewGallery.length;
+  const image = imagePreviewGallery[imagePreviewIndex];
+  $("imagePreviewModalImg").src = image.url;
+  $("imagePreviewModalImg").alt = image.name || "Screenshot preview";
+  $("imagePreviewModalCaption").textContent = imagePreviewGallery.length > 1
+    ? `${image.name || ""} (${imagePreviewIndex + 1}/${imagePreviewGallery.length})`
+    : image.name || "";
+  const navHidden = imagePreviewGallery.length <= 1;
+  $("imagePreviewModal").classList.toggle("single-image", navHidden);
 }
 
 function closeImageModal() {
@@ -903,6 +925,8 @@ function closeImageModal() {
   modal.classList.add("hidden");
   const image = $("imagePreviewModalImg");
   if (image) image.src = "";
+  imagePreviewGallery = [];
+  imagePreviewIndex = 0;
 }
 
 function countBucket(value, label) {
@@ -1307,7 +1331,10 @@ $("searchQuery").addEventListener("keydown", (event) => {
 document.addEventListener("click", (event) => {
   const thumb = event.target.closest(".screenshot-thumb");
   if (!thumb) return;
-  openImageModal(thumb.dataset.imageUrl, thumb.dataset.imageName);
+  const gallery = [...thumb.closest(".screenshot-grid").querySelectorAll(".screenshot-thumb")]
+    .map((node) => ({ url: node.dataset.imageUrl, name: node.dataset.imageName }))
+    .filter((image) => image.url);
+  openImageModal(thumb.dataset.imageUrl, thumb.dataset.imageName, gallery);
 });
 $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);

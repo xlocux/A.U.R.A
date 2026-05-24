@@ -17,6 +17,7 @@ const ProxySources = require("../src/recon/proxy-sources");
 const ProxyStore = require("../src/db/proxy-store");
 const proxyRoutes = require("../src/web/proxy-routes");
 const { retireArgsForPath } = require("../src/recon/technology-detectors");
+const { shouldRetryToolResult } = require("../src/recon/recon-engine");
 
 test("proxy sources parse supported manual formats", () => {
   const sources = new ProxySources();
@@ -94,6 +95,14 @@ test("retire path args avoid unsupported url and js flags", () => {
   assert.deepEqual(args, ["--path", "/tmp/aura-retire", "--outputformat", "json", "--exitwith", "0"]);
   assert.equal(args.includes("--js"), false);
   assert.equal(args.includes("--url"), false);
+});
+
+test("tool recovery retries only transient runner failures", () => {
+  assert.match(shouldRetryToolResult({ status: "timeout", errorMessage: "Timed out after 1000ms" }), /Timed out/);
+  assert.match(shouldRetryToolResult({ status: "error", errorMessage: "spawn failed" }), /spawn failed/);
+  assert.match(shouldRetryToolResult({ status: "failed", stderr: "connection reset by peer" }), /connection reset/);
+  assert.equal(shouldRetryToolResult({ status: "failed", stderr: "unknown option --bad-flag" }), "");
+  assert.equal(shouldRetryToolResult({ status: "completed", stderr: "" }), "");
 });
 
 function makeStore() {

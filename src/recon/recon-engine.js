@@ -13,6 +13,17 @@ const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
 const DEFAULT_SCREENSHOT_TOOLS = ["gowitness"];
 const RUN_CONTROL_STATUSES = new Set(["paused", "cancelled"]);
+const DEFAULT_TOOL_RECOVERY_ATTEMPTS = 2;
+const TOOL_RECOVERY_PATTERNS = [
+  /timed?\s*out|timeout/i,
+  /econn(refused|reset|aborted)/i,
+  /etimedout/i,
+  /connection\s*(refused|reset|closed|aborted)/i,
+  /network\s*(is\s*)?unreachable/i,
+  /tls\s*handshake/i,
+  /context\s*deadline\s*exceeded/i,
+  /temporary\s*failure/i
+];
 
 async function runRecon({
   store,
@@ -140,12 +151,13 @@ async function runHttpFollowup({
   fs.writeFileSync(inputPath, hosts.join("\n"), "utf8");
   const args = httpxArgsForInput(inputPath);
   store.appendEvent(runId, { phase: "http-tech-followup", source: "httpx", message: `Running httpx against ${hosts.length} saved domains` });
-  const result = await runToolWithHeartbeat({
+  const result = await runToolWithRecovery({
     store,
     runId,
     phase: "heartbeat",
     source: "httpx",
     heartbeatMessage: (elapsed) => `httpx follow-up is still running (${elapsed}s elapsed)`,
+    maxAttempts: proxyController?.hasPool() ? 1 : DEFAULT_TOOL_RECOVERY_ATTEMPTS,
     task: () => runWslToolWithProxy({ proxyController, distro: wslDistro, toolName: "httpx", args, timeoutMs, proxyUrl: selectedProxyUrl })
   });
   const stdoutPath = writeToolArtifact(artifactsDir, "httpx-followup.stdout.txt", result.stdout);
@@ -265,12 +277,13 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
       store.appendEvent(runId, { phase: "recon", source: toolName, message: `Running ${toolName} for ${root}` });
       let result;
       try {
-        result = await runToolWithHeartbeat({
+        result = await runToolWithRecovery({
           store,
           runId,
           phase: "heartbeat",
           source: toolName,
           heartbeatMessage: (elapsed) => `${toolName} is still running for ${root} (${elapsed}s elapsed)`,
+          maxAttempts: proxyController?.hasPool() ? 1 : DEFAULT_TOOL_RECOVERY_ATTEMPTS,
           task: () => runWslToolWithProxy({ proxyController, distro: wslDistro, toolName, args, timeoutMs, proxyUrl })
         });
       } catch (error) {
@@ -371,12 +384,13 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
     const args = screenshotArgsForTool(toolName, inputPath, outputDir);
     if (!args) continue;
     store.appendEvent(runId, { phase: "recon", source: toolName, message: `Capturing screenshots for ${liveUrls.length} live URLs` });
-    const result = await runToolWithHeartbeat({
+    const result = await runToolWithRecovery({
       store,
       runId,
       phase: "heartbeat",
       source: toolName,
       heartbeatMessage: (elapsed) => `${toolName} screenshot capture is still running (${elapsed}s elapsed)`,
+      maxAttempts: proxyController?.hasPool() ? 1 : DEFAULT_TOOL_RECOVERY_ATTEMPTS,
       task: () => runWslToolWithProxy({ proxyController, distro: wslDistro, toolName, args, timeoutMs, proxyUrl, input: toolName === "aquatone" ? `${liveUrls.join("\n")}\n` : null })
     });
     const stdoutPath = writeToolArtifact(artifactsDir, `${toolName}-screenshots.stdout.txt`, result.stdout);
@@ -398,6 +412,72 @@ async function runToolWithHeartbeat({ store, runId, phase, source, heartbeatMess
   } finally {
     clearInterval(heartbeat);
   }
+}
+
+async function runToolWithRecovery({ store, runId, phase, source, heartbeatMessage, task, maxAttempts = DEFAULT_TOOL_RECOVERY_ATTEMPTS, retryDelayMs = 2000 }) {
+  const attempts = Math.max(1, Number.parseInt(maxAttempts, 10) || 1);
+  let lastResult = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const result = await runToolWithHeartbeat({ store, runId, phase, source, heartbeatMessage, task });
+    result.recovery = { attempt, maxAttempts: attempts, retried: attempt > 1 };
+    lastResult = result;
+    const retryable = shouldRetryToolResult(result);
+    if (!retryable) {
+      if (attempt > 1) appendAiToolRecovery(store, runId, {
+        stage: "recovered",
+        toolName: source,
+        attempt,
+        maxAttempts: attempts,
+        reason: "tool completed after retry"
+      });
+      return result;
+    }
+    if (attempt >= attempts) {
+      appendAiToolRecovery(store, runId, {
+        stage: "exhausted",
+        toolName: source,
+        attempt,
+        maxAttempts: attempts,
+        reason: retryable
+      });
+      return result;
+    }
+    appendAiToolRecovery(store, runId, {
+      stage: "retrying",
+      toolName: source,
+      attempt,
+      maxAttempts: attempts,
+      reason: retryable
+    });
+    await sleep(retryDelayMs);
+  }
+  return lastResult;
+}
+
+function shouldRetryToolResult(result) {
+  if (!result) return "no tool result";
+  if (result.status === "timeout") return result.errorMessage || "tool timeout";
+  if (result.status === "error") return result.errorMessage || "tool runner error";
+  const combined = [result.stderr, result.errorMessage, result.stdout].filter(Boolean).join("\n").slice(0, 20000);
+  if (result.status === "failed" && TOOL_RECOVERY_PATTERNS.some((pattern) => pattern.test(combined))) {
+    return firstUsefulLine(combined) || "transient network/tool failure";
+  }
+  return "";
+}
+
+function appendAiToolRecovery(store, runId, { stage, toolName, attempt, maxAttempts, reason }) {
+  const messages = {
+    retrying: `${toolName} looks stalled or hit a transient tool/network error. I am retrying it (${attempt + 1}/${maxAttempts}) while the run keeps its current context.`,
+    recovered: `${toolName} recovered after retry (${attempt}/${maxAttempts}). I will keep the recovered output and continue the run.`,
+    exhausted: `${toolName} still failed after ${attempt}/${maxAttempts} attempts. I will keep partial artifacts, mark it as warning, and continue with non-blocking steps.`
+  };
+  store.appendEvent(runId, {
+    phase: "ai-tool-recovery",
+    severity: stage === "recovered" ? "ok" : "warn",
+    source: "ai-tool-recovery",
+    message: messages[stage] || `${toolName} recovery update: ${stage}`,
+    payload: { stage, toolName, attempt, maxAttempts, reason }
+  });
 }
 
 async function waitForRunControl(store, runId) {
@@ -481,5 +561,6 @@ module.exports = {
   httpxArgsForInput,
   isRunControlError,
   runHttpFollowup,
-  runRecon
+  runRecon,
+  shouldRetryToolResult
 };

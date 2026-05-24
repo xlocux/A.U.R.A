@@ -107,10 +107,16 @@ class ProxyRotationController {
       lastResult = result;
       if (!decision.rotate || attempt === attempts - 1) {
         if (decision.observeOnly) this.appendObservation(toolName, decision.reason);
+        if (attempt > 0 && result.status === "completed" && !decision.rotate) {
+          this.appendRecoveryEvent({ stage: "recovered", toolName, attempt: attempt + 1, maxAttempts: attempts, reason: decision.reason });
+        } else if (decision.rotate && attempt === attempts - 1) {
+          this.appendRecoveryEvent({ stage: "exhausted", toolName, attempt: attempt + 1, maxAttempts: attempts, reason: decision.reason });
+        }
         return result;
       }
       previousProxy = selection.proxy;
       this.appendEvent({ phase: "proxy-rotation", severity: "warn", source: "ai-proxy-policy", message: `Detected proxy/network failure for ${toolName}: ${decision.reason}. Retrying with the next preflight-approved proxy.` });
+      this.appendRecoveryEvent({ stage: "retrying", toolName, attempt: attempt + 1, maxAttempts: attempts, reason: decision.reason });
     }
     return lastResult;
   }
@@ -134,6 +140,21 @@ class ProxyRotationController {
 
   appendObservation(toolName, reason) {
     this.appendEvent({ phase: "proxy-rotation", severity: "warn", source: "ai-proxy-policy", message: `Observed possible application-side blocking for ${toolName}: ${reason}` });
+  }
+
+  appendRecoveryEvent({ stage, toolName, attempt, maxAttempts, reason }) {
+    const messages = {
+      retrying: `${toolName} hit a proxy/network failure. I am retrying it with another preflight-approved route (${attempt + 1}/${maxAttempts}).`,
+      recovered: `${toolName} recovered after a retry (${attempt}/${maxAttempts}). I will keep the recovered output and continue.`,
+      exhausted: `${toolName} still failed after ${attempt}/${maxAttempts} proxy-aware attempts. I will keep partial artifacts and continue with non-blocking work.`
+    };
+    this.appendEvent({
+      phase: "ai-tool-recovery",
+      severity: stage === "recovered" ? "ok" : "warn",
+      source: "ai-tool-recovery",
+      message: messages[stage] || `${toolName} recovery update: ${stage}`,
+      payload: { stage, toolName, attempt, maxAttempts, reason, proxyAware: true }
+    });
   }
 
   async recordAttempt(proxy, result, decision, latencyMs) {

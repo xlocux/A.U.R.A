@@ -79,6 +79,12 @@
   function insightFromEvent(event) {
     const text = String(event.message || "");
     const source = event.source || "tool";
+    if (event.phase === "ai-tool-recovery") {
+      if (event.payload?.stage === "retrying") return once(`tool-retry:${event.payload.toolName}:${event.payload.attempt}`, text);
+      if (event.payload?.stage === "recovered") return once(`tool-recovered:${event.payload.toolName}`, text);
+      if (event.payload?.stage === "exhausted") return once(`tool-exhausted:${event.payload.toolName}`, text);
+      return once(`tool-recovery:${text.slice(0, 80)}`, text);
+    }
     if (event.severity === "error") return once(`error:${source}:${text.slice(0, 80)}`, `Attention: ${source} hit an error. Check Runs & Logs before launching another phase.`);
     if (event.severity === "warn" && /No such option: -l/i.test(text) && source === "httpx") {
       return once("httpx-cli-mismatch", "httpx looks like the Python package instead of ProjectDiscovery httpx. Run Settings > Environment > Install / Update Tools, then use HTTP/Tech Follow-up on the saved domains.");

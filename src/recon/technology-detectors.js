@@ -5,6 +5,17 @@ const path = require("node:path");
 const { commandDisplay, runWslTool } = require("./wsl-tools");
 
 const MAX_DETECTOR_URLS = 50;
+const DEFAULT_DETECTOR_ATTEMPTS = 2;
+const DETECTOR_RECOVERY_PATTERNS = [
+  /timed?\s*out|timeout/i,
+  /econn(refused|reset|aborted)/i,
+  /etimedout/i,
+  /connection\s*(refused|reset|closed|aborted)/i,
+  /network\s*(is\s*)?unreachable/i,
+  /tls\s*handshake/i,
+  /context\s*deadline\s*exceeded/i,
+  /temporary\s*failure/i
+];
 
 async function runTechnologyEnrichment({
   store,
@@ -237,21 +248,53 @@ async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeou
     source: toolName,
     message: `Running ${toolName}`
   });
+  const attempts = DEFAULT_DETECTOR_ATTEMPTS;
   let result;
-  try {
-    result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs, proxyUrl });
-  } catch (error) {
-    result = {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs, proxyUrl });
+    } catch (error) {
+      result = {
+        toolName,
+        args,
+        status: "failed",
+        exitCode: null,
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        stdout: "",
+        stderr: "",
+        errorMessage: error.message
+      };
+    }
+    result.recovery = { attempt, maxAttempts: attempts, retried: attempt > 1 };
+    const retryable = shouldRetryDetectorResult(result);
+    if (!retryable) {
+      if (attempt > 1) appendDetectorRecoveryEvent(store, runId, {
+        stage: "recovered",
+        toolName,
+        attempt,
+        maxAttempts: attempts,
+        reason: "detector completed after retry"
+      });
+      break;
+    }
+    if (attempt >= attempts) {
+      appendDetectorRecoveryEvent(store, runId, {
+        stage: "exhausted",
+        toolName,
+        attempt,
+        maxAttempts: attempts,
+        reason: retryable
+      });
+      break;
+    }
+    appendDetectorRecoveryEvent(store, runId, {
+      stage: "retrying",
       toolName,
-      args,
-      status: "failed",
-      exitCode: null,
-      startedAt: new Date().toISOString(),
-      finishedAt: new Date().toISOString(),
-      stdout: "",
-      stderr: "",
-      errorMessage: error.message
-    };
+      attempt,
+      maxAttempts: attempts,
+      reason: retryable
+    });
   }
   store.appendEvent(runId, {
     phase: "technology-enrichment",
@@ -260,6 +303,32 @@ async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeou
     message: `${toolName} ${result.status}${firstUsefulLine(result.stderr || result.errorMessage) ? `; ${firstUsefulLine(result.stderr || result.errorMessage)}` : ""}`
   });
   return result;
+}
+
+function shouldRetryDetectorResult(result) {
+  if (!result) return "no detector result";
+  if (result.status === "timeout") return result.errorMessage || "detector timeout";
+  if (result.status === "error") return result.errorMessage || "detector runner error";
+  const combined = [result.stderr, result.errorMessage, result.stdout].filter(Boolean).join("\n").slice(0, 20000);
+  if (result.status === "failed" && DETECTOR_RECOVERY_PATTERNS.some((pattern) => pattern.test(combined))) {
+    return firstUsefulLine(combined) || "transient detector/network failure";
+  }
+  return "";
+}
+
+function appendDetectorRecoveryEvent(store, runId, { stage, toolName, attempt, maxAttempts, reason }) {
+  const messages = {
+    retrying: `${toolName} detector looks stalled or hit a transient error. I am retrying it (${attempt + 1}/${maxAttempts}) without blocking the rest of enrichment.`,
+    recovered: `${toolName} detector recovered after retry (${attempt}/${maxAttempts}). I will keep the recovered output.`,
+    exhausted: `${toolName} detector still failed after ${attempt}/${maxAttempts} attempts. I will keep this as a warning and continue with the next detector/service.`
+  };
+  store.appendEvent(runId, {
+    phase: "ai-tool-recovery",
+    severity: stage === "recovered" ? "ok" : "warn",
+    source: "ai-tool-recovery",
+    message: messages[stage] || `${toolName} detector recovery update: ${stage}`,
+    payload: { stage, toolName, attempt, maxAttempts, reason }
+  });
 }
 
 function saveTechnologyService(store, runId, targetName, service, source, technologies, result) {
