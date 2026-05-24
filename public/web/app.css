@@ -539,6 +539,17 @@ button:disabled { opacity: .55; cursor: wait; }
 .result-view.active {
   display: block;
 }
+.result-view-toolbar {
+  display: grid;
+  grid-template-columns: max-content minmax(180px, 260px);
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.result-view-toolbar label {
+  margin: 0;
+}
 .export-pane { margin-bottom: 12px; }
 .export-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .result-explorer-pane { margin-bottom: 12px; }
@@ -733,6 +744,41 @@ button:disabled { opacity: .55; cursor: wait; }
 .tech-scroll { max-height: 260px; }
 .result-table-scroll {
   max-height: calc(100vh - 255px);
+}
+.group-row td {
+  background: rgba(67, 197, 158, .10);
+  color: var(--accent-2);
+  font-weight: 700;
+}
+.group-row span {
+  color: var(--muted);
+  font-weight: 500;
+}
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.screenshot-grid a {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.screenshot-grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+.artifact-path {
+  display: block;
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 .delta-badge {
   display: inline-block;

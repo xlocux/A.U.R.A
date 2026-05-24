@@ -225,21 +225,33 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
   for (const root of roots) {
     for (const toolName of wslTools) {
       await waitForRunControl(store, runId);
-      const args = argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlistPath);
+      let args;
+      try {
+        args = argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlistPath);
+      } catch (error) {
+        recordNonBlockingToolError({ store, runId, toolName, root, error });
+        continue;
+      }
       if (!args) continue;
       store.appendEvent(runId, {
         phase: "recon",
         source: toolName,
         message: `Running ${toolName} for ${root}`
       });
-      const result = await runToolWithHeartbeat({
-        store,
-        runId,
-        phase: "heartbeat",
-        source: toolName,
-        heartbeatMessage: (elapsed) => `${toolName} is still running for ${root} (${elapsed}s elapsed)`,
-        task: () => runWslTool({ distro: wslDistro, toolName, args, timeoutMs })
-      });
+      let result;
+      try {
+        result = await runToolWithHeartbeat({
+          store,
+          runId,
+          phase: "heartbeat",
+          source: toolName,
+          heartbeatMessage: (elapsed) => `${toolName} is still running for ${root} (${elapsed}s elapsed)`,
+          task: () => runWslTool({ distro: wslDistro, toolName, args, timeoutMs })
+        });
+      } catch (error) {
+        recordNonBlockingToolError({ store, runId, toolName, root, args, error, wslDistro });
+        continue;
+      }
       const stdoutPath = writeToolArtifact(artifactsDir, `${toolName}-${root}.stdout.txt`, result.stdout);
       const stderrPath = writeToolArtifact(artifactsDir, `${toolName}-${root}.stderr.txt`, result.stderr);
       store.recordToolResult(runId, {
@@ -295,6 +307,25 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
       }
     }
   }
+}
+
+function recordNonBlockingToolError({ store, runId, toolName, root, args = [], error, wslDistro = "kali-linux" }) {
+  const now = new Date().toISOString();
+  store.recordToolResult(runId, {
+    toolName,
+    commandDisplay: commandDisplay(wslDistro, toolName, args),
+    status: "failed",
+    exitCode: null,
+    startedAt: now,
+    finishedAt: now,
+    errorMessage: error.message
+  });
+  store.appendEvent(runId, {
+    phase: "recon",
+    severity: "warn",
+    source: toolName,
+    message: `${toolName} skipped for ${root}: ${error.message}. Continuing with remaining recon steps.`
+  });
 }
 
 function argsForTool(toolName, root, artifactsDir, discovered, subdomainWordlistPath = null) {

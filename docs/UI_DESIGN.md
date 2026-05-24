@@ -105,6 +105,10 @@ Recommended macro tab patterns:
 - Topology: Explorer, Correlations, Paths, Saved Queries.
 - Results: Explorer, Delta, Domains, Services, URLs, Parameters,
   Technologies, Screenshots, Export.
+- Results table views should offer compact grouping controls for common pivots
+  such as HTTP status code, technology, host, source, tool, and delta type.
+  Screenshot views should render available image thumbnails instead of only
+  local filesystem paths.
 - Runs & Logs: Live Run, Jobs, Events, Artifacts.
 - Settings: Environment, Appearance, AI Models, API Keys, Notifications,
   Safety, Storage.

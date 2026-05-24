@@ -405,6 +405,22 @@ test("scan store lists recorded tool results for run exports", () => {
   store.close();
 });
 
+test("scan store retrieves screenshot runs for image serving", () => {
+  const store = openScanStore(tempDb("screenshots.db"));
+  const target = store.upsertTarget(path.resolve("targets/demo/target.json"), createDefaultTargetConfig("demo"));
+  const run = store.createRun({ targetName: target.target_name });
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "aura-shots-"));
+  store.saveScreenshotRun(run.id, target.target_name, {
+    toolName: "gowitness",
+    outputDir,
+    metadata: { status: "completed", screenshotCount: 1 }
+  });
+  const [shot] = store.listScreenshots({ runId: run.id });
+  assert.equal(store.getScreenshot(shot.id).output_dir, outputDir);
+  assert.equal(store.getScreenshot(shot.id).metadata.screenshotCount, 1);
+  store.close();
+});
+
 test("recon parsers normalize domains, archived URLs, and httpx tech", () => {
   assert.equal(normalizeDomain("https://*.App.Example.COM/path"), "app.example.com");
   assert.deepEqual(extractDomains("a.example.com b.other.test", ["example.com"]), ["a.example.com"]);

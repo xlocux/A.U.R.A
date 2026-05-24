@@ -97,6 +97,10 @@ Recommended first run:
    - Results also has sub-views for delta, domains, services, URLs,
      technologies, screenshots, and export actions so large runs stay
      navigable without stacking multiple scrolling tables on one page.
+   - Table sub-views support local grouping by useful fields such as status
+     code, host, source, technology, tool, and delta type.
+   - Screenshot views show captured image thumbnails when the screenshot tool
+     produced PNG, JPG, JPEG, or WebP files.
    - Use Results Explorer filters to isolate live HTTP assets, technologies,
      new run deltas, URLs, or correlation-scored candidates, then export the
      current filtered view as JSON or CSV.

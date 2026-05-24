@@ -347,6 +347,14 @@
 
       <div id="results-delta" class="pane run-delta-pane result-view">
         <h2>Run Delta</h2>
+        <div class="result-view-toolbar">
+          <label for="deltaGroupBy">Group by</label>
+          <select id="deltaGroupBy">
+            <option value="none">None</option>
+            <option value="change">Change</option>
+            <option value="type">Type</option>
+          </select>
+        </div>
         <div class="delta-grid">
           <div class="delta-summary" id="runDeltaSummary">No run comparison loaded.</div>
           <div class="delta-card">
@@ -416,6 +424,15 @@
 
       <div id="results-domains" class="pane result-view">
         <h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2>
+        <div class="result-view-toolbar">
+          <label for="domainGroupBy">Group by</label>
+          <select id="domainGroupBy">
+            <option value="none">None</option>
+            <option value="kind">Kind</option>
+            <option value="root">Root domain</option>
+            <option value="source">Source</option>
+          </select>
+        </div>
         <div class="scroll result-table-scroll">
           <table>
             <thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead>
@@ -426,6 +443,16 @@
 
       <div id="results-services" class="pane result-view">
         <h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2>
+        <div class="result-view-toolbar">
+          <label for="serviceGroupBy">Group by</label>
+          <select id="serviceGroupBy">
+            <option value="none">None</option>
+            <option value="status">Status code</option>
+            <option value="tech">Technology</option>
+            <option value="host">Host</option>
+            <option value="scheme">Scheme</option>
+          </select>
+        </div>
         <div class="scroll result-table-scroll">
           <table>
             <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead>
@@ -436,6 +463,15 @@
 
       <div id="results-technologies" class="pane result-view">
         <h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2>
+        <div class="result-view-toolbar">
+          <label for="technologyGroupBy">Group by</label>
+          <select id="technologyGroupBy">
+            <option value="none">None</option>
+            <option value="source">Source</option>
+            <option value="serviceCount">Service count</option>
+            <option value="hostCount">Host count</option>
+          </select>
+        </div>
         <div class="scroll result-table-scroll">
           <table>
             <thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead>
@@ -446,6 +482,14 @@
 
       <div id="results-screenshots" class="pane result-view">
         <h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2>
+        <div class="result-view-toolbar">
+          <label for="screenshotGroupBy">Group by</label>
+          <select id="screenshotGroupBy">
+            <option value="none">None</option>
+            <option value="tool">Tool</option>
+            <option value="status">Status</option>
+          </select>
+        </div>
         <div class="scroll result-table-scroll">
           <table>
             <thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead>
@@ -456,6 +500,16 @@
 
       <div id="results-urls" class="pane result-view">
         <h2>Wayback URLs</h2>
+        <div class="result-view-toolbar">
+          <label for="urlGroupBy">Group by</label>
+          <select id="urlGroupBy">
+            <option value="none">None</option>
+            <option value="host">Host</option>
+            <option value="params">Parameters</option>
+            <option value="source">Source</option>
+            <option value="path">Path prefix</option>
+          </select>
+        </div>
         <div class="scroll result-table-scroll">
           <table>
             <thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead>

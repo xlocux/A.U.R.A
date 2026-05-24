@@ -13,6 +13,15 @@ let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
+let resultsData = {
+  domains: [],
+  services: [],
+  technologies: [],
+  urls: [],
+  screenshots: [],
+  delta: null,
+  totals: {}
+};
 
 const $ = (id) => document.getElementById(id);
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
@@ -610,18 +619,22 @@ async function refreshRun() {
     $("events").appendChild(div);
   }
   const counts = countData.counts || {};
+  resultsData = {
+    domains: domainData.domains,
+    services: serviceData.services,
+    technologies: technologyData.technologies,
+    urls: urlData.urls,
+    screenshots: screenshotData.screenshots,
+    delta: deltaData.delta,
+    totals: counts
+  };
   $("eventCount").textContent = counts.events ?? lastEventId;
   $("domainCount").textContent = counts.domains ?? domainData.domains.length;
   $("urlCount").textContent = counts.urls ?? urlData.urls.length;
   $("serviceCount").textContent = counts.httpServices ?? serviceData.services.length;
   $("technologyCount").textContent = counts.technologies ?? technologyData.technologies.length;
   $("screenshotCount").textContent = counts.screenshots ?? screenshotData.screenshots.length;
-  renderDomains(domainData.domains, counts.domains);
-  renderServices(serviceData.services, counts.httpServices);
-  renderTechnologies(technologyData.technologies, counts.technologies);
-  renderScreenshots(screenshotData.screenshots, counts.screenshots);
-  renderArtifacts(urlData.urls, screenshotData.screenshots);
-  renderRunDelta(deltaData.delta);
+  renderAllResultTables();
   updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
   if (runData.run.target_name === $("target").value) {
     refreshLeads().catch(() => {});
@@ -728,39 +741,160 @@ async function runHttpFollowup() {
 
 function renderDomains(domains, total = domains.length) {
   $("domainRowsHint").textContent = total > domains.length ? `showing ${domains.length} of ${total}` : `${domains.length} shown`;
-  $("domainRows").innerHTML = domains.map((d) =>
-    `<tr><td>${esc(d.domain)}</td><td>${esc(d.kind)}</td><td>${esc(d.source)}</td></tr>`
-  ).join("");
+  const rows = domains.map((domain) => ({
+    item: domain,
+    group: resultGroupValue("domain", domain),
+    html: `<tr><td>${esc(domain.domain)}</td><td>${esc(domain.kind)}</td><td>${esc(domain.source)}</td></tr>`
+  }));
+  $("domainRows").innerHTML = groupedRows(rows, 3);
 }
 
 function renderServices(services, total = services.length) {
   $("serviceRowsHint").textContent = total > services.length ? `showing ${services.length} of ${total}` : `${services.length} shown`;
-  $("serviceRows").innerHTML = services.map((s) =>
-    `<tr><td>${esc(s.url)}</td><td>${esc(s.statusCode || "")}</td><td>${esc(s.title || "")}</td><td>${esc((s.technologies || []).join(", "))}</td></tr>`
-  ).join("");
+  const rows = services.map((service) => ({
+    item: service,
+    group: resultGroupValue("service", service),
+    html: `<tr><td>${esc(service.url)}</td><td>${esc(service.statusCode || "")}</td><td>${esc(service.title || "")}</td><td>${esc((service.technologies || []).join(", "))}</td></tr>`
+  }));
+  $("serviceRows").innerHTML = groupedRows(rows, 4);
 }
 
 function renderArtifacts(urls, screenshots) {
-  const urlRows = urls.slice(0, 500).map((u) =>
-    `<tr><td>url</td><td>${esc(u.url)}</td><td>${esc((u.params || []).join(", "))}</td></tr>`
-  );
-  $("artifactRows").innerHTML = urlRows.join("");
+  const rows = urls.slice(0, 500).map((url) => ({
+    item: url,
+    group: resultGroupValue("url", url),
+    html: `<tr><td>url</td><td>${esc(url.url)}</td><td>${esc((url.params || []).join(", "))}</td></tr>`
+  }));
+  $("artifactRows").innerHTML = groupedRows(rows, 3);
 }
 
 function renderTechnologies(technologies, total = technologies.length) {
   $("technologyRowsHint").textContent = total > technologies.length ? `showing ${technologies.length} of ${total}` : `${technologies.length} shown`;
-  $("technologyRows").innerHTML = technologies.map((tech) =>
-    `<tr><td>${esc(tech.name)}</td><td>${esc(tech.count)}</td><td>${esc(tech.hostCount)}</td><td>${esc(tech.source || "")}</td></tr>`
-  ).join("");
+  const rows = technologies.map((tech) => ({
+    item: tech,
+    group: resultGroupValue("technology", tech),
+    html: `<tr><td>${esc(tech.name)}</td><td>${esc(tech.count)}</td><td>${esc(tech.hostCount)}</td><td>${esc(tech.source || "")}</td></tr>`
+  }));
+  $("technologyRows").innerHTML = groupedRows(rows, 4);
 }
 
 function renderScreenshots(screenshots, total = screenshots.length) {
   $("screenshotRowsHint").textContent = total > screenshots.length ? `showing ${screenshots.length} of ${total}` : `${screenshots.length} shown`;
-  $("screenshotRows").innerHTML = screenshots.map((shot) => {
+  const rows = screenshots.map((shot) => {
     const count = shot.metadata?.screenshotCount ?? "-";
     const path = shot.report_path || shot.output_dir || "-";
-    return `<tr><td>${esc(shot.tool_name)}</td><td>${esc(count)}</td><td>${esc(path)}</td></tr>`;
-  }).join("");
+    const images = screenshotPreview(shot);
+    return {
+      item: shot,
+      group: resultGroupValue("screenshot", shot),
+      html: `<tr><td>${esc(shot.tool_name)}</td><td>${esc(count)}</td><td>${images || `<span class="muted">No image files found.</span>`}<span class="artifact-path">${esc(path)}</span></td></tr>`
+    };
+  });
+  $("screenshotRows").innerHTML = groupedRows(rows, 3) || `<tr><td colspan="3" class="muted">No screenshot runs recorded for this run.</td></tr>`;
+}
+
+function renderAllResultTables() {
+  renderDomains(resultsData.domains, resultsData.totals.domains);
+  renderServices(resultsData.services, resultsData.totals.httpServices);
+  renderTechnologies(resultsData.technologies, resultsData.totals.technologies);
+  renderScreenshots(resultsData.screenshots, resultsData.totals.screenshots);
+  renderArtifacts(resultsData.urls, resultsData.screenshots);
+  renderRunDelta(resultsData.delta);
+}
+
+function resultGroupValue(type, item) {
+  const mode = $(`${type}GroupBy`)?.value || "none";
+  if (mode === "none") return "";
+  if (type === "domain") {
+    if (mode === "kind") return item.kind || "unknown kind";
+    if (mode === "root") return item.root_domain || rootLabel(item.domain);
+    if (mode === "source") return item.source || "unknown source";
+  }
+  if (type === "service") {
+    if (mode === "status") return item.statusCode ? String(item.statusCode) : "no status";
+    if (mode === "tech") return (item.technologies || [])[0] || "no tech";
+    if (mode === "host") return item.host || hostFromUrl(item.url) || "unknown host";
+    if (mode === "scheme") return item.scheme || schemeFromUrl(item.url) || "unknown scheme";
+  }
+  if (type === "url") {
+    if (mode === "host") return item.host || hostFromUrl(item.url) || "unknown host";
+    if (mode === "params") return (item.params || []).length ? "has parameters" : "no parameters";
+    if (mode === "source") return item.source || "unknown source";
+    if (mode === "path") return pathPrefix(item.path || item.url);
+  }
+  if (type === "technology") {
+    if (mode === "source") return item.source || "unknown source";
+    if (mode === "serviceCount") return countBucket(item.count, "service");
+    if (mode === "hostCount") return countBucket(item.hostCount, "host");
+  }
+  if (type === "screenshot") {
+    if (mode === "tool") return item.tool_name || "unknown tool";
+    if (mode === "status") return item.metadata?.status || "unknown status";
+  }
+  if (type === "delta") {
+    if (mode === "change") return item.change;
+    if (mode === "type") return item.type;
+  }
+  return "";
+}
+
+function groupedRows(rows, colSpan) {
+  const hasGroups = rows.some((row) => row.group);
+  if (!hasGroups) return rows.map((row) => row.html).join("");
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.group || "Other";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+    .map(([group, groupRows]) => `<tr class="group-row"><td colspan="${colSpan}">${esc(group)} <span>${groupRows.length}</span></td></tr>${groupRows.map((row) => row.html).join("")}`)
+    .join("");
+}
+
+function screenshotPreview(shot) {
+  const images = (shot.images || []).slice(0, 12);
+  if (!images.length) return "";
+  return `<div class="screenshot-grid">${images.map((image) =>
+    `<a href="${esc(image.url)}" target="_blank" rel="noreferrer"><img src="${esc(image.url)}" alt="${esc(image.name)}" loading="lazy"></a>`
+  ).join("")}</div>`;
+}
+
+function countBucket(value, label) {
+  const count = Number(value || 0);
+  if (count === 0) return `0 ${label}s`;
+  if (count === 1) return `1 ${label}`;
+  if (count < 5) return `2-4 ${label}s`;
+  if (count < 20) return `5-19 ${label}s`;
+  return `20+ ${label}s`;
+}
+
+function rootLabel(domain) {
+  const parts = String(domain || "").split(".").filter(Boolean);
+  return parts.length >= 2 ? parts.slice(-2).join(".") : String(domain || "unknown root");
+}
+
+function hostFromUrl(value) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return "";
+  }
+}
+
+function schemeFromUrl(value) {
+  try {
+    return new URL(value).protocol.replace(":", "");
+  } catch {
+    return "";
+  }
+}
+
+function pathPrefix(value) {
+  const pathValue = String(value || "/").split("?")[0];
+  const parts = pathValue.split("/").filter(Boolean);
+  return parts[0] ? `/${parts[0]}` : "/";
 }
 
 function renderRunDelta(delta) {
@@ -787,13 +921,15 @@ function renderRunDelta(delta) {
     .concat(deltaRows("removed", "domain", delta.domains.removed, "domain"))
     .concat(deltaRows("added", "url", delta.urls.added, "url"))
     .concat(deltaRows("added", "http_service", delta.httpServices.added, "url"));
-  $("deltaRows").innerHTML = rows.slice(0, 250).join("");
+  $("deltaRows").innerHTML = groupedRows(rows.slice(0, 250), 4);
 }
 
 function deltaRows(change, type, items, valueKey) {
-  return (items || []).map((item) =>
-    `<tr><td><span class="delta-badge ${change}">${esc(change)}</span></td><td>${esc(type)}</td><td>${esc(item[valueKey])}</td><td>${esc(item.source || "")}</td></tr>`
-  );
+  return (items || []).map((item) => ({
+    item: { ...item, change, type },
+    group: resultGroupValue("delta", { ...item, change, type }),
+    html: `<tr><td><span class="delta-badge ${change}">${esc(change)}</span></td><td>${esc(type)}</td><td>${esc(item[valueKey])}</td><td>${esc(item.source || "")}</td></tr>`
+  }));
 }
 
 async function runSearch() {
@@ -1398,6 +1534,9 @@ document.querySelectorAll(".settings-tab").forEach((button) => {
 });
 document.querySelectorAll(".result-subtab").forEach((button) => {
   button.addEventListener("click", () => activateResultsView(button.dataset.resultsView));
+});
+["deltaGroupBy", "domainGroupBy", "serviceGroupBy", "urlGroupBy", "technologyGroupBy", "screenshotGroupBy"].forEach((id) => {
+  $(id)?.addEventListener("change", renderAllResultTables);
 });
 $("fontScale").addEventListener("input", () => applyFontScale($("fontScale").value));
 $("themeSelect").addEventListener("change", () => applyTheme($("themeSelect").value));

@@ -850,6 +850,11 @@ class ScanStore {
     `).all(runId).map(hydrateScreenshot);
   }
 
+  getScreenshot(id) {
+    const row = this.db.prepare("SELECT * FROM recon_screenshots WHERE id = ?").get(Number(id));
+    return row ? hydrateScreenshot(row) : null;
+  }
+
   recordAssetDiscoveryQuery(targetName, query) {
     const result = this.db.prepare(`
       INSERT INTO asset_discovery_queries (

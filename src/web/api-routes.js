@@ -19,7 +19,7 @@ const {
 } = require("../recon/recon-engine");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../core/target-config");
-const { readBody, sendJson, sendNotFound } = require("./http-utils");
+const { readBody, sendFile, sendJson, sendNotFound } = require("./http-utils");
 const { discoverTargets, inferRootDomains } = require("./target-service");
 
 const DEFAULT_WORDLISTS = [
@@ -1528,7 +1528,13 @@ function handleReadEndpoint(response, url, store) {
 
   const screenshotsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/screenshots$/);
   if (screenshotsMatch) {
-    sendJson(response, { screenshots: store.listScreenshots({ runId: Number(screenshotsMatch[1]) }) });
+    sendJson(response, { screenshots: store.listScreenshots({ runId: Number(screenshotsMatch[1]) }).map(withScreenshotImages) });
+    return true;
+  }
+
+  const screenshotImageMatch = url.pathname.match(/^\/api\/recon-screenshots\/(\d+)\/image$/);
+  if (screenshotImageMatch) {
+    serveScreenshotImage(response, store, Number(screenshotImageMatch[1]), url.searchParams.get("path") || "");
     return true;
   }
 
@@ -1576,10 +1582,62 @@ function buildRunSnapshot(store, runId) {
     httpServices: store.listHttpServices({ runId, limit: 10000 }),
     technologies: store.listTechnologySummary({ runId, limit: 10000 }),
     urls: store.listUrls({ runId, limit: 10000 }),
-    screenshots: store.listScreenshots({ runId }),
+    screenshots: store.listScreenshots({ runId }).map(withScreenshotImages),
     toolResults: store.listToolResults({ runId, limit: 1000 }),
     delta: buildRunDelta(store, runId)
   };
+}
+
+function withScreenshotImages(screenshot) {
+  return {
+    ...screenshot,
+    images: listScreenshotImages(screenshot).map((image) => ({
+      ...image,
+      url: `/api/recon-screenshots/${screenshot.id}/image?path=${encodeURIComponent(image.relativePath)}`
+    }))
+  };
+}
+
+function listScreenshotImages(screenshot) {
+  const outputDir = path.resolve(String(screenshot.output_dir || ""));
+  if (!outputDir || !fs.existsSync(outputDir) || !fs.statSync(outputDir).isDirectory()) return [];
+  const images = [];
+  collectScreenshotImages(outputDir, outputDir, images);
+  return images.slice(0, 80);
+}
+
+function collectScreenshotImages(outputDir, currentDir, images) {
+  for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+    const fullPath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      collectScreenshotImages(outputDir, fullPath, images);
+      continue;
+    }
+    if (!entry.isFile() || !/\.(png|jpe?g|webp)$/i.test(entry.name)) continue;
+    const relativePath = path.relative(outputDir, fullPath);
+    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) continue;
+    images.push({ name: entry.name, relativePath });
+  }
+}
+
+function serveScreenshotImage(response, store, screenshotId, relativeImagePath) {
+  const screenshot = store.getScreenshot(screenshotId);
+  if (!screenshot) {
+    sendJson(response, { error: "Screenshot run not found" }, 404);
+    return;
+  }
+  const outputDir = path.resolve(String(screenshot.output_dir || ""));
+  const imagePath = path.resolve(outputDir, relativeImagePath);
+  const relative = path.relative(outputDir, imagePath);
+  if (relative.startsWith("..") || path.isAbsolute(relative) || !/\.(png|jpe?g|webp)$/i.test(imagePath)) {
+    sendJson(response, { error: "Screenshot image not found" }, 404);
+    return;
+  }
+  if (!fs.existsSync(imagePath) || !fs.statSync(imagePath).isFile()) {
+    sendJson(response, { error: "Screenshot image not found" }, 404);
+    return;
+  }
+  sendFile(response, imagePath);
 }
 
 function buildRunResultTree(store, runId) {
