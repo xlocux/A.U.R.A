@@ -919,6 +919,56 @@ button:disabled { opacity: .55; cursor: wait; }
   border-color: var(--accent);
   color: var(--accent-2);
 }
+.api-preflight {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 10, 14, .45);
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+}
+.api-preflight.hidden { display: none; }
+.api-preflight strong {
+  color: var(--ink);
+}
+.api-preflight small {
+  color: var(--muted);
+}
+.api-preflight-rail {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+.api-preflight-rail span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  display: block;
+  height: 100%;
+  width: 34%;
+}
+.api-preflight.running .api-preflight-rail span {
+  animation: api-preflight-scan 1s ease-in-out infinite alternate;
+}
+.api-preflight.ok {
+  border-color: rgba(123, 216, 143, .55);
+}
+.api-preflight.failed {
+  border-color: rgba(239, 111, 108, .65);
+}
+.api-preflight.ok .api-preflight-rail span {
+  background: var(--ok);
+  width: 100%;
+}
+.api-preflight.failed .api-preflight-rail span {
+  background: var(--bad);
+  width: 100%;
+}
+@keyframes api-preflight-scan {
+  from { transform: translateX(-80%); }
+  to { transform: translateX(220%); }
+}
 .artifact-path {
   display: block;
   color: var(--muted);

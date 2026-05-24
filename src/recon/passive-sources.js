@@ -2,8 +2,24 @@
 
 const https = require("node:https");
 const { extractDomains } = require("./domain-utils");
+const { collectProviderDomains } = require("./provider-apis");
 const { queryRapidDns } = require("./providers/rapiddns");
 const { queryRapid7Fdns } = require("./providers/rapid7-opendata");
+
+const API_PASSIVE_SOURCES = new Set([
+  "censys",
+  "hunterio",
+  "binaryedge",
+  "certspotter",
+  "passivetotal",
+  "securitytrails",
+  "shodan",
+  "urlscan",
+  "virustotal",
+  "zoomeye",
+  "spyse",
+  "intelx"
+]);
 
 function fetchText(url, timeoutMs = 20000, redirectCount = 0) {
   return new Promise((resolve, reject) => {
@@ -75,10 +91,16 @@ async function runPassiveSource(source, rootDomain, options = {}) {
     apiKey: options.apiKeys?.rapid7?.api_key || null,
     localPath: options.rapid7FdnsPath || process.env.AURA_RAPID7_FDNS_PATH || null
   });
+  if (API_PASSIVE_SOURCES.has(source)) return collectProviderDomains({
+    provider: source,
+    rootDomain,
+    apiKey: options.apiKeys?.[source] || null
+  });
   throw new Error(`Unknown passive source: ${source}`);
 }
 
 module.exports = {
+  API_PASSIVE_SOURCES,
   fetchCrtSh,
   fetchWayback,
   queryRapidDns,

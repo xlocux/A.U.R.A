@@ -9,6 +9,7 @@ const { generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
+const { providerCatalog, validateProviderKey } = require("../recon/provider-apis");
 const {
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
@@ -124,7 +125,7 @@ async function handleApiRequest({ request, response, url, store }) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/api-keys") {
-    sendJson(response, { apiKeys: store.listApiKeys() });
+    sendJson(response, { apiKeys: store.listApiKeys(), providers: providerCatalog() });
     return true;
   }
 
@@ -243,14 +244,17 @@ async function createApiKey(request, response, store) {
     sendJson(response, { error: "provider, label, and apiKey are required" }, 400);
     return;
   }
+  const provider = String(body.provider).trim();
+  const preflight = await validateProviderKey(provider, String(body.apiKey).trim());
   const apiKey = store.addApiKey({
-    provider: String(body.provider).trim(),
+    provider,
     label: String(body.label).trim(),
     apiKey: String(body.apiKey).trim(),
+    status: preflight.ok ? "active" : "failed",
     monthlyLimit: body.monthlyLimit === null || body.monthlyLimit === undefined ? null : Number(body.monthlyLimit),
-    notes: body.notes || null
+    notes: preflight.message
   });
-  sendJson(response, { apiKey }, 201);
+  sendJson(response, { apiKey, preflight }, preflight.ok ? 201 : 202);
 }
 
 async function saveAiSettings(request, response, store) {

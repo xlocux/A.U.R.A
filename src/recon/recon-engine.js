@@ -13,6 +13,21 @@ const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
 const DEFAULT_SCREENSHOT_TOOLS = ["gowitness"];
 const RUN_CONTROL_STATUSES = new Set(["paused", "cancelled"]);
+const API_PASSIVE_PROVIDERS = [
+  "rapid7",
+  "censys",
+  "hunterio",
+  "binaryedge",
+  "certspotter",
+  "passivetotal",
+  "securitytrails",
+  "shodan",
+  "urlscan",
+  "virustotal",
+  "zoomeye",
+  "spyse",
+  "intelx"
+];
 const DEFAULT_TOOL_RECOVERY_ATTEMPTS = 2;
 const TOOL_RECOVERY_PATTERNS = [
   /timed?\s*out|timeout/i,
@@ -241,9 +256,7 @@ function appendAiLog(store, runId, message, payload = {}) {
 }
 
 async function collectPassive({ store, runId, targetName, roots, passiveSources, discovered }) {
-  const apiKeys = {
-    rapid7: store.getActiveApiKey("rapid7")
-  };
+  const apiKeys = Object.fromEntries(API_PASSIVE_PROVIDERS.map((provider) => [provider, store.getActiveApiKey(provider)]));
   for (const root of roots) {
     for (const source of passiveSources) {
       await waitForRunControl(store, runId);

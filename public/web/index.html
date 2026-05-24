@@ -116,6 +116,18 @@
             <div class="check"><input id="wayback" type="checkbox" checked> <span>Wayback CDX</span></div>
             <div class="check"><input id="rapiddns" type="checkbox" checked> <span>RapidDNS</span></div>
             <div class="check"><input id="rapid7" type="checkbox"> <span>Rapid7 FDNS</span></div>
+            <div class="check"><input id="certspotter" type="checkbox"> <span>Cert Spotter</span></div>
+            <div class="check"><input id="securitytrails" type="checkbox"> <span>SecurityTrails</span></div>
+            <div class="check"><input id="shodan" type="checkbox"> <span>Shodan DNS</span></div>
+            <div class="check"><input id="virustotal" type="checkbox"> <span>VirusTotal</span></div>
+            <div class="check"><input id="censys" type="checkbox"> <span>Censys</span></div>
+            <div class="check"><input id="binaryedge" type="checkbox"> <span>BinaryEdge</span></div>
+            <div class="check"><input id="urlscan" type="checkbox"> <span>urlscan.io</span></div>
+            <div class="check"><input id="hunterio" type="checkbox"> <span>Hunter.io</span></div>
+            <div class="check"><input id="passivetotal" type="checkbox"> <span>PassiveTotal</span></div>
+            <div class="check"><input id="zoomeye" type="checkbox"> <span>ZoomEye</span></div>
+            <div class="check"><input id="spyse" type="checkbox"> <span>Spyse</span></div>
+            <div class="check"><input id="intelx" type="checkbox"> <span>Intelligence X</span></div>
 
             <label>WSL/Kali tools</label>
             <div class="check"><input id="useWsl" type="checkbox" checked> <span>Use WSL/Kali</span></div>
@@ -775,11 +787,20 @@
                       <option value="openrouter">OpenRouter - AI models</option>
                       <option value="shodan">Shodan - host intelligence</option>
                       <option value="censys">Censys - internet intelligence</option>
+                      <option value="hunterio">Hunter.io - email/domain intelligence</option>
+                      <option value="binaryedge">BinaryEdge - DNS intelligence</option>
+                      <option value="certspotter">Cert Spotter - certificate transparency</option>
+                      <option value="passivetotal">RiskIQ PassiveTotal - passive DNS</option>
                       <option value="builtwith">BuiltWith - technology intelligence</option>
                       <option value="securitytrails">SecurityTrails - DNS intelligence</option>
                       <option value="chaos">ProjectDiscovery Chaos - subdomains</option>
                       <option value="github">GitHub - code search</option>
                       <option value="rapid7">Rapid7 Open Data - FDNS metadata/local extract</option>
+                      <option value="urlscan">urlscan.io - archived scans</option>
+                      <option value="virustotal">VirusTotal - domain intelligence</option>
+                      <option value="zoomeye">ZoomEye - internet asset intelligence</option>
+                      <option value="spyse">Spyse - domain intelligence</option>
+                      <option value="intelx">Intelligence X - domain mentions</option>
                       <option value="whoisxmlapi">WhoisXMLAPI - Reverse WHOIS</option>
                       <option value="custom">Custom provider</option>
                     </select>
@@ -796,6 +817,11 @@
                 <label for="apiKeyValue">API key</label>
                 <input id="apiKeyValue" type="text" placeholder="OpenRouter API key">
                 <button id="saveApiKey">Save API Key</button>
+                <div id="apiPreflightStatus" class="api-preflight hidden">
+                  <div class="api-preflight-rail"><span></span></div>
+                  <strong>Testing provider...</strong>
+                  <small>Checking auth method and a lightweight API endpoint.</small>
+                </div>
               </div>
             </div>
             <div class="scroll">

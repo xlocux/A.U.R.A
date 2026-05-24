@@ -874,6 +874,13 @@ Notes:
   key it can inspect dataset metadata; with `AURA_RAPID7_FDNS_PATH` pointing to
   an authorized local `.json` or `.json.gz` FDNS extract it streams the file and
   suffix-filters names for the current root domain.
+- API-backed passive sources are supported through provider-specific auth
+  profiles and preflight checks. Censys and PassiveTotal use compound
+  `id:secret` / `username:api_secret` secrets, while Shodan, SecurityTrails,
+  Cert Spotter, BinaryEdge, urlscan.io, VirusTotal, ZoomEye, Spyse,
+  Intelligence X, and Hunter.io use provider-specific header or query auth.
+  Recon only uses provider API sources with an `active` key that passed
+  preflight.
 - GitHub/code search should use official APIs or user-provided tokens where
   available, with rate limits and clear attribution.
 - Search engine dorking should prefer official/custom search APIs or manual

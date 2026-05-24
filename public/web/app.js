@@ -37,9 +37,13 @@ const API_KEY_PROVIDER_HINTS = {
   },
   censys: {
     label: "free-api",
-    placeholder: "Censys API ID:Secret or API token",
+    placeholder: "Censys API ID:Secret",
     monthlyLimit: "250"
   },
+  hunterio: { label: "domain-search", placeholder: "Hunter.io API key", monthlyLimit: "" },
+  binaryedge: { label: "dns-intel", placeholder: "BinaryEdge API key", monthlyLimit: "" },
+  certspotter: { label: "ct-logs", placeholder: "Cert Spotter API key", monthlyLimit: "" },
+  passivetotal: { label: "passive-dns", placeholder: "PassiveTotal user:api_key", monthlyLimit: "" },
   securitytrails: {
     label: "free-api",
     placeholder: "SecurityTrails API key",
@@ -60,6 +64,11 @@ const API_KEY_PROVIDER_HINTS = {
     placeholder: "Rapid7 Open Data user key",
     monthlyLimit: "30 download URL requests / 24h"
   },
+  urlscan: { label: "scan-search", placeholder: "urlscan.io API key", monthlyLimit: "" },
+  virustotal: { label: "domain-intel", placeholder: "VirusTotal API key", monthlyLimit: "" },
+  zoomeye: { label: "asset-search", placeholder: "ZoomEye API key", monthlyLimit: "" },
+  spyse: { label: "domain-intel", placeholder: "Spyse API key", monthlyLimit: "" },
+  intelx: { label: "domain-mentions", placeholder: "Intelligence X API key", monthlyLimit: "" },
   whoisxmlapi: {
     label: "trial",
     placeholder: "WhoisXMLAPI key",
@@ -570,7 +579,11 @@ async function startRecon() {
         maxAssetLeads: Number($("maxAssetLeads").value || 250)
       },
       intelPreflight: $("intelPreflight").checked,
-      passiveSources: selectedValues(["crtsh", "wayback", "rapiddns", "rapid7"]),
+      passiveSources: selectedValues([
+        "crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan",
+        "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye",
+        "spyse", "intelx"
+      ]),
       wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),
       screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
@@ -1197,8 +1210,9 @@ async function installEnvironment() {
 async function saveApiKey() {
   $("saveApiKey").disabled = true;
   $("status").textContent = "Saving API key...";
+  setApiPreflightState("running", "Testing provider...", "Checking auth method and a lightweight API endpoint.");
   try {
-    await api("/api/api-keys", {
+    const data = await api("/api/api-keys", {
       method: "POST",
       body: JSON.stringify({
         provider: $("keyProvider").value.trim(),
@@ -1208,13 +1222,23 @@ async function saveApiKey() {
       })
     });
     $("apiKeyValue").value = "";
-    $("status").textContent = "API key saved";
+    const ok = data.preflight?.ok !== false;
+    setApiPreflightState(ok ? "ok" : "failed", ok ? "API preflight passed" : "API preflight failed", data.preflight?.message || "");
+    $("status").textContent = ok ? "API key saved and validated" : "API key saved as failed; check provider auth format";
     await refreshApiKeys();
   } catch (error) {
+    setApiPreflightState("failed", "API preflight failed", error.message);
     $("status").textContent = error.message;
   } finally {
     $("saveApiKey").disabled = false;
   }
+}
+
+function setApiPreflightState(state, title, detail) {
+  const node = $("apiPreflightStatus");
+  node.className = `api-preflight ${state}`;
+  node.querySelector("strong").textContent = title;
+  node.querySelector("small").textContent = detail || "";
 }
 
 function updateApiKeyProviderHints() {
