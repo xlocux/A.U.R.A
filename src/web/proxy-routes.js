@@ -106,13 +106,14 @@ async function listProxies(response, url) {
   const maxLatency = url.searchParams.has("maxLatency") ? parseInteger(url.searchParams.get("maxLatency"), null) : null;
 
   let proxies = status === "all"
-    ? await proxyService.store.getBestProxies(Math.max(limit + offset, limit), {
-      minSuccessRate: Number.isFinite(minSuccessRate) ? minSuccessRate : 0,
-      maxLatency,
-      proxyType: type,
-      country
-    })
+    ? await proxyService.store.getProxies({ status: "all", type, country, minSuccessRate, maxLatency })
     : await proxyService.store.getProxies({ status, type, country, minSuccessRate, maxLatency });
+
+  if (url.searchParams.get("best") === "true") {
+    proxies = proxies
+      .filter((proxy) => proxy.status === "active")
+      .sort(compareProxyQuality);
+  }
 
   const paginated = proxies.slice(offset, offset + limit);
   sendJson(response, { proxies: paginated.map(redactProxy), total: proxies.length, limit, offset });
@@ -174,12 +175,16 @@ async function testProxies(request, response) {
 
 async function preflightActiveProxies(request, response) {
   const body = await readBody(request);
-  const proxies = await proxyService.store.getActiveProxies();
-  if (proxies.length === 0) {
-    sendJson(response, { error: "No active proxies to test" }, 400);
+  const status = body.status || "preflight";
+  const proxies = status === "active"
+    ? await proxyService.store.getProxies({ status: "active" })
+    : await proxyService.store.getProxies({ status: "all" });
+  const candidates = proxies.filter((proxy) => ["active", "unknown", "testing"].includes(proxy.status));
+  if (candidates.length === 0) {
+    sendJson(response, { error: "No imported proxies to test. Import proxies to the server-side pool first." }, 400);
     return;
   }
-  const results = await proxyPreflight.batchTest(proxies, body.options || {});
+  const results = await proxyPreflight.batchTest(candidates, body.options || {});
   sendJson(response, { results, summary: summarizeResults(results) });
 }
 
@@ -293,6 +298,16 @@ function summarizeResults(results) {
       ? results.reduce((sum, result) => sum + (result.latency || 0), 0) / results.length
       : 0
   };
+}
+
+function compareProxyQuality(left, right) {
+  const leftRate = Number(left.success_rate ?? -1);
+  const rightRate = Number(right.success_rate ?? -1);
+  if (leftRate !== rightRate) return rightRate - leftRate;
+  const leftLatency = Number(left.latency_ms ?? Number.MAX_SAFE_INTEGER);
+  const rightLatency = Number(right.latency_ms ?? Number.MAX_SAFE_INTEGER);
+  if (leftLatency !== rightLatency) return leftLatency - rightLatency;
+  return String(right.updated_at || "").localeCompare(String(left.updated_at || ""));
 }
 
 function parseInteger(value, fallback) {
