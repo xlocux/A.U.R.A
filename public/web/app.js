@@ -4,11 +4,6 @@ let targets = [];
 let activeRunId = null;
 let lastEventId = 0;
 let poll = null;
-let topologyFrame = null;
-let topologyPulse = 0;
-let topologyGraph = { nodes: [], edges: [] };
-let topologyData = { domains: [], services: [], urls: [], screenshots: [] };
-let topologyView = { zoom: 1, offsetX: 0, offsetY: 0 };
 let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
@@ -26,7 +21,6 @@ let resultsData = {
 const $ = (id) => document.getElementById(id);
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
 const ACTIVE_TARGET_STORAGE_KEY = "aura.activeTarget";
-const PROXY_SETTINGS_STORAGE_KEY = "aura.proxySettings";
 const API_KEY_PROVIDER_HINTS = {
   openrouter: {
     label: "free-models",
@@ -115,147 +109,8 @@ window.getAuraAgentContext = () => ({
   distro: $("setupDistro")?.value?.trim() || "kali-linux"
 });
 
-function getProxySettings() {
-  try {
-    const settings = JSON.parse(localStorage.getItem(PROXY_SETTINGS_STORAGE_KEY) || "{}");
-    return {
-      ...settings,
-      proxies: Array.isArray(settings.proxies) ? settings.proxies : []
-    };
-  } catch {
-    return { proxies: [] };
-  }
-}
-
-function readProxySettingsForm() {
-  const mode = $("proxyMode")?.value || "http";
-  return {
-    enabled: $("proxyEnabled")?.checked || false,
-    url: normalizeProxyFormUrl($("proxyUrl")?.value?.trim() || "", mode),
-    mode,
-    purpose: $("proxyPurpose")?.value || "interception",
-    proxies: getProxySettings().proxies || []
-  };
-}
-
 function activeProxyUrl() {
-  const settings = getProxySettings();
-  return settings.enabled ? settings.url : "";
-}
-
-function renderProxySettings() {
-  if (!$("proxyEnabled")) return;
-  const settings = getProxySettings();
-  $("proxyEnabled").checked = Boolean(settings.enabled);
-  $("proxyUrl").value = settings.url || "";
-  $("proxyMode").value = settings.mode || inferProxyMode(settings.url);
-  $("proxyPurpose").value = settings.purpose || "interception";
-  renderProxySavedList(settings);
-}
-
-function saveProxySettings() {
-  const settings = readProxySettingsForm();
-  try {
-    if (settings.enabled) validateProxyUrl(settings.url);
-    localStorage.setItem(PROXY_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    $("proxySettingsStatus").textContent = settings.enabled
-      ? `Proxy enabled: ${redactProxyUrl(settings.url)}`
-      : "Proxy disabled.";
-    $("proxySettingsStatus").className = "notice ok";
-  } catch (error) {
-    $("proxySettingsStatus").textContent = error.message;
-    $("proxySettingsStatus").className = "notice error";
-  }
-}
-
-function renderProxySavedList(settings = getProxySettings()) {
-  if (!$("proxySavedList")) return;
-  const proxies = settings.proxies || [];
-  $("proxySavedList").innerHTML = [
-    `<option value="">Manual entry</option>`,
-    ...proxies.map((proxy) => `<option value="${esc(proxy.url)}">${esc(redactProxyUrl(proxy.url))}</option>`)
-  ].join("");
-  $("proxySavedList").value = proxies.some((proxy) => proxy.url === settings.url) ? settings.url : "";
-}
-
-function selectSavedProxy() {
-  const selected = $("proxySavedList").value;
-  if (!selected) return;
-  $("proxyUrl").value = selected;
-  $("proxyMode").value = inferProxyMode(selected);
-}
-
-function importProxyList() {
-  const current = getProxySettings();
-  const existing = new Map((current.proxies || []).map((proxy) => [proxy.url, proxy]));
-  const lines = $("proxyImportList").value.split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  let imported = 0;
-  let skipped = 0;
-  for (const line of lines) {
-    try {
-      const normalized = validateProxyUrl(normalizeProxyFormUrl(line, $("proxyMode").value));
-      if (!existing.has(normalized)) {
-        existing.set(normalized, {
-          url: normalized,
-          mode: inferProxyMode(normalized),
-          addedAt: new Date().toISOString()
-        });
-        imported += 1;
-      }
-    } catch {
-      skipped += 1;
-    }
-  }
-  const proxies = [...existing.values()].sort((left, right) => left.url.localeCompare(right.url));
-  localStorage.setItem(PROXY_SETTINGS_STORAGE_KEY, JSON.stringify({ ...current, proxies }));
-  $("proxyImportList").value = "";
-  renderProxySettings();
-  $("proxySettingsStatus").textContent = `Imported ${imported} proxies. Skipped ${skipped} invalid entries. Saved proxies: ${proxies.length}.`;
-  $("proxySettingsStatus").className = skipped ? "notice warn" : "notice ok";
-}
-
-function clearProxyList() {
-  const current = getProxySettings();
-  localStorage.setItem(PROXY_SETTINGS_STORAGE_KEY, JSON.stringify({ ...current, proxies: [] }));
-  renderProxySettings();
-  $("proxySettingsStatus").textContent = "Saved proxy list cleared.";
-  $("proxySettingsStatus").className = "notice ok";
-}
-
-function validateProxyUrl(value) {
-  let parsed;
-  try {
-    parsed = new URL(String(value || "").trim());
-  } catch {
-    throw new Error("Proxy URL must include a scheme and host.");
-  }
-  if (!["http:", "https:", "socks4:", "socks5:"].includes(parsed.protocol)) {
-    throw new Error("Proxy URL must use http, https, socks4, or socks5.");
-  }
-  if (!parsed.hostname) throw new Error("Proxy URL must include a host.");
-  return parsed.toString();
-}
-
-function normalizeProxyFormUrl(value, mode) {
-  if (!value || /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
-  const scheme = mode === "socks5" ? "socks5" : mode === "socks4" ? "socks4" : "http";
-  return `${scheme}://${value}`;
-}
-
-function redactProxyUrl(value) {
-  const parsed = new URL(validateProxyUrl(value));
-  if (parsed.username) parsed.username = "****";
-  if (parsed.password) parsed.password = "****";
-  return parsed.toString();
-}
-
-function inferProxyMode(value) {
-  const text = String(value || "");
-  if (text.startsWith("socks5:")) return "socks5";
-  if (text.startsWith("socks4:")) return "socks4";
-  return "http";
+  return window.AuraProxySettings?.activeProxyUrl() || "";
 }
 
 async function loadAiSettings() {
@@ -442,7 +297,7 @@ function activateTab(name) {
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `tab-${name}`);
   });
-  if (name === "topology") renderTopology();
+  if (name === "topology") window.AuraTopology?.render();
 }
 
 function getUiSettings() {
@@ -583,7 +438,7 @@ function clearRunView() {
   renderRunDelta(null);
   latestRunActivity = "";
   updateRunControlButtons("idle");
-  updateTopologyGraph();
+  window.AuraTopology?.update();
   window.AuraAiLog.refresh(null);
   window.AuraResultsExplorer.refresh(null);
   renderRunActivity();
@@ -781,7 +636,7 @@ async function refreshRun() {
   $("technologyCount").textContent = counts.technologies ?? technologyData.technologies.length;
   $("screenshotCount").textContent = counts.screenshots ?? screenshotData.screenshots.length;
   renderAllResultTables();
-  updateTopologyGraph({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
+  window.AuraTopology?.update({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
   if (runData.run.target_name === $("target").value) {
     refreshLeads().catch(() => {});
   }
@@ -1107,246 +962,6 @@ function renderSearchResults(results) {
   ).join("");
 }
 
-function updateTopologyGraph(data = null) {
-  if (data) {
-    topologyData = {
-      domains: data.domains || [],
-      services: data.services || [],
-      urls: data.urls || [],
-      screenshots: data.screenshots || []
-    };
-  }
-  const { domains, services, urls, screenshots } = topologyData;
-  const nodes = [];
-  const edges = [];
-  const rootId = $("target").value || "workspace";
-  nodes.push({ id: rootId, label: rootId, type: "target", x: 0, y: 0 });
-  const nodeIds = new Set([rootId]);
-
-  if ($("topologyDomains").checked) {
-    const grouped = groupDomainsForTopology(domains);
-    let shownDomains = 0;
-    for (const group of grouped.slice(0, 18)) {
-      const clusterId = `cluster:${group.root}`;
-      nodes.push({ id: clusterId, label: `${group.root} (${group.items.length})`, type: "cluster", data: { root: group.root, count: group.items.length } });
-      nodeIds.add(clusterId);
-      edges.push({ from: rootId, to: clusterId, type: "domain cluster" });
-      for (const domain of group.items.slice(0, Math.max(4, Math.floor(120 / Math.max(1, grouped.length))))) {
-        if (shownDomains >= 160) break;
-        const domainId = `domain:${domain.domain}`;
-        nodes.push({ id: domainId, label: domain.domain, type: "domain", data: domain });
-        nodeIds.add(domainId);
-        edges.push({ from: clusterId, to: domainId, type: domain.source || "discovered" });
-        shownDomains += 1;
-      }
-      if (shownDomains >= 160) break;
-    }
-    $("topologyHint").textContent = `Clustered topology. Showing ${Math.min(shownDomains, domains.length)} of ${domains.length} domains plus services and artifacts for the loaded run.`;
-  } else {
-    $("topologyHint").textContent = "Topology layers are filtered. Enable domains for the clustered domain map.";
-  }
-  if ($("topologyServices").checked) {
-    services.slice(0, 100).forEach((service) => {
-      const serviceId = `service:${service.url}`;
-      nodes.push({ id: serviceId, label: service.host || service.url, type: "service", data: service });
-      nodeIds.add(serviceId);
-      const domainParent = `domain:${service.host}`;
-      const clusterParent = `cluster:${rootForTopology(service.host || "")}`;
-      const serviceParent = nodeIds.has(domainParent) ? domainParent : nodeIds.has(clusterParent) ? clusterParent : rootId;
-      edges.push({ from: serviceParent, to: serviceId, type: "http" });
-    });
-  }
-  if ($("topologyArtifacts").checked) {
-    urls.slice(0, 80).forEach((url) => {
-      nodes.push({ id: `url:${url.url}`, label: url.path || url.url, type: "url", data: url });
-      edges.push({ from: rootId, to: `url:${url.url}`, type: "archive" });
-    });
-    screenshots.slice(0, 30).forEach((shot) => {
-      nodes.push({ id: `screenshot:${shot.id || shot.output_dir}`, label: shot.tool_name || "screenshot", type: "artifact", data: shot });
-      edges.push({ from: rootId, to: `screenshot:${shot.id || shot.output_dir}`, type: "visual" });
-    });
-  }
-
-  topologyGraph = nodes.length > 1 ? { nodes: layoutTopology(nodes), edges } : previewTopology(rootId);
-  $("topologyNodeCount").textContent = topologyGraph.nodes.length;
-  $("topologyEdgeCount").textContent = topologyGraph.edges.length;
-  renderTopology();
-}
-
-function groupDomainsForTopology(domains) {
-  const groups = new Map();
-  for (const domain of domains) {
-    const root = domain.rootDomain || rootForTopology(domain.domain || "");
-    if (!groups.has(root)) groups.set(root, []);
-    groups.get(root).push(domain);
-  }
-  return [...groups.entries()]
-    .map(([root, items]) => ({ root, items: items.sort((left, right) => String(left.domain).localeCompare(String(right.domain))) }))
-    .sort((left, right) => right.items.length - left.items.length || left.root.localeCompare(right.root));
-}
-
-function rootForTopology(hostname) {
-  const clean = String(hostname || "").split(":")[0].toLowerCase();
-  const parts = clean.split(".").filter(Boolean);
-  if (parts.length <= 2) return clean || "unknown";
-  return parts.slice(-2).join(".");
-}
-
-function previewTopology(rootId) {
-  const nodes = [
-    { id: rootId, label: rootId, type: "target" },
-    { id: "phase:passive", label: "Passive recon", type: "phase" },
-    { id: "phase:dns", label: "DNS resolution", type: "phase" },
-    { id: "phase:http", label: "HTTP probing", type: "phase" },
-    { id: "phase:graph", label: "Correlation graph", type: "phase" }
-  ];
-  const edges = [
-    { from: rootId, to: "phase:passive", type: "feeds" },
-    { from: "phase:passive", to: "phase:dns", type: "validates" },
-    { from: "phase:dns", to: "phase:http", type: "probes" },
-    { from: "phase:http", to: "phase:graph", type: "correlates" }
-  ];
-  return { nodes: layoutTopology(nodes), edges };
-}
-
-function layoutTopology(nodes) {
-  const radius = Math.max(120, Math.min(340, 34 * nodes.length));
-  return nodes.map((node, index) => {
-    if (index === 0) return { ...node, x: 0, y: 0 };
-    const angle = (Math.PI * 2 * (index - 1)) / Math.max(1, nodes.length - 1);
-    const ring = radius * (0.55 + ((index % 4) * 0.16));
-    return { ...node, x: Math.cos(angle) * ring, y: Math.sin(angle) * ring };
-  });
-}
-
-function renderTopology() {
-  const canvas = $("topologyCanvas");
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
-  const scale = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = Math.max(1, Math.floor(rect.width * scale));
-  canvas.height = Math.max(1, Math.floor(rect.height * scale));
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  drawTopology(ctx, rect.width, rect.height);
-}
-
-function drawTopology(ctx, width, height) {
-  const centerX = width / 2 + topologyView.offsetX;
-  const centerY = height / 2 + topologyView.offsetY;
-  ctx.clearRect(0, 0, width, height);
-  drawTopologyGrid(ctx, width, height);
-  const nodeMap = new Map(topologyGraph.nodes.map((node) => [node.id, node]));
-  for (const edge of topologyGraph.edges) {
-    const from = nodeMap.get(edge.from);
-    const to = nodeMap.get(edge.to);
-    if (!from || !to) continue;
-    drawEdge(ctx, centerX + from.x * topologyView.zoom, centerY + from.y * topologyView.zoom, centerX + to.x * topologyView.zoom, centerY + to.y * topologyView.zoom, edge.type);
-  }
-  for (const node of topologyGraph.nodes) {
-    drawNode(ctx, centerX + node.x * topologyView.zoom, centerY + node.y * topologyView.zoom, node);
-  }
-}
-
-function drawTopologyGrid(ctx, width, height) {
-  ctx.strokeStyle = "rgba(67, 197, 158, .08)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x < width; x += 36) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
-    ctx.stroke();
-  }
-  for (let y = 0; y < height; y += 36) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-}
-
-function drawEdge(ctx, x1, y1, x2, y2) {
-  const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
-  gradient.addColorStop(0, "rgba(67, 197, 158, .42)");
-  gradient.addColorStop(1, "rgba(143, 220, 195, .18)");
-  ctx.strokeStyle = gradient;
-  ctx.lineWidth = 1.3;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-}
-
-function drawNode(ctx, x, y, node) {
-  const colors = {
-    target: ["#43c59e", 15],
-    cluster: ["#49d8ff", 12],
-    domain: ["#8fdcc3", 9],
-    service: ["#f2b84b", 8],
-    url: ["#9da6b5", 6],
-    artifact: ["#ef6f6c", 7],
-    phase: ["#8fdcc3", 10]
-  };
-  const [color, radius] = colors[node.type] || ["#9da6b5", 7];
-  const pulse = Math.sin(topologyPulse / 18) * 2;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 16;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y, radius + pulse, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "rgba(240, 242, 245, .86)";
-  ctx.font = "12px Inter, Segoe UI, sans-serif";
-  ctx.fillText(node.label.slice(0, 28), x + radius + 7, y + 4);
-}
-
-function animateTopology() {
-  topologyPulse += 1;
-  renderTopology();
-  topologyFrame = window.requestAnimationFrame(animateTopology);
-}
-
-function selectTopologyNode(event) {
-  const canvas = $("topologyCanvas");
-  const rect = canvas.getBoundingClientRect();
-  const x = (event.clientX - rect.left - rect.width / 2 - topologyView.offsetX) / topologyView.zoom;
-  const y = (event.clientY - rect.top - rect.height / 2 - topologyView.offsetY) / topologyView.zoom;
-  const selected = topologyGraph.nodes.find((node) => Math.hypot(node.x - x, node.y - y) < 18);
-  if (!selected) return;
-  $("topologySelection").textContent = formatTopologyNode(selected);
-}
-
-function resetTopology() {
-  topologyView = { zoom: 1, offsetX: 0, offsetY: 0 };
-  updateTopologyGraph();
-}
-
-function zoomTopology(delta) {
-  topologyView.zoom = Math.max(0.35, Math.min(3, topologyView.zoom + delta));
-  renderTopology();
-}
-
-function formatTopologyNode(node) {
-  const data = node.data || {};
-  if (node.type === "domain") {
-    return [`Domain: ${node.label}`, `Kind: ${data.kind || "-"}`, `Source: ${data.source || "-"}`, `Status: ${data.status || "-"}`].join("\n");
-  }
-  if (node.type === "cluster") {
-    return [`Domain cluster: ${data.root || node.label}`, `Domains: ${data.count || "-"}`, "Expand the run table or search to inspect individual domains."].join("\n");
-  }
-  if (node.type === "service") {
-    return [`HTTP service: ${data.url || node.label}`, `Status: ${data.statusCode || "-"}`, `Title: ${data.title || "-"}`, `Tech: ${(data.technologies || []).join(", ") || "-"}`].join("\n");
-  }
-  if (node.type === "url") {
-    return [`URL: ${data.url || node.label}`, `Path: ${data.path || "-"}`, `Params: ${(data.params || []).join(", ") || "-"}`, `Source: ${data.source || "-"}`].join("\n");
-  }
-  if (node.type === "artifact") {
-    return [`Artifact: ${node.label}`, `Report: ${data.report_path || "-"}`, `Output: ${data.output_dir || "-"}`].join("\n");
-  }
-  return `${node.type}: ${node.label}`;
-}
-
 function exportRun(format) {
   if (!activeRunId) {
     $("status").textContent = "No active run is loaded.";
@@ -1653,10 +1268,6 @@ $("checkEnvironment").addEventListener("click", checkEnvironment);
 $("installEnvironment").addEventListener("click", installEnvironment);
 $("saveAiSettings").addEventListener("click", saveAiSettings);
 $("testAiSettings").addEventListener("click", testAiSettings);
-$("saveProxySettings").addEventListener("click", saveProxySettings);
-$("importProxyList").addEventListener("click", importProxyList);
-$("clearProxyList").addEventListener("click", clearProxyList);
-$("proxySavedList").addEventListener("change", selectSavedProxy);
 $("aiProvider").addEventListener("change", updateAiSettingsPreview);
 $("useLocalModel").addEventListener("change", updateAiSettingsPreview);
 $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
@@ -1669,17 +1280,9 @@ $("aiAutonomyLevel").addEventListener("input", () => {
   updateAiSettingsPreview();
 });
 window.AuraAiAgent.bind();
-$("topologyCanvas").addEventListener("click", selectTopologyNode);
-$("fitTopology").addEventListener("click", resetTopology);
-$("pulseTopology").addEventListener("click", renderTopology);
-$("zoomTopologyIn").addEventListener("click", () => zoomTopology(0.15));
-$("zoomTopologyOut").addEventListener("click", () => zoomTopology(-0.15));
 $("exportJson").addEventListener("click", () => exportRun("json"));
 $("exportCsv").addEventListener("click", () => exportRun("csv"));
 $("exportMarkdown").addEventListener("click", () => exportRun("markdown"));
-["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => {
-  $(id).addEventListener("change", resetTopology);
-});
 document.querySelectorAll(".settings-tab").forEach((button) => {
   button.addEventListener("click", () => activateSettingsPanel(button.dataset.settingsPanel));
 });
@@ -1703,11 +1306,10 @@ loadAiSettings().catch((error) => {
   $("aiSettingsStatus").textContent = error.message;
   $("aiSettingsStatus").className = "notice error";
 });
-renderProxySettings();
+window.AuraProxySettings?.bind();
+window.AuraTopology?.bind();
 updateReconModeUi();
 updateApiKeyProviderHints();
 applyTheme(getUiSettings().theme || "aura");
 applyBackgroundEffect(getUiSettings().backgroundEffect || "random");
 applyFontScale(getUiSettings().fontScale || 100);
-updateTopologyGraph();
-if (!topologyFrame) animateTopology();
