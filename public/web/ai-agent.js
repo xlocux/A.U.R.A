@@ -21,6 +21,7 @@
 
   async function postAgentPrompt(prompt) {
     const context = window.getAuraAgentContext ? window.getAuraAgentContext() : {};
+    const guideContext = window.AuraGuide?.agentContext ? window.AuraGuide.agentContext() : "";
     const data = await window.auraApi("/api/agent/chat", {
       method: "POST",
       body: JSON.stringify({
@@ -28,6 +29,7 @@
         targetName: context.targetName || "",
         runId: context.runId || null,
         distro: context.distro || "kali-linux",
+        guideContext,
         conversation: getConversationContext()
       })
     });
