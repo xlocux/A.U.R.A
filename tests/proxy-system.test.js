@@ -16,7 +16,7 @@ const ProxyService = require("../src/recon/proxy-service");
 const ProxySources = require("../src/recon/proxy-sources");
 const ProxyStore = require("../src/db/proxy-store");
 const proxyRoutes = require("../src/web/proxy-routes");
-const { retireArgsForUrl } = require("../src/recon/technology-detectors");
+const { retireArgsForPath } = require("../src/recon/technology-detectors");
 
 test("proxy sources parse supported manual formats", () => {
   const sources = new ProxySources();
@@ -89,10 +89,11 @@ test("proxy routes are mounted in the custom api style", async () => {
   assert.equal(JSON.parse(response.body).database, "connected");
 });
 
-test("retire url args avoid unsupported js flag", () => {
-  const args = retireArgsForUrl("https://example.com");
-  assert.deepEqual(args, ["--url", "https://example.com", "--outputformat", "json"]);
+test("retire path args avoid unsupported url and js flags", () => {
+  const args = retireArgsForPath("/tmp/aura-retire");
+  assert.deepEqual(args, ["--path", "/tmp/aura-retire", "--outputformat", "json", "--exitwith", "0"]);
   assert.equal(args.includes("--js"), false);
+  assert.equal(args.includes("--url"), false);
 });
 
 function makeStore() {

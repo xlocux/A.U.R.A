@@ -59,7 +59,17 @@ async function runTechnologyEnrichment({
 }
 
 async function runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
-  const args = retireArgsForUrl(service.url);
+  const retireInput = await prepareRetireInput({ service, artifactsDir, proxyUrl });
+  if (retireInput.skipped) {
+    store.appendEvent(runId, {
+      phase: "technology-enrichment",
+      severity: "info",
+      source: "retire",
+      message: `retire skipped for ${service.url}: ${retireInput.reason}`
+    });
+    return;
+  }
+  const args = retireArgsForPath(retireInput.inputDir);
   const result = await runDetectorTool({ store, runId, wslDistro, toolName: "retire", args, timeoutMs: Math.min(timeoutMs, 60000), proxyUrl });
   const artifacts = writeDetectorArtifacts(artifactsDir, "retire", service, result);
   store.recordToolResult(runId, {
@@ -77,8 +87,64 @@ async function runRetireOnService({ store, runId, targetName, service, wslDistro
   saveTechnologyService(store, runId, targetName, service, "retire.js", technologies, result);
 }
 
-function retireArgsForUrl(url) {
-  return ["--url", url, "--outputformat", "json"];
+async function prepareRetireInput({ service, artifactsDir, proxyUrl = null }) {
+  const inputDir = path.join(artifactsDir, "retire-input", safeName(service.url));
+  fs.mkdirSync(inputDir, { recursive: true });
+  let html = "";
+  try {
+    html = await fetchText(service.url, { proxyUrl, timeoutMs: 15000 });
+  } catch (error) {
+    return { skipped: true, reason: `unable to fetch page HTML (${error.message})` };
+  }
+
+  fs.writeFileSync(path.join(inputDir, "index.html"), html, "utf8");
+  const scriptUrls = extractScriptUrls(html, service.url).slice(0, 20);
+  let saved = 0;
+  for (const scriptUrl of scriptUrls) {
+    try {
+      const content = await fetchText(scriptUrl, { proxyUrl, timeoutMs: 15000 });
+      fs.writeFileSync(path.join(inputDir, `${String(saved + 1).padStart(3, "0")}-${safeName(scriptUrl)}.js`), content, "utf8");
+      saved += 1;
+    } catch {
+      // Keep the detector best-effort: one unavailable script should not fail the service.
+    }
+  }
+  if (saved === 0) return { skipped: true, reason: "no downloadable JavaScript assets found" };
+  return { inputDir, scriptCount: saved };
+}
+
+function retireArgsForPath(inputDir) {
+  return ["--path", toToolPath(inputDir), "--outputformat", "json", "--exitwith", "0"];
+}
+
+async function fetchText(url, { proxyUrl = null, timeoutMs = 15000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AURA-Recon/0.1)" },
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function extractScriptUrls(html, baseUrl) {
+  const urls = [];
+  const pattern = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+  let match;
+  while ((match = pattern.exec(String(html || ""))) !== null) {
+    try {
+      const parsed = new URL(match[1], baseUrl);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") urls.push(parsed.toString());
+    } catch {
+      // Ignore malformed script sources.
+    }
+  }
+  return [...new Set(urls)];
 }
 
 async function runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
@@ -317,6 +383,6 @@ module.exports = {
   parseBuiltWithTechnologies,
   parseRetireTechnologies,
   parseWpscanTechnologies,
-  retireArgsForUrl,
+  retireArgsForPath,
   runTechnologyEnrichment
 };

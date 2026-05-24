@@ -781,7 +781,10 @@ function renderTechnologies(technologies, total = technologies.length) {
 }
 
 function renderScreenshots(screenshots, total = screenshots.length) {
-  $("screenshotRowsHint").textContent = total > screenshots.length ? `showing ${screenshots.length} of ${total}` : `${screenshots.length} shown`;
+  const imageTotal = screenshots.reduce((sum, shot) => sum + ((shot.images || []).length || Number(shot.metadata?.screenshotCount || 0)), 0);
+  $("screenshotRowsHint").textContent = imageTotal
+    ? `${imageTotal} images captured across ${screenshots.length} screenshot run${screenshots.length === 1 ? "" : "s"}`
+    : total > screenshots.length ? `showing ${screenshots.length} of ${total}` : `${screenshots.length} shown`;
   const rows = screenshots.map((shot) => {
     const count = shot.metadata?.screenshotCount ?? "-";
     const path = shot.report_path || shot.output_dir || "-";
@@ -859,8 +862,47 @@ function screenshotPreview(shot) {
   const images = (shot.images || []).slice(0, 12);
   if (!images.length) return "";
   return `<div class="screenshot-grid">${images.map((image) =>
-    `<a href="${esc(image.url)}" target="_blank" rel="noreferrer"><img src="${esc(image.url)}" alt="${esc(image.name)}" loading="lazy"></a>`
+    `<button class="screenshot-thumb" type="button" data-image-url="${esc(image.url)}" data-image-name="${esc(image.name)}"><img src="${esc(image.url)}" alt="${esc(image.name)}" loading="lazy"></button>`
   ).join("")}</div>`;
+}
+
+function ensureImageModal() {
+  let modal = $("imagePreviewModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "imagePreviewModal";
+  modal.className = "image-modal hidden";
+  modal.innerHTML = `
+    <div class="image-modal-dialog" role="dialog" aria-modal="true" aria-label="Screenshot preview">
+      <button class="image-modal-close" type="button" aria-label="Close preview">&times;</button>
+      <img id="imagePreviewModalImg" alt="">
+      <div id="imagePreviewModalCaption" class="image-modal-caption"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal || event.target.closest(".image-modal-close")) closeImageModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeImageModal();
+  });
+  return modal;
+}
+
+function openImageModal(url, name) {
+  const modal = ensureImageModal();
+  $("imagePreviewModalImg").src = url;
+  $("imagePreviewModalImg").alt = name || "Screenshot preview";
+  $("imagePreviewModalCaption").textContent = name || "";
+  modal.classList.remove("hidden");
+}
+
+function closeImageModal() {
+  const modal = $("imagePreviewModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  const image = $("imagePreviewModalImg");
+  if (image) image.src = "";
 }
 
 function countBucket(value, label) {
@@ -1261,6 +1303,11 @@ $("generateWordlist").addEventListener("click", generateWordlist);
 $("runSearch").addEventListener("click", runSearch);
 $("searchQuery").addEventListener("keydown", (event) => {
   if (event.key === "Enter") runSearch();
+});
+document.addEventListener("click", (event) => {
+  const thumb = event.target.closest(".screenshot-thumb");
+  if (!thumb) return;
+  openImageModal(thumb.dataset.imageUrl, thumb.dataset.imageName);
 });
 $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);
