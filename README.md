@@ -63,10 +63,9 @@ recon runs, and results are all managed from the Web UI.
 
 Use `Settings > Proxy` when recon traffic needs to pass through an authorized
 interception or lab egress proxy such as Burp. A.U.R.A supports explicit
-`http`, `https`, `socks4`, and `socks5` proxy URLs for WSL recon tools. It does
-not rotate public proxies to bypass rate limits or blocking controls. You can
-import a manual list of private or otherwise authorized proxies, then choose the
-single proxy that should be active for the next run.
+`http`, `https`, `socks4`, and `socks5` proxy URLs for WSL recon tools. You can
+import a manual list of private or otherwise authorized proxies, then choose
+the single proxy that should be active for the next run.
 
 Targets can be deleted from the `Recon` tab. Deleting a target removes its local
 target config, runs, observations, leads, and run artifact folders.

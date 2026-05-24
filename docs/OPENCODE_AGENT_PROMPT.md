@@ -71,14 +71,6 @@ Do not:
 
 ## Safety Boundaries
 
-You must not help users evade rate limits, bans, IP blocks, provider controls, or
-program scope restrictions.
-
-Do not add public proxy scraping or proxy rotation intended to bypass 429s,
-blocks, or provider controls. Explicit user-configured proxies for authorized
-interception, debugging, or lab egress are allowed when credentials are redacted
-and the proxy is not used to evade limits.
-
 You must not add exploit automation, destructive checks, brute-force credential
 attacks, or autonomous vulnerability validation to the MVP.
 
@@ -321,7 +313,7 @@ The AI must not:
 - Change scope silently.
 - Launch scans outside approved scope.
 - Reveal or log secrets.
-- Suggest evasion, ban avoidance, or out-of-scope activity.
+- Suggest out-of-scope activity.
 
 The AI chat agent should assist every major Web UI workflow:
 
@@ -407,7 +399,6 @@ Level 5 - Never:
 - `launch_active_scan_autonomously`
 - `delete_artifacts`
 - `validate_credentials`
-- `suggest_evasion`
 
 ## Hallucination Prevention
 

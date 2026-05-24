@@ -164,10 +164,7 @@ Rules:
 
 - Proxy settings belong under Settings, not inside individual result views.
 - Proxy credentials must be redacted in UI status and run events.
-- Imported proxy lists must be manually supplied by the user and must not be
-  fetched from public proxy-list sites.
-- A.U.R.A must not implement public proxy scraping or rotation intended to
-  bypass rate limits, provider blocks, or scope controls.
+- Imported proxy lists must be manually supplied by the user.
 
 ### AI Agent Settings
 

@@ -21,7 +21,6 @@ recon phase should be replaceable through configuration or a registry.
 ## Non-Goals For MVP
 
 - Exploit automation.
-- IP rotation or evasion of rate limits, bans, or provider controls.
 - Autonomous vulnerability testing without explicit user control.
 - Automated proof-of-concept generation.
 - Report drafting as a primary workflow.
@@ -1311,11 +1310,11 @@ Outputs:
 
 Rules:
 
-- This phase documents controls; it must not attempt bypasses.
+- This phase documents controls for review.
 - Findings should become `security_control`, `technology`, or `review_item`
   observations.
 - The AI copilot may use these observations to explain surface context and
-  prioritize review, not to suggest evasion.
+  prioritize review.
 
 ## Phase 6b: Well-Known File Discovery
 
@@ -2102,7 +2101,7 @@ Not allowed in MVP:
 - Modify API keys.
 - Delete data.
 - Run arbitrary shell commands without a user-approved setup or tool action.
-- Suggest evasion, ban avoidance, or out-of-scope activity.
+- Suggest out-of-scope activity.
 
 Recommended implementation:
 
