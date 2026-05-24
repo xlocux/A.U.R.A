@@ -82,6 +82,7 @@
     injectScript("/screenshot-alignment.js", "aura-screenshot-alignment-js");
     injectScript("/guide-data.js", "aura-guide-data-js");
     injectScript("/guide-view.js", "aura-guide-view-js");
+    injectScript("/guide-details.js", "aura-guide-details-js");
     window.addEventListener("aura:appearance-change", () => {
       ensureLightOption();
       if (document.documentElement.dataset.theme !== "light") clearLightFlag();
