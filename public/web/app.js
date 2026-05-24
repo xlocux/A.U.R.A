@@ -26,6 +26,7 @@ let resultsData = {
 const $ = (id) => document.getElementById(id);
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
 const ACTIVE_TARGET_STORAGE_KEY = "aura.activeTarget";
+const PROXY_SETTINGS_STORAGE_KEY = "aura.proxySettings";
 const API_KEY_PROVIDER_HINTS = {
   openrouter: {
     label: "free-models",
@@ -113,6 +114,87 @@ window.getAuraAgentContext = () => ({
   runId: activeRunId,
   distro: $("setupDistro")?.value?.trim() || "kali-linux"
 });
+
+function getProxySettings() {
+  try {
+    return JSON.parse(localStorage.getItem(PROXY_SETTINGS_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function readProxySettingsForm() {
+  const mode = $("proxyMode")?.value || "http";
+  return {
+    enabled: $("proxyEnabled")?.checked || false,
+    url: normalizeProxyFormUrl($("proxyUrl")?.value?.trim() || "", mode),
+    mode,
+    purpose: $("proxyPurpose")?.value || "interception"
+  };
+}
+
+function activeProxyUrl() {
+  const settings = getProxySettings();
+  return settings.enabled ? settings.url : "";
+}
+
+function renderProxySettings() {
+  if (!$("proxyEnabled")) return;
+  const settings = getProxySettings();
+  $("proxyEnabled").checked = Boolean(settings.enabled);
+  $("proxyUrl").value = settings.url || "";
+  $("proxyMode").value = settings.mode || inferProxyMode(settings.url);
+  $("proxyPurpose").value = settings.purpose || "interception";
+}
+
+function saveProxySettings() {
+  const settings = readProxySettingsForm();
+  try {
+    if (settings.enabled) validateProxyUrl(settings.url);
+    localStorage.setItem(PROXY_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    $("proxySettingsStatus").textContent = settings.enabled
+      ? `Proxy enabled: ${redactProxyUrl(settings.url)}`
+      : "Proxy disabled.";
+    $("proxySettingsStatus").className = "notice ok";
+  } catch (error) {
+    $("proxySettingsStatus").textContent = error.message;
+    $("proxySettingsStatus").className = "notice error";
+  }
+}
+
+function validateProxyUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value || "").trim());
+  } catch {
+    throw new Error("Proxy URL must include a scheme and host.");
+  }
+  if (!["http:", "https:", "socks4:", "socks5:"].includes(parsed.protocol)) {
+    throw new Error("Proxy URL must use http, https, socks4, or socks5.");
+  }
+  if (!parsed.hostname) throw new Error("Proxy URL must include a host.");
+  return parsed.toString();
+}
+
+function normalizeProxyFormUrl(value, mode) {
+  if (!value || /^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
+  const scheme = mode === "socks5" ? "socks5" : mode === "socks4" ? "socks4" : "http";
+  return `${scheme}://${value}`;
+}
+
+function redactProxyUrl(value) {
+  const parsed = new URL(validateProxyUrl(value));
+  if (parsed.username) parsed.username = "****";
+  if (parsed.password) parsed.password = "****";
+  return parsed.toString();
+}
+
+function inferProxyMode(value) {
+  const text = String(value || "");
+  if (text.startsWith("socks5:")) return "socks5";
+  if (text.startsWith("socks4:")) return "socks4";
+  return "http";
+}
 
 async function loadAiSettings() {
   const data = await api("/api/ai-settings");
@@ -481,7 +563,8 @@ async function createTarget() {
         outOfScope: textLines("newOutOfScope"),
         authorized: $("authorized").checked,
         wslDistro: $("distro").value,
-        timeoutMs: Number($("timeout").value || 180000)
+        timeoutMs: Number($("timeout").value || 180000),
+        proxyUrl: activeProxyUrl()
       })
     });
     $("status").textContent = data.bootstrapRun
@@ -568,7 +651,8 @@ async function startRecon() {
       useWsl: $("useWsl").checked,
       wslDistro: $("distro").value,
       timeoutMs: Number($("timeout").value || 180000),
-      authorized: $("authorized").checked
+      authorized: $("authorized").checked,
+      proxyUrl: activeProxyUrl()
     };
     const data = await api("/api/recon-runs", { method: "POST", body: JSON.stringify(payload) });
     activeRunId = data.run.id;
@@ -713,7 +797,8 @@ async function runHttpFollowup() {
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
         useWsl: $("useWsl").checked,
         wslDistro: $("distro").value,
-        timeoutMs: Number($("timeout").value || 180000)
+        timeoutMs: Number($("timeout").value || 180000),
+        proxyUrl: activeProxyUrl()
       })
     });
     activeRunId = data.run.id;
@@ -1506,6 +1591,7 @@ $("checkEnvironment").addEventListener("click", checkEnvironment);
 $("installEnvironment").addEventListener("click", installEnvironment);
 $("saveAiSettings").addEventListener("click", saveAiSettings);
 $("testAiSettings").addEventListener("click", testAiSettings);
+$("saveProxySettings").addEventListener("click", saveProxySettings);
 $("aiProvider").addEventListener("change", updateAiSettingsPreview);
 $("useLocalModel").addEventListener("change", updateAiSettingsPreview);
 $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
@@ -1552,6 +1638,7 @@ loadAiSettings().catch((error) => {
   $("aiSettingsStatus").textContent = error.message;
   $("aiSettingsStatus").className = "notice error";
 });
+renderProxySettings();
 updateReconModeUi();
 updateApiKeyProviderHints();
 applyTheme(getUiSettings().theme || "aura");

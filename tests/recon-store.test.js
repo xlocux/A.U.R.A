@@ -19,7 +19,7 @@ const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { httpxArgsForInput } = require("../src/recon/recon-engine");
 const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWpscanTechnologies } = require("../src/recon/technology-detectors");
-const { ALLOWED_TOOLS } = require("../src/recon/wsl-tools");
+const { ALLOWED_TOOLS, normalizeProxyUrl, redactProxyUrl } = require("../src/recon/wsl-tools");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
 const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
@@ -150,6 +150,13 @@ test("enabled optional technology detector CLIs are allowed by the Linux runner"
   }
   assert.equal(ALLOWED_TOOLS.has("wappalyzer"), false);
   assert.equal(setupToolIds().includes("wappalyzer"), false);
+});
+
+test("proxy settings accept explicit interception proxies and redact credentials", () => {
+  assert.equal(normalizeProxyUrl("http://127.0.0.1:8080"), "http://127.0.0.1:8080/");
+  assert.equal(normalizeProxyUrl("socks5://127.0.0.1:9050"), "socks5://127.0.0.1:9050");
+  assert.equal(redactProxyUrl("socks4://user:pass@proxy.local:1080"), "socks4://****:****@proxy.local:1080");
+  assert.throws(() => normalizeProxyUrl("ftp://proxy.local:21"), /http, https, socks4, or socks5/);
 });
 
 test("brand term extraction supports wildcard domain intel pivots", () => {

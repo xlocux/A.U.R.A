@@ -17,6 +17,7 @@ const {
   runHttpFollowup,
   runRecon
 } = require("../recon/recon-engine");
+const { normalizeProxyUrl } = require("../recon/wsl-tools");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../core/target-config");
 const { readBody, sendFile, sendJson, sendNotFound } = require("./http-utils");
@@ -278,6 +279,8 @@ async function createWordlist(request, response, store) {
 
 async function createTarget(request, response, store) {
   const body = await readBody(request);
+  const proxy = parseOptionalProxy(response, body.proxyUrl);
+  if (proxy === false) return;
   const built = buildTargetConfigFromRequest(body);
   if (built.error) {
     sendJson(response, { error: built.error }, 400);
@@ -301,7 +304,8 @@ async function createTarget(request, response, store) {
     config: built.config,
     authorized: Boolean(body.authorized),
     wslDistro: body.wslDistro || "kali-linux",
-    timeoutMs: Number(body.timeoutMs || 180000)
+    timeoutMs: Number(body.timeoutMs || 180000),
+    proxyUrl: proxy
   });
   sendJson(response, { target, config: built.config, configPath, bootstrapRun }, 201);
 }
@@ -329,7 +333,7 @@ function ensureDefaultWordlists(store) {
   }));
 }
 
-function startTargetBootstrap({ store, target, config, authorized, wslDistro, timeoutMs }) {
+function startTargetBootstrap({ store, target, config, authorized, wslDistro, timeoutMs, proxyUrl = null }) {
   ensureDefaultWordlists(store);
   const rootDomains = inferRootDomains(target);
   const run = store.createRun({
@@ -341,7 +345,7 @@ function startTargetBootstrap({ store, target, config, authorized, wslDistro, ti
   });
   runInBackground(async () => {
     try {
-      await bootstrapTargetRecon({ store, runId: run.id, target, config, rootDomains, authorized, wslDistro, timeoutMs });
+      await bootstrapTargetRecon({ store, runId: run.id, target, config, rootDomains, authorized, wslDistro, timeoutMs, proxyUrl });
     } catch (error) {
       if (isRunControlError(error)) {
         store.appendEvent(run.id, {
@@ -468,12 +472,21 @@ function pathResolveSafe(...segments) {
   return path.resolve(...segments);
 }
 
+function parseOptionalProxy(response, value) {
+  try {
+    return normalizeProxyUrl(value);
+  } catch (error) {
+    sendJson(response, { error: error.message }, 400);
+    return false;
+  }
+}
+
 function isInsidePath(candidate, root) {
   const relative = path.relative(root, candidate);
   return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
-async function bootstrapTargetRecon({ store, runId, target, config, rootDomains, authorized, wslDistro, timeoutMs }) {
+async function bootstrapTargetRecon({ store, runId, target, config, rootDomains, authorized, wslDistro, timeoutMs, proxyUrl = null }) {
   store.updateRun(runId, {
     status: "running",
     activePhase: "whois-rdap",
@@ -601,7 +614,8 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     wslDistro,
     useWsl: true,
     subdomainWordlistPath: domainWordlist?.path || null,
-    timeoutMs
+    timeoutMs,
+    proxyUrl
   });
 }
 
@@ -1103,6 +1117,8 @@ async function updateTargetConfig(request, response, store, targetName) {
 
 async function createReconRun(request, response, store) {
   const body = await readBody(request);
+  const proxy = parseOptionalProxy(response, body.proxyUrl);
+  if (proxy === false) return;
   if (!body.authorized) {
     sendJson(response, { error: "Authorization confirmation is required before recon" }, 400);
     return;
@@ -1146,7 +1162,8 @@ async function createReconRun(request, response, store) {
         wslDistro: body.wslDistro || "kali-linux",
         useWsl: body.useWsl !== false,
         subdomainWordlistPath: body.subdomainWordlistPath || domainWordlist?.path || null,
-        timeoutMs: Number(body.timeoutMs || 180000)
+        timeoutMs: Number(body.timeoutMs || 180000),
+        proxyUrl: proxy
       });
     } catch (error) {
       if (isRunControlError(error)) {
@@ -1186,6 +1203,8 @@ async function createHttpFollowupRun(request, response, store, sourceRunId) {
     return;
   }
   const body = await readBody(request);
+  const proxy = parseOptionalProxy(response, body.proxyUrl);
+  if (proxy === false) return;
   const run = store.createRun({
     targetName: sourceRun.target_name,
     runType: "http-followup",
@@ -1204,7 +1223,8 @@ async function createHttpFollowupRun(request, response, store, sourceRunId) {
         screenshotTools: body.screenshotTools || DEFAULT_SCREENSHOT_TOOLS,
         wslDistro: body.wslDistro || "kali-linux",
         useWsl: body.useWsl !== false,
-        timeoutMs: Number(body.timeoutMs || 180000)
+        timeoutMs: Number(body.timeoutMs || 180000),
+        proxyUrl: proxy
       });
     } catch (error) {
       if (isRunControlError(error)) {

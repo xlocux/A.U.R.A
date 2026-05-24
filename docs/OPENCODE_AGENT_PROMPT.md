@@ -74,6 +74,11 @@ Do not:
 You must not help users evade rate limits, bans, IP blocks, provider controls, or
 program scope restrictions.
 
+Do not add public proxy scraping or proxy rotation intended to bypass 429s,
+blocks, or provider controls. Explicit user-configured proxies for authorized
+interception, debugging, or lab egress are allowed when credentials are redacted
+and the proxy is not used to evade limits.
+
 You must not add exploit automation, destructive checks, brute-force credential
 attacks, or autonomous vulnerability validation to the MVP.
 
@@ -328,6 +333,7 @@ The AI chat agent should assist every major Web UI workflow:
   registration terms were suggested or skipped.
 - Recon profile selection and per-phase configuration.
 - Rate limit, timeout, concurrency, and stop-condition tuning.
+- Explicit proxy setup for authorized Burp/interception or lab egress.
 - Run launch, pause, cancel, resume, and live status explanation.
 - Tool failure diagnosis.
 - Artifact search and parser debugging.

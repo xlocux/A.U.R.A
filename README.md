@@ -61,6 +61,11 @@ OpenCode, and install/update recon tools. Create domain targets from the
 `Recon` tab in the browser. Target setup, scope edits, API keys, wordlists,
 recon runs, and results are all managed from the Web UI.
 
+Use `Settings > Proxy` when recon traffic needs to pass through an authorized
+interception or lab egress proxy such as Burp. A.U.R.A supports explicit
+`http`, `https`, `socks4`, and `socks5` proxy URLs for WSL recon tools. It does
+not rotate public proxies to bypass rate limits or blocking controls.
+
 Targets can be deleted from the `Recon` tab. Deleting a target removes its local
 target config, runs, observations, leads, and run artifact folders.
 

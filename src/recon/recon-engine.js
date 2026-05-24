@@ -6,7 +6,7 @@ const { extractDomains, normalizeDomain, rootForDomain } = require("./domain-uti
 const { parseGauUrls, parseHttpxJsonLines } = require("./parsers");
 const { runTechnologyEnrichment } = require("./technology-detectors");
 const { runPassiveSource } = require("./passive-sources");
-const { commandDisplay, runWslTool } = require("./wsl-tools");
+const { commandDisplay, redactProxyUrl, runWslTool } = require("./wsl-tools");
 
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_WSL_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
@@ -25,7 +25,8 @@ async function runRecon({
   useWsl = true,
   subdomainWordlistPath = null,
   timeoutMs = 180000,
-  artifactsDir = path.resolve("data", "recon-runs", String(runId))
+  artifactsDir = path.resolve("data", "recon-runs", String(runId)),
+  proxyUrl = null
 }) {
   const roots = [...new Set(rootDomains.map(normalizeDomain).filter(Boolean))];
   if (roots.length === 0) {
@@ -44,17 +45,25 @@ async function runRecon({
     source: "engine",
     message: `Recon started for ${roots.join(", ")}`
   });
+  if (proxyUrl) {
+    store.appendEvent(runId, {
+      phase: "recon",
+      severity: "ok",
+      source: "network",
+      message: `Outbound proxy enabled for WSL recon tools: ${redactProxyUrl(proxyUrl)}`
+    });
+  }
 
   await waitForRunControl(store, runId);
   const discovered = new Set(roots);
   await collectPassive({ store, runId, targetName, roots, passiveSources, discovered });
   await waitForRunControl(store, runId);
   const context = { urls: [], httpServices: [] };
-  await collectWsl({ store, runId, targetName, roots, wslTools, wslDistro, useWsl, subdomainWordlistPath, timeoutMs, artifactsDir, discovered, context });
+  await collectWsl({ store, runId, targetName, roots, wslTools, wslDistro, useWsl, subdomainWordlistPath, timeoutMs, artifactsDir, discovered, context, proxyUrl });
   await waitForRunControl(store, runId);
-  await runTechnologyEnrichment({ store, runId, targetName, wslDistro, useWsl, timeoutMs, artifactsDir, context, waitForRunControl });
+  await runTechnologyEnrichment({ store, runId, targetName, wslDistro, useWsl, timeoutMs, artifactsDir, context, waitForRunControl, proxyUrl });
   await waitForRunControl(store, runId);
-  await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context });
+  await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl });
   await waitForRunControl(store, runId);
 
   const finalDomains = [...discovered].map((domain) => ({
@@ -88,7 +97,8 @@ async function runHttpFollowup({
   wslDistro = "kali-linux",
   useWsl = true,
   timeoutMs = 180000,
-  artifactsDir = path.resolve("data", "recon-runs", String(runId))
+  artifactsDir = path.resolve("data", "recon-runs", String(runId)),
+  proxyUrl = null
 }) {
   const hosts = [...new Set((domains || []).map(normalizeDomain).filter(Boolean))].sort();
   if (hosts.length === 0) {
@@ -107,6 +117,14 @@ async function runHttpFollowup({
     source: "engine",
     message: `HTTP/tech follow-up started for ${hosts.length} saved domains`
   });
+  if (proxyUrl) {
+    store.appendEvent(runId, {
+      phase: "http-tech-followup",
+      severity: "ok",
+      source: "network",
+      message: `Outbound proxy enabled for WSL recon tools: ${redactProxyUrl(proxyUrl)}`
+    });
+  }
   store.saveDomains(runId, targetName, hosts.map((domain) => ({
     domain,
     rootDomain: rootForDomain(domain, hosts),
@@ -133,7 +151,7 @@ async function runHttpFollowup({
     phase: "heartbeat",
     source: "httpx",
     heartbeatMessage: (elapsed) => `httpx follow-up is still running (${elapsed}s elapsed)`,
-    task: () => runWslTool({ distro: wslDistro, toolName: "httpx", args, timeoutMs })
+    task: () => runWslTool({ distro: wslDistro, toolName: "httpx", args, timeoutMs, proxyUrl })
   });
   const stdoutPath = writeToolArtifact(artifactsDir, "httpx-followup.stdout.txt", result.stdout);
   const stderrPath = writeToolArtifact(artifactsDir, "httpx-followup.stderr.txt", result.stderr);
@@ -159,9 +177,9 @@ async function runHttpFollowup({
   });
 
   await waitForRunControl(store, runId);
-  await runTechnologyEnrichment({ store, runId, targetName, wslDistro, useWsl, timeoutMs, artifactsDir, context, waitForRunControl });
+  await runTechnologyEnrichment({ store, runId, targetName, wslDistro, useWsl, timeoutMs, artifactsDir, context, waitForRunControl, proxyUrl });
   await waitForRunControl(store, runId);
-  await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context });
+  await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl });
   store.appendEvent(runId, {
     phase: "http-tech-followup",
     severity: "ok",
@@ -212,7 +230,7 @@ async function collectPassive({ store, runId, targetName, roots, passiveSources,
   }
 }
 
-async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro, useWsl, subdomainWordlistPath, timeoutMs, artifactsDir, discovered, context }) {
+async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro, useWsl, subdomainWordlistPath, timeoutMs, artifactsDir, discovered, context, proxyUrl = null }) {
   if (!useWsl) {
     store.appendEvent(runId, {
       phase: "recon",
@@ -246,7 +264,7 @@ async function collectWsl({ store, runId, targetName, roots, wslTools, wslDistro
           phase: "heartbeat",
           source: toolName,
           heartbeatMessage: (elapsed) => `${toolName} is still running for ${root} (${elapsed}s elapsed)`,
-          task: () => runWslTool({ distro: wslDistro, toolName, args, timeoutMs })
+          task: () => runWslTool({ distro: wslDistro, toolName, args, timeoutMs, proxyUrl })
         });
       } catch (error) {
         recordNonBlockingToolError({ store, runId, toolName, root, args, error, wslDistro });
@@ -366,7 +384,7 @@ function httpxArgsForInput(inputPath) {
   ];
 }
 
-async function collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context }) {
+async function collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl = null }) {
   if (!useWsl || screenshotTools.length === 0 || context.httpServices.length === 0) {
     return;
   }
@@ -398,6 +416,7 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
         toolName,
         args,
         timeoutMs,
+        proxyUrl,
         input: toolName === "aquatone" ? `${liveUrls.join("\n")}\n` : null
       })
     });

@@ -26,18 +26,21 @@ function runWslTool({
   timeoutMs = 180000,
   input = null,
   onStdout = null,
-  onStderr = null
+  onStderr = null,
+  proxyUrl = null
 }) {
   if (!ALLOWED_TOOLS.has(toolName)) {
     return Promise.reject(new Error(`Tool not allowed for WSL recon: ${toolName}`));
   }
 
+  const proxy = normalizeProxyUrl(proxyUrl);
   return new Promise((resolve) => {
     const startedAt = new Date().toISOString();
     const command = [
       "export PATH=\"$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH\"",
+      proxy ? proxyExports(proxy) : "",
       [shellQuote(toolName), ...args.map(shellQuote)].join(" ")
-    ].join(" && ");
+    ].filter(Boolean).join(" && ");
     const shell = os.platform() === "win32"
       ? { command: "wsl", args: ["-d", distro, "--", "sh", "-lc", command] }
       : { command: "sh", args: ["-lc", command] };
@@ -128,6 +131,43 @@ function commandDisplay(distro, toolName, args) {
   return os.platform() === "win32" ? `wsl -d ${distro} -- ${display}` : display;
 }
 
+function normalizeProxyUrl(proxyUrl) {
+  const value = String(proxyUrl || "").trim();
+  if (!value) return null;
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Proxy URL must include a scheme, host, and optional port");
+  }
+  if (!["http:", "https:", "socks4:", "socks5:"].includes(parsed.protocol)) {
+    throw new Error("Proxy URL must use http, https, socks4, or socks5");
+  }
+  if (!parsed.hostname) throw new Error("Proxy URL must include a host");
+  return parsed.toString();
+}
+
+function redactProxyUrl(proxyUrl) {
+  const normalized = normalizeProxyUrl(proxyUrl);
+  if (!normalized) return null;
+  const parsed = new URL(normalized);
+  if (parsed.username) parsed.username = "****";
+  if (parsed.password) parsed.password = "****";
+  return parsed.toString();
+}
+
+function proxyExports(proxyUrl) {
+  const quoted = shellQuote(proxyUrl);
+  return [
+    `export HTTP_PROXY=${quoted}`,
+    `export HTTPS_PROXY=${quoted}`,
+    `export ALL_PROXY=${quoted}`,
+    `export http_proxy=${quoted}`,
+    `export https_proxy=${quoted}`,
+    `export all_proxy=${quoted}`
+  ].join(" && ");
+}
+
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 }
@@ -135,5 +175,7 @@ function shellQuote(value) {
 module.exports = {
   ALLOWED_TOOLS,
   commandDisplay,
+  normalizeProxyUrl,
+  redactProxyUrl,
   runWslTool
 };

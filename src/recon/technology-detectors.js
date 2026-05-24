@@ -15,7 +15,8 @@ async function runTechnologyEnrichment({
   timeoutMs = 180000,
   artifactsDir,
   context,
-  waitForRunControl = async () => {}
+  waitForRunControl = async () => {},
+  proxyUrl = null
 }) {
   const services = dedupeServices(context?.httpServices || []);
   if (services.length === 0) return;
@@ -51,15 +52,15 @@ async function runTechnologyEnrichment({
 
   for (const service of sampled) {
     await waitForRunControl(store, runId);
-    await runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir });
+    await runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl });
     await waitForRunControl(store, runId);
-    await runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir });
+    await runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl });
   }
 }
 
-async function runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir }) {
+async function runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
   const args = ["--js", "--url", service.url, "--outputformat", "json"];
-  const result = await runDetectorTool({ store, runId, wslDistro, toolName: "retire", args, timeoutMs: Math.min(timeoutMs, 60000) });
+  const result = await runDetectorTool({ store, runId, wslDistro, toolName: "retire", args, timeoutMs: Math.min(timeoutMs, 60000), proxyUrl });
   const artifacts = writeDetectorArtifacts(artifactsDir, "retire", service, result);
   store.recordToolResult(runId, {
     toolName: "retire",
@@ -76,11 +77,11 @@ async function runRetireOnService({ store, runId, targetName, service, wslDistro
   saveTechnologyService(store, runId, targetName, service, "retire.js", technologies, result);
 }
 
-async function runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir }) {
+async function runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
   const tech = (service.technologies || []).join(" ").toLowerCase();
   if (tech.includes("wordpress")) {
     const args = ["--url", service.url, "--format", "json", "--no-update"];
-    const result = await runDetectorTool({ store, runId, wslDistro, toolName: "wpscan", args, timeoutMs: Math.min(timeoutMs, 90000) });
+    const result = await runDetectorTool({ store, runId, wslDistro, toolName: "wpscan", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
     const artifacts = writeDetectorArtifacts(artifactsDir, "wpscan", service, result);
     store.recordToolResult(runId, {
       toolName: "wpscan",
@@ -101,7 +102,7 @@ async function runCmsDetector({ store, runId, targetName, service, wslDistro, ti
     const outputDir = path.join(artifactsDir, "cmseek", safeName(service.url));
     fs.mkdirSync(outputDir, { recursive: true });
     const args = ["-u", service.url, "--batch", "--output", toToolPath(outputDir)];
-    const result = await runDetectorTool({ store, runId, wslDistro, toolName: "cmseek", args, timeoutMs: Math.min(timeoutMs, 90000) });
+    const result = await runDetectorTool({ store, runId, wslDistro, toolName: "cmseek", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
     const artifacts = writeDetectorArtifacts(artifactsDir, "cmseek", service, result);
     store.recordToolResult(runId, {
       toolName: "cmseek",
@@ -160,7 +161,7 @@ async function enrichWithBuiltWith({ store, runId, targetName, services, artifac
   }
 }
 
-async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeoutMs }) {
+async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeoutMs, proxyUrl = null }) {
   store.appendEvent(runId, {
     phase: "technology-enrichment",
     source: toolName,
@@ -168,7 +169,7 @@ async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeou
   });
   let result;
   try {
-    result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs });
+    result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs, proxyUrl });
   } catch (error) {
     result = {
       toolName,

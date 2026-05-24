@@ -560,6 +560,7 @@
             <button class="settings-tab active" data-settings-panel="environment">Environment</button>
             <button class="settings-tab" data-settings-panel="appearance">Appearance</button>
             <button class="settings-tab" data-settings-panel="ai">AI Agent</button>
+            <button class="settings-tab" data-settings-panel="proxy">Proxy</button>
             <button class="settings-tab" data-settings-panel="credentials">API Keys</button>
             <button class="settings-tab" data-settings-panel="storage">Storage</button>
           </div>
@@ -696,6 +697,36 @@
               <h2>OpenRouter Free Presets</h2>
               <div id="aiModelCards" class="model-card-list"></div>
             </div>
+          </div>
+        </div>
+        <div class="pane settings-panel" id="settings-proxy">
+          <h2>Proxy</h2>
+          <div class="form-body">
+            <label class="check ai-local-toggle"><input id="proxyEnabled" type="checkbox"> <span>Route recon tools through an upstream proxy</span></label>
+            <div class="notice muted compact-notice">
+              Use this for an authorized interception or lab egress proxy such as Burp. A.U.R.A does not rotate proxies to bypass rate limits or blocks.
+            </div>
+            <label for="proxyUrl">Proxy URL</label>
+            <input id="proxyUrl" type="text" placeholder="http://127.0.0.1:8080">
+            <div class="row">
+              <div>
+                <label for="proxyMode">Mode</label>
+                <select id="proxyMode">
+                  <option value="http">HTTP / HTTPS</option>
+                  <option value="socks5">SOCKS5</option>
+                  <option value="socks4">SOCKS4</option>
+                </select>
+              </div>
+              <div>
+                <label for="proxyPurpose">Purpose</label>
+                <select id="proxyPurpose">
+                  <option value="interception">Burp / interception</option>
+                  <option value="lab-egress">Lab egress</option>
+                </select>
+              </div>
+            </div>
+            <button id="saveProxySettings" type="button">Save Proxy Settings</button>
+            <div id="proxySettingsStatus" class="notice muted">Proxy settings are stored locally in this browser and applied to WSL recon tool runs.</div>
           </div>
         </div>
         <div class="pane settings-panel" id="settings-credentials">

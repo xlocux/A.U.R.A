@@ -111,12 +111,13 @@ Recommended macro tab patterns:
   local filesystem paths.
 - Runs & Logs: Live Run, Jobs, Events, Artifacts.
 - Settings: Environment, Appearance, AI Models, API Keys, Notifications,
-  Safety, Storage.
+  Safety, Proxy, Storage.
 
 Settings should use sub-sections/tabs from the start so future preferences do
 not become a mixed control wall. Initial sections should include Environment,
-Appearance, AI Agent, API Keys, and Storage. Environment setup and provider
-API keys belong under Settings, not as top-level macro tabs.
+Appearance, AI Agent, Proxy, API Keys, and Storage. Environment setup, proxy
+configuration, and provider API keys belong under Settings, not as top-level
+macro tabs.
 
 Topology and graph views should be first-class visual workspaces. They should
 support realtime updates, animated relationship maps, layer toggles, node
@@ -147,6 +148,22 @@ Key UI:
 - API key setup prompt with an explicit skip path for optional providers.
 - Guided setup actions.
 - AI setup assistant.
+
+### Proxy Settings
+
+Purpose:
+
+- Route authorized recon tool traffic through an explicit upstream proxy.
+- Support Burp or other interception proxies for request analysis.
+- Support controlled lab egress through user-provided `http`, `https`,
+  `socks4`, or `socks5` proxy URLs.
+
+Rules:
+
+- Proxy settings belong under Settings, not inside individual result views.
+- Proxy credentials must be redacted in UI status and run events.
+- A.U.R.A must not implement public proxy scraping or rotation intended to
+  bypass rate limits, provider blocks, or scope controls.
 
 ### AI Agent Settings
 
