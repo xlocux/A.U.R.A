@@ -820,6 +820,11 @@
                   <button id="saveApiKey">Save API Key</button>
                   <button id="testAllApiKeys" type="button">Test All API Keys</button>
                 </div>
+                <div class="row">
+                  <button id="exportApiKeys" type="button">Export API Keys</button>
+                  <button id="importApiKeys" type="button">Import API Keys</button>
+                  <input id="apiKeyImportFile" type="file" accept="application/json,.json" hidden>
+                </div>
                 <div id="apiPreflightStatus" class="api-preflight hidden">
                   <div class="api-preflight-rail"><span></span></div>
                   <strong>Testing provider...</strong>
@@ -835,6 +840,7 @@
                   <th>Key</th>
                   <th><button class="table-sort" type="button" data-api-sort="status">Status</button></th>
                   <th><button class="table-sort" type="button" data-api-sort="usage">Usage</button></th>
+                  <th>Actions</th>
                 </tr></thead>
                 <tbody id="apiKeyRows"></tbody>
               </table>

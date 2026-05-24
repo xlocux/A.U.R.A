@@ -881,6 +881,9 @@ Notes:
   Intelligence X, and Hunter.io use provider-specific header or query auth.
   Recon only uses provider API sources with an `active` key that passed
   preflight.
+- API keys can be deleted, exported, and imported from Settings. API key export
+  is intended for local backup/restore and includes the raw secret values so the
+  exported JSON must be treated as sensitive material.
 - GitHub/code search should use official APIs or user-provided tokens where
   available, with rate limits and clear attribution.
 - Search engine dorking should prefer official/custom search APIs or manual

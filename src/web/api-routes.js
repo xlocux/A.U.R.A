@@ -129,6 +129,11 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/api-keys/export") {
+    exportApiKeys(response, store);
+    return true;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/ai-settings") {
     sendJson(response, { settings: store.getAiSettings(), models: await listOpenRouterFreeModels() });
     return true;
@@ -157,6 +162,11 @@ async function handleApiRequest({ request, response, url, store }) {
 
   if (request.method === "POST" && url.pathname === "/api/api-keys/preflight-all") {
     await preflightAllApiKeys(response, store);
+    return true;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/api-keys/import") {
+    await importApiKeys(request, response, store);
     return true;
   }
 
@@ -200,6 +210,12 @@ async function handleApiRequest({ request, response, url, store }) {
   const targetMatch = url.pathname.match(/^\/api\/targets\/([^/]+)$/);
   if (targetMatch && request.method === "DELETE") {
     deleteTarget(response, store, decodeURIComponent(targetMatch[1]));
+    return true;
+  }
+
+  const apiKeyMatch = url.pathname.match(/^\/api\/api-keys\/(\d+)$/);
+  if (apiKeyMatch && request.method === "DELETE") {
+    deleteApiKey(response, store, Number(apiKeyMatch[1]));
     return true;
   }
 
@@ -262,6 +278,49 @@ async function createApiKey(request, response, store) {
   sendJson(response, { apiKey, preflight }, preflight.ok ? 201 : 202);
 }
 
+function exportApiKeys(response, store) {
+  const exportedAt = new Date().toISOString();
+  const apiKeys = store.listApiKeys({ includeSecret: true }).map((key) => ({
+    provider: key.provider,
+    label: key.label,
+    apiKey: key.api_key,
+    monthlyLimit: key.monthly_limit,
+    status: key.status,
+    notes: key.notes
+  }));
+  response.writeHead(200, exportHeaders("application/json; charset=utf-8", `aura-api-keys-sensitive-${exportedAt.slice(0, 10)}.json`));
+  response.end(JSON.stringify({ exportedAt, format: "aura-api-keys-v1", apiKeys }, null, 2));
+}
+
+async function importApiKeys(request, response, store) {
+  const body = await readBody(request);
+  const rows = Array.isArray(body.apiKeys) ? body.apiKeys : Array.isArray(body) ? body : [];
+  const preflightEnabled = body.preflight !== false;
+  const results = [];
+  for (const row of rows) {
+    const provider = String(row.provider || "").trim();
+    const label = String(row.label || "imported").trim();
+    const secret = String(row.apiKey || row.api_key || "").trim();
+    if (!provider || !label || !secret) {
+      results.push({ provider, label, status: "skipped", message: "provider, label, and apiKey are required" });
+      continue;
+    }
+    const preflight = preflightEnabled
+      ? await validateProviderKey(provider, secret)
+      : { ok: true, message: "Imported without preflight." };
+    const apiKey = store.addApiKey({
+      provider,
+      label,
+      apiKey: secret,
+      status: preflight.ok ? "active" : "failed",
+      monthlyLimit: row.monthlyLimit ?? row.monthly_limit ?? null,
+      notes: preflight.message
+    });
+    results.push({ id: apiKey.id, provider, label, status: apiKey.status, preflight });
+  }
+  sendJson(response, { imported: results.filter((item) => item.status !== "skipped").length, results, apiKeys: store.listApiKeys() });
+}
+
 async function preflightAllApiKeys(response, store) {
   const keys = store.listApiKeys({ includeSecret: true });
   const results = [];
@@ -278,6 +337,11 @@ async function preflightAllApiKeys(response, store) {
     });
   }
   sendJson(response, { results, apiKeys: store.listApiKeys() });
+}
+
+function deleteApiKey(response, store, id) {
+  const deleted = store.deleteApiKey(id);
+  sendJson(response, deleted ? { deleted: true, id } : { error: "API key not found" }, deleted ? 200 : 404);
 }
 
 async function saveAiSettings(request, response, store) {

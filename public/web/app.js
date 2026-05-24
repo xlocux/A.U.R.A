@@ -1311,12 +1311,12 @@ async function refreshApiKeys() {
 function renderApiKeys() {
   const rows = [...apiKeysData].sort(compareApiKeys);
   $("apiKeyRows").innerHTML = rows.map((key) =>
-    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td></tr>`
+    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td><td><button class="api-key-delete danger-button" type="button" data-api-key-id="${esc(key.id)}">Delete</button></td></tr>`
   ).join("");
   document.querySelectorAll("[data-api-sort]").forEach((button) => {
     const active = button.dataset.apiSort === apiKeySort.key;
     button.classList.toggle("active", active);
-    button.textContent = `${button.textContent.replace(/\s+[↑↓]$/, "")}${active ? apiKeySort.direction === "asc" ? " ↑" : " ↓" : ""}`;
+    button.textContent = `${button.textContent.replace(/\s+[<>]$/, "")}${active ? apiKeySort.direction === "asc" ? " <" : " >" : ""}`;
   });
 }
 
@@ -1357,6 +1357,43 @@ async function testAllApiKeys() {
   } finally {
     $("testAllApiKeys").disabled = false;
     $("saveApiKey").disabled = false;
+  }
+}
+
+async function deleteApiKey(id) {
+  if (!id) return;
+  const row = apiKeysData.find((key) => String(key.id) === String(id));
+  if (!confirm(`Delete API key ${row?.provider || id}/${row?.label || ""}?`)) return;
+  await api(`/api/api-keys/${encodeURIComponent(id)}`, { method: "DELETE" });
+  setApiPreflightState("ok", "API key deleted", "The key was removed from local storage.");
+  await refreshApiKeys();
+}
+
+function exportApiKeys() {
+  window.location.href = "/api/api-keys/export";
+}
+
+function importApiKeys() {
+  $("apiKeyImportFile").click();
+}
+
+async function handleApiKeyImportFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  setApiPreflightState("running", "Importing API keys...", "Parsing JSON and running provider preflights.");
+  try {
+    const payload = JSON.parse(await file.text());
+    const data = await api("/api/api-keys/import", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    const okCount = (data.results || []).filter((result) => result.preflight?.ok).length;
+    setApiPreflightState("ok", `Imported ${data.imported || 0} API keys`, `${okCount}/${data.imported || 0} passed preflight.`);
+    await refreshApiKeys();
+  } catch (error) {
+    setApiPreflightState("failed", "API key import failed", error.message);
+  } finally {
+    event.target.value = "";
   }
 }
 
@@ -1477,6 +1514,9 @@ $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);
 $("testAllApiKeys").addEventListener("click", testAllApiKeys);
+$("exportApiKeys").addEventListener("click", exportApiKeys);
+$("importApiKeys").addEventListener("click", importApiKeys);
+$("apiKeyImportFile").addEventListener("change", handleApiKeyImportFile);
 document.querySelectorAll("[data-api-sort]").forEach((button) => {
   button.addEventListener("click", () => sortApiKeys(button.dataset.apiSort));
 });
@@ -1499,6 +1539,13 @@ document.addEventListener("click", (event) => {
   const button = event.target.closest(".tool-log-button");
   if (!button) return;
   openToolLogModal(button.dataset.toolResultId, button.dataset.logStream);
+});
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".api-key-delete");
+  if (!button) return;
+  deleteApiKey(button.dataset.apiKeyId).catch((error) => {
+    setApiPreflightState("failed", "Delete failed", error.message);
+  });
 });
 $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);
