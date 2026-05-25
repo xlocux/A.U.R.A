@@ -1005,6 +1005,16 @@ button:disabled { opacity: .55; cursor: wait; }
 .table-sort.active {
   color: var(--accent-2);
 }
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.row-actions button {
+  margin: 0;
+  min-width: auto;
+  width: auto;
+}
 @keyframes api-preflight-scan {
   from { transform: translateX(-80%); }
   to { transform: translateX(220%); }

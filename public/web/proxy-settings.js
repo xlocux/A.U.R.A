@@ -47,7 +47,6 @@
     bindAction("importProxyList", importProxyList);
     bindAction("clearProxyList", clearProxyList);
     bindAction("proxyRefresh", refreshDashboard);
-    bindAction("proxyPreflight", preflightServerProxies);
     bindAction("proxyUseBest", useBestServerProxy);
     bindAction("proxyImportServer", importServerProxies);
     bindAction("proxyStepImport", importServerProxies);
@@ -95,7 +94,6 @@
         </div>
         <div class="proxy-hero-actions">
           <button id="proxyRefresh" type="button">Refresh</button>
-          <button id="proxyPreflight" type="button">Preflight</button>
         </div>
       </div>
       <div class="proxy-steps">
@@ -109,6 +107,11 @@
         <div class="proxy-card"><span>Active</span><strong id="proxyMetricActive">0</strong></div>
         <div class="proxy-card"><span>Avg latency</span><strong id="proxyMetricLatency">-</strong></div>
         <div class="proxy-card"><span>Success</span><strong id="proxyMetricSuccess">-</strong></div>
+      </div>
+      <div id="proxyActivity" class="proxy-activity idle">
+        <div class="proxy-activity-rail"><span></span></div>
+        <strong id="proxyActivityTitle">Proxy workflow idle</strong>
+        <small id="proxyActivityDetail">Import proxies, run the guided preflight, then pick the best active route.</small>
       </div>
       <div class="proxy-toolbar">
         <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
@@ -193,13 +196,18 @@
   }
 
   async function importServerProxies() {
+    setActivity("running", "Importing proxy pool", "Parsing supplied proxy list and adding valid entries to the server-side pool.");
     const lines = $("proxyImportList").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     if (lines.length === 0) {
       const local = getSettings().proxies || [];
-      if (local.length === 0) return setStatus("Step 1: paste one or more proxies first.", "warn");
+      if (local.length === 0) {
+        setActivity("failed", "Import blocked", "Paste one or more proxies first.");
+        return setStatus("Step 1: paste one or more proxies first.", "warn");
+      }
       lines.push(...local.map((proxy) => proxy.url));
     }
     const result = await apiFetch("/api/proxies/sources/txt", { method: "POST", body: JSON.stringify({ params: { content: lines.join("\n") } }) });
+    setActivity(result.added ? "ok" : "failed", "Import complete", `${result.added}/${result.fetched} proxies added to the pool.`);
     setStatus(`Step 1 complete: ${result.added}/${result.fetched} proxies added to the rotation pool. Now run Preflight.`, result.added ? "ok" : "warn");
     await refreshDashboard();
   }
@@ -220,16 +228,25 @@
   }
 
   async function preflightServerProxies() {
+    setActivity("running", "Testing proxies", "Loading imported proxies and running TCP preflight checks with bounded concurrency.");
     setStatus("Step 2 running: testing imported proxies...", "muted");
-    const result = await apiFetch("/api/proxies/preflight", { method: "POST", body: JSON.stringify({ status: "preflight", options: { concurrency: 5, timeout: 3500 } }) });
-    setStatus(`Step 2 complete: ${result.summary.successful}/${result.summary.total} healthy. Now click Use Best.`, result.summary.successful ? "ok" : "warn");
-    await refreshDashboard();
+    try {
+      const result = await apiFetch("/api/proxies/preflight", { method: "POST", body: JSON.stringify({ status: "preflight", options: { concurrency: 5, timeout: 3500 } }) });
+      setActivity(result.summary.successful ? "ok" : "failed", "Proxy preflight complete", `${result.summary.successful}/${result.summary.total} healthy proxies. Metrics refreshed below.`);
+      setStatus(`Step 2 complete: ${result.summary.successful}/${result.summary.total} healthy. Now click Use Best.`, result.summary.successful ? "ok" : "warn");
+      await refreshDashboard();
+    } catch (error) {
+      setActivity("failed", "Proxy preflight failed", error.message);
+      throw error;
+    }
   }
 
   async function useBestServerProxy() {
+    setActivity("running", "Selecting best proxy", "Reading active proxy metrics and choosing the fastest healthy route.");
     const data = await apiFetch("/api/proxies?status=all&best=true&limit=1");
     const best = data.proxies?.[0];
     if (!best) {
+      setActivity("failed", "No active proxy", "Run the guided preflight before selecting a proxy.");
       setStatus("Step 3 blocked: no active proxy available. Run Preflight first.", "warn");
       return;
     }
@@ -238,6 +255,7 @@
     $("proxyMode").value = best.type === "socks5" ? "socks5" : best.type === "socks4" ? "socks4" : best.type === "https" ? "https" : "http";
     $("proxyEnabled").checked = true;
     await saveSettings();
+    setActivity("ok", "Proxy selected", `${redactProxyUrl(url)} is enabled for recon runs.`);
     setStatus(`Step 3 complete: selected best proxy ${redactProxyUrl(url)}. It is enabled for runs.`, "ok");
   }
 
@@ -323,6 +341,14 @@
   function setStatus(message, statusClass) {
     $("proxySettingsStatus").textContent = message;
     $("proxySettingsStatus").className = `notice ${statusClass}`;
+  }
+
+  function setActivity(state, title, detail) {
+    const node = $("proxyActivity");
+    if (!node) return;
+    node.className = `proxy-activity ${state}`;
+    $("proxyActivityTitle").textContent = title;
+    $("proxyActivityDetail").textContent = detail || "";
   }
 
   function escapeHtml(value) {

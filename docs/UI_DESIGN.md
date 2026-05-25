@@ -287,6 +287,8 @@ Key UI:
 - Artifact links.
 - Pause/cancel/resume controls.
 - AI failure explanation.
+- Visible activity feedback for every long-running action so the operator can
+  tell when A.U.R.A is importing, testing, probing, installing, or refreshing.
 
 ### Assets And Observations
 

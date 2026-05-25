@@ -113,6 +113,62 @@
   gap: 10px;
 }
 
+.proxy-activity {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  background: rgba(8, 10, 14, .46);
+}
+
+.proxy-activity strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.proxy-activity small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.proxy-activity-rail {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.proxy-activity-rail span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  display: block;
+  height: 100%;
+  width: 28%;
+}
+
+.proxy-activity.running .proxy-activity-rail span {
+  animation: proxy-activity-scan 1s ease-in-out infinite alternate;
+}
+
+.proxy-activity.ok {
+  border-color: rgba(123, 216, 143, .55);
+}
+
+.proxy-activity.ok .proxy-activity-rail span {
+  background: var(--ok);
+  width: 100%;
+}
+
+.proxy-activity.failed {
+  border-color: rgba(239, 111, 108, .62);
+}
+
+.proxy-activity.failed .proxy-activity-rail span {
+  background: var(--bad);
+  width: 100%;
+}
+
 .proxy-card {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -211,6 +267,11 @@
   .proxy-steps {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
+}
+
+@keyframes proxy-activity-scan {
+  from { transform: translateX(-15%); width: 28%; }
+  to { transform: translateX(245%); width: 28%; }
 }
 
 @media (max-width: 900px) {

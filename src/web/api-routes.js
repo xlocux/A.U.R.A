@@ -5,7 +5,7 @@ const path = require("node:path");
 const { normalizeDomain, rootForDomain } = require("../recon/domain-utils");
 const { CORRELATION_TECHNIQUES, runCandidateCorrelation } = require("../recon/candidate-correlation");
 const { buildResultTree } = require("../recon/result-tree");
-const { generateWordlistFromDb } = require("../recon/wordlist-generator");
+const { GENERATED_DIR, generateWordlistFromDb } = require("../recon/wordlist-generator");
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
@@ -183,6 +183,18 @@ async function handleApiRequest({ request, response, url, store }) {
 
   if (request.method === "POST" && url.pathname === "/api/wordlists/generate") {
     await generateWordlist(request, response, store);
+    return true;
+  }
+
+  const wordlistMatch = url.pathname.match(/^\/api\/wordlists\/(\d+)\/(preview|download)$/);
+  if (wordlistMatch && request.method === "GET") {
+    serveWordlistArtifact(response, store, Number(wordlistMatch[1]), wordlistMatch[2]);
+    return true;
+  }
+
+  const deleteWordlistMatch = url.pathname.match(/^\/api\/wordlists\/(\d+)$/);
+  if (deleteWordlistMatch && request.method === "DELETE") {
+    deleteWordlist(response, store, Number(deleteWordlistMatch[1]));
     return true;
   }
 
@@ -1173,6 +1185,68 @@ async function generateWordlist(request, response, store) {
     notes: `Generated from DB (${generated.count} entries)`
   });
   sendJson(response, { wordlist, generated }, 201);
+}
+
+function serveWordlistArtifact(response, store, id, action) {
+  const wordlist = store.getWordlist(id);
+  if (!wordlist) {
+    sendJson(response, { error: "Wordlist not found" }, 404);
+    return;
+  }
+  const filePath = resolveWordlistFile(wordlist.path);
+  if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    sendJson(response, { error: "Wordlist file is not available on disk" }, 404);
+    return;
+  }
+  if (action === "download") {
+    response.writeHead(200, exportHeaders("text/plain; charset=utf-8", `${safeDownloadName(wordlist.name)}.txt`));
+    fs.createReadStream(filePath).pipe(response);
+    return;
+  }
+  const maxBytes = 256 * 1024;
+  const stat = fs.statSync(filePath);
+  const handle = fs.openSync(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(Math.min(maxBytes, stat.size));
+    fs.readSync(handle, buffer, 0, buffer.length, 0);
+    sendJson(response, {
+      wordlist,
+      sizeBytes: stat.size,
+      truncated: stat.size > maxBytes,
+      content: buffer.toString("utf8")
+    });
+  } finally {
+    fs.closeSync(handle);
+  }
+}
+
+function deleteWordlist(response, store, id) {
+  const wordlist = store.getWordlist(id);
+  if (!wordlist) {
+    sendJson(response, { error: "Wordlist not found" }, 404);
+    return;
+  }
+  const filePath = resolveWordlistFile(wordlist.path);
+  const deleteFile = isGeneratedWordlistPath(filePath) && fs.existsSync(filePath);
+  const deleted = store.deleteWordlist(id);
+  if (deleteFile) fs.rmSync(filePath, { force: true });
+  sendJson(response, deleted ? { deleted: true, fileDeleted: deleteFile, id } : { error: "Wordlist not found" }, deleted ? 200 : 404);
+}
+
+function resolveWordlistFile(value) {
+  if (!value) return null;
+  return path.resolve(String(value));
+}
+
+function isGeneratedWordlistPath(filePath) {
+  if (!filePath) return false;
+  const generatedDir = path.resolve(GENERATED_DIR);
+  const relative = path.relative(generatedDir, path.resolve(filePath));
+  return Boolean(relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function safeDownloadName(value) {
+  return String(value || "wordlist").replaceAll(/[^a-z0-9_.-]+/gi, "-").replace(/^-+|-+$/g, "") || "wordlist";
 }
 
 function getTargetConfig(response, store, targetName) {

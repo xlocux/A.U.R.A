@@ -1346,8 +1346,54 @@ async function generateWordlist() {
 async function refreshWordlists() {
   const data = await api("/api/wordlists");
   $("wordlistRows").innerHTML = data.wordlists.map((wordlist) =>
-    `<tr><td>${esc(wordlist.name)}</td><td>${esc(wordlist.category)}</td><td>${esc(wordlist.status)}</td><td>${esc(wordlist.path)}</td></tr>`
+    `<tr>
+      <td>${esc(wordlist.name)}</td>
+      <td>${esc(wordlist.category)}</td>
+      <td>${wordlistStatusBadge(wordlist.status)}</td>
+      <td>${esc(wordlist.path)}</td>
+      <td class="row-actions">
+        <button type="button" data-wordlist-preview="${esc(wordlist.id)}">View</button>
+        <button type="button" data-wordlist-download="${esc(wordlist.id)}">Download</button>
+        <button type="button" class="danger-button" data-wordlist-delete="${esc(wordlist.id)}">Delete</button>
+      </td>
+    </tr>`
   ).join("");
+}
+
+function wordlistStatusBadge(status) {
+  const value = String(status || "unknown");
+  return `<span class="api-status-badge ${esc(value)}">${esc(value)}</span>`;
+}
+
+async function openWordlistPreview(id) {
+  const modal = ensureToolLogModal();
+  $("toolLogModalTitle").textContent = "Loading wordlist...";
+  $("toolLogModalBody").textContent = "";
+  modal.classList.remove("hidden");
+  try {
+    const data = await api(`/api/wordlists/${encodeURIComponent(id)}/preview`);
+    $("toolLogModalTitle").textContent = `${data.wordlist?.name || "wordlist"} (${data.sizeBytes || 0} bytes${data.truncated ? ", truncated" : ""})`;
+    $("toolLogModalBody").textContent = data.content || "(empty wordlist)";
+  } catch (error) {
+    $("toolLogModalTitle").textContent = "Wordlist unavailable";
+    $("toolLogModalBody").textContent = error.message;
+  }
+}
+
+function downloadWordlist(id) {
+  window.location.href = `/api/wordlists/${encodeURIComponent(id)}/download`;
+}
+
+async function deleteWordlist(id) {
+  if (!confirm("Delete this wordlist entry? Generated files under data/wordlists/generated are removed too.")) return;
+  $("status").textContent = "Deleting wordlist...";
+  try {
+    const data = await api(`/api/wordlists/${encodeURIComponent(id)}`, { method: "DELETE" });
+    $("status").textContent = data.fileDeleted ? "Generated wordlist deleted" : "Wordlist entry deleted";
+    await refreshWordlists();
+  } catch (error) {
+    $("status").textContent = error.message;
+  }
 }
 
 async function refreshApiKeys() {
@@ -1600,6 +1646,22 @@ document.addEventListener("click", (event) => {
   deleteApiKey(button.dataset.apiKeyId).catch((error) => {
     setApiPreflightState("failed", "Delete failed", error.message);
   });
+});
+document.addEventListener("click", (event) => {
+  const preview = event.target.closest("[data-wordlist-preview]");
+  if (preview) {
+    openWordlistPreview(preview.dataset.wordlistPreview);
+    return;
+  }
+  const download = event.target.closest("[data-wordlist-download]");
+  if (download) {
+    downloadWordlist(download.dataset.wordlistDownload);
+    return;
+  }
+  const remove = event.target.closest("[data-wordlist-delete]");
+  if (remove) {
+    deleteWordlist(remove.dataset.wordlistDelete);
+  }
 });
 $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);

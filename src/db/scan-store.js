@@ -1151,6 +1151,11 @@ class ScanStore {
     return this.db.prepare("SELECT * FROM wordlists ORDER BY category, name").all();
   }
 
+  deleteWordlist(id) {
+    const result = this.db.prepare("DELETE FROM wordlists WHERE id = ?").run(Number(id));
+    return result.changes > 0;
+  }
+
   recordToolResult(runId, result) {
     this.db.prepare(`
       INSERT INTO recon_tool_results (
