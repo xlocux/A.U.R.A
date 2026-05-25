@@ -2,10 +2,10 @@
   --vercel-bg: #030608;
   --vercel-bg-2: #070b10;
   --vercel-sidebar: #080c11;
-  --vercel-panel: rgba(15, 18, 26, 0.88);
-  --vercel-panel-strong: rgba(17, 20, 29, 0.96);
-  --vercel-card: rgba(255, 255, 255, 0.04);
-  --vercel-card-hover: rgba(45, 127, 232, 0.1);
+  --vercel-panel: #080a0c;
+  --vercel-panel-strong: #0a0c0f;
+  --vercel-card: #090b0d;
+  --vercel-card-hover: #0c1015;
   --vercel-line: rgba(96, 112, 132, 0.24);
   --vercel-line-strong: rgba(116, 132, 154, 0.36);
   --vercel-text: #f8fafc;
@@ -76,7 +76,7 @@ header {
   min-height: 40px !important;
   margin: 0 !important;
   padding: 0 !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   color: var(--vercel-text) !important;
   background: rgba(255, 255, 255, 0.045) !important;
   box-shadow: none !important;
@@ -92,16 +92,11 @@ header {
   letter-spacing: 0;
 }
 
-.headerbar h1::before {
-  content: "A";
-  display: grid;
+.brand-logo-img {
   width: 38px;
   height: 38px;
-  place-items: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--vercel-blue), #22d3ee);
-  color: white;
-  font-weight: 900;
+  flex: 0 0 38px;
+  border-radius: 8px;
 }
 
 .headerbar h1::after {
@@ -136,7 +131,7 @@ header {
   margin: 0;
   padding: 0 10px;
   border: 1px solid var(--vercel-line) !important;
-  border-radius: 999px;
+  border-radius: 10px;
   color: var(--vercel-subtle) !important;
   background: rgba(255, 255, 255, 0.035);
 }
@@ -307,9 +302,7 @@ body.sidebar-collapsed .tab::before {
 .modal-card {
   border: 1px solid var(--vercel-line) !important;
   border-radius: var(--vercel-radius) !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.012)),
-    var(--vercel-panel) !important;
+  background: var(--vercel-panel) !important;
   box-shadow: var(--vercel-shadow);
   backdrop-filter: blur(16px) saturate(130%);
 }
@@ -372,16 +365,32 @@ button:focus-visible {
 button:not(.tab):not(.settings-tab):not(.result-subtab):not(.table-sort):not(.icon-button),
 .ai-restore {
   min-height: 38px;
-  border: 1px solid rgba(59, 130, 246, 0.32) !important;
-  border-radius: 999px !important;
-  color: #fff !important;
-  background: linear-gradient(135deg, #0b5cad, var(--vercel-blue-2)) !important;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18) !important;
+  border: 1px solid var(--vercel-line-strong) !important;
+  border-radius: 8px !important;
+  color: var(--vercel-text) !important;
+  background: #0b0d10 !important;
+  box-shadow: none !important;
 }
 
 button:not(.tab):not(.settings-tab):not(.result-subtab):not(.table-sort):not(.icon-button):hover,
 .ai-restore:hover {
-  filter: brightness(1.08);
+  border-color: rgba(47, 125, 240, 0.62) !important;
+  color: #fff !important;
+  background: #0e1218 !important;
+  filter: none;
+}
+
+button.primary,
+.top-action.primary,
+#start,
+#createTarget,
+#saveApiKey,
+#saveAiSettings,
+#saveProxySettings,
+#saveWordlist {
+  border-color: rgba(47, 125, 240, 0.64) !important;
+  color: #dbeafe !important;
+  background: #0b0f16 !important;
 }
 
 .row button,
@@ -406,7 +415,7 @@ button.danger-button {
   min-height: 34px;
   margin: 0;
   border: 1px solid var(--vercel-line) !important;
-  border-radius: 999px !important;
+  border-radius: 8px !important;
   padding: 0 13px;
   color: var(--vercel-muted) !important;
   background: rgba(255, 255, 255, 0.035) !important;
@@ -417,9 +426,9 @@ button.danger-button {
 .result-subtab.active,
 .logs-subtabs button.active,
 .topology-view-tabs button.active {
-  color: #fff !important;
+  color: #dbeafe !important;
   border-color: rgba(59, 130, 246, 0.44) !important;
-  background: linear-gradient(135deg, #0b5cad, var(--vercel-blue-2)) !important;
+  background: rgba(47, 125, 240, 0.12) !important;
 }
 
 .result-subtabs,
@@ -482,6 +491,17 @@ button.danger-button {
 .api-preflight {
   border: 1px solid var(--vercel-line) !important;
   border-radius: 12px !important;
+  background: var(--vercel-card) !important;
+}
+
+.result-detail-card,
+.candidate-card,
+.screenshot-card,
+.screenshot-thumb,
+.api-provider-card,
+.model-card,
+.guide-card,
+.embedded-window {
   background: var(--vercel-card) !important;
 }
 
@@ -597,7 +617,7 @@ tr:hover td {
     width: auto;
     min-width: 120px;
     justify-content: center;
-    border-radius: 999px !important;
+    border-radius: 8px !important;
   }
 
   .workspace {
