@@ -66,20 +66,8 @@ header {
 
 .headerbar {
   height: 70px;
-  grid-template-columns: auto minmax(250px, max-content) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(250px, max-content) minmax(0, 1fr) auto;
   gap: 18px;
-}
-
-.sidebar-toggle {
-  width: 40px !important;
-  min-width: 40px !important;
-  min-height: 40px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border-radius: 8px !important;
-  color: var(--vercel-text) !important;
-  background: rgba(255, 255, 255, 0.045) !important;
-  box-shadow: none !important;
 }
 
 .headerbar h1 {
@@ -171,7 +159,7 @@ header {
   flex-direction: column;
   gap: 8px;
   min-height: 0;
-  padding: 18px 16px;
+  padding: 14px 16px 0;
   border-right: 1px solid var(--vercel-line) !important;
   border-bottom: 0 !important;
   background:
@@ -191,16 +179,21 @@ header {
   text-transform: uppercase;
 }
 
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  margin-bottom: 10px;
+  color: var(--vercel-text);
+  font-size: 17px;
+  font-weight: 800;
+}
+
 .tabs::after {
-  content: "A.U.R.A keeps the original recon modules active while the dashboard shell handles navigation.";
+  content: "";
   margin-top: auto;
-  padding: 14px;
-  border: 1px solid var(--vercel-line);
-  border-radius: 14px;
-  color: var(--vercel-muted);
-  background: rgba(255, 255, 255, 0.035);
-  font-size: 12px;
-  line-height: 1.45;
+  border-top: 1px solid var(--vercel-line);
 }
 
 .tab {
@@ -225,12 +218,29 @@ header {
 }
 
 .tab::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  flex: 0 0 8px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.44);
+  content: none;
+}
+
+.tab-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  color: currentColor;
+  background: currentColor;
+  opacity: .9;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: 18px 18px;
+}
+
+.tab-icon[data-icon="recon"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v4'/%3E%3Cpath d='M12 18v4'/%3E%3Cpath d='m4.93 4.93 2.83 2.83'/%3E%3Cpath d='m16.24 16.24 2.83 2.83'/%3E%3Cpath d='M2 12h4'/%3E%3Cpath d='M18 12h4'/%3E%3Cpath d='m4.93 19.07 2.83-2.83'/%3E%3Cpath d='m16.24 7.76 2.83-2.83'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="wordlists"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/%3E%3Cpath d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="search"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="topology"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Ccircle cx='18' cy='6' r='3'/%3E%3Ccircle cx='12' cy='18' r='3'/%3E%3Cpath d='M8.5 7.5 11 15'/%3E%3Cpath d='M15.5 7.5 13 15'/%3E%3Cpath d='M9 6h6'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="results"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M7 16V8'/%3E%3Cpath d='M12 16v-5'/%3E%3Cpath d='M17 16V6'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="ai-log"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='10' rx='2'/%3E%3Ccircle cx='8' cy='16' r='1'/%3E%3Ccircle cx='16' cy='16' r='1'/%3E%3Cpath d='M12 11V7'/%3E%3Cpath d='M9 7h6'/%3E%3Cpath d='M12 3v4'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="runs"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cpath d='m8 9 3 3-3 3'/%3E%3Cpath d='M13 15h3'/%3E%3C/svg%3E"); }
+.tab-icon[data-icon="settings"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z'/%3E%3Cpath d='M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-.6-1A1.7 1.7 0 0 0 1.9 13H2a2 2 0 1 1 0-4h-.1A1.7 1.7 0 0 0 3.6 7a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8c.2.34.4.67.6 1h.1a2 2 0 1 1 0 4H20a1.7 1.7 0 0 0-.6 1z'/%3E%3C/svg%3E"); }
 }
 
 .tab:hover,
@@ -243,8 +253,23 @@ header {
 }
 
 .tab.active::before {
-  background: linear-gradient(135deg, #93c5fd, #22d3ee);
-  box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.12);
+  content: none;
+}
+
+.sidebar-toggle {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 58px !important;
+  margin: auto -16px 0 !important;
+  border-width: 1px 0 0 !important;
+  border-radius: 0 !important;
+  color: var(--vercel-muted) !important;
+  background: transparent !important;
+}
+
+.sidebar-toggle:hover {
+  color: var(--vercel-text) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
 }
 
 .workspace {
@@ -270,8 +295,20 @@ body.sidebar-collapsed .tabs {
   padding: 18px 10px;
 }
 
-body.sidebar-collapsed .tabs::before,
 body.sidebar-collapsed .tabs::after {
+  display: none;
+}
+
+body.sidebar-collapsed .tabs::before {
+  content: none;
+}
+
+body.sidebar-collapsed .sidebar-brand {
+  justify-content: center;
+}
+
+body.sidebar-collapsed .sidebar-brand span,
+body.sidebar-collapsed .tab-label {
   display: none;
 }
 
@@ -284,6 +321,11 @@ body.sidebar-collapsed .tab {
 
 body.sidebar-collapsed .tab::before {
   margin: 0;
+}
+
+body.sidebar-collapsed .sidebar-toggle {
+  margin-left: -10px !important;
+  margin-right: -10px !important;
 }
 
 .tab-panel.active {
@@ -305,19 +347,35 @@ body.sidebar-collapsed .tab::before {
   background: var(--vercel-panel) !important;
   box-shadow: var(--vercel-shadow);
   backdrop-filter: blur(16px) saturate(130%);
+  overflow: visible;
 }
 
 .pane h2,
 .embedded-window h2,
 .output-title h2,
 .ai-header h2 {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
   margin: 0;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
   border-color: var(--vercel-line) !important;
   color: var(--vercel-text) !important;
   font-size: 13px;
+  line-height: 1.45;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  overflow: visible;
+}
+
+.embedded-window h2,
+.output-title,
+.ai-header,
+.topology-head {
+  min-height: 46px;
+  overflow: visible;
 }
 
 .pane h2::before,
@@ -326,10 +384,10 @@ body.sidebar-collapsed .tab::before {
   display: inline-block;
   width: 8px;
   height: 8px;
+  flex: 0 0 8px;
   margin-right: 9px;
   border-radius: 999px;
   background: linear-gradient(135deg, #93c5fd, #22d3ee);
-  vertical-align: 1px;
 }
 
 label,
@@ -412,14 +470,16 @@ button.danger-button {
 .logs-subtabs button,
 .topology-view-tabs button {
   width: auto;
-  min-height: 34px;
+  min-height: 38px;
   margin: 0;
   border: 1px solid var(--vercel-line) !important;
   border-radius: 8px !important;
-  padding: 0 13px;
+  padding: 8px 13px;
   color: var(--vercel-muted) !important;
   background: rgba(255, 255, 255, 0.035) !important;
   box-shadow: none !important;
+  line-height: 1.2;
+  overflow: visible;
 }
 
 .settings-tab.active,
@@ -436,6 +496,9 @@ button.danger-button {
 .logs-subtabs,
 .topology-view-tabs {
   gap: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  overflow-y: visible;
 }
 
 #tab-settings .settings-layout {
@@ -449,8 +512,9 @@ button.danger-button {
   display: flex;
   align-items: center;
   gap: 16px;
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 72px;
+  padding: 14px 12px;
+  overflow: visible;
 }
 
 #tab-settings .settings-layout > .pane:first-child h2 {
@@ -463,14 +527,17 @@ button.danger-button {
   display: flex;
   flex: 1 1 auto;
   gap: 8px;
-  padding: 0;
+  padding: 4px 2px;
   overflow-x: auto;
+  overflow-y: visible;
 }
 
 #tab-settings .settings-tab {
   width: auto;
+  min-height: 36px;
   min-width: 112px;
   justify-content: center;
+  margin: 0;
   text-align: center;
   white-space: nowrap;
 }

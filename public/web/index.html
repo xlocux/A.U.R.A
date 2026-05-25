@@ -12,8 +12,7 @@
   <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
   <header>
     <div class="headerbar">
-      <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="workspaceNav" title="Toggle sidebar">☰</button>
-      <h1><img class="brand-logo-img" src="/assets/aura/aura-icon.svg" alt="" width="38" height="38"> A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</h1>
+      <h1>A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</h1>
       <p id="status" class="muted"></p>
       <div class="top-command" aria-label="Dashboard actions">
         <label class="command-search" for="dashboardQuickSearch">
@@ -27,14 +26,16 @@
   </header>
 
   <nav id="workspaceNav" class="tabs" aria-label="Workspace tabs">
-    <button class="tab" data-tab="recon" title="Recon">Recon</button>
-    <button class="tab" data-tab="wordlists" title="Wordlists">Wordlists</button>
-    <button class="tab" data-tab="search" title="Search">Search</button>
-    <button class="tab" data-tab="topology" title="Topology">Topology</button>
-    <button class="tab" data-tab="results" title="Results">Results</button>
-    <button class="tab" data-tab="ai-log" title="AI Log">AI Log</button>
-    <button class="tab" data-tab="runs" title="Runs & Logs">Runs & Logs</button>
-    <button class="tab active" data-tab="settings" title="Settings">Settings</button>
+    <div class="sidebar-brand"><img class="brand-logo-img" src="/assets/aura/aura-icon.svg" alt="" width="38" height="38"><span>A.U.R.A</span></div>
+    <button class="tab" data-tab="recon" title="Recon"><span class="tab-icon" data-icon="recon"></span><span class="tab-label">Recon</span></button>
+    <button class="tab" data-tab="wordlists" title="Wordlists"><span class="tab-icon" data-icon="wordlists"></span><span class="tab-label">Wordlists</span></button>
+    <button class="tab" data-tab="search" title="Search"><span class="tab-icon" data-icon="search"></span><span class="tab-label">Search</span></button>
+    <button class="tab" data-tab="topology" title="Topology"><span class="tab-icon" data-icon="topology"></span><span class="tab-label">Topology</span></button>
+    <button class="tab" data-tab="results" title="Results"><span class="tab-icon" data-icon="results"></span><span class="tab-label">Results</span></button>
+    <button class="tab" data-tab="ai-log" title="AI Log"><span class="tab-icon" data-icon="ai-log"></span><span class="tab-label">AI Log</span></button>
+    <button class="tab" data-tab="runs" title="Runs & Logs"><span class="tab-icon" data-icon="runs"></span><span class="tab-label">Runs & Logs</span></button>
+    <button class="tab active" data-tab="settings" title="Settings"><span class="tab-icon" data-icon="settings"></span><span class="tab-label">Settings</span></button>
+    <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="workspaceNav" title="Toggle sidebar">☰</button>
   </nav>
 
   <main class="workspace">
