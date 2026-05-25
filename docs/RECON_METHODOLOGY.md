@@ -1823,11 +1823,18 @@ Technology results should feed follow-up recommendations, including
 technology-specific content discovery, CMS checks, and dependency review. MVP
 should record these as review suggestions, not automated exploitation.
 
-If a run already contains saved domains but HTTP probing, technology detection,
-or screenshots did not complete, A.U.R.A should support a follow-up run that
-uses the saved domain set as input and executes only HTTP probing, technology
-enrichment, and screenshot capture. The follow-up run must preserve its own
+If a run already contains saved domains or live HTTP services, A.U.R.A supports
+focused follow-up runs so the user can repeat only the missing phase instead of
+starting discovery again. Supported focused phases are URL/parameter mining,
+HTTP probing, technology enrichment, screenshot capture, analytics/pixel
+extraction, and favicon fingerprinting. Each follow-up run preserves its own
 artifacts, tool results, events, and run delta.
+
+The engine also maintains an AI action pool at the end of recon and HTTP/tech
+follow-up runs. The pool checks expected outputs such as mined URLs,
+screenshots, tracker artifacts, and favicon artifacts. Missing non-blocking
+outputs are queued as bounded recovery actions, retried once with the current
+run context, and logged as completed, incomplete, or failed.
 
 Tool stdout/stderr artifacts should be visible from the Web UI without requiring
 the user to leave the run context. The Results `Tool Logs` view lists each tool

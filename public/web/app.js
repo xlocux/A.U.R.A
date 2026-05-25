@@ -705,10 +705,14 @@ function renderRunActivity(run = null, newEvents = []) {
 
 function updateRunControlButtons(status) {
   const hasRun = Boolean(activeRunId);
+  const canFollowUp = hasRun && ["completed", "failed", "cancelled"].includes(status);
   $("pauseRun").disabled = !hasRun || !["queued", "running"].includes(status);
   $("resumeRun").disabled = !hasRun || status !== "paused";
   $("cancelRun").disabled = !hasRun || ["completed", "failed", "cancelled", "idle"].includes(status);
-  $("runHttpFollowup").disabled = !hasRun || !["completed", "failed", "cancelled"].includes(status);
+  $("runHttpFollowup").disabled = !canFollowUp;
+  ["runUrlFollowup", "runHttpOnlyFollowup", "runTechFollowup", "runScreenshotFollowup", "runTrackerFollowup", "runFaviconFollowup"].forEach((id) => {
+    $(id).disabled = !canFollowUp;
+  });
 }
 
 async function updateRunControl(action) {
@@ -758,6 +762,50 @@ async function runHttpFollowup() {
     $("toolLogRows").innerHTML = "";
     renderRunDelta(null);
     $("status").textContent = `HTTP/tech follow-up running for ${data.sourceDomainCount} saved domains`;
+    activateTab("runs");
+    if (poll) clearInterval(poll);
+    poll = setInterval(refreshRun, 1500);
+    await refreshRun();
+  } catch (error) {
+    $("status").textContent = error.message;
+  } finally {
+    updateRunControlButtons($("runStatus").textContent);
+  }
+}
+
+async function runFocusedFollowup(phase, label) {
+  if (!activeRunId) {
+    $("status").textContent = `Load a completed run before starting ${label}.`;
+    return;
+  }
+  ["runUrlFollowup", "runHttpOnlyFollowup", "runTechFollowup", "runScreenshotFollowup", "runTrackerFollowup", "runFaviconFollowup"].forEach((id) => {
+    $(id).disabled = true;
+  });
+  $("status").textContent = `Starting ${label} from run ${activeRunId}...`;
+  try {
+    const data = await api(`/api/recon-runs/${activeRunId}/follow-up/${phase}`, {
+      method: "POST",
+      body: JSON.stringify({
+        screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
+        useWsl: $("useWsl").checked,
+        wslDistro: $("distro").value,
+        timeoutMs: Number($("timeout").value || 180000),
+        proxyUrl: activeProxyUrl()
+      })
+    });
+    activeRunId = data.run.id;
+    lastEventId = 0;
+    window.AuraAiAgent.resetRunFeed(activeRunId);
+    $("runId").textContent = activeRunId;
+    $("events").innerHTML = "";
+    $("domainRows").innerHTML = "";
+    $("serviceRows").innerHTML = "";
+    $("technologyRows").innerHTML = "";
+    $("screenshotRows").innerHTML = "";
+    $("artifactRows").innerHTML = "";
+    $("toolLogRows").innerHTML = "";
+    renderRunDelta(null);
+    $("status").textContent = `${label} running for ${data.sourceDomainCount} saved domains and ${data.sourceServiceCount} services`;
     activateTab("runs");
     if (poll) clearInterval(poll);
     poll = setInterval(refreshRun, 1500);
@@ -1510,6 +1558,12 @@ $("pauseRun").addEventListener("click", () => updateRunControl("pause"));
 $("resumeRun").addEventListener("click", () => updateRunControl("resume"));
 $("cancelRun").addEventListener("click", () => updateRunControl("cancel"));
 $("runHttpFollowup").addEventListener("click", runHttpFollowup);
+$("runUrlFollowup").addEventListener("click", () => runFocusedFollowup("urls", "URL/parameter follow-up"));
+$("runHttpOnlyFollowup").addEventListener("click", () => runFocusedFollowup("http-only", "HTTP-only follow-up"));
+$("runTechFollowup").addEventListener("click", () => runFocusedFollowup("tech", "technology follow-up"));
+$("runScreenshotFollowup").addEventListener("click", () => runFocusedFollowup("screenshots", "screenshot follow-up"));
+$("runTrackerFollowup").addEventListener("click", () => runFocusedFollowup("trackers", "analytics/pixel follow-up"));
+$("runFaviconFollowup").addEventListener("click", () => runFocusedFollowup("favicons", "favicon follow-up"));
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);

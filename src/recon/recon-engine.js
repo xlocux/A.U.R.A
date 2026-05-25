@@ -5,6 +5,8 @@ const path = require("node:path");
 const { extractDomains, normalizeDomain, rootForDomain } = require("./domain-utils");
 const { parseGauUrls, parseHttpxJsonLines } = require("./parsers");
 const { runTechnologyEnrichment } = require("./technology-detectors");
+const { extractTrackersFromServices } = require("./tracker-extraction");
+const { extractFaviconsFromServices } = require("./web-fingerprints");
 const { runPassiveSource } = require("./passive-sources");
 const ProxyRotationController = require("./proxy-rotation");
 const { commandDisplay, redactProxyUrl, runWslTool } = require("./wsl-tools");
@@ -99,6 +101,23 @@ async function runRecon({
   await waitForRunControl(store, runId);
   await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl: selectedProxyUrl, proxyController });
   await waitForRunControl(store, runId);
+  await collectTrackers({ store, runId, targetName, services: context.httpServices, timeoutMs, artifactsDir });
+  await collectFavicons({ store, runId, targetName, services: context.httpServices, timeoutMs, artifactsDir });
+  await runRecoveryActionPool({
+    store,
+    runId,
+    targetName,
+    roots,
+    wslTools,
+    wslDistro,
+    useWsl,
+    timeoutMs,
+    artifactsDir,
+    context,
+    screenshotTools,
+    proxyUrl: selectedProxyUrl,
+    proxyController
+  });
 
   const finalDomains = [...discovered].map((domain) => ({
     domain,
@@ -217,6 +236,23 @@ async function runHttpFollowup({
   });
   await waitForRunControl(store, runId);
   await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl: selectedProxyUrl, proxyController });
+  await collectTrackers({ store, runId, targetName, services, timeoutMs, artifactsDir });
+  await collectFavicons({ store, runId, targetName, services, timeoutMs, artifactsDir });
+  await runRecoveryActionPool({
+    store,
+    runId,
+    targetName,
+    roots: inferRoots(hosts),
+    wslTools: [],
+    wslDistro,
+    useWsl,
+    timeoutMs,
+    artifactsDir,
+    context,
+    screenshotTools,
+    proxyUrl: selectedProxyUrl,
+    proxyController
+  });
   store.appendEvent(runId, { phase: "http-tech-followup", severity: "ok", source: "engine", message: `HTTP/tech follow-up completed with ${services.length} live services` });
   appendAiLog(store, runId, `HTTP/Tech follow-up completed with ${services.length} live services. Review Results tabs for grouped statuses, technologies, URLs, and screenshots.`, {
     stage: "summary",
@@ -228,6 +264,95 @@ async function runHttpFollowup({
     finishedAt: new Date().toISOString(),
     checkpoint: { domainCount: hosts.length, httpServices: services.length }
   });
+}
+
+async function runFocusedFollowup({
+  store,
+  runId,
+  targetName,
+  phase,
+  domains = [],
+  services = [],
+  rootDomains = [],
+  screenshotTools = DEFAULT_SCREENSHOT_TOOLS,
+  wslDistro = "kali-linux",
+  useWsl = true,
+  timeoutMs = 180000,
+  artifactsDir = path.resolve("data", "recon-runs", String(runId)),
+  proxyUrl = null
+}) {
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  store.updateRun(runId, {
+    status: "running",
+    activePhase: `follow-up-${phase}`,
+    checkpoint: { phase, domainCount: domains.length, serviceCount: services.length }
+  });
+  store.appendEvent(runId, { phase: `follow-up-${phase}`, severity: "ok", source: "engine", message: `Focused ${phase} follow-up started` });
+  if (phase === "urls") {
+    if (!useWsl) throw new Error("URL mining requires the Linux tool runner");
+    const roots = rootDomains.length ? rootDomains : inferRoots(domains.map((item) => item.domain || item));
+    const proxyController = await createProxyController({ store, runId, proxyUrl, phase: `follow-up-${phase}` });
+    const selectedProxyUrl = proxyController?.bestProxyUrl() || proxyUrl || null;
+    const discovered = new Set(roots);
+    const context = { urls: [], httpServices: [] };
+    await collectWsl({ store, runId, targetName, roots, wslTools: ["gau"], wslDistro, useWsl, timeoutMs, artifactsDir, discovered, context, proxyUrl: selectedProxyUrl, proxyController });
+    store.updateRun(runId, { status: "completed", activePhase: "completed", finishedAt: new Date().toISOString(), checkpoint: { phase, urls: context.urls.length } });
+    return;
+  }
+  if (phase === "http") {
+    await runHttpProbeOnly({ store, runId, targetName, domains, wslDistro, useWsl, timeoutMs, artifactsDir, proxyUrl });
+    return;
+  }
+  const context = { urls: [], httpServices: services };
+  if (phase === "tech") {
+    await runTechnologyEnrichment({ store, runId, targetName, wslDistro, useWsl, timeoutMs, artifactsDir, context, waitForRunControl, proxyUrl });
+    store.updateRun(runId, { status: "completed", activePhase: "completed", finishedAt: new Date().toISOString(), checkpoint: { phase, services: services.length } });
+    return;
+  }
+  if (phase === "screenshots") {
+    const proxyController = useWsl ? await createProxyController({ store, runId, proxyUrl, phase: `follow-up-${phase}` }) : null;
+    const selectedProxyUrl = proxyController?.bestProxyUrl() || proxyUrl || null;
+    await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl: selectedProxyUrl, proxyController });
+    store.updateRun(runId, { status: "completed", activePhase: "completed", finishedAt: new Date().toISOString(), checkpoint: { phase, services: services.length } });
+    return;
+  }
+  if (phase === "trackers") {
+    await collectTrackers({ store, runId, targetName, services, timeoutMs, artifactsDir });
+    store.updateRun(runId, { status: "completed", activePhase: "completed", finishedAt: new Date().toISOString(), checkpoint: { phase, services: services.length } });
+    return;
+  }
+  if (phase === "favicons") {
+    await collectFavicons({ store, runId, targetName, services, timeoutMs, artifactsDir });
+    store.updateRun(runId, { status: "completed", activePhase: "completed", finishedAt: new Date().toISOString(), checkpoint: { phase, services: services.length } });
+    return;
+  }
+  throw new Error(`Unsupported focused follow-up phase: ${phase}`);
+}
+
+async function runHttpProbeOnly({ store, runId, targetName, domains, wslDistro, useWsl, timeoutMs, artifactsDir, proxyUrl }) {
+  if (!useWsl) throw new Error("HTTP follow-up requires the Linux tool runner");
+  const hosts = [...new Set((domains || []).map((item) => normalizeDomain(item.domain || item)).filter(Boolean))].sort();
+  const proxyController = await createProxyController({ store, runId, proxyUrl, phase: "follow-up-http" });
+  const selectedProxyUrl = proxyController?.bestProxyUrl() || proxyUrl || null;
+  const inputPath = path.join(artifactsDir, "http-focused.input.txt");
+  fs.writeFileSync(inputPath, hosts.join("\n"), "utf8");
+  const args = httpxArgsForInput(inputPath);
+  const result = await runToolWithRecovery({
+    store,
+    runId,
+    phase: "heartbeat",
+    source: "httpx",
+    heartbeatMessage: (elapsed) => `httpx focused follow-up is still running (${elapsed}s elapsed)`,
+    maxAttempts: proxyController?.hasPool() ? 1 : DEFAULT_TOOL_RECOVERY_ATTEMPTS,
+    task: () => runWslToolWithProxy({ proxyController, distro: wslDistro, toolName: "httpx", args, timeoutMs, proxyUrl: selectedProxyUrl })
+  });
+  const stdoutPath = writeToolArtifact(artifactsDir, "http-focused.stdout.txt", result.stdout);
+  const stderrPath = writeToolArtifact(artifactsDir, "http-focused.stderr.txt", result.stderr);
+  store.recordToolResult(runId, { toolName: "httpx", commandDisplay: commandDisplay(wslDistro, "httpx", args), status: result.status, exitCode: result.exitCode, startedAt: result.startedAt, finishedAt: result.finishedAt, stdoutPath, stderrPath, errorMessage: result.errorMessage });
+  const services = parseHttpxJsonLines(result.stdout);
+  store.saveHttpServices(runId, targetName, services, "httpx");
+  store.appendEvent(runId, { phase: "follow-up-http", severity: result.status === "completed" ? "ok" : "warn", source: "httpx", message: `httpx ${result.status}; parsed ${services.length} HTTP services${toolFailureDetail(result)}` });
+  store.updateRun(runId, { status: "completed", activePhase: "completed", finishedAt: new Date().toISOString(), checkpoint: { phase: "http", services: services.length } });
 }
 
 async function createProxyController({ store, runId, proxyUrl = null, phase = "recon" }) {
@@ -429,6 +554,17 @@ function uniquePorts(ports) {
   return [...new Set((ports || []).map((port) => Number.parseInt(port, 10)).filter((port) => Number.isInteger(port) && port > 0 && port <= 65535))];
 }
 
+function inferRoots(domains) {
+  const roots = new Set();
+  for (const value of domains || []) {
+    const domain = normalizeDomain(value?.domain || value?.host || value);
+    if (!domain) continue;
+    const parts = domain.split(".");
+    roots.add(parts.length > 2 ? parts.slice(-2).join(".") : domain);
+  }
+  return [...roots].sort();
+}
+
 async function collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl = null, proxyController = null }) {
   if (!useWsl || screenshotTools.length === 0 || context.httpServices.length === 0) return;
   const liveUrls = [...new Set(context.httpServices.map((service) => service.url).filter(Boolean))].sort();
@@ -457,6 +593,165 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, w
     store.saveScreenshotRun(runId, targetName, { toolName, outputDir, reportPath: findScreenshotReport(outputDir), metadata: { status: result.status, exitCode: result.exitCode, urlCount: liveUrls.length, screenshotCount: countScreenshotFiles(outputDir), proxyRotation: result.proxyRotation || null } });
     store.appendEvent(runId, { phase: "recon", severity: result.status === "completed" ? "ok" : "warn", source: toolName, message: `${toolName} screenshot run ${result.status}` });
   }
+}
+
+async function collectTrackers({ store, runId, targetName, services, timeoutMs, artifactsDir }) {
+  const liveServices = [...new Map((services || []).filter((service) => service?.url).map((service) => [String(service.url).toLowerCase(), service])).values()];
+  if (liveServices.length === 0) {
+    store.appendEvent(runId, { phase: "tracker-extraction", severity: "info", source: "tracker-extraction", message: "Analytics/pixel extraction skipped because no live HTTP services are available." });
+    return { findingCount: 0, checkedCount: 0 };
+  }
+  store.appendEvent(runId, { phase: "tracker-extraction", severity: "info", source: "tracker-extraction", message: `Checking ${liveServices.length} live services for analytics and pixel IDs.` });
+  const findings = await extractTrackersFromServices({ services: liveServices, timeoutMs: Math.min(Number(timeoutMs || 12000), 15000) });
+  const artifactPath = writeToolArtifact(artifactsDir, "tracker-findings.json", JSON.stringify({ targetName, checked: liveServices.length, findings }, null, 2));
+  const successfulFindings = findings.filter((finding) => finding.vendor !== "tracker-fetch");
+  store.appendEvent(runId, {
+    phase: "tracker-extraction",
+    severity: successfulFindings.length ? "ok" : "warn",
+    source: "tracker-extraction",
+    message: `Analytics/pixel extraction completed with ${successfulFindings.length} findings across ${liveServices.length} services.`,
+    payload: { artifactPath, findingCount: successfulFindings.length, checkedCount: liveServices.length }
+  });
+  if (successfulFindings.length) {
+    store.saveUrls(runId, targetName, successfulFindings.map((finding) => ({
+      url: finding.url,
+      host: finding.host,
+      path: "",
+      query: "",
+      params: [],
+      metadata: { trackerVendor: finding.vendor, trackerId: finding.id }
+    })), "tracker-extraction");
+  }
+  return { findingCount: successfulFindings.length, checkedCount: liveServices.length };
+}
+
+async function collectFavicons({ store, runId, targetName, services, timeoutMs, artifactsDir }) {
+  const liveServices = [...new Map((services || []).filter((service) => service?.url).map((service) => [String(service.url).toLowerCase(), service])).values()];
+  if (liveServices.length === 0) {
+    store.appendEvent(runId, { phase: "favicon-fingerprint", severity: "info", source: "favicon-fingerprint", message: "Favicon fingerprinting skipped because no live HTTP services are available." });
+    return { findingCount: 0, checkedCount: 0 };
+  }
+  store.appendEvent(runId, { phase: "favicon-fingerprint", severity: "info", source: "favicon-fingerprint", message: `Checking ${liveServices.length} live services for favicons.` });
+  const findings = await extractFaviconsFromServices({ services: liveServices, timeoutMs: Math.min(Number(timeoutMs || 12000), 15000) });
+  const artifactPath = writeToolArtifact(artifactsDir, "favicon-findings.json", JSON.stringify({ targetName, checked: liveServices.length, findings }, null, 2));
+  store.appendEvent(runId, {
+    phase: "favicon-fingerprint",
+    severity: findings.length ? "ok" : "warn",
+    source: "favicon-fingerprint",
+    message: `Favicon fingerprinting completed with ${findings.length} hashes across ${liveServices.length} services.`,
+    payload: { artifactPath, findingCount: findings.length, checkedCount: liveServices.length }
+  });
+  if (findings.length) {
+    store.saveUrls(runId, targetName, findings.map((finding) => ({
+      url: finding.faviconUrl,
+      host: finding.host,
+      path: "",
+      query: "",
+      params: [],
+      metadata: { faviconSha256: finding.sha256, byteLength: finding.byteLength, contentType: finding.contentType, pageUrl: finding.url }
+    })), "favicon-fingerprint");
+  }
+  return { findingCount: findings.length, checkedCount: liveServices.length };
+}
+
+async function runRecoveryActionPool({
+  store,
+  runId,
+  targetName,
+  roots,
+  wslTools,
+  wslDistro,
+  useWsl,
+  timeoutMs,
+  artifactsDir,
+  context,
+  screenshotTools,
+  proxyUrl = null,
+  proxyController = null
+}) {
+  const actions = buildRecoveryActions({ roots, wslTools, useWsl, context, screenshotTools, artifactsDir });
+  store.appendEvent(runId, {
+    phase: "ai-action-pool",
+    severity: actions.length ? "info" : "ok",
+    source: "ai-action-pool",
+    message: actions.length
+      ? `AI action pool queued ${actions.length} incomplete recon phase${actions.length === 1 ? "" : "s"} for retry.`
+      : "AI action pool checked recon phases: no incomplete follow-up action is required.",
+    payload: { actions }
+  });
+  for (const action of actions) {
+    await waitForRunControl(store, runId);
+    store.appendEvent(runId, {
+      phase: "ai-action-pool",
+      severity: "info",
+      source: "ai-action-pool",
+      message: `Running recovery action ${action.id}: ${action.reason}`,
+      payload: { action, status: "running" }
+    });
+    try {
+      if (action.phase === "urls") {
+        const discovered = new Set(roots);
+        await collectWsl({ store, runId, targetName, roots, wslTools: ["gau"], wslDistro, useWsl, timeoutMs, artifactsDir, discovered, context, proxyUrl, proxyController });
+      }
+      if (action.phase === "screenshots") {
+        await collectScreenshots({ store, runId, targetName, screenshotTools, wslDistro, useWsl, timeoutMs, artifactsDir, context, proxyUrl, proxyController });
+      }
+      if (action.phase === "trackers") {
+        await collectTrackers({ store, runId, targetName, services: context.httpServices, timeoutMs, artifactsDir });
+      }
+      if (action.phase === "favicons") {
+        await collectFavicons({ store, runId, targetName, services: context.httpServices, timeoutMs, artifactsDir });
+      }
+      const completed = recoveryActionCompleted(action, { context, artifactsDir });
+      store.appendEvent(runId, {
+        phase: "ai-action-pool",
+        severity: completed ? "ok" : "warn",
+        source: "ai-action-pool",
+        message: completed
+          ? `Recovery action ${action.id} completed.`
+          : `Recovery action ${action.id} ran but the expected output is still missing.`,
+        payload: { action, status: completed ? "completed" : "incomplete" }
+      });
+    } catch (error) {
+      store.appendEvent(runId, {
+        phase: "ai-action-pool",
+        severity: "warn",
+        source: "ai-action-pool",
+        message: `Recovery action ${action.id} failed: ${error.message}`,
+        payload: { action, status: "failed" }
+      });
+    }
+  }
+}
+
+function buildRecoveryActions({ roots, wslTools, useWsl, context, screenshotTools, artifactsDir }) {
+  const enabledTools = new Set((wslTools || []).map((tool) => parseToolSpec(tool).name));
+  const actions = [];
+  if (useWsl && enabledTools.has("gau") && roots.length && context.urls.length === 0) {
+    actions.push({ id: "retry-url-params", phase: "urls", reason: "URL and parameter mining produced no saved URLs." });
+  }
+  if ((screenshotTools || []).length && context.httpServices.length && countAllScreenshots(path.join(artifactsDir, "screenshots")) === 0) {
+    actions.push({ id: "retry-screenshots", phase: "screenshots", reason: "Screenshot capture produced no image files." });
+  }
+  if (context.httpServices.length && !fs.existsSync(path.join(artifactsDir, "tracker-findings.json"))) {
+    actions.push({ id: "extract-trackers", phase: "trackers", reason: "Analytics/pixel extraction has not produced an artifact yet." });
+  }
+  if (context.httpServices.length && !fs.existsSync(path.join(artifactsDir, "favicon-findings.json"))) {
+    actions.push({ id: "extract-favicons", phase: "favicons", reason: "Favicon fingerprinting has not produced an artifact yet." });
+  }
+  return actions;
+}
+
+function recoveryActionCompleted(action, { context, artifactsDir }) {
+  if (action.phase === "urls") return context.urls.length > 0;
+  if (action.phase === "screenshots") return countAllScreenshots(path.join(artifactsDir, "screenshots")) > 0;
+  if (action.phase === "trackers") return fs.existsSync(path.join(artifactsDir, "tracker-findings.json"));
+  if (action.phase === "favicons") return fs.existsSync(path.join(artifactsDir, "favicon-findings.json"));
+  return true;
+}
+
+function countAllScreenshots(outputRoot) {
+  return countScreenshotFiles(outputRoot);
 }
 
 async function runToolWithHeartbeat({ store, runId, phase, source, heartbeatMessage, task }) {
@@ -623,6 +918,7 @@ module.exports = {
   parsePortList,
   parseToolSpec,
   resolveHttpPorts,
+  runFocusedFollowup,
   runHttpFollowup,
   runRecon,
   shouldRetryToolResult,

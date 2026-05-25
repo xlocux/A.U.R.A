@@ -15,6 +15,7 @@ const {
   DEFAULT_SCREENSHOT_TOOLS,
   DEFAULT_WSL_TOOLS,
   isRunControlError,
+  runFocusedFollowup,
   runHttpFollowup,
   runRecon
 } = require("../recon/recon-engine");
@@ -248,6 +249,12 @@ async function handleApiRequest({ request, response, url, store }) {
   const httpFollowupMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/follow-up\/http$/);
   if (httpFollowupMatch && request.method === "POST") {
     await createHttpFollowupRun(request, response, store, Number(httpFollowupMatch[1]));
+    return true;
+  }
+
+  const focusedFollowupMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/follow-up\/(urls|http-only|tech|screenshots|trackers|favicons)$/);
+  if (focusedFollowupMatch && request.method === "POST") {
+    await createFocusedFollowupRun(request, response, store, Number(focusedFollowupMatch[1]), focusedFollowupMatch[2]);
     return true;
   }
 
@@ -1351,8 +1358,103 @@ async function createHttpFollowupRun(request, response, store, sourceRunId) {
   });
 }
 
+async function createFocusedFollowupRun(request, response, store, sourceRunId, phaseName) {
+  const sourceRun = store.getRun(sourceRunId);
+  if (!sourceRun) {
+    sendJson(response, { error: "Source run not found" }, 404);
+    return;
+  }
+  const body = await readBody(request);
+  const proxy = parseOptionalProxy(response, body.proxyUrl);
+  if (proxy === false) return;
+  const phase = phaseName === "http-only" ? "http" : phaseName;
+  const domains = store.listDomains({ runId: sourceRunId, limit: 1000000 });
+  const services = store.listHttpServices({ runId: sourceRunId, limit: 1000000 });
+  if ((phase === "urls" || phase === "http") && domains.length === 0) {
+    sendJson(response, { error: "The source run has no saved domains for this follow-up phase" }, 400);
+    return;
+  }
+  if ((phase === "tech" || phase === "screenshots" || phase === "trackers" || phase === "favicons") && services.length === 0) {
+    sendJson(response, { error: "The source run has no saved HTTP services for this follow-up phase" }, 400);
+    return;
+  }
+  const rootDomains = Array.isArray(sourceRun.checkpoint?.rootDomains)
+    ? sourceRun.checkpoint.rootDomains
+    : inferRootsFromDomainRows(domains);
+  const run = store.createRun({
+    targetName: sourceRun.target_name,
+    runType: "focused-followup",
+    mode: `follow-up-${phaseName}`,
+    providerProfile: body.useWsl === false ? "passive" : "wsl-kali",
+    checkpoint: {
+      sourceRunId,
+      phase,
+      sourceDomainCount: domains.length,
+      sourceServiceCount: services.length
+    }
+  });
+  sendJson(response, {
+    run,
+    sourceRunId,
+    phase,
+    sourceDomainCount: domains.length,
+    sourceServiceCount: services.length
+  }, 202);
+  runInBackground(async () => {
+    try {
+      await runFocusedFollowup({
+        store,
+        runId: run.id,
+        targetName: sourceRun.target_name,
+        phase,
+        domains,
+        services,
+        rootDomains,
+        screenshotTools: body.screenshotTools || DEFAULT_SCREENSHOT_TOOLS,
+        wslDistro: body.wslDistro || "kali-linux",
+        useWsl: body.useWsl !== false,
+        timeoutMs: Number(body.timeoutMs || 180000),
+        proxyUrl: proxy
+      });
+    } catch (error) {
+      if (isRunControlError(error)) {
+        store.appendEvent(run.id, {
+          phase: "control",
+          severity: "warn",
+          source: "engine",
+          message: error.message
+        });
+        return;
+      }
+      store.appendEvent(run.id, {
+        phase: `follow-up-${phase}`,
+        severity: "error",
+        source: "engine",
+        message: error.message
+      });
+      store.updateRun(run.id, {
+        status: "failed",
+        activePhase: "failed",
+        finishedAt: new Date().toISOString(),
+        errorMessage: error.message
+      });
+    }
+  });
+}
+
 function normalizeDomainList(values) {
   return [...new Set((values || []).map(normalizeDomain).filter(Boolean))];
+}
+
+function inferRootsFromDomainRows(rows) {
+  const roots = new Set();
+  for (const row of rows || []) {
+    const domain = normalizeDomain(row.domain || row.host || row);
+    if (!domain) continue;
+    const parts = domain.split(".");
+    roots.add(parts.length > 2 ? parts.slice(-2).join(".") : domain);
+  }
+  return [...roots].sort();
 }
 
 function validateReconMode(mode, rootDomains) {
