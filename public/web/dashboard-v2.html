@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>A.U.R.A Dashboard v2</title>
+  <link rel="stylesheet" href="/dashboard-v2.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/dashboard-v2.html" aria-label="A.U.R.A dashboard home">
+        <span class="brand-mark">A</span>
+        <span><strong>A.U.R.A</strong><em>Recon Cloud</em></span>
+      </a>
+      <nav class="main-nav" aria-label="Dashboard sections">
+        <button class="nav-item active" data-section="overview" type="button">Dashboard</button>
+        <button class="nav-item" data-section="targets" type="button">Applications</button>
+        <button class="nav-item" data-section="runs" type="button">Deployments</button>
+        <button class="nav-item" data-section="logs" type="button">Logs</button>
+        <button class="nav-item" data-section="analytics" type="button">Analytics</button>
+        <button class="nav-item" data-section="settings" type="button">Settings</button>
+      </nav>
+      <div class="topbar-actions">
+        <label class="command-box" for="globalSearch"><span>⌘K</span><input id="globalSearch" type="search" placeholder="Search target, run, provider, log"></label>
+        <button id="refreshDashboard" class="ghost-button" type="button">Refresh</button>
+        <a class="avatar" href="/" title="Open classic A.U.R.A UI">UI</a>
+      </div>
+    </header>
+
+    <main class="dashboard-main">
+      <section id="section-overview" class="dashboard-section active" aria-labelledby="overviewTitle">
+        <div class="hero-row">
+          <div>
+            <p class="eyebrow">Project Overview</p>
+            <h1 id="overviewTitle">Manage targets, recon runs, and live findings.</h1>
+            <p id="overviewSubtitle" class="hero-copy">Loading A.U.R.A state...</p>
+          </div>
+          <div class="hero-actions">
+            <select id="runSelect" aria-label="Select run"></select>
+            <a class="primary-action" href="/">Open Classic UI</a>
+          </div>
+        </div>
+
+        <div id="statusBanner" class="status-banner hidden" role="status"></div>
+
+        <section class="card-grid applications-grid" aria-labelledby="applicationsTitle">
+          <div class="section-heading">
+            <h2 id="applicationsTitle">Applications</h2>
+            <span id="applicationsMeta" class="section-meta">Targets and runtime modules</span>
+          </div>
+          <div id="applicationCards" class="application-cards"></div>
+        </section>
+
+        <div class="two-column-layout">
+          <section class="panel deployments-panel" aria-labelledby="deploymentsTitle">
+            <div class="panel-head">
+              <div><h2 id="deploymentsTitle">Recent Deployments</h2><p>Recon runs mapped to deployment-style activity.</p></div>
+              <button class="text-button" data-section-jump="runs" type="button">View All</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Run</th><th>Status</th><th>Mode</th><th>Target</th><th>Time</th></tr></thead>
+                <tbody id="recentRunsRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel metrics-panel" aria-labelledby="metricsTitle">
+            <div class="panel-head stacked"><div><h2 id="metricsTitle">System Metrics</h2><p id="metricsWindowLabel">Current run</p></div><div class="segmented"><button class="active" data-metric-window="run" type="button">Run</button><button data-metric-window="target" type="button">Target</button><button data-metric-window="all" type="button">All</button></div></div>
+            <div id="metricCards" class="metric-cards"></div>
+            <div class="chart-card">
+              <div class="chart-title"><span>Observation Mix</span><strong id="chartTotal">0</strong></div>
+              <div id="observationChart" class="bar-chart"></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="two-column-layout bottom-layout">
+          <section class="panel logs-panel" aria-labelledby="liveLogsTitle">
+            <div class="panel-head"><div><h2 id="liveLogsTitle">Live Logs</h2><p>Recent events, tool output, warnings, and AI decisions.</p></div><span class="live-dot">Live</span></div>
+            <div id="liveLogs" class="log-stream"></div>
+          </section>
+
+          <section class="panel env-panel" aria-labelledby="providersTitle">
+            <div class="panel-head"><div><h2 id="providersTitle">Environment Variables</h2><p>Provider/API status mapped to secure configuration.</p></div><a class="text-button" href="/#settings">Manage</a></div>
+            <div class="table-wrap compact-table">
+              <table>
+                <thead><tr><th>Provider</th><th>Status</th><th>Usage</th><th>Actions</th></tr></thead>
+                <tbody id="providerRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="section-targets" class="dashboard-section" aria-labelledby="targetsTitle">
+        <div class="page-head"><div><p class="eyebrow">Applications</p><h1 id="targetsTitle">Targets</h1><p>Each target is treated as an application surface with scope, runs, and review leads.</p></div><a class="primary-action" href="/#recon">Create Target</a></div>
+        <div id="targetCards" class="application-cards wide"></div>
+      </section>
+
+      <section id="section-runs" class="dashboard-section" aria-labelledby="runsTitle">
+        <div class="page-head"><div><p class="eyebrow">Deployments</p><h1 id="runsTitle">Recon Runs</h1><p>Deployment-style run history with status, target, provider profile, and timestamps.</p></div><a class="primary-action" href="/#results">Open Results</a></div>
+        <section class="panel"><div class="table-wrap"><table><thead><tr><th>Run</th><th>Status</th><th>Phase</th><th>Mode</th><th>Provider</th><th>Target</th><th>Started</th><th>Finished</th></tr></thead><tbody id="allRunsRows"></tbody></table></div></section>
+      </section>
+
+      <section id="section-logs" class="dashboard-section" aria-labelledby="logsTitle">
+        <div class="page-head"><div><p class="eyebrow">Logs</p><h1 id="logsTitle">Live Recon Logs</h1><p>Run events and tool results for the selected run.</p></div><select id="logsRunSelect" aria-label="Select logs run"></select></div>
+        <div class="two-column-layout"><section class="panel"><div class="panel-head"><div><h2>Run Events</h2><p>Chronological control and recon events.</p></div></div><div id="eventsLogStream" class="log-stream tall"></div></section><section class="panel"><div class="panel-head"><div><h2>Tool Results</h2><p>Tool execution state and artifacts.</p></div></div><div class="table-wrap compact-table"><table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th></tr></thead><tbody id="toolResultsRows"></tbody></table></div></section></div>
+      </section>
+
+      <section id="section-analytics" class="dashboard-section" aria-labelledby="analyticsTitle">
+        <div class="page-head"><div><p class="eyebrow">Analytics</p><h1 id="analyticsTitle">Run Analytics</h1><p>Topology-adjacent summary for domains, services, technologies, URLs, and screenshots.</p></div><a class="primary-action" href="/#topology">Open Topology</a></div>
+        <div class="analytics-grid"><section class="panel"><div class="panel-head"><div><h2>Technology Stack</h2><p>Top detected technologies.</p></div></div><div id="techBars" class="bar-chart"></div></section><section class="panel"><div class="panel-head"><div><h2>HTTP Status</h2><p>Status-code distribution.</p></div></div><div id="statusBars" class="bar-chart"></div></section><section class="panel span-2"><div class="panel-head"><div><h2>Service Surface</h2><p>Detected HTTP services for the selected run.</p></div></div><div class="table-wrap"><table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Technologies</th></tr></thead><tbody id="serviceSurfaceRows"></tbody></table></div></section></div>
+      </section>
+
+      <section id="section-settings" class="dashboard-section" aria-labelledby="settingsTitle">
+        <div class="page-head"><div><p class="eyebrow">Settings</p><h1 id="settingsTitle">Runtime & Providers</h1><p>Read-only dashboard view of local environment, AI runtime, and provider health.</p></div><a class="primary-action" href="/#settings">Edit Settings</a></div>
+        <div class="two-column-layout"><section class="panel"><div class="panel-head"><div><h2>API Providers</h2><p>Active keys are used by scan presets; unavailable providers are skipped.</p></div></div><div class="table-wrap"><table><thead><tr><th>Provider</th><th>Label</th><th>Status</th><th>Usage</th><th>Notes</th></tr></thead><tbody id="settingsProviderRows"></tbody></table></div></section><section class="panel"><div class="panel-head"><div><h2>AI Runtime</h2><p>Current assistant configuration.</p></div></div><div id="aiRuntimeCard" class="runtime-card"></div></section></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/dashboard-v2.js"></script>
+</body>
+</html>
