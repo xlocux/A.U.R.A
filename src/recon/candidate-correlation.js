@@ -1,6 +1,12 @@
 "use strict";
 
 const { normalizeDomain, rootForDomain } = require("./domain-utils");
+const {
+  buildExistingObservations,
+  buildTldCandidateFromLead,
+  calculateTLDConfidence,
+  scopeEvaluateTldCandidate
+} = require("./tld-correlation-engine");
 
 const CORRELATION_TECHNIQUES = [
   {
@@ -80,7 +86,7 @@ const CORRELATION_TECHNIQUES = [
   }
 ];
 
-function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads }) {
+function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads, existingObservations = null, config = null, autoPromote = true }) {
   const normalizedRoots = rootDomains.map(normalizeDomain).filter(Boolean);
   const candidateLeads = (leads || []).filter((lead) => normalizeDomain(lead.value || lead.domain));
   if (candidateLeads.length === 0) {
@@ -88,7 +94,7 @@ function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads 
     return [];
   }
 
-  appendAiLog(store, runId, `Starting candidate correlation for ${candidateLeads.length} review leads. I will not scan or promote unknown-scope candidates automatically.`, {
+  appendAiLog(store, runId, `Starting candidate correlation for ${candidateLeads.length} review leads. TLD candidates can be auto-promoted only when deterministic correlation reaches exactly 100% confidence.`, {
     stage: "start",
     candidateCount: candidateLeads.length
   });
@@ -99,20 +105,47 @@ function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads 
     });
   }
 
-  const scored = candidateLeads.map((lead) => scoreCandidate({ lead, rootDomains: normalizedRoots }));
+  const observations = existingObservations || observationsFromStore({ store, targetName, runId, rootDomains: normalizedRoots, config });
+  const scored = candidateLeads.map((lead) => scoreCandidate({ lead, rootDomains: normalizedRoots, existingObservations: observations }));
   const rescoredLeads = scored.map((item) => ({
     ...item.lead,
-    confidence: confidenceForScore(item.score),
-    status: item.score >= 80 ? "best_candidate" : item.score >= 50 ? "review" : "weak_lead",
+    confidence: item.tldScope?.confidence || confidenceForScore(item.score),
+    status: item.tldScope?.scope_status === "in_scope" ? "auto_promoted" : item.score >= 80 ? "best_candidate" : item.score >= 50 ? "review" : "weak_lead",
+    requiresReview: item.tldScope?.requires_review ?? true,
     metadata: {
       ...(item.lead.metadata || {}),
       correlationScore: item.score,
       correlationRationale: item.rationale,
       correlationTechniques: item.techniques,
-      recommendedAction: actionForScore(item.score)
+      recommendedAction: item.tldScope?.rationale || actionForScore(item.score),
+      correlationEngineResult: item.tldCorrelation || null
     }
   }));
   store.saveAssetLeads(runId, targetName, rescoredLeads);
+  const promoted = scored.filter((item) => item.tldCorrelation?.promotion_eligible && item.tldCorrelation.confidence_score === 100);
+  if (autoPromote && promoted.length > 0 && typeof store.saveDomains === "function") {
+    store.saveDomains(runId, targetName, promoted.map((item) => ({
+      domain: item.domain,
+      rootDomain: item.domain,
+      kind: "promoted_asset",
+      source: "tld-correlation-auto-promote",
+      status: "in_scope",
+      metadata: {
+        confidence: "verified_100_percent",
+        tags: ["tld_discovery", "auto_promoted", "correlation_validated"],
+        correlationEngineResult: item.tldCorrelation
+      }
+    })));
+  }
+  for (const item of promoted) {
+    appendAiLog(store, runId, `TLD auto-promoted: ${item.domain} reached 100% confidence via deterministic correlation.`, {
+      stage: "auto_promoted",
+      domain: item.domain,
+      signalCount: item.tldCorrelation.signals.length,
+      signals: item.tldCorrelation.signals,
+      reasoning: item.tldCorrelation.reasoning
+    });
+  }
 
   const reviewable = scored.filter((item) => item.score >= 50).sort((a, b) => b.score - a.score);
   if (reviewable.length === 0) {
@@ -134,7 +167,7 @@ function runCandidateCorrelation({ store, runId, targetName, rootDomains, leads 
   return rescoredLeads;
 }
 
-function scoreCandidate({ lead, rootDomains }) {
+function scoreCandidate({ lead, rootDomains, existingObservations = [] }) {
   const domain = normalizeDomain(lead.value || lead.domain);
   const rootMatch = rootForDomain(domain, rootDomains);
   const metadata = lead.metadata || {};
@@ -192,6 +225,17 @@ function scoreCandidate({ lead, rootDomains }) {
     techniques.push("tracking_identifier_correlation");
     rationale.push("analytics or pixel identifier overlap");
   }
+  const tldCorrelation = shouldRunTldCorrelation(lead, domain, rootDomains)
+    ? calculateTLDConfidence(buildTldCandidateFromLead(lead), existingObservations)
+    : null;
+  const tldScope = tldCorrelation ? scopeEvaluateTldCandidate({ correlation_engine_result: tldCorrelation }) : null;
+  if (tldCorrelation) {
+    score = Math.max(score, tldCorrelation.confidence_score);
+    for (const signal of tldCorrelation.signals || []) {
+      techniques.push(signal.signal);
+      rationale.push(signal.evidence);
+    }
+  }
 
   const boundedScore = Math.max(0, Math.min(100, score));
   return {
@@ -199,8 +243,32 @@ function scoreCandidate({ lead, rootDomains }) {
     domain,
     score: boundedScore,
     techniques: [...new Set(techniques)],
-    rationale: rationale.length ? rationale : ["no strong correlation evidence yet"]
+    rationale: rationale.length ? rationale : ["no strong correlation evidence yet"],
+    tldCorrelation,
+    tldScope
   };
+}
+
+function shouldRunTldCorrelation(lead, domain, rootDomains) {
+  if (!domain) return false;
+  if (lead.type === "domain_tld_candidate" || lead.leadType === "domain_tld_candidate") return true;
+  if (lead.source === "alternate-tld-correlation") return true;
+  return !rootForDomain(domain, rootDomains) && Boolean(lead.metadata?.sourceTools || lead.metadata?.dnsRecords || lead.metadata?.certificateSans);
+}
+
+function observationsFromStore({ store, targetName, runId, rootDomains, config }) {
+  if (!store) return [];
+  try {
+    return buildExistingObservations({
+      rootDomains,
+      domains: typeof store.listDomains === "function" ? store.listDomains({ targetName, limit: 100000 }) : [],
+      httpServices: typeof store.listHttpServices === "function" && runId ? store.listHttpServices({ runId, limit: 100000 }) : [],
+      assetLeads: typeof store.listAssetLeads === "function" ? store.listAssetLeads({ targetName, limit: 100000 }) : [],
+      outOfScope: config?.scope?.out_of_scope || []
+    });
+  } catch {
+    return buildExistingObservations({ rootDomains, outOfScope: config?.scope?.out_of_scope || [] });
+  }
 }
 
 function confidenceForScore(score) {

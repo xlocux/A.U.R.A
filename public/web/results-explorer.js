@@ -225,6 +225,7 @@
         <button type="button" data-export-node="${escapeAttr(candidate.id)}">Export Node JSON</button>
       </div>
       ${detailSection("Correlation Rationale", candidate.rationale)}
+      ${correlationEngineSection(candidate.correlationEngineResult)}
       ${detailSection("Techniques", candidate.techniques)}
       ${detailSection("Matched Terms", candidate.matchTerms)}
       <div class="detail-section"><h4>Recommended Action</h4><p>${escapeHtml(candidate.recommendedAction)}</p></div>
@@ -257,6 +258,24 @@
   function detailSection(title, items) {
     const values = (items || []).filter((item) => String(item ?? "").trim());
     return `<div class="detail-section"><h4>${escapeHtml(title)}</h4>${values.length ? `<ul>${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">None recorded.</p>`}</div>`;
+  }
+
+  function correlationEngineSection(result) {
+    if (!result) return "";
+    const signals = result.signals || [];
+    return `
+      <div class="detail-section">
+        <h4>TLD Correlation Engine</h4>
+        ${detailMetrics([
+          ["Confidence", `${result.confidence_score}%`],
+          ["Level", result.confidence_level || "-"],
+          ["Signals", signals.length],
+          ["Eligible", result.promotion_eligible ? "yes" : "review"]
+        ])}
+        ${detailSection("Evidence Signals", signals.map((signal) => `[${signal.weight > 0 ? "+" : ""}${signal.weight}] ${signal.signal}: ${signal.evidence}`))}
+        <p>${escapeHtml(result.reasoning || "")}</p>
+      </div>
+    `;
   }
 
   function serviceSection(services) {

@@ -238,7 +238,11 @@ If RDAP/WHOIS does not produce useful organization terms, A.U.R.A falls back to 
 
 ### 4. Alternate TLD Review Leads
 
-A.U.R.A can generate likely alternate TLDs for the same registrable label. These are saved as review leads, not scanned automatically. Example: a target using `example.com` may produce candidate review items such as same-label domains on other TLDs.
+A.U.R.A can generate likely alternate TLDs for the same registrable label. These are correlated against CT, DNS, WHOIS/RDAP, IP/CIDR, favicon, nameserver, and SAN evidence.
+
+Only candidates with deterministic `100%` confidence are auto-promoted as in-scope promoted assets. Candidates scoring `60-99%` stay as high-priority review leads, and lower scores stay as low-confidence leads. Example: a target using `example.com` may produce same-label domains on other TLDs, but they are scanned only after a 100% correlation promotion or explicit user approval.
+
+Rules are documented in `docs/TLD_CORRELATION_RULES.md`.
 
 ### 5. Passive Sources
 

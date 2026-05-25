@@ -271,6 +271,12 @@ async function handleApiRequest({ request, response, url, store }) {
     return true;
   }
 
+  const tldDiscoveryMatch = url.pathname.match(/^\/api\/v1\/runs\/(\d+)\/phases\/domain_intelligence\/tld-discovery$/);
+  if (tldDiscoveryMatch && request.method === "POST") {
+    await runTldDiscoveryPhase(request, response, store, Number(tldDiscoveryMatch[1]));
+    return true;
+  }
+
   if (request.method === "GET") {
     return handleReadEndpoint(response, url, store);
   }
@@ -298,6 +304,106 @@ async function createApiKey(request, response, store) {
   });
   sendJson(response, { apiKey, preflight, alert: apiKeyAlert(apiKey, preflight) }, preflight.ok ? 201 : 202);
 }
+
+async function runTldDiscoveryPhase(request, response, store, runId) {
+  const run = store.getRun(runId);
+  if (!run) {
+    sendJson(response, { error: "run not found" }, 404);
+    return;
+  }
+  const body = await readBody(request);
+  const target = store.getTarget(run.target_name);
+  if (!target) {
+    sendJson(response, { error: "target not found for run" }, 404);
+    return;
+  }
+  const rootDomains = normalizeDomainList(body.root_domains || body.rootDomains || inferRootDomains(target));
+  const label = String(body.registrable_label || body.registrableLabel || "").trim().toLowerCase();
+  const strategies = Array.isArray(body.strategies) && body.strategies.length
+    ? body.strategies
+    : ["certificate_transparency", "dns_validation"];
+  const syntheticRoots = label && /^[a-z0-9-]{3,63}$/.test(label)
+    ? [`${label}.com`]
+    : rootDomains;
+  const candidates = generateAlternateTldLeads({ rootDomains: syntheticRoots, config: target })
+    .map((lead) => ({
+      ...lead,
+      leadType: "domain_tld_candidate",
+      metadata: {
+        ...(lead.metadata || {}),
+        observationType: "domain_tld_candidate",
+        correlationSettings: {
+          enabled: body.correlation_engine_enabled !== false,
+          autoPromotionEnabled: body.auto_promotion_enabled !== false,
+          reviewThreshold: Number(body.confidence_threshold_for_review || 60)
+        }
+      }
+    }));
+  if (candidates.length > 0) store.saveAssetLeads(runId, target.target_name, candidates);
+  const scored = body.correlation_engine_enabled === false ? candidates : runCandidateCorrelation({
+    store,
+    runId,
+    targetName: target.target_name,
+    rootDomains,
+    leads: candidates,
+    config: target,
+    autoPromote: body.auto_promotion_enabled !== false
+  });
+  const jobsQueued = strategies.map((strategy) => store.createJob({
+    runId,
+    targetName: target.target_name,
+    phase: "domain_intelligence",
+    type: "tld_discovery",
+    toolId: `tld_discovery_${strategy}`,
+    priority: 80,
+    maxAttempts: 1,
+    payload: {
+      target_name: body.target_name || target.target_name,
+      registrable_label: label || null,
+      strategy,
+      correlation_engine_enabled: body.correlation_engine_enabled !== false,
+      auto_promotion_enabled: body.auto_promotion_enabled !== false,
+      correlation_sources: body.correlation_sources || [
+        "whois_data",
+        "dns_records",
+        "ip_addresses",
+        "favicon_hashes",
+        "nameserver_records",
+        "certificate_sans",
+        "rdap_records",
+        "cidr_blocks"
+      ],
+      confidence_threshold_for_review: Number(body.confidence_threshold_for_review || 60)
+    }
+  }));
+  store.appendEvent(runId, {
+    phase: "domain_intelligence",
+    severity: "ok",
+    source: "tld-correlation",
+    message: `TLD discovery correlation evaluated ${candidates.length} candidates; ${jobsQueued.length} strategy jobs queued for evidence collection.`,
+    payload: {
+      candidates: candidates.length,
+      jobsQueued: jobsQueued.map((job) => job.id),
+      autoPromotionEnabled: body.auto_promotion_enabled !== false
+    }
+  });
+  sendJson(response, {
+    jobs_queued: jobsQueued.map((job) => ({ job_id: String(job.id), tool_id: job.tool_id, status: job.status })),
+    correlation_settings: {
+      enabled: body.correlation_engine_enabled !== false,
+      auto_promotion_threshold: 100,
+      review_threshold: Number(body.confidence_threshold_for_review || 60)
+    },
+    candidates_evaluated: scored.length,
+    correlation_results: scored.map((lead) => ({
+      value: lead.value,
+      status: lead.status,
+      confidence: lead.confidence,
+      correlation_engine_result: lead.metadata?.correlationEngineResult || null
+    }))
+  });
+}
+
 
 function exportApiKeys(response, store) {
   const exportedAt = new Date().toISOString();
@@ -701,7 +807,8 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     runId,
     targetName: target.target_name,
     rootDomains,
-    leads: correlationInputs
+    leads: correlationInputs,
+    config
   });
 
   const seeds = filterScopeDomains({
@@ -1583,7 +1690,8 @@ async function runReconIntelPreflight({ store, runId, targetName, rootDomains, c
     runId,
     targetName,
     rootDomains,
-    leads: alternateTldLeads
+    leads: alternateTldLeads,
+    config
   });
   store.appendEvent(runId, {
     phase: "whois-rdap",
@@ -1745,7 +1853,8 @@ async function runReverseWhois(request, response, store) {
       targetName: target.target_name,
       rootDomains: inferRootDomains(target),
       leads: store.listAssetLeads({ targetName: target.target_name })
-        .filter((lead) => lead.run_id === run.id)
+        .filter((lead) => lead.run_id === run.id),
+      config: target
     });
     store.updateRun(run.id, {
       status: "completed",

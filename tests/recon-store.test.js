@@ -19,6 +19,7 @@ const { buildReverseWhoisRequest, parseReverseWhoisResponse } = require("../src/
 const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environment-setup");
 const { httpxArgsForInput } = require("../src/recon/recon-engine");
 const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWpscanTechnologies } = require("../src/recon/technology-detectors");
+const { calculateTLDConfidence, ipInCIDR, scopeEvaluateTldCandidate } = require("../src/recon/tld-correlation-engine");
 const { ALLOWED_TOOLS, normalizeProxyUrl, redactProxyUrl } = require("../src/recon/wsl-tools");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
 const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
@@ -129,6 +130,53 @@ test("candidate correlation scores review leads without promoting alternate TLDs
   });
   assert.equal(scoped.score, 100);
   assert.ok(scoped.rationale.some((item) => item.includes("authorized root")));
+});
+
+test("TLD correlation engine auto-promotes only 100 percent confidence candidates", () => {
+  const result = calculateTLDConfidence({
+    value: "acme.io",
+    source_tools: ["crt_sh"],
+    certificate_sans: ["api.acme.com"],
+    has_dns_resolution: true,
+    dns_records: { a_record: "10.20.30.40" },
+    nameservers: ["ns1.acme.com"]
+  }, [
+    { id: "domain:api.acme.com", type: "domain", value: "api.acme.com" },
+    { id: "ip:10.20.30.40", type: "ip_address", value: "10.20.30.40", registrable_label: "acme" },
+    { id: "ns:acme", type: "dns_record", record_type: "NS", value: ["ns1.acme.com"], registrable_label: "acme" }
+  ]);
+  assert.equal(result.confidence_score, 100);
+  assert.equal(result.promotion_eligible, true);
+  assert.equal(scopeEvaluateTldCandidate({ correlation_engine_result: result }).scope_status, "in_scope");
+});
+
+test("TLD correlation engine keeps sub-100 candidates in review", () => {
+  const result = calculateTLDConfidence({
+    value: "acme.dev",
+    source_tools: ["crt_sh"],
+    has_dns_resolution: true,
+    dns_records: { a_record: "203.0.113.10" }
+  }, []);
+  assert.equal(result.confidence_score, 80);
+  assert.equal(result.promotion_eligible, false);
+  const evaluated = scopeEvaluateTldCandidate({ correlation_engine_result: result });
+  assert.equal(evaluated.scope_status, "unknown");
+  assert.equal(evaluated.requires_review, true);
+});
+
+test("TLD correlation applies explicit exclusion penalty and CIDR overlap", () => {
+  assert.equal(ipInCIDR("10.20.30.40", "10.20.30.0/24"), true);
+  const result = calculateTLDConfidence({
+    value: "acme.net",
+    source_tools: ["crt_sh"],
+    has_dns_resolution: true,
+    dns_records: { a_record: "10.20.30.40" }
+  }, [
+    { id: "cidr:10.20.30.0/24", type: "cidr_block", value: "10.20.30.0/24" },
+    { id: "out:acme.net", type: "domain", value: "acme.net", scope_status: "out_of_scope" }
+  ]);
+  assert.equal(result.confidence_score, 40);
+  assert.equal(result.signals.some((signal) => signal.signal === "explicit_exclusion"), true);
 });
 
 test("HTTP follow-up uses ProjectDiscovery httpx list and tech flags", () => {

@@ -523,8 +523,10 @@ client-side defaults.
 Recon runs must be controllable from the Web UI. Pause, resume, and cancel
 actions should be routed through A.U.R.A APIs, logged as events, and honored by
 workers between phases and tool invocations. Candidate domains found through
-alternate TLD correlation should be saved as review leads with evidence and must
-not be silently promoted into authorized scope.
+alternate TLD correlation should be saved with evidence. They may be
+auto-promoted only when the deterministic TLD correlation engine records exactly
+100% confidence and `promotion_eligible: true`; anything below 100 remains a
+review lead.
 
 The AI chat must receive scoped run context from A.U.R.A before answering
 questions about current activity. It should cite the loaded run ID, status,
@@ -539,8 +541,9 @@ status. Do not post low-value heartbeat noise.
 Detailed correlation reasoning belongs in the AI Log, not in the chat. When
 candidate correlation starts, the agent-facing log should state exactly which
 techniques are being used, then record evidence, scores, and recommended next
-actions. Unknown-scope candidates remain review leads until the user explicitly
-adds them to authorized seeds.
+actions. For TLD candidates, the AI should be able to explain the stored
+confidence score, signal weights, conflicts, and whether the result was
+auto-promoted or left for review.
 
 Run data should be exportable from the Web UI in portable formats such as JSON,
 CSV, and Markdown. Topology views should support zooming and node inspection

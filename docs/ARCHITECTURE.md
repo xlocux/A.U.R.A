@@ -134,6 +134,19 @@ input
 Raw artifacts are the source of truth. Parsers can be improved and replayed
 against saved artifacts.
 
+## TLD Correlation Engine
+
+`src/recon/tld-correlation-engine.js` implements the deterministic Phase 3 TLD
+correlation engine. It scores alternate TLD candidates against stored
+observations such as CT evidence, DNS A records, WHOIS/RDAP organizations,
+known IPs, authorized CIDRs, favicon hashes, nameservers, and certificate SANs.
+
+Only candidates with exactly `100` confidence and `promotion_eligible: true`
+are auto-promoted into saved domains with source
+`tld-correlation-auto-promote`. Candidates below 100 remain asset leads with
+review status and full reasoning. The reasoning is stored in lead metadata and
+AI log events so the UI and assistant can explain every decision.
+
 ## Job Lifecycle
 
 ```text

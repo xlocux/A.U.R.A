@@ -57,7 +57,9 @@ function buildResultTree({ run, target, counts, domains, httpServices, urls, scr
       matchTerms: lead.matchTerms || [],
       rationale: lead.metadata?.correlationRationale || [],
       techniques: lead.metadata?.correlationTechniques || [],
-      recommendedAction: lead.metadata?.recommendedAction || "Review before scanning."
+      recommendedAction: lead.metadata?.recommendedAction || "Review before scanning.",
+      correlationEngineResult: lead.metadata?.correlationEngineResult || null,
+      promotionEligible: Boolean(lead.metadata?.correlationEngineResult?.promotion_eligible)
     };
     candidateNodes.push(candidate);
   }

@@ -37,3 +37,43 @@ test("candidate correlation summary includes techniques used as evidence", () =>
   assert.deepEqual(summary.payload.best[0].techniques, ["whois_rdap_overlap", "nameserver_correlation"]);
   assert.equal(saved[0].leads[0].metadata.correlationTechniques.includes("whois_rdap_overlap"), true);
 });
+
+test("candidate correlation auto-promotes TLD candidates at 100 percent only", () => {
+  const savedDomains = [];
+  const store = {
+    appendEvent() {},
+    saveAssetLeads() {},
+    saveDomains(runId, targetName, domains) {
+      savedDomains.push({ runId, targetName, domains });
+      return domains.length;
+    },
+    listDomains() { return []; },
+    listHttpServices() { return []; },
+    listAssetLeads() { return []; }
+  };
+  const result = runCandidateCorrelation({
+    store,
+    runId: 7,
+    targetName: "acme",
+    rootDomains: ["acme.com"],
+    existingObservations: [
+      { id: "domain:api.acme.com", type: "domain", value: "api.acme.com" },
+      { id: "ip:10.20.30.40", type: "ip_address", value: "10.20.30.40", registrable_label: "acme" },
+      { id: "ns:acme", type: "dns_record", record_type: "NS", value: ["ns1.acme.com"], registrable_label: "acme" }
+    ],
+    leads: [{
+      value: "acme.io",
+      source: "alternate-tld-correlation",
+      metadata: {
+        sourceTools: ["crt_sh"],
+        certificateSans: ["api.acme.com"],
+        hasDnsResolution: true,
+        dnsRecords: { a_record: "10.20.30.40" },
+        nameservers: ["ns1.acme.com"]
+      }
+    }]
+  });
+  assert.equal(result[0].status, "auto_promoted");
+  assert.equal(result[0].metadata.correlationEngineResult.confidence_score, 100);
+  assert.equal(savedDomains[0].domains[0].kind, "promoted_asset");
+});

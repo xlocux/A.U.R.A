@@ -533,8 +533,20 @@ ASN/IP/passive DNS, CSP/header intelligence, JavaScript references, app
 association files, code search, and archive/crawl correlation.
 
 The output should be a review score and rationale. Strong candidates may be
-recommended to the user, but unknown-scope candidates must not be promoted or
-scanned automatically.
+recommended to the user, but unknown-scope candidates must not be scanned
+automatically.
+
+Alternate TLD candidates are the narrow exception to the old "review only"
+rule: they may be auto-promoted only when the deterministic TLD correlation
+engine reaches exactly 100% confidence. The 100% path requires multiple
+supporting signals such as CT evidence, DNS resolution, same IP/CIDR,
+nameserver overlap, WHOIS/RDAP organization match, favicon match, or SAN
+cross-reference. Candidates scoring 60-99 remain high-priority review items;
+candidates below 60 remain low-confidence leads. Explicit out-of-scope evidence
+applies a hard penalty and prevents promotion.
+
+See `docs/TLD_CORRELATION_RULES.md` for the current signal weights and
+promotion boundaries.
 
 ## Results Exploration
 
