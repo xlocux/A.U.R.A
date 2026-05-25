@@ -20,6 +20,14 @@
   --vercel-red: #ef4444;
   --vercel-radius: 14px;
   --vercel-shadow: 0 18px 70px rgba(0, 0, 0, 0.34);
+  --bg: var(--vercel-bg);
+  --panel: var(--vercel-panel);
+  --panel-2: var(--vercel-panel-strong);
+  --ink: var(--vercel-text);
+  --muted: var(--vercel-muted);
+  --line: var(--vercel-line);
+  --accent: var(--vercel-accent);
+  --accent-2: #48a3e5;
 }
 
 html {
@@ -29,26 +37,35 @@ html {
 :root[data-theme="raven"] {
   --vercel-accent: #48a3e5;
   --vercel-accent-strong: #146bb6;
+  --accent: var(--vercel-accent);
+  --accent-2: #9f9fa9;
 }
 
 :root[data-theme="ember"] {
   --vercel-accent: #f59e0b;
   --vercel-accent-strong: #92400e;
+  --accent: var(--vercel-accent);
+  --accent-2: #d4d4d8;
 }
 
 :root[data-theme="violet"] {
   --vercel-accent: #8b5cf6;
   --vercel-accent-strong: #6d28d9;
+  --accent: var(--vercel-accent);
+  --accent-2: #a1a1aa;
 }
 
 :root[data-theme="mono"] {
   --vercel-accent: #d4d4d8;
   --vercel-accent-strong: #71717a;
+  --accent: var(--vercel-accent);
+  --accent-2: #ffffff;
 }
 
 body {
   grid-template-columns: 272px minmax(0, 1fr);
   grid-template-rows: 72px minmax(0, 1fr);
+  overflow-x: hidden;
   color: var(--vercel-text);
   background:
     radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--vercel-accent) 12%, transparent), transparent 24rem),
@@ -107,6 +124,7 @@ header {
   flex: 0 0 38px;
   border-radius: 8px;
   object-fit: contain;
+  display: block;
 }
 
 .headerbar h1::after {
@@ -180,6 +198,7 @@ header {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: calc(100vh - 72px);
   min-height: 0;
   padding: 14px 16px 0;
   border-right: 1px solid var(--vercel-line) !important;
@@ -188,6 +207,7 @@ header {
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.005)),
     var(--vercel-sidebar) !important;
   backdrop-filter: blur(18px) saturate(140%);
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -216,6 +236,8 @@ header {
   content: "";
   margin-top: auto;
   border-top: 1px solid var(--vercel-line);
+  flex: 1 1 auto;
+  min-height: 24px;
 }
 
 .tab {
@@ -225,7 +247,7 @@ header {
   gap: 10px;
   flex: 0 0 auto;
   width: 100%;
-  max-width: none;
+  max-width: 100%;
   min-height: 44px;
   margin: 0;
   border: 1px solid transparent !important;
@@ -237,6 +259,7 @@ header {
   font-size: 13px;
   font-weight: 650;
   text-align: left;
+  overflow: hidden;
 }
 
 .tab::before {
@@ -281,17 +304,33 @@ header {
   color: var(--vercel-accent);
 }
 
+.tab[data-tab="logs"]:not(:has(.tab-icon))::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  background: currentColor;
+  opacity: .9;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19h16'/%3E%3Cpath d='M8 17V9'/%3E%3Cpath d='M12 17V5'/%3E%3Cpath d='M16 17v-6'/%3E%3C/svg%3E");
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: 18px 18px;
+}
+
 .tab.active::before {
   content: none;
 }
 
 .sidebar-toggle {
-  display: grid !important;
-  place-items: center;
-  width: calc(100% + 32px) !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 100% !important;
   min-width: 0 !important;
   min-height: 58px !important;
-  margin: auto -16px 0 !important;
+  margin: 0 !important;
   padding: 0 !important;
   border-width: 1px 0 0 !important;
   border-radius: 0 !important;
@@ -306,9 +345,16 @@ header {
 }
 
 .sidebar-toggle::before {
-  content: "☰";
-  font-size: 18px;
-  line-height: 1;
+  content: none;
+}
+
+.sidebar-toggle span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  margin: 2px 0;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .workspace {
@@ -363,9 +409,9 @@ body.sidebar-collapsed .tab::before {
 }
 
 body.sidebar-collapsed .sidebar-toggle {
-  width: calc(100% + 20px) !important;
-  margin-left: -10px !important;
-  margin-right: -10px !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 .tab-panel.active {
