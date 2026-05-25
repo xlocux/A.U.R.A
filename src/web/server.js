@@ -7,6 +7,7 @@ const { spawn } = require("node:child_process");
 const { openScanStore } = require("../db/scan-store");
 const { handleApiRequest } = require("./api-routes");
 const { handleApiKeyRequest } = require("./api-key-routes");
+const { handleWordlistRequest } = require("./wordlist-routes");
 const { createWebAuth } = require("./auth");
 const { discoverTargets } = require("./target-service");
 const { safeResolveStatic, sendFile, sendJson, sendNotFound } = require("./http-utils");
@@ -56,6 +57,10 @@ async function startWebServer(argv = process.argv) {
       }
       if (url.pathname.startsWith("/api/api-keys/")) {
         const handled = await handleApiKeyRequest({ request, response, url, store });
+        if (handled) return;
+      }
+      if (url.pathname.startsWith("/api/wordlists/")) {
+        const handled = await handleWordlistRequest({ request, response, url, store });
         if (handled) return;
       }
       if (url.pathname.startsWith("/api/")) {
