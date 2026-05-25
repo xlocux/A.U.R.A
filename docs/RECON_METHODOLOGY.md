@@ -1831,10 +1831,11 @@ extraction, and favicon fingerprinting. Each follow-up run preserves its own
 artifacts, tool results, events, and run delta.
 
 The engine also maintains an AI action pool at the end of recon and HTTP/tech
-follow-up runs. The pool checks expected outputs such as mined URLs,
-screenshots, tracker artifacts, and favicon artifacts. Missing non-blocking
-outputs are queued as bounded recovery actions, retried once with the current
-run context, and logged as completed, incomplete, or failed.
+follow-up runs. Every non-completed tool result is added to the pool, and the
+pool also checks expected outputs such as mined URLs, screenshots, tracker
+artifacts, and favicon artifacts. Missing or failed non-blocking work is queued
+as a bounded recovery action, retried once with the current run context, and
+logged as completed, incomplete, or failed.
 
 Tool stdout/stderr artifacts should be visible from the Web UI without requiring
 the user to leave the run context. The Results `Tool Logs` view lists each tool

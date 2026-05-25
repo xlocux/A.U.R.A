@@ -5,6 +5,7 @@ const test = require("node:test");
 const {
   DEFAULT_HTTPX_PORTS,
   HTTPX_PORT_PRESETS,
+  buildRecoveryActions,
   httpxArgsForInput,
   parsePortList,
   parseToolSpec,
@@ -39,4 +40,25 @@ test("parseToolSpec resolves httpx presets and custom port strings", () => {
 
 test("parseToolSpec supports nmap with the same port selection model", () => {
   assert.deepEqual(parseToolSpec({ name: "nmap", preset: "large" }), { name: "nmap", ports: HTTPX_PORT_PRESETS.large });
+});
+
+test("recovery action pool includes failed tool actions", () => {
+  const actions = buildRecoveryActions({
+    roots: ["example.com"],
+    wslTools: ["gau"],
+    useWsl: true,
+    screenshotTools: ["gowitness"],
+    artifactsDir: "missing-artifacts",
+    context: {
+      urls: [],
+      httpServices: [{ url: "https://app.example.com", host: "app.example.com" }],
+      recoveryQueue: [
+        { id: "retry-httpx-example", phase: "wsl-tool", toolName: "httpx", root: "example.com", reason: "httpx timeout" }
+      ]
+    }
+  });
+
+  assert.ok(actions.some((action) => action.id === "retry-httpx-example"));
+  assert.ok(actions.some((action) => action.id === "retry-url-params"));
+  assert.ok(actions.some((action) => action.id === "retry-screenshots"));
 });
