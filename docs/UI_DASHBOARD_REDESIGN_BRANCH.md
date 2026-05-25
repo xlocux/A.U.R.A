@@ -1,8 +1,8 @@
-# Vercel-style Dashboard Redesign Branch
+# Vercel-style Dashboard Redesign
 
 ## Goal
 
-Create a separate UI redesign path inspired by the Vercel-like reference dashboard while keeping `main` stable and functional.
+Apply a Vercel-like cloud dashboard visual layer to the canonical A.U.R.A web UI without replacing the working operator screens.
 
 Reference characteristics to mirror:
 
@@ -18,27 +18,23 @@ Reference characteristics to mirror:
 
 ## Non-negotiable constraints
 
-- Do not break `main`.
-- Do not rewrite `index.html` in place until the new shell is validated.
+- Keep the canonical `index.html` panels and all existing DOM ids used by `app.js`.
 - Preserve every DOM id currently used by `app.js` unless the owning JavaScript module is updated in the same change.
 - No competing click handlers for the same control.
-- No global CSS that changes layout of existing screens accidentally.
-- Each new UI module must own its markup, data loading, state, empty/loading/error states, and cleanup.
+- No side-by-side dashboard shell that hides the real data panels.
+- The visual layer must be CSS-first and must not replace data loading, filters, result subtabs, screenshots, API settings, proxy settings, logs, or AI panels.
 
-## Proposed implementation path
+## Implementation
 
-### Phase 1: Side-by-side prototype
+The active dashboard uses:
 
-Add an isolated route/file such as `public/web/dashboard-v2.html` with dedicated files:
+- `public/web/index.html` for canonical markup and script loading.
+- `public/web/app.js` and companion modules for all behavior and data population.
+- `public/web/vercel-dashboard.css` for the Vercel-like color, cards, tabs, inputs, tables, and panel styling.
 
-- `dashboard-v2.css`
-- `dashboard-v2.js`
+The removed side-by-side `dashboard-v2.*` route was intentionally discarded because it did not expose all of the legacy result data and created a second, incomplete UI path.
 
-This route should read existing APIs but not replace the current operator UI.
-
-### Phase 2: Data mapping
-
-Map A.U.R.A data to dashboard concepts:
+## Data mapping
 
 - Project Overview -> current target, active run, authorization status, AI/provider readiness.
 - Applications -> targets, runs, and major recon modules.
@@ -47,27 +43,9 @@ Map A.U.R.A data to dashboard concepts:
 - Live Logs -> run events, tool logs, AI decisions, warnings/errors.
 - Environment Variables -> API keys/providers and local environment status.
 
-### Phase 3: Component migration
-
-Introduce components one at a time:
-
-- App shell and nav.
-- Overview header.
-- Metric cards.
-- Entity cards.
-- Recent runs table.
-- Live logs stream.
-- Settings/API table.
-- Topology preview card.
-
-### Phase 4: Replace current shell only after validation
-
-After side-by-side validation, migrate from `index.html` to the new dashboard shell by preserving required ids or moving the logic into dedicated modules.
-
 ## QA checklist
 
-- Current `main` UI still works independently.
-- `dashboard-v2.html` loads with no console errors.
+- Canonical tabs still render: Recon, Wordlists, Search, Topology, Results, AI Log, Runs & Logs, Settings.
 - All buttons have deterministic owners.
 - Empty, loading, and error states are visible.
 - Keyboard navigation works for nav, cards, tables, actions, and settings controls.
