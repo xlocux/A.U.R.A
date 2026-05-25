@@ -95,6 +95,7 @@ function isPublicPath(requestPath) {
     requestPath === "/app.css" ||
     requestPath === "/login.css" ||
     requestPath === "/wave-background.js" ||
+    requestPath === "/login-cookie.js" ||
     requestPath === "/favicon.ico";
 }
 
