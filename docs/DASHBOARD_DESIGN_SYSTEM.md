@@ -4,7 +4,7 @@
 
 A.U.R.A should feel like a focused dark cloud-platform dashboard: modular, information-dense, keyboard-friendly, and optimized for recon operators who need to monitor targets, tools, logs, topology, and AI context without losing visual hierarchy.
 
-This system is implemented as a layered stylesheet in `public/web/dashboard-design-system.css`, loaded after `app.css`. Existing product behavior remains in the current JS modules; this layer standardizes visual hierarchy and interaction states without turning `app.css` into a monolith.
+The dashboard layer is a **skin**, not a layout engine. It must preserve existing page structure, component sizing, JavaScript behavior, and compact-density overrides. The implementation lives in `public/web/dashboard-design-system.css`, loaded after `app.css` and before script-injected feature styles.
 
 ## Design tokens and foundations
 
@@ -20,32 +20,39 @@ Use semantic CSS variables before raw values:
 - `--dash-danger`: `#ef4444`
 - `--dash-surface`: `#09090b`
 - `--dash-text`: `#fafafa`
-- `--dash-muted`: `#a1a1aa`
-- `--dash-space-1`: `8px`
-- `--dash-space-2`: `16px`
-- `--dash-space-3`: `24px`
-- `--dash-space-4`: `32px`
+- `--dash-muted`: accessible muted text for labels and secondary copy
+- `--dash-border`: visible panel/control borders
+- `--dash-border-soft`: low-emphasis borders
 
-Legacy A.U.R.A variables such as `--bg`, `--panel`, `--line`, `--accent`, `--ok`, `--warn`, and `--bad` are mapped to dashboard tokens so older components continue to work.
+Do not remap legacy structural variables such as `--panel`, `--line`, or `--accent` inside the dashboard layer unless every affected page has been checked. Keep the visual skin local to selectors instead.
 
 ### Typography
 
-Use `IBM Plex Sans` first, falling back to Inter and system fonts. The scale should stay on 12/14/16/20/24/32 where possible. Component labels use 12px, uppercase section headings use 12px with 0.08em letter spacing, and metric values use responsive 18px to 28px.
+Use `IBM Plex Sans` first, falling back to Inter and system fonts. The dashboard layer may improve font family, weight, color, and heading emphasis, but must not change line-height, font-size, textarea height, table dimensions, or other sizing rules that existing modules rely on.
 
 ### Layout
 
-Use an 8pt spacing rhythm. Page-level spacing should use `--dash-space-2`; compact nested gaps should use `--dash-space-1`. Panels, tabs, controls, tables, and metrics must keep consistent rounded radii from `--dash-radius-sm`, `--dash-radius-md`, and `--dash-radius-lg`.
+The dashboard layer must not change:
+
+- `.workspace` padding
+- `.workspace-main` layout
+- `.split`, `.target-grid`, `.row`, `.row3`, `.tool-grid` grid definitions or gaps
+- global button/input/select/textarea width or min-height
+- table layout, column widths, or scroll heights
+- responsive breakpoints already managed by `app.css` or feature modules
+
+Visual improvements should be limited to color, border, background, shadow, focus, and contrast.
 
 ### Surfaces
 
 Primary surfaces use glass-like dark panels with:
 
-- 1px semantic border from `--dash-border`
+- tokenized border color
 - subtle vertical highlight gradient
 - backdrop blur where supported
 - soft shadow for elevation
 
-Do not create one-off panel colors. Use tokenized surface variables.
+Do not create one-off panel colors. Use tokenized surface values.
 
 ## Component-level rules
 
@@ -53,9 +60,9 @@ Do not create one-off panel colors. Use tokenized surface variables.
 
 Anatomy:
 
-- Header with product name and right-aligned status text.
+- Header with product name and status text.
 - Horizontal tab navigation with pill-shaped active states.
-- Main workspace with modular panel grids.
+- Main workspace with existing A.U.R.A layout preserved.
 - Floating AI assistant remains visible as an operational companion.
 
 States:
@@ -67,22 +74,22 @@ States:
 
 Responsive behavior:
 
-- Below 1100px, header status stacks below the title and grid layouts collapse to one column.
-- Touch devices must keep 44px minimum hit targets.
+- Do not introduce new responsive layout rules in the dashboard layer unless they are scoped to a new component.
+- Touch target changes must not break dense operator layouts; prefer existing compact-density rules.
 
 ### Panels
 
 Anatomy:
 
-- `.pane`, `.embedded-window`, `.output-window`, `.modal-card`, and `.ai-panel` share border, radius, background, shadow, and blur behavior.
-- Headings stay compact, uppercase, and high-contrast.
-- Body content uses `.form-body`, `.scroll`, table wrappers, or purpose-specific grids.
+- `.pane`, `.embedded-window`, `.output-window`, `.modal-card`, and `.ai-panel` may share border, background, shadow, and blur behavior.
+- Headings stay compact, uppercase, and high-contrast only if the existing layout remains stable.
+- Body content keeps its original spacing and grid behavior.
 
 States:
 
 - Default: glass surface with subtle border.
-- Hover: slightly stronger border.
-- Loading: use a clear message inside `.notice.muted` or panel body.
+- Hover: slightly stronger border only when it does not cause layout shift.
+- Loading: use clear text inside existing panel bodies.
 - Error: use `.notice.error` or existing error status nodes.
 - Empty: use direct text, for example `No run activity loaded.`
 
@@ -93,15 +100,14 @@ Do not use decorative blur or gradients that reduce text contrast.
 Anatomy:
 
 - Labels are required for all inputs and selects.
-- Controls use dark input surfaces with visible borders and 40px minimum height.
-- Touch coarse pointers increase controls to 44px.
+- The dashboard layer may adjust color, background, and border only.
+- Existing dimensions are owned by `app.css`, `compact-density.js`, and feature modules.
 
 States:
 
-- Default: dark field, muted placeholder, token border.
-- Hover: inherited platform behavior is acceptable if focus remains explicit.
+- Default: dark field, readable placeholder, token border.
 - Focus-visible: 3px blue ring and offset.
-- Disabled: 58% opacity and `not-allowed` cursor.
+- Disabled: visible disabled style, but no layout change.
 - Error: pair the invalid field with a `.notice.error` or explicit text status.
 
 Recon-specific rule:
@@ -117,25 +123,24 @@ Variants:
 - Primary: blue dashboard gradient.
 - Danger: red gradient with red border.
 - Subtab/nav: pill variant with active gradient.
-- Table action: compact but still keyboard focusable.
+- Table action: keep existing compact sizing.
 
 States:
 
-- Hover lifts by 1px and brightens.
-- Active returns to baseline.
+- Hover may brighten, but must not move, resize, or shift layout.
 - Disabled reduces opacity and blocks pointer affordance.
 - Focus-visible must be visible on every button.
 
-Avoid text-only clickable spans; use semantic `button` elements.
+Avoid changing global button width, margin, padding, or min-height in the dashboard skin.
 
 ### Tables
 
 Anatomy:
 
 - Header rows use uppercase muted labels.
-- Body rows use top borders for scanability.
+- Body rows use existing spacing and column rules.
 - Hover rows get a subtle primary-tinted background.
-- Long values must wrap or truncate intentionally based on table context.
+- Long values must wrap or truncate according to existing table-specific rules.
 
 States:
 
@@ -147,8 +152,8 @@ States:
 
 Anatomy:
 
-- Label: uppercase muted 11px.
-- Value: high-contrast 18px to 28px bold.
+- Label: muted uppercase when already supported by component markup.
+- Value: high-contrast bold.
 - Container: glass panel with subtle inner gradient.
 
 Use success/warning/danger tokens only for meaningful states, not decoration.
@@ -161,7 +166,6 @@ The AI panel is part of the dashboard architecture, not an accessory. It should 
 
 - Every interactive element must be reachable with keyboard navigation.
 - Every interactive element must show a visible `:focus-visible` outline.
-- Touch targets must be at least 44px when `pointer: coarse` is active.
 - Text contrast must meet WCAG 2.2 AA for normal text and UI labels.
 - Reduced motion must disable non-essential transitions and animations through `prefers-reduced-motion`.
 - High contrast mode must strengthen borders and muted text through `prefers-contrast: more`.
@@ -198,12 +202,14 @@ Do not:
 - Override focus outlines without replacement.
 - Add new dashboard behavior as multiple competing click handlers for the same target.
 - Disable API-backed recon providers without explaining why they are disabled.
+- Use dashboard CSS to change layout, spacing, component dimensions, table widths, or scroll heights.
 
 Migration notes:
 
 - Keep `app.css` as the base compatibility layer.
-- Add new global visual rules to `dashboard-design-system.css` only when they are reusable across the dashboard.
-- Add feature-specific CSS inside the feature module only when it cannot reasonably be generalized.
+- Keep `compact-density.js` and feature-specific injected styles authoritative for density and page-specific layout.
+- Add new dashboard visual rules to `dashboard-design-system.css` only when they are visual-only and reusable.
+- Add feature-specific CSS inside the feature module when layout changes are required.
 - When replacing older modules, update the loader and remove obsolete scripts so click handlers do not compete.
 
 ## QA checklist
@@ -211,10 +217,11 @@ Migration notes:
 Before merging UI changes:
 
 - Confirm `index.html` loads `app.css` first and `dashboard-design-system.css` second.
-- Open Recon, Results, Topology, Logs, Guide, and Settings and confirm panels share the same glass style.
-- Tab through the page and confirm visible focus on tabs, buttons, inputs, selects, tables actions, and AI controls.
+- Confirm script-injected styles such as `compact-density.js` still load after the CSS files.
+- Open Recon, Results, Topology, Logs, Guide, and Settings and confirm panels share the same glass style without shifted layouts.
+- Tab through the page and confirm visible focus on tabs, buttons, inputs, selects, table actions, and AI controls.
 - Confirm the Recon scan preset status uses text to explain missing API keys.
-- Resize below 1100px and confirm grids collapse to one column without clipped controls.
+- Resize the window and confirm existing responsive behavior is unchanged.
 - Enable browser reduced-motion mode and confirm transitions are effectively disabled.
 - Enable high-contrast mode or emulate `prefers-contrast: more` and confirm borders/text strengthen.
 - Confirm loading states do not appear as blank panels.
