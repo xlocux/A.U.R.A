@@ -8,9 +8,19 @@
   };
 
   function boot() {
+    injectReconPresets();
     injectStyles();
     injectControls();
     patchFetchOnce();
+  }
+
+  function injectReconPresets() {
+    if (document.getElementById("aura-recon-scan-presets-js")) return;
+    const script = document.createElement("script");
+    script.id = "aura-recon-scan-presets-js";
+    script.src = "/recon-scan-presets.js";
+    script.defer = true;
+    document.head.appendChild(script);
   }
 
   function injectControls() {
