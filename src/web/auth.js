@@ -10,20 +10,34 @@ const PASSWORD_ITERATIONS = 120000;
 
 function createWebAuth({ store } = {}) {
   if (!store) throw new Error("Web auth requires a store");
-  const sessions = new Set();
+  const sessions = new Map();
   store.ensureDefaultWebUser(hashWebUserPassword({
     username: DEFAULT_USERNAME,
     password: process.env.AURA_WEB_PASSWORD || DEFAULT_PASSWORD
   }));
 
-  function isAuthenticated(request) {
+  function sessionUsername(request) {
     const token = parseCookies(request.headers.cookie || "")[SESSION_COOKIE];
-    return Boolean(token && sessions.has(token));
+    return token && sessions.has(token) ? sessions.get(token) : null;
+  }
+
+  function isAuthenticated(request) {
+    return Boolean(sessionUsername(request));
   }
 
   async function handleAuthRequest(request, response, url) {
     if (request.method === "GET" && url.pathname === "/api/auth/status") {
-      sendJson(response, { authenticated: isAuthenticated(request) });
+      sendJson(response, { authenticated: isAuthenticated(request), username: sessionUsername(request) });
+      return true;
+    }
+    if (request.method === "GET" && url.pathname === "/api/auth/user") {
+      const username = sessionUsername(request);
+      if (!username) {
+        sendJson(response, { error: "Authentication required" }, 401);
+        return true;
+      }
+      const user = store.getWebUser(username);
+      sendJson(response, { username, status: user?.status || "unknown", lastLoginAt: user?.last_login_at || null, updatedAt: user?.updated_at || null });
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/auth/login") {
@@ -35,10 +49,44 @@ function createWebAuth({ store } = {}) {
         return true;
       }
       const token = crypto.randomBytes(32).toString("base64url");
-      sessions.add(token);
+      sessions.set(token, user.username);
       store.recordWebUserLogin(user.username);
       response.setHeader("Set-Cookie", cookieValue(token));
-      sendJson(response, { authenticated: true });
+      sendJson(response, { authenticated: true, username: user.username });
+      return true;
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/credentials") {
+      const currentSessionUsername = sessionUsername(request);
+      if (!currentSessionUsername) {
+        sendJson(response, { error: "Authentication required" }, 401);
+        return true;
+      }
+      const body = await readBody(request);
+      const currentUser = store.getWebUser(currentSessionUsername);
+      if (!currentUser || !verifyWebUserPassword(currentUser, String(body.currentPassword || ""))) {
+        sendJson(response, { error: "Current password is incorrect" }, 401);
+        return true;
+      }
+      const nextUsername = normalizeUsername(body.username || currentSessionUsername);
+      const nextPassword = String(body.newPassword || "");
+      if (!nextUsername) {
+        sendJson(response, { error: "Username is required" }, 400);
+        return true;
+      }
+      if (nextUsername !== currentSessionUsername && store.getWebUser(nextUsername)) {
+        sendJson(response, { error: "Username already exists" }, 409);
+        return true;
+      }
+      if (nextPassword && nextPassword.length < 8) {
+        sendJson(response, { error: "New password must be at least 8 characters" }, 400);
+        return true;
+      }
+      const passwordForHash = nextPassword || String(body.currentPassword || "");
+      const updatedUser = store.upsertWebUser(hashWebUserPassword({ username: nextUsername, password: passwordForHash }));
+      if (nextUsername !== currentSessionUsername) store.deleteWebUser(currentSessionUsername);
+      const token = parseCookies(request.headers.cookie || "")[SESSION_COOKIE];
+      if (token) sessions.set(token, nextUsername);
+      sendJson(response, { ok: true, username: updatedUser.username, status: updatedUser.status, updatedAt: updatedUser.updated_at });
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/auth/logout") {
@@ -55,6 +103,10 @@ function createWebAuth({ store } = {}) {
     handleAuthRequest,
     isAuthenticated
   };
+}
+
+function normalizeUsername(value) {
+  return String(value || "").trim().replace(/\s+/g, "_").slice(0, 64);
 }
 
 function hashWebUserPassword({ username, password, iterations = PASSWORD_ITERATIONS }) {
