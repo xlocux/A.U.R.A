@@ -4,6 +4,7 @@
   function boot() {
     injectStyles();
     ensureSecurityTab();
+    ensureHeaderProfile();
     bindSecurityActions();
     loadCurrentUser();
   }
@@ -47,7 +48,6 @@
             </div>
             <div class="row">
               <button id="saveSecurityCredentials" type="button">Save Credentials</button>
-              <button id="logoutSecuritySession" type="button" class="danger-button">Logout</button>
             </div>
             <div id="securityStatus" class="notice muted compact-notice">Credentials are stored locally in SQLite as salted PBKDF2 hashes. The web session is persisted with an HttpOnly cookie.</div>
           </div>
@@ -81,6 +81,22 @@
     }
   }
 
+  function ensureHeaderProfile() {
+    const topCommand = document.querySelector(".top-command");
+    if (!topCommand || document.getElementById("headerProfile")) return;
+    const profile = document.createElement("div");
+    profile.id = "headerProfile";
+    profile.className = "header-profile";
+    profile.innerHTML = `
+      <button id="headerProfileButton" class="profile-button" type="button" title="Current profile">
+        <span class="profile-avatar">A</span>
+        <span class="profile-copy"><strong id="headerProfileName">Loading...</strong><small>Local session</small></span>
+      </button>
+      <button id="headerLogoutSession" class="profile-logout" type="button">Logout</button>
+    `;
+    topCommand.appendChild(profile);
+  }
+
   function bindSecurityActions() {
     document.addEventListener("click", (event) => {
       const tab = event.target.closest('[data-settings-panel="security"]');
@@ -90,7 +106,7 @@
         setTimeout(loadCurrentUser, 50);
       }
       if (event.target.closest("#saveSecurityCredentials")) saveCredentials();
-      if (event.target.closest("#logoutSecuritySession")) logout();
+      if (event.target.closest("#headerLogoutSession")) logout();
     }, true);
   }
 
@@ -107,9 +123,15 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to load user");
       document.getElementById("securityUsername").value = data.username || "";
+      const headerName = document.getElementById("headerProfileName");
+      const avatar = document.querySelector("#headerProfile .profile-avatar");
+      if (headerName) headerName.textContent = data.username || "unknown";
+      if (avatar) avatar.textContent = String(data.username || "A").slice(0, 1).toUpperCase();
       box.textContent = `Logged in as ${data.username || "unknown"}. Last login: ${formatDate(data.lastLoginAt)}. Updated: ${formatDate(data.updatedAt)}.`;
     } catch (error) {
       box.textContent = `Unable to load current user: ${error.message}`;
+      const headerName = document.getElementById("headerProfileName");
+      if (headerName) headerName.textContent = "Profile";
     }
   }
 
@@ -162,7 +184,16 @@
       .storage-overview span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
       .storage-overview strong { display: block; margin-top: 3px; overflow-wrap: anywhere; }
       #securityStatus.error { border-color: rgba(255, 99, 132, .6); color: #ffb3c1; }
+      .header-profile { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .profile-button { display: flex; align-items: center; gap: 8px; width: auto !important; min-width: 0 !important; min-height: 38px !important; margin: 0 !important; padding: 0 10px !important; border-radius: 8px !important; border: 1px solid var(--line) !important; background: rgba(255,255,255,.035) !important; color: var(--ink) !important; }
+      .profile-avatar { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; background: linear-gradient(135deg, var(--aura-cyan, #6ff4ee), var(--aura-gold, #e8cf74)); color: #050505; font-size: 12px; font-weight: 900; }
+      .profile-copy { display: grid; gap: 1px; text-align: left; line-height: 1.1; }
+      .profile-copy strong { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+      .profile-copy small { color: var(--muted); font-size: 10px; }
+      .profile-logout { width: auto !important; min-width: 74px !important; min-height: 38px !important; margin: 0 !important; padding: 0 12px !important; border-radius: 8px !important; border-color: rgba(239,68,68,.45) !important; background: rgba(239,68,68,.08) !important; color: #fecaca !important; }
+      .profile-logout:hover { background: rgba(239,68,68,.16) !important; }
       @media (max-width: 1000px) { .security-grid { grid-template-columns: 1fr; } }
+      @media (max-width: 900px) { .profile-copy { display: none; } .profile-logout { min-width: 64px !important; } }
     `;
     document.head.appendChild(style);
   }

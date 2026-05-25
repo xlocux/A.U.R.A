@@ -120,6 +120,11 @@ header {
   letter-spacing: 0;
 }
 
+.headerbar h1::before {
+  content: none !important;
+  display: none !important;
+}
+
 .header-logo-img {
   width: 32px;
   height: 32px;
