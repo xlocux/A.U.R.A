@@ -14,6 +14,7 @@
     injectScript("/auth-persistence.js", "aura-auth-persistence-js");
     injectScript("/workspace-layout-current.js", "aura-workspace-layout-current-js");
     injectScript("/security-settings.js", "aura-security-settings-js");
+    injectScript("/header-profile-menu.js", "aura-header-profile-menu-js");
   }
 
   function injectScript(src, id) {
