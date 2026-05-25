@@ -7,6 +7,16 @@
     document.title = fullName;
     const heading = document.querySelector("header h1");
     if (heading) heading.textContent = fullName;
+    injectScript("/workspace-layout.js", "aura-workspace-layout-js");
+  }
+
+  function injectScript(src, id) {
+    if (document.getElementById(id)) return;
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.defer = true;
+    document.head.appendChild(script);
   }
 
   if (document.readyState === "loading") {
