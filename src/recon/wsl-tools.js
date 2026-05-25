@@ -1,7 +1,6 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
-const os = require("node:os");
 
 const ALLOWED_TOOLS = new Set([
   "subfinder",
@@ -20,7 +19,6 @@ const ALLOWED_TOOLS = new Set([
 ]);
 
 function runWslTool({
-  distro = "kali-linux",
   toolName,
   args = [],
   timeoutMs = 180000,
@@ -30,7 +28,7 @@ function runWslTool({
   proxyUrl = null
 }) {
   if (!ALLOWED_TOOLS.has(toolName)) {
-    return Promise.reject(new Error(`Tool not allowed for WSL recon: ${toolName}`));
+    return Promise.reject(new Error(`Tool not allowed for local Linux execution: ${toolName}`));
   }
 
   const proxy = normalizeProxyUrl(proxyUrl);
@@ -41,11 +39,8 @@ function runWslTool({
       proxy ? proxyExports(proxy) : "",
       [shellQuote(toolName), ...args.map(shellQuote)].join(" ")
     ].filter(Boolean).join(" && ");
-    const shell = os.platform() === "win32"
-      ? { command: "wsl", args: ["-d", distro, "--", "sh", "-lc", command] }
-      : { command: "sh", args: ["-lc", command] };
-    const child = spawn(shell.command, shell.args, {
-      detached: os.platform() !== "win32",
+    const child = spawn("sh", ["-lc", command], {
+      detached: true,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -109,26 +104,21 @@ function runWslTool({
 
 function killProcess(child) {
   try {
-    if (os.platform() !== "win32") {
-      process.kill(-child.pid, "SIGTERM");
-      setTimeout(() => {
-        try {
-          process.kill(-child.pid, "SIGKILL");
-        } catch {
-          // Process group already exited.
-        }
-      }, 2000).unref();
-      return;
-    }
-    child.kill();
+    process.kill(-child.pid, "SIGTERM");
+    setTimeout(() => {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // Process group already exited.
+      }
+    }, 2000).unref();
   } catch {
     child.kill();
   }
 }
 
-function commandDisplay(distro, toolName, args) {
-  const display = [toolName, ...args].join(" ");
-  return os.platform() === "win32" ? `wsl -d ${distro} -- ${display}` : display;
+function commandDisplay(_runtime, toolName, args) {
+  return [toolName, ...args].join(" ");
 }
 
 function normalizeProxyUrl(proxyUrl) {
