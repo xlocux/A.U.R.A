@@ -9,7 +9,6 @@
     if (heading) heading.textContent = fullName;
     injectScript("/auth-persistence.js", "aura-auth-persistence-js");
     injectScript("/workspace-layout.js", "aura-workspace-layout-js");
-    injectScript("/topology-analytics-fix.js", "aura-topology-analytics-fix-js");
     injectScript("/topology-stable-charts.js", "aura-topology-stable-charts-js");
     injectScript("/security-settings.js", "aura-security-settings-js");
   }
