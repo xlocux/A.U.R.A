@@ -6,17 +6,191 @@
   <title>A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</title>
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/dashboard-design-system.css">
+  <link rel="stylesheet" href="/dashboard-v2.css">
+  <link rel="stylesheet" href="/dashboard-v2-operator.css">
+  <link rel="stylesheet" href="/dashboard-v2-overrides.css">
 </head>
-<body>
+<body class="v2-dashboard">
   <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
-  <header>
+
+  <div id="dashboardV2Shell" class="dashboard-v2-shell">
+    <div class="topbar">
+      <a class="brand" href="#" data-section-jump="overview" aria-label="A.U.R.A dashboard overview">
+        <span class="brand-mark">A</span>
+        <span><strong>A.U.R.A Recon</strong><em>Authorized surface intelligence</em></span>
+      </a>
+      <nav class="main-nav" aria-label="Dashboard sections">
+        <button class="nav-item active" type="button" data-section="overview">Overview</button>
+        <button class="nav-item" type="button" data-section="recon">Recon</button>
+        <button class="nav-item" type="button" data-section="results">Results</button>
+        <button class="nav-item" type="button" data-section="search">Search</button>
+        <button class="nav-item" type="button" data-section="wordlists">Wordlists</button>
+        <button class="nav-item" type="button" data-section="topology">Topology</button>
+        <button class="nav-item" type="button" data-section="runs">Runs</button>
+        <button class="nav-item" type="button" data-section="settings">Settings</button>
+      </nav>
+      <div class="topbar-actions">
+        <label class="command-box" for="globalSearch">
+          <span>Ctrl K</span>
+          <input id="globalSearch" type="search" placeholder="Search targets, runs, providers">
+        </label>
+        <button id="refreshDashboard" class="ghost-button" type="button">Refresh</button>
+        <button class="primary-action" type="button" data-section-jump="recon">New Scan</button>
+      </div>
+    </div>
+
+    <main class="dashboard-main">
+      <div id="statusBanner" class="status-banner hidden"></div>
+
+      <section id="section-overview" class="dashboard-section active">
+        <div class="hero-row">
+          <div>
+            <p class="eyebrow">Security command center</p>
+            <h1>Recon data, provider health, and live run signals in one dashboard.</h1>
+            <p id="overviewSubtitle" class="hero-copy">Loading dashboard context...</p>
+          </div>
+          <div class="hero-actions">
+            <select id="runSelect" aria-label="Selected run"></select>
+            <button class="primary-action" type="button" data-section-jump="results">Open Results</button>
+          </div>
+        </div>
+
+        <div class="two-column-layout">
+          <section class="applications-grid card-grid">
+            <div class="section-heading">
+              <div>
+                <h2>Applications</h2>
+                <span id="applicationsMeta" class="section-meta">Loading assets...</span>
+              </div>
+              <button class="text-button" type="button" data-section-jump="recon">Manage scope</button>
+            </div>
+            <div id="applicationCards" class="application-cards"></div>
+            <div id="targetCards" class="application-cards wide"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Observation Metrics</h2>
+                <p id="metricsWindowLabel">Selected run</p>
+              </div>
+              <div class="segmented" aria-label="Metric window">
+                <button class="active" type="button" data-metric-window="run">Run</button>
+                <button type="button" data-metric-window="target">Target</button>
+                <button type="button" data-metric-window="all">All</button>
+              </div>
+            </div>
+            <div id="metricCards" class="metric-cards"></div>
+            <div class="chart-card">
+              <div class="chart-title"><span>Signals collected</span><strong id="chartTotal">0</strong></div>
+              <div id="observationChart" class="bar-chart"></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="two-column-layout bottom-layout">
+          <section class="panel">
+            <div class="panel-head"><div><h2>Recent Runs</h2><p>Latest recon executions and status.</p></div></div>
+            <div class="table-wrap compact-table">
+              <table><thead><tr><th>Run</th><th>Status</th><th>Mode</th><th>Target</th><th>Started</th></tr></thead><tbody id="recentRunsRows"></tbody></table>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h2>Live Log</h2><p><span class="live-dot">Live polling</span></p></div></div>
+            <div id="liveLogs" class="log-stream"></div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div><h2>Provider Readiness</h2><p>API key health and usage, ready before a scan starts.</p></div>
+            <button class="text-button" type="button" data-section-jump="settings">Manage Providers</button>
+          </div>
+          <div class="table-wrap compact-table">
+            <table><thead><tr><th>Provider</th><th>Status</th><th>Usage</th><th>Actions</th></tr></thead><tbody id="providerRows"></tbody></table>
+          </div>
+        </section>
+
+        <div class="analytics-grid">
+          <section class="panel">
+            <div class="panel-head"><div><h2>Technology Mix</h2><p>Top detected stacks for the selected run.</p></div></div>
+            <div id="techBars" class="bar-chart"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h2>Status Codes</h2><p>HTTP response distribution.</p></div></div>
+            <div id="statusBars" class="bar-chart"></div>
+          </section>
+          <section class="panel span-2">
+            <div class="panel-head"><div><h2>Service Surface</h2><p>HTTP services ready for triage.</p></div></div>
+            <div class="table-wrap">
+              <table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead><tbody id="serviceSurfaceRows"></tbody></table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="section-recon" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Operator console</p><h1>Launch focused recon.</h1><p>Presets keep local tools and API-backed providers visible before a run starts.</p></div></div>
+        <div id="reconMount"></div>
+      </section>
+
+      <section id="section-results" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Result explorer</p><h1>Sub-tabs for every signal type.</h1><p>Switch run, inspect grouped evidence, export data, or queue focused follow-ups.</p></div><select id="resultsRunSelect" aria-label="Results run"></select></div>
+        <div id="resultsMount"></div>
+      </section>
+
+      <section id="section-search" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Global search</p><h1>Search saved recon data.</h1></div></div>
+        <div id="searchMount"></div>
+      </section>
+
+      <section id="section-wordlists" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Wordlists</p><h1>Curate generated lists.</h1></div></div>
+        <div id="wordlistsMount"></div>
+      </section>
+
+      <section id="section-topology" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Topology</p><h1>Relationship preview.</h1></div><select id="topologyRunSelect" aria-label="Topology run"></select></div>
+        <div id="topologyMount"></div>
+      </section>
+
+      <section id="section-runs" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Runs and logs</p><h1>Execution history.</h1><p>Tool status and events stay separated so failures are easy to spot.</p></div><select id="logsRunSelect" aria-label="Logs run"></select></div>
+        <div class="two-column-layout">
+          <section class="panel">
+            <div class="panel-head"><div><h2>All Runs</h2><p>Filter with the global search box.</p></div></div>
+            <div class="table-wrap">
+              <table><thead><tr><th>Run</th><th>Status</th><th>Phase</th><th>Mode</th><th>Provider Profile</th><th>Target</th><th>Started</th><th>Finished</th></tr></thead><tbody id="allRunsRows"></tbody></table>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h2>Run Events</h2><p>Latest selected-run messages.</p></div></div>
+            <div id="eventsLogStream" class="log-stream tall"></div>
+          </section>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><div><h2>Tool Results</h2><p>Per-tool status, exit code, and start time.</p></div></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th></tr></thead><tbody id="toolResultsRows"></tbody></table>
+          </div>
+        </section>
+      </section>
+
+      <section id="section-settings" class="dashboard-section">
+        <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Providers, environment, and AI runtime.</h1></div></div>
+        <div id="settingsMount"></div>
+      </section>
+    </main>
+  </div>
+
+  <header class="legacy-header">
     <div class="headerbar">
       <h1>A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</h1>
       <p id="status" class="muted"></p>
     </div>
   </header>
 
-  <nav class="tabs" aria-label="Workspace tabs">
+  <nav class="tabs legacy-tabs" aria-label="Workspace tabs">
     <button class="tab" data-tab="recon">Recon</button>
     <button class="tab" data-tab="wordlists">Wordlists</button>
     <button class="tab" data-tab="search">Search</button>
@@ -27,7 +201,7 @@
     <button class="tab active" data-tab="settings">Settings</button>
   </nav>
 
-  <main class="workspace">
+  <main class="workspace legacy-workspace">
     <div class="workspace-main">
     <section id="tab-recon" class="tab-panel">
       <div class="target-grid recon-target">
@@ -438,13 +612,13 @@
     </div>
   </main>
 
-  <aside id="aiPanel" class="ai-panel floating" aria-label="AI agent chat">
+  <aside id="aiPanel" class="ai-panel floating legacy-ai-panel" aria-label="AI agent chat">
       <div id="aiDragHandle" class="ai-header"><div><h2>AI Agent</h2><p class="muted">Contextual run assistant</p></div><div class="ai-actions"><span class="ai-status">Local</span><button id="aiMinimize" class="icon-button" type="button" title="Minimize AI panel">Hide</button></div></div>
       <div id="aiMessages" class="ai-messages"><div class="ai-message assistant">I can help with target setup, scope review, recon planning, run status, tool failures, and result triage. During scans I will post useful milestones here.</div></div>
       <div class="ai-input"><textarea id="aiPrompt" placeholder="Ask about the current target, run, tools, or next recon step"></textarea><button id="sendAiPrompt" type="button">Send</button></div>
       <span class="ai-resize-handle nw" data-resize="nw" aria-hidden="true"></span><span class="ai-resize-handle ne" data-resize="ne" aria-hidden="true"></span><span class="ai-resize-handle sw" data-resize="sw" aria-hidden="true"></span><span class="ai-resize-handle se" data-resize="se" aria-hidden="true"></span>
     </aside>
-    <button id="aiRestore" class="ai-restore" type="button">AI Agent</button>
+    <button id="aiRestore" class="ai-restore legacy-ai-restore" type="button">AI Agent</button>
 
   <script src="/wave-background.js"></script>
   <script src="/ai-agent.js"></script>
@@ -462,5 +636,6 @@
   <script src="/guide-view.js"></script>
   <script src="/guide-details.js"></script>
   <script src="/wordlist-metadata.js"></script>
+  <script src="/dashboard-v2.js"></script>
 </body>
 </html>

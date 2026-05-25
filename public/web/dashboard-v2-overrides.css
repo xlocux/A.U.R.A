@@ -1,0 +1,63 @@
+body.v2-dashboard .background-scope,
+body.v2-dashboard .legacy-header,
+body.v2-dashboard .legacy-tabs,
+body.v2-dashboard .legacy-workspace,
+body.v2-dashboard .legacy-ai-panel,
+body.v2-dashboard .legacy-ai-restore {
+  display: none !important;
+}
+
+.dashboard-v2-shell {
+  min-height: 100vh;
+}
+
+body.v2-dashboard h1,
+body.v2-dashboard .metric-card strong {
+  letter-spacing: 0;
+}
+
+body.v2-dashboard .hero-row h1 {
+  max-width: 980px;
+}
+
+body.v2-dashboard .hero-copy {
+  max-width: 760px;
+}
+
+body.v2-dashboard .card-grid,
+body.v2-dashboard .panel {
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+body.v2-dashboard .app-card,
+body.v2-dashboard .metric-card {
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+body.v2-dashboard .app-card:hover {
+  transform: translateY(-1px);
+}
+
+body.v2-dashboard .table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+}
+
+body.v2-dashboard .result-pane.table-wrap {
+  max-height: calc(100vh - 310px);
+  min-height: 440px;
+}
+
+body.v2-dashboard .bar-row span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.v2-dashboard .topbar {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body.v2-dashboard .panel + .panel {
+  margin-top: 18px;
+}

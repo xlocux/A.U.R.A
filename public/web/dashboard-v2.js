@@ -140,7 +140,7 @@
   }
 
   function renderSelectors() {
-    const runOptions = state.runs.map((run) => `<option value="${esc(run.id)}">#${esc(run.id)} · ${esc(run.target_name || "target")} · ${esc(run.status || "unknown")}</option>`).join("");
+    const runOptions = state.runs.map((run) => `<option value="${esc(run.id)}">#${esc(run.id)} - ${esc(run.target_name || "target")} - ${esc(run.status || "unknown")}</option>`).join("");
     for (const id of ["runSelect", "logsRunSelect", "resultsRunSelect", "topologyRunSelect"]) if ($(id)) { $(id).innerHTML = runOptions || `<option value="">No runs</option>`; $(id).value = state.selectedRunId || ""; }
     const targetOptions = state.targets.map((target) => `<option value="${esc(target.target_name || target.name)}">${esc(target.target_name || target.name)}</option>`).join("");
     for (const id of ["scanTargetV2"]) if ($(id)) $(id).innerHTML = targetOptions || `<option value="">No targets</option>`;
@@ -151,7 +151,7 @@
     const run = state.selectedRunData.run;
     const activeRuns = state.runs.filter((run) => ["running", "queued", "paused"].includes(run.status)).length;
     $("overviewSubtitle").textContent = `${state.targets.length} target${state.targets.length === 1 ? "" : "s"}, ${state.runs.length} run${state.runs.length === 1 ? "" : "s"}, ${activeRuns} active. ${run ? `Viewing run #${run.id} for ${run.target_name}.` : "No run selected."}`;
-    $("applicationsMeta").textContent = `${state.targets.length} targets · ${activeRuns} active runs · ${activeKeys().length} active providers`;
+    $("applicationsMeta").textContent = `${state.targets.length} targets - ${activeRuns} active runs - ${activeKeys().length} active providers`;
   }
 
   function renderApplications() {
@@ -165,7 +165,7 @@
     $("targetCards").innerHTML = filteredTargets().map((target) => appCard({ title: target.target_name || target.name, icon: initials(target.target_name || target.name), detail: `${arr(target.root_domains).length} root domains`, status: "ok", footer: target.program_url || target.config_path || "target config", section: "recon" })).join("") || empty("No targets match the current filter.");
   }
 
-  function appCard(item) { return `<article class="app-card" data-section-jump="${esc(item.section || "overview")}"><div class="app-card-top"><div class="app-icon">${esc(item.icon)}</div><span class="badge ${esc(item.status || "")}">${esc(item.status || "ready")}</span></div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p><div class="app-card-footer"><span>${esc(item.footer || "")}</span><span>→</span></div></article>`; }
+  function appCard(item) { return `<article class="app-card" data-section-jump="${esc(item.section || "overview")}"><div class="app-card-top"><div class="app-icon">${esc(item.icon)}</div><span class="badge ${esc(item.status || "")}">${esc(item.status || "ready")}</span></div><h3>${esc(item.title)}</h3><p>${esc(item.detail)}</p><div class="app-card-footer"><span>${esc(item.footer || "")}</span><span>-&gt;</span></div></article>`; }
 
   function renderRuns() {
     $("recentRunsRows").innerHTML = filteredRuns().slice(0, 8).map((run) => `<tr><td class="mono">#${esc(run.id)}</td><td>${statusBadge(run.status)}</td><td>${esc(run.mode || run.run_type || "-")}</td><td>${esc(run.target_name || "-")}</td><td>${esc(formatDate(run.started_at || run.created_at))}</td></tr>`).join("") || rowEmpty(5, "No runs found.");
@@ -189,7 +189,7 @@
 
   function renderLogs() {
     const logs = state.selectedRunData.events.slice(-14).reverse();
-    const html = logs.map((event) => `<div class="log-item"><div class="log-time">${esc(shortTime(event.created_at || event.createdAt || event.time))}</div><div><strong>${esc(event.source || event.phase || "system")} · ${esc(event.severity || "info")}</strong><p>${esc(event.message || JSON.stringify(event))}</p></div></div>`).join("") || empty("No events for the selected run.");
+    const html = logs.map((event) => `<div class="log-item"><div class="log-time">${esc(shortTime(event.created_at || event.createdAt || event.time))}</div><div><strong>${esc(event.source || event.phase || "system")} - ${esc(event.severity || "info")}</strong><p>${esc(event.message || JSON.stringify(event))}</p></div></div>`).join("") || empty("No events for the selected run.");
     $("liveLogs").innerHTML = html; $("eventsLogStream").innerHTML = html;
     $("toolResultsRows").innerHTML = state.selectedRunData.tools.map((tool) => `<tr><td>${esc(tool.toolName || tool.tool_name || "-")}</td><td>${statusBadge(tool.status)}</td><td>${esc(tool.exitCode ?? tool.exit_code ?? "-")}</td><td>${esc(formatDate(tool.startedAt || tool.started_at))}</td></tr>`).join("") || rowEmpty(4, "No tool results.");
   }
@@ -324,7 +324,7 @@
   function shortTime(value) { if (!value) return "-"; try { return new Date(value).toLocaleTimeString(); } catch { return String(value).slice(11, 19); } }
   function initials(value) { return String(value || "A").split(/[^a-z0-9]+/i).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "A"; }
   function safeHost(value) { try { return new URL(value).host; } catch { return ""; } }
-  function short(value, length) { const text = String(value || ""); return text.length > length ? `${text.slice(0, length - 1)}…` : text; }
+  function short(value, length) { const text = String(value || ""); return text.length > length ? `${text.slice(0, length - 3)}...` : text; }
   function cap(value) { return String(value).charAt(0).toUpperCase() + String(value).slice(1); }
   function emptyRun() { return { run: null, counts: {}, events: [], tools: [], domains: [], services: [], urls: [], tech: [], screens: [], delta: null }; }
 

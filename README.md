@@ -1,10 +1,14 @@
 # A.U.R.A - Asset Unveiling & Reconnaissance Automation
+# A.U.R.A
 
 A.U.R.A is a local-first recon workbench for authorized bug bounty, asset inventory, and security research scopes. It is designed to help an operator move from a small set of authorized seeds to a documented, evidence-backed map of domains, services, URLs, technologies, screenshots, and candidate assets.
+A.U.R.A is a local **Asset Unveiling & Reconnaissance Automation** dashboard for authorized bug bounty and security research scopes.
 
 A.U.R.A is not an exploit automation framework. The project focuses on discovery, validation, evidence preservation, correlation, triage, and safe follow-up planning. Active checks must stay inside explicitly authorized scope.
+The project is intentionally scoped to recon for now. Agentic analysis, triage, reporting, and LLM-assisted reasoning will be added later as separate layers.
 
 ## Core Principles
+## What It Does
 
 - **Local first**: data is stored locally in SQLite and artifacts are written to the local filesystem.
 - **Evidence first**: raw tool output is saved before parsing so every normalized observation can be traced back to source evidence.
@@ -12,6 +16,40 @@ A.U.R.A is not an exploit automation framework. The project focuses on discovery
 - **UI first**: target setup, recon controls, API keys, wordlists, run logs, results, exports, and AI assistance are managed from the Web UI.
 - **AI assisted, not AI uncontrolled**: the AI explains, summarizes, correlates, and proposes next steps, but A.U.R.A remains the control plane.
 - **Modular by design**: sources, parsers, tool runners, provider APIs, wordlists, and UI extensions are separated so new capabilities can be added without growing a monolith.
+- Manage domain recon targets from the web UI.
+- Run recon in three modes:
+  - `single`: one domain.
+  - `list`: a user-provided list of domains.
+  - `full`: seed domains plus provider discovery, passive sources, brute force, HTTP probing, URL mining, and screenshots.
+- Persist discovered data in local SQLite:
+  - domains and subdomains
+  - asset leads
+  - archived URLs, paths, and parameters
+  - HTTP services, status codes, titles, servers, technologies
+  - screenshot run outputs
+  - API key metadata
+  - wordlist metadata
+- Restore the selected target and latest saved run after a browser refresh.
+- Pause, resume, or cancel long-running recon runs from the browser.
+- Run an HTTP/tech follow-up against domains already saved in a previous run,
+  so missing probes can be completed without repeating full discovery.
+- Export collected run data as JSON, CSV, or Markdown.
+- Automatically compact duplicate observations in UI views, topology, exports,
+  and generated wordlists while preserving source evidence.
+- Compare each rescan with the previous run for the same target to show new,
+  removed, and stable domains, URLs, and HTTP services.
+- Show real run totals separately from paged result tables so large scans do not
+  appear capped by UI limits.
+- Post useful scan milestones into the AI chat as recon progresses, including
+  major discovery jumps, tool failures, run deltas, technologies, and screenshot
+  progress.
+- Keep detailed AI correlation activity in a separate `AI Log` tab so chat stays
+  focused on questions and answers.
+- Inspect current run activity, tool heartbeats, and topology node details from
+  the Web UI.
+- Run WSL/Kali tools through an allowlisted command runner.
+- Generate small derived wordlists from the local DB instead of storing large wordlist contents in SQLite.
+- Generate smart domain wordlists from observed subdomain naming patterns.
 
 ## Quick Start
 
@@ -23,69 +61,141 @@ npm run web
 ```
 
 Open:
+A.U.R.A requires Node.js 24 or newer.
 
 ```text
 http://127.0.0.1:31338
 ```
+### Branding Assets
 
 Default local login on first start:
+To regenerate the project logos, icons, and favicons, use the provided Python script. This requires Python and the [Pillow](https://python-pillow.org/) library.
 
 ```text
 locu / locu
+```powershell
+py -m pip install Pillow
+py .\make.py
 ```
 
 To override the initial password before the first server start:
+Open:
 
 ```powershell
 $env:AURA_WEB_PASSWORD="change-me"
 npm run web
+```text
+http://127.0.0.1:31338
 ```
 
 The server binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only on a trusted network and only after changing the default login.
+Start from `Settings > Environment` to check the Linux runtime, install
+OpenCode, and install/update recon tools. Create domain targets from the
+`Recon` tab in the browser. Target setup, scope edits, API keys, wordlists,
+recon runs, and results are all managed from the Web UI.
 
 ## High-Level Workflow
+Targets can be deleted from the `Recon` tab. Deleting a target removes its local
+target config, runs, observations, leads, and run artifact folders.
 
 1. **Prepare environment**
    - Open `Settings > Environment`.
    - Run environment check.
    - Install or update WSL/Kali tools.
    - Confirm that required tools are available.
+Recommended first run:
 
 2. **Configure optional providers**
    - Open `Settings > API Keys`.
    - Add only the provider keys you want to use.
    - Test one key from its row or run `Test All API Keys`.
    - Failed keys stay visible with status so provider coverage is transparent.
+1. Open `Settings > Environment` and run `Install / Update Tools`.
+2. Add optional keys in `Settings > API Keys`.
+3. Confirm authorized scope when you are allowed to enumerate the target.
+4. Create a target in `Recon`.
+5. A.U.R.A automatically starts a target bootstrap run:
+   - Domains and wildcards such as `*.example.com` are normalized to root
+     domains.
+   - An intel phase expands likely alternate TLDs for the same registrable
+     label.
+   - RDAP/WHOIS is inspected for target-related terms.
+   - Associated RDAP domains such as target-owned nameservers are collected.
+   - Useful Reverse WHOIS terms and associated domains are proposed in the run
+     log; if none are found, A.U.R.A says so explicitly.
+   - Brand terms from the root domains are used as fallback Reverse WHOIS terms
+     when RDAP does not provide useful organization data.
+   - WhoisXMLAPI Reverse WHOIS expansion runs when an active API key exists.
+   - Out-of-scope domains are filtered out.
+   - Authorized root/RDAP/provider seeds feed the enumeration pipeline when
+     authorized scope is confirmed.
+   - Alternate TLDs are saved as review leads only and are not scanned unless
+     the user explicitly adds them to authorized scope.
+   - The AI correlation layer scores review leads with visible evidence in
+     `AI Log`, including WHOIS/RDAP, nameserver, MX/SPF/DMARC, certificate,
+     tracking ID, fingerprint, JavaScript, code search, and archive techniques.
+6. Review `Runs & Logs`, `Results`, `Search`, and `Topology`.
+   - `Results` includes a Results Explorer tree that groups roots,
+     subdomains, HTTP services, URLs, technologies, parameters, screenshot
+     runs, and candidate domains into one filterable view.
+   - Use Results Explorer filters to isolate live HTTP assets, technologies,
+     new run deltas, URLs, or correlation-scored candidates, then export the
+     current filtered view as JSON or CSV.
 
 3. **Create or select a target**
    - Open `Recon`.
    - Add target name, program URL, in-scope domains/URLs, and out-of-scope values.
    - Wildcards are normalized to root domains where needed.
+Browser refreshes do not discard run results. When the Web UI reloads, A.U.R.A
+selects the last active target when possible and reloads that target's latest
+saved run, including events, domains, HTTP services, artifacts, and topology.
+Topology controls redraw the latest loaded run data instead of discarding the
+current graph state.
 
 4. **Choose recon mode and tools**
    - Select single-domain, list, or full recon.
    - Select passive sources, WSL/Kali tools, screenshot tools, API-backed providers, and httpx port preset/custom ports.
+Run controls are cooperative. Pause and cancel requests are honored between
+recon phases and tool invocations; a tool process that is already running may
+finish before the run stops.
 
 5. **Confirm authorization**
    - Active enumeration requires the `Authorized scope` checkbox.
    - Without authorization, A.U.R.A can still perform passive bootstrap/intel checks but should not launch active enumeration.
+Exports are available from the `Results` tab for the loaded run and for the
+current Results Explorer filtered view. The topology view supports zoom controls
+and node inspection for domains, HTTP services, URLs, and screenshot artifacts.
 
 6. **Run recon**
    - A.U.R.A collects passive evidence, runs selected tools, stores artifacts, parses observations, and updates live run status.
+If authorized scope is not confirmed, A.U.R.A still performs passive RDAP/WHOIS
+bootstrap checks but does not start active enumeration.
 
 7. **Review results**
    - Use `Results`, `Projects`, `Search`, `Topology`, `Runs & Logs`, and `AI Log`.
    - Review run deltas first to prioritize new assets and changes.
+The Web UI requires login. The first local user defaults to:
 
 8. **Plan safe follow-up**
    - Use HTTP/Tech follow-up, screenshot follow-up, filtered exports, wordlist generation, or manual review.
    - Candidate assets remain review leads until authorized scope is updated.
+```text
+locu / locu
+```
 
 ## Web UI Tabs
+The user is stored locally in SQLite with a password hash. To override the
+initial password before the first server start, set:
 
 ### Recon
+```powershell
+$env:AURA_WEB_PASSWORD="change-me"
+npm run web
+```
 
 The main operation tab. It contains:
+The server binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only when you
+intentionally expose it on a trusted network, and change the default login first.
 
 - target creation
 - active target selector
@@ -98,6 +208,7 @@ The main operation tab. It contains:
 - screenshot tool checkboxes
 - provider lead preview controls
 - discovery lead table
+## Project Layout
 
 ### Wordlists
 
@@ -117,6 +228,16 @@ A.U.R.A stores wordlist metadata in SQLite, not large wordlist contents. Generat
 
 ```text
 data/wordlists/generated/
+public/web/              Web dashboard HTML/CSS/JS
+scripts/                 Web server entrypoint
+src/core/                JSON IO and target config validation
+src/db/                  SQLite store
+src/recon/               Recon engine, parsers, WSL tool runner, wordlist generation
+src/recon/providers/     External recon providers such as WhoisXMLAPI
+src/web/                 Local HTTP server and API routes
+tests/                   Node test suite
+data/                    Local DB and generated artifacts, ignored by Git
+targets/                 Local target configs and per-target state
 ```
 
 ### Search
@@ -178,14 +299,17 @@ Contains:
 ### Single Domain
 
 Use for a controlled run against one authorized domain.
+Use this when you want a controlled scan against exactly one domain.
 
 ### Domain List
 
 Use when the program gives multiple explicit in-scope domains or when you want to rerun only a known subset.
+Use this for known in-scope domains pasted into the UI.
 
 ### Full Recon
 
 Full recon is the broad workflow. It can include:
+Full recon currently performs:
 
 1. seed normalization
 2. RDAP/WHOIS bootstrap
@@ -203,24 +327,62 @@ Full recon is the broad workflow. It can include:
 14. candidate asset correlation
 15. delta comparison against previous run
 16. AI-assisted triage and next-step suggestions
+1. Seed domain normalization.
+2. Optional provider discovery, starting with RDAP/WHOIS term suggestions and WhoisXMLAPI Reverse WHOIS, and designed for Censys, Shodan, Rapid7, JavaScript, endpoint, history, and parameter adapters.
+3. Certificate transparency and passive sources.
+4. Passive subdomain enumeration via tools such as `subfinder` and `amass`.
+5. Optional brute force with `shuffle-dns` using the active `domains` wordlist.
+6. DNS validation with `dnsx` / `puredns`.
+7. URL mining with `gau`.
+8. HTTP probing and tech detection with `httpx`.
+9. Optional technology enrichment with Wappalyzer, BuiltWith-style provider
+   data, retire.js, WPScan, and CMSeeK when those tools or API keys are
+   available.
+10. Technology stack aggregation in Results and Search.
+11. Screenshot collection with `gowitness` by default, with optional
+    `aquatone` or `EyeWitness`.
 
 ## Recon Phases
+If a previous run found domains but missed HTTP probing, use
+`Results > HTTP/Tech Follow-up`. A.U.R.A creates a new run from the saved domain
+set and runs only HTTP probing, technology enrichment, and screenshots.
 
 ### 1. Target Normalization
+## WSL/Kali Tools
 
 A.U.R.A normalizes target input before scanning:
+When A.U.R.A runs on Windows, it uses the selected WSL distro. When A.U.R.A runs
+inside WSL/Linux, setup and tool checks run natively in that Linux environment.
 
 - domains are lowercased
 - wildcard scope such as `*.example.com` is reduced to usable root seeds where appropriate
 - URLs are parsed into host/domain components
 - out-of-scope entries are kept as blockers
 - duplicate seeds are compacted
+The environment setup lives in `Settings > Environment`. It installs system
+prerequisites first, then OpenCode, then recon tools declared in the tool
+registry. Install stdout and stderr are shown in the setup log so failed tool
+bootstrap steps can be debugged from the browser.
 
 ### 2. Scope and Safety Gate
+Linux prerequisites installed by setup include:
 
 The UI requires explicit authorization before active enumeration. Passive bootstrap can run without launching active probes, but WSL/Kali tools and active provider workflows should be used only inside authorized scope.
+- `ca-certificates`
+- `curl`
+- `git`
+- build tools
+- `unzip`
+- `tar`
+- `jq`
+- Go
+- Node.js 24 on apt-based systems
+- DNS utilities
+- SecLists when available from the package manager
+- Chromium when available, for screenshot capture
 
 Candidate leads from alternate TLDs, WHOIS, RDAP, code search, or correlation are not automatically scanned. They must be reviewed and added to authorized scope first.
+The initial tool registry includes:
 
 ### 3. WHOIS/RDAP Bootstrap
 
@@ -301,18 +463,41 @@ Technology evidence is useful for prioritization, clustering, and targeted revie
 
 Screenshot tools capture visual evidence for live HTTP services. Default tool:
 
+- `subfinder`
+- `dnsx`
+- `gau`
+- `httpx`
+- `katana`
+- `naabu`
+- `nuclei`
 - `gowitness`
+- `wappalyzer`
+- `retire`
+- `wpscan`
+- `cmseek`
 
 Optional tools:
+The default distro name is `kali-linux`, configurable from the UI.
 
 - `aquatone`
 - `EyeWitness`
+## API Keys
 
 Screenshot records are aligned across Projects and Results views so counts and previews refer to the same underlying screenshot payload.
+API keys are optional, stored locally in SQLite, and masked in API/UI responses.
 
 ### 14. Result Normalization
+Current providers:
 
 A.U.R.A normalizes and stores:
+- `openrouter` for AI chat when `Settings > AI Agent` selects OpenRouter.
+- `shodan` for host intelligence when provider enrichment is enabled.
+- `censys` for internet intelligence when provider enrichment is enabled.
+- `securitytrails` for DNS intelligence when configured.
+- `chaos` for ProjectDiscovery Chaos subdomain data when configured.
+- `github` for code search when configured.
+- `whoisxmlapi` for Reverse WHOIS.
+- `builtwith` for optional technology intelligence.
 
 - domains and root domain relationship
 - sources
@@ -322,10 +507,18 @@ A.U.R.A normalizes and stores:
 - tool execution records
 - provider lead evidence
 - candidate scores
+The runtime selects the first active key for the provider whose usage is below its configured limit.
 
 ### 15. Delta Comparison
+`Settings > AI Agent` can use OpenCode, Codex CLI, Claude Code CLI, OpenRouter,
+or a direct local OpenAI-compatible endpoint such as Ollama. The page shows
+runtime availability and the current redacted OpenCode config when it can be
+read from the selected Linux environment. The OpenRouter model preset list is
+loaded from OpenRouter's model metadata when available and falls back to bundled
+free presets if the network request fails.
 
 Each rescan can be compared with the previous run for the same target. Delta review highlights:
+## Wordlists
 
 - new domains
 - removed domains
@@ -334,6 +527,7 @@ Each rescan can be compared with the previous run for the same target. Delta rev
 - new HTTP services
 - removed HTTP services
 - stable observations
+Large wordlists are not stored in the DB. A.U.R.A stores only metadata:
 
 ### 16. AI-Assisted Triage
 
@@ -1279,19 +1473,30 @@ The API key table shows:
 - provider
 - label
 - masked key preview
+- name
+- category
+- filesystem path
 - status
 - usage
 - actions
+- notes
 
 Actions include:
+Supported categories:
 
 - test one key
 - disable/enable where supported
 - delete
 - test all keys
 - import/export keys
+- `domains`
+- `technologies`
+- `payloads`
+- `paths`
+- `params`
 
 A.U.R.A stores API keys locally. Provider response errors are surfaced through preflight messages so a failed key is visible instead of silently ignored.
+Generated wordlists are written to:
 
 ## Proxy Support
 
@@ -1373,9 +1578,13 @@ src/web/                 Local HTTP server and API routes
 tests/                   Node test suite
 data/                    Local DB and generated artifacts, ignored by Git
 targets/                 Local target configs and per-target state
+data/wordlists/generated/
 ```
 
 Important local data includes:
+The `smart-domains` generated category uses collected subdomains to infer likely
+environment, service, and region naming patterns. It is intended for later
+controlled subdomain permutation or brute-force phases.
 
 - SQLite database
 - recon run artifacts
@@ -1383,22 +1592,34 @@ Important local data includes:
 - screenshot outputs
 - target configs
 - exported results
+and that directory is ignored by Git.
 
 ## Exports
+After environment setup, A.U.R.A registers default SecLists metadata when those
+paths are available in the Linux environment:
 
 A.U.R.A can export loaded run data as:
+- `/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt`
+- `/usr/share/seclists/Discovery/Web-Content/common.txt`
+- `/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt`
 
 - JSON
 - CSV
 - Markdown
 - filtered Results Explorer JSON
 - filtered Results Explorer CSV
+## Current Commands
 
 Exports are intended for reporting, offline review, and handoff to manual tools.
+Check the runtime first:
 
 ## Safe Handling of One-Liners and Manual Recon Tricks
+```powershell
+node --version
+```
 
 A.U.R.A can absorb useful manual recon patterns, but they should be converted into safe modules or review workflows rather than copied as raw shell pipelines.
+Use Node.js 24 or newer.
 
 Safe patterns include:
 
@@ -1425,6 +1646,7 @@ Run:
 
 ```powershell
 npm test
+npm run web
 ```
 
 The test suite includes coverage for:
@@ -1455,5 +1677,7 @@ For a new target:
 ## Safety Model
 
 A.U.R.A is for authorized scopes only. Keep scope definitions current, keep out-of-scope values explicit, and treat uncertain assets as review leads.
+A.U.R.A is for authorized scopes only. The UI requires explicit authorization confirmation before starting recon or provider discovery.
 
 The project should help an operator understand and organize recon evidence. It should not turn ambiguity into authorization, bypass program rules, or automate exploit behavior.
+Keep target scope current in the `Recon` tab before running scans.
