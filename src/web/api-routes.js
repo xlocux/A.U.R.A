@@ -9,6 +9,7 @@ const { GENERATED_DIR, generateWordlistFromDb } = require("../recon/wordlist-gen
 const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
+const { callWhoisFreaksHistorical } = require("../recon/providers/whoisfreaks");
 const { providerCatalog, validateProviderKey } = require("../recon/provider-apis");
 const {
   DEFAULT_PASSIVE_SOURCES,
@@ -615,7 +616,8 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
   });
 
   await waitForApiRunControl(store, runId);
-  const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  let suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  suggestions = await enrichWhoisSuggestionsWithHistory({ store, runId, domains: rootDomains, suggestions });
   const brandTerms = extractBrandTerms(rootDomains);
   const reverseWhoisTerms = [...new Set([...(suggestions.includeTerms || []), ...brandTerms])];
   const suggestionSummary = formatWhoisSuggestionSummary(suggestions);
@@ -1548,7 +1550,8 @@ async function runReconIntelPreflight({ store, runId, targetName, rootDomains, c
     source: "engine",
     message: "Running WHOIS/RDAP and alternate TLD intel preflight before enumeration."
   });
-  const suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  let suggestions = await suggestReverseWhoisTerms({ domains: rootDomains });
+  suggestions = await enrichWhoisSuggestionsWithHistory({ store, runId, domains: rootDomains, suggestions });
   const rdapDomains = filterScopeDomains({
     domains: extractRdapRelatedDomains(suggestions),
     config,
@@ -1575,6 +1578,66 @@ async function runReconIntelPreflight({ store, runId, targetName, rootDomains, c
     message: `Intel preflight saved ${rdapDomains.length} RDAP-associated seeds and ${alternateTldLeads.length} alternate TLD review leads.`
   });
   return [...new Set([...rootDomains, ...rdapDomains])];
+}
+
+async function enrichWhoisSuggestionsWithHistory({ store, runId, domains, suggestions }) {
+  const hasCurrentPivots = (suggestions.includeTerms || []).length > 0 || (suggestions.associatedDomains || []).length > 0;
+  if (hasCurrentPivots) return suggestions;
+  const selectedKey = store.getActiveApiKey("whoisfreaks");
+  if (!selectedKey?.api_key) {
+    appendOptionalEvent(store, runId, {
+      phase: "whois-rdap",
+      severity: "warn",
+      source: "whois-history",
+      message: "Current RDAP/WHOIS had no useful pivots. Historical WHOIS fallback skipped because no active WhoisFreaks API key is configured."
+    });
+    return suggestions;
+  }
+  const includeTerms = [];
+  const associatedDomains = [];
+  let checked = 0;
+  for (const domain of domains || []) {
+    try {
+      const history = await callWhoisFreaksHistorical({ apiKey: selectedKey.api_key, domainName: domain });
+      store.markApiKeyUsed(selectedKey.id);
+      checked += 1;
+      includeTerms.push(...history.includeTerms);
+      associatedDomains.push(...history.domains);
+      appendOptionalEvent(store, runId, {
+        phase: "whois-rdap",
+        severity: history.includeTerms.length || history.domains.length ? "ok" : "warn",
+        source: "whoisfreaks",
+        message: `Historical WHOIS checked ${domain}: ${history.totalRecords} records, ${history.includeTerms.length} pivot terms, ${history.domains.length} related domains.`
+      });
+    } catch (error) {
+      appendOptionalEvent(store, runId, {
+        phase: "whois-rdap",
+        severity: "warn",
+        source: "whoisfreaks",
+        message: `Historical WHOIS fallback failed for ${domain}: ${error.message}`
+      });
+    }
+  }
+  const mergedIncludeTerms = [...new Set([...(suggestions.includeTerms || []), ...includeTerms])].slice(0, 4);
+  const mergedAssociatedDomains = [...new Set([...(suggestions.associatedDomains || []), ...associatedDomains])];
+  return {
+    ...suggestions,
+    includeTerms: mergedIncludeTerms,
+    associatedDomains: mergedAssociatedDomains,
+    historicalFallback: {
+      provider: "whoisfreaks",
+      checked,
+      includeTerms: mergedIncludeTerms.length,
+      associatedDomains: mergedAssociatedDomains.length
+    },
+    rationale: mergedIncludeTerms.length || mergedAssociatedDomains.length
+      ? "Current RDAP had no useful pivots, so historical WHOIS was used to recover target-related terms."
+      : suggestions.rationale
+  };
+}
+
+function appendOptionalEvent(store, runId, event) {
+  if (runId) store.appendEvent(runId, event);
 }
 
 async function expandFullReconRoots({ store, runId, targetName, rootDomains, config, fullRecon }) {
@@ -1689,7 +1752,8 @@ async function suggestWhoisTerms(request, response, store) {
   const domains = requestedDomains.length
     ? requestedDomains
     : loadTargetDomains(body.targetName, store);
-  const result = await suggestReverseWhoisTerms({ domains });
+  let result = await suggestReverseWhoisTerms({ domains });
+  result = await enrichWhoisSuggestionsWithHistory({ store, runId: null, domains, suggestions: result });
   sendJson(response, result);
 }
 

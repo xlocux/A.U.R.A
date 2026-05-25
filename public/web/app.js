@@ -76,6 +76,11 @@ const API_KEY_PROVIDER_HINTS = {
     placeholder: "WhoisXMLAPI key",
     monthlyLimit: "50"
   },
+  whoisfreaks: {
+    label: "historical-whois",
+    placeholder: "WhoisFreaks API key",
+    monthlyLimit: ""
+  },
   builtwith: {
     label: "technology-provider",
     placeholder: "BuiltWith API key",
@@ -584,7 +589,7 @@ async function startRecon() {
       passiveSources: selectedValues([
         "crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan",
         "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye",
-        "spyse", "intelx"
+        "spyse", "intelx", "whoisfreaks"
       ]),
       wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),

@@ -14,6 +14,10 @@ A.U.R.A supports provider-specific API key preflight checks from Settings > API 
 
 ZoomEye uses the current `https://api.zoomeye.ai` API host for preflight and web search calls. This avoids the older regional endpoint that can return a 403 area-availability message.
 
+WhoisFreaks can be added as provider `whoisfreaks`. A.U.R.A uses it as a
+historical WHOIS fallback when current RDAP/WHOIS records are private, redacted,
+or do not produce useful target-related pivots.
+
 ## UI Density
 
 The API key table uses a compact row layout so status, usage, Test, and Delete actions remain visible without excessive spacing.

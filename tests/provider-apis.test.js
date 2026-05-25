@@ -17,7 +17,8 @@ const EXPECTED_API_PROVIDERS = [
   "virustotal",
   "zoomeye",
   "spyse",
-  "intelx"
+  "intelx",
+  "whoisfreaks"
 ];
 
 test("provider catalog includes requested recon APIs and auth formats", () => {
@@ -29,6 +30,7 @@ test("provider catalog includes requested recon APIs and auth formats", () => {
   }
   assert.equal(byId.censys.secretFormat, "api_id:api_secret");
   assert.equal(byId.passivetotal.secretFormat, "username:api_secret");
+  assert.equal(byId.whoisfreaks.secretFormat, "api_key");
 });
 
 test("provider preflight validates compound auth format before network calls", async () => {

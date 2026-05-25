@@ -18,7 +18,8 @@ const API_PASSIVE_SOURCES = new Set([
   "virustotal",
   "zoomeye",
   "spyse",
-  "intelx"
+  "intelx",
+  "whoisfreaks"
 ]);
 
 function fetchText(url, timeoutMs = 20000, redirectCount = 0) {

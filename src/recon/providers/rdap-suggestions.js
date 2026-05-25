@@ -244,7 +244,10 @@ function isTargetRelatedTerm(value, brandTokens) {
 
 module.exports = {
   DEFAULT_EXCLUDE_TERMS,
+  domainBrandTokens,
   fetchRdapRecord,
+  isNoisyTerm,
+  isTargetRelatedTerm,
   suggestReverseWhoisTerms,
   suggestReverseWhoisTermsFromRdapRecords
 };

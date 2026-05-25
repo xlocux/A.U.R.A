@@ -1049,6 +1049,9 @@ WHOIS/RDAP term suggestion should run before Reverse WHOIS when possible:
 - Fetch public RDAP/WHOIS data for in-scope root domains.
 - Extract organization, registrant, and contact names.
 - Skip privacy, proxy, redacted, registrar-only, or abuse-contact records.
+- When current records do not expose useful target-related pivots, query
+  historical WHOIS from configured providers such as WhoisFreaks before
+  declaring that no ownership evidence is available.
 - Suggest bounded include terms and default exclusions for Reverse WHOIS.
 - Let the AI explain why terms were suggested or skipped, but keep the final
   provider discovery action user-controlled.

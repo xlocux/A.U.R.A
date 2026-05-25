@@ -34,7 +34,8 @@ const API_PASSIVE_PROVIDERS = [
   "virustotal",
   "zoomeye",
   "spyse",
-  "intelx"
+  "intelx",
+  "whoisfreaks"
 ];
 const DEFAULT_TOOL_RECOVERY_ATTEMPTS = 2;
 const TOOL_RECOVERY_PATTERNS = [

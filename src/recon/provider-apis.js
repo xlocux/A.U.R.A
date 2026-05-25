@@ -1,6 +1,7 @@
 "use strict";
 
 const { extractDomains, normalizeDomain } = require("./domain-utils");
+const { callWhoisFreaksHistorical, buildWhoisFreaksUrl } = require("./providers/whoisfreaks");
 
 const INTELX_BASE_URL = "https://free.intelx.io";
 const ZOOMEYE_BASE_URL = "https://api.zoomeye.ai";
@@ -173,6 +174,17 @@ const PROVIDERS = {
         headers: { "X-Key": secret }
       });
       return extractDomains(JSON.stringify(response), [rootDomain]);
+    }
+  },
+  whoisfreaks: {
+    label: "WhoisFreaks",
+    secretFormat: "api_key",
+    docs: "https://whoisfreaks.com/documentation/whois-history-api",
+    usefulFor: ["historical WHOIS", "registrant history", "nameserver pivots"],
+    preflight: ({ secret }) => ({ url: buildWhoisFreaksUrl({ apiKey: secret, domainName: "example.com", whois: "live" }) }),
+    domains: async ({ rootDomain, secret }) => {
+      const result = await callWhoisFreaksHistorical({ apiKey: secret, domainName: rootDomain });
+      return result.domains;
     }
   }
 };
