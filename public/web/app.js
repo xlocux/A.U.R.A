@@ -72,9 +72,9 @@ const API_KEY_PROVIDER_HINTS = {
   spyse: { label: "domain-intel", placeholder: "Spyse API key", monthlyLimit: "" },
   intelx: { label: "domain-mentions", placeholder: "Intelligence X API key", monthlyLimit: "" },
   whoisxmlapi: {
-    label: "trial",
-    placeholder: "WhoisXMLAPI key",
-    monthlyLimit: "50"
+    label: "drs",
+    placeholder: "WhoisXMLAPI DRS key",
+    monthlyLimit: "500 DRS credits"
   },
   whoisfreaks: {
     label: "historical-whois",
@@ -589,7 +589,7 @@ async function startRecon() {
       passiveSources: selectedValues([
         "crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan",
         "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye",
-        "spyse", "intelx", "whoisfreaks"
+        "spyse", "intelx", "whoisxmlapi", "whoisfreaks"
       ]),
       wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),
@@ -1409,6 +1409,7 @@ async function refreshApiKeys() {
 
 function renderApiKeys() {
   const rows = [...apiKeysData].sort(compareApiKeys);
+  renderApiKeyAlerts(rows);
   $("apiKeyRows").innerHTML = rows.map((key) =>
     `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td><td><button class="api-key-delete danger-button" type="button" data-api-key-id="${esc(key.id)}">Delete</button></td></tr>`
   ).join("");
@@ -1429,8 +1430,18 @@ function compareApiKeys(left, right) {
 
 function apiStatusBadge(status) {
   const normalized = String(status || "unknown").toLowerCase();
-  const safe = ["active", "failed", "disabled"].includes(normalized) ? normalized : "unknown";
+  const safe = ["active", "failed", "disabled", "exhausted"].includes(normalized) ? normalized : "unknown";
   return `<span class="api-status-badge ${safe}">${esc(status || "unknown")}</span>`;
+}
+
+function renderApiKeyAlerts(keys) {
+  const exhausted = keys.filter((key) => String(key.status || "").toLowerCase() === "exhausted");
+  if (!exhausted.length) return;
+  setApiPreflightState(
+    "failed",
+    `${exhausted.length} API key${exhausted.length === 1 ? "" : "s"} need attention`,
+    exhausted.map((key) => `${key.provider}/${key.label}: replace the key, enable a paid/free plan, or delete/disable the provider.`).join(" ")
+  );
 }
 
 function sortApiKeys(key) {

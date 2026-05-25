@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { extractDomains, normalizeDomain, rootForDomain } = require("./domain-utils");
 const { parseGauUrls, parseHttpxJsonLines } = require("./parsers");
+const { classifyApiFailure } = require("./provider-apis");
 const { runTechnologyEnrichment } = require("./technology-detectors");
 const { extractTrackersFromServices } = require("./tracker-extraction");
 const { extractFaviconsFromServices } = require("./web-fingerprints");
@@ -35,6 +36,7 @@ const API_PASSIVE_PROVIDERS = [
   "zoomeye",
   "spyse",
   "intelx",
+  "whoisxmlapi",
   "whoisfreaks"
 ];
 const DEFAULT_TOOL_RECOVERY_ATTEMPTS = 2;
@@ -444,6 +446,17 @@ async function collectPassive({ store, runId, targetName, roots, passiveSources,
         const metadataNote = metadata.reason ? ` (${metadata.reason})` : "";
         store.appendEvent(runId, { phase: "recon", severity: domains.length || !metadata.reason ? "ok" : "warn", source, message: `${source} returned ${domains.length} domains for ${root}${metadataNote}` });
       } catch (error) {
+        const activeKey = apiKeys[source];
+        const failure = classifyApiFailure(error.message);
+        if (activeKey?.id && failure.status === "exhausted") {
+          store.updateApiKeyStatus(activeKey.id, "exhausted");
+          store.appendEvent(runId, {
+            phase: "recon",
+            severity: "warn",
+            source,
+            message: `${source} API appears exhausted or unavailable for the current plan. Replace the key, upgrade/enable the provider, or disable this source.`
+          });
+        }
         store.appendEvent(runId, { phase: "recon", severity: "warn", source, message: `${source} failed for ${root}: ${error.message}` });
       }
     }

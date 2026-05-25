@@ -19,6 +19,7 @@ const API_PASSIVE_SOURCES = new Set([
   "zoomeye",
   "spyse",
   "intelx",
+  "whoisxmlapi",
   "whoisfreaks"
 ]);
 

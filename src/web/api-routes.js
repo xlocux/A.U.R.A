@@ -10,7 +10,7 @@ const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = requir
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
 const { callWhoisFreaksHistorical } = require("../recon/providers/whoisfreaks");
-const { providerCatalog, validateProviderKey } = require("../recon/provider-apis");
+const { classifyApiFailure, providerCatalog, validateProviderKey } = require("../recon/provider-apis");
 const {
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
@@ -287,15 +287,16 @@ async function createApiKey(request, response, store) {
   }
   const provider = String(body.provider).trim();
   const preflight = await validateProviderKey(provider, String(body.apiKey).trim());
+  const status = preflight.ok ? "active" : preflight.status || "failed";
   const apiKey = store.addApiKey({
     provider,
     label: String(body.label).trim(),
     apiKey: String(body.apiKey).trim(),
-    status: preflight.ok ? "active" : "failed",
+    status,
     monthlyLimit: body.monthlyLimit === null || body.monthlyLimit === undefined ? null : Number(body.monthlyLimit),
     notes: preflight.message
   });
-  sendJson(response, { apiKey, preflight }, preflight.ok ? 201 : 202);
+  sendJson(response, { apiKey, preflight, alert: apiKeyAlert(apiKey, preflight) }, preflight.ok ? 201 : 202);
 }
 
 function exportApiKeys(response, store) {
@@ -328,15 +329,16 @@ async function importApiKeys(request, response, store) {
     const preflight = preflightEnabled
       ? await validateProviderKey(provider, secret)
       : { ok: true, message: "Imported without preflight." };
+    const status = preflight.ok ? "active" : preflight.status || "failed";
     const apiKey = store.addApiKey({
       provider,
       label,
       apiKey: secret,
-      status: preflight.ok ? "active" : "failed",
+      status,
       monthlyLimit: row.monthlyLimit ?? row.monthly_limit ?? null,
       notes: preflight.message
     });
-    results.push({ id: apiKey.id, provider, label, status: apiKey.status, preflight });
+    results.push({ id: apiKey.id, provider, label, status: apiKey.status, preflight, alert: apiKeyAlert(apiKey, preflight) });
   }
   sendJson(response, { imported: results.filter((item) => item.status !== "skipped").length, results, apiKeys: store.listApiKeys() });
 }
@@ -346,17 +348,29 @@ async function preflightAllApiKeys(response, store) {
   const results = [];
   for (const key of keys) {
     const preflight = await validateProviderKey(key.provider, key.api_key);
-    const status = preflight.ok ? "active" : "failed";
+    const status = preflight.ok ? "active" : preflight.status || "failed";
     store.updateApiKeyStatus(key.id, status);
     results.push({
       id: key.id,
       provider: key.provider,
       label: key.label,
       status,
-      preflight
+      preflight,
+      alert: apiKeyAlert({ ...key, status }, preflight)
     });
   }
-  sendJson(response, { results, apiKeys: store.listApiKeys() });
+  sendJson(response, { results, apiKeys: store.listApiKeys(), alerts: results.map((item) => item.alert).filter(Boolean) });
+}
+
+function apiKeyAlert(apiKey, preflight = {}) {
+  if (!apiKey || !["exhausted", "failed"].includes(apiKey.status)) return null;
+  if (apiKey.status === "failed" && preflight.status !== "exhausted") return null;
+  return {
+    provider: apiKey.provider,
+    label: apiKey.label,
+    status: apiKey.status,
+    message: preflight.action || "Replace this API key, upgrade/enable the provider plan, or disable this provider for recon."
+  };
 }
 
 function deleteApiKey(response, store, id) {

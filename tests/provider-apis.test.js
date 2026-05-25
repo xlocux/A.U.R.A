@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { INTELX_BASE_URL, PROVIDERS, ZOOMEYE_BASE_URL, providerCatalog, validateProviderKey } = require("../src/recon/provider-apis");
+const { INTELX_BASE_URL, PROVIDERS, ZOOMEYE_BASE_URL, classifyApiFailure, providerCatalog, validateProviderKey } = require("../src/recon/provider-apis");
 const { API_PASSIVE_SOURCES } = require("../src/recon/passive-sources");
 
 const EXPECTED_API_PROVIDERS = [
@@ -18,6 +18,7 @@ const EXPECTED_API_PROVIDERS = [
   "zoomeye",
   "spyse",
   "intelx",
+  "whoisxmlapi",
   "whoisfreaks"
 ];
 
@@ -30,6 +31,7 @@ test("provider catalog includes requested recon APIs and auth formats", () => {
   }
   assert.equal(byId.censys.secretFormat, "api_id:api_secret");
   assert.equal(byId.passivetotal.secretFormat, "username:api_secret");
+  assert.equal(byId.whoisxmlapi.secretFormat, "api_key");
   assert.equal(byId.whoisfreaks.secretFormat, "api_key");
 });
 
@@ -57,4 +59,10 @@ test("all registered API providers are enabled as passive recon sources", () => 
   for (const id of EXPECTED_API_PROVIDERS) {
     assert.ok(API_PASSIVE_SOURCES.has(id), `${id} should be selectable by recon passive sources`);
   }
+});
+
+test("provider failures classify exhausted API keys", () => {
+  const result = classifyApiFailure("HTTP 429: quota exceeded");
+  assert.equal(result.status, "exhausted");
+  assert.match(result.action, /Replace/);
 });

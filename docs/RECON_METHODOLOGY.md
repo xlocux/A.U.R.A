@@ -1052,6 +1052,9 @@ WHOIS/RDAP term suggestion should run before Reverse WHOIS when possible:
 - When current records do not expose useful target-related pivots, query
   historical WHOIS from configured providers such as WhoisFreaks before
   declaring that no ownership evidence is available.
+- WhoisXMLAPI DRS enrichment should use the same `whoisxmlapi` key for current
+  WHOIS, Domain Info, Reverse WHOIS, and Subdomains Lookup where the account plan
+  allows those products.
 - Suggest bounded include terms and default exclusions for Reverse WHOIS.
 - Let the AI explain why terms were suggested or skipped, but keep the final
   provider discovery action user-controlled.

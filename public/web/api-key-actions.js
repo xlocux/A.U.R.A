@@ -13,9 +13,16 @@
     new MutationObserver(upgradeRows).observe(rows, { childList: true });
     rows.addEventListener("click", async (event) => {
       const button = event.target.closest(".api-key-test");
-      if (!button) return;
-      event.preventDefault();
-      await testApiKey(button);
+      if (button) {
+        event.preventDefault();
+        await testApiKey(button);
+        return;
+      }
+      const disableButton = event.target.closest(".api-key-disable");
+      if (disableButton) {
+        event.preventDefault();
+        await disableApiKey(disableButton);
+      }
     });
   }
 
@@ -26,6 +33,7 @@
       cell.classList.add("api-key-actions-cell");
       deleteButton.classList.add("api-key-row-button");
       deleteButton.insertAdjacentHTML("beforebegin", `<button class="api-key-test api-key-row-button" type="button" data-api-key-id="${escapeHtml(deleteButton.dataset.apiKeyId)}">Test</button>`);
+      deleteButton.insertAdjacentHTML("beforebegin", `<button class="api-key-disable api-key-row-button" type="button" data-api-key-id="${escapeHtml(deleteButton.dataset.apiKeyId)}">Disable</button>`);
     });
   }
 
@@ -39,10 +47,29 @@
     try {
       const data = await apiFetch(`/api/api-keys/${encodeURIComponent(id)}/preflight`, { method: "POST" });
       const ok = data.preflight?.ok !== false;
-      setApiPreflightStateSafe(ok ? "ok" : "failed", ok ? "API key preflight passed" : "API key preflight failed", data.preflight?.message || "");
+      const alert = data.alert?.message ? ` ${data.alert.message}` : "";
+      setApiPreflightStateSafe(ok ? "ok" : "failed", ok ? "API key preflight passed" : "API key preflight failed", `${data.preflight?.message || ""}${alert}`);
       updateRowStatus(button, data.apiKey?.status || (ok ? "active" : "failed"));
     } catch (error) {
       setApiPreflightStateSafe("failed", "API key preflight failed", error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
+  async function disableApiKey(button) {
+    const id = button.dataset.apiKeyId;
+    if (!id) return;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "Disabling";
+    try {
+      const data = await apiFetch(`/api/api-keys/${encodeURIComponent(id)}/disable`, { method: "POST" });
+      updateRowStatus(button, data.apiKey?.status || "disabled");
+      setApiPreflightStateSafe("ok", "API provider disabled", "This key will not be selected for recon until you replace or re-enable it.");
+    } catch (error) {
+      setApiPreflightStateSafe("failed", "Disable failed", error.message);
     } finally {
       button.disabled = false;
       button.textContent = original;
@@ -54,7 +81,7 @@
     const badge = row?.querySelector(".api-status-badge");
     if (!badge) return;
     const normalized = String(status || "unknown").toLowerCase();
-    badge.className = `api-status-badge ${["active", "failed", "disabled"].includes(normalized) ? normalized : "unknown"}`;
+    badge.className = `api-status-badge ${["active", "failed", "disabled", "exhausted"].includes(normalized) ? normalized : "unknown"}`;
     badge.textContent = status || "unknown";
   }
 

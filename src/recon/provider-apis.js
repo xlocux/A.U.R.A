@@ -1,6 +1,7 @@
 "use strict";
 
 const { extractDomains, normalizeDomain } = require("./domain-utils");
+const { collectWhoisXmlDrsDomains } = require("./providers/whoisxmlapi");
 const { callWhoisFreaksHistorical, buildWhoisFreaksUrl } = require("./providers/whoisfreaks");
 
 const INTELX_BASE_URL = "https://free.intelx.io";
@@ -176,6 +177,17 @@ const PROVIDERS = {
       return extractDomains(JSON.stringify(response), [rootDomain]);
     }
   },
+  whoisxmlapi: {
+    label: "WhoisXMLAPI DRS",
+    secretFormat: "api_key",
+    docs: "https://drs.whoisxmlapi.com/",
+    usefulFor: ["current WHOIS", "domain info", "subdomains", "reverse WHOIS"],
+    preflight: ({ secret }) => ({ url: `https://www.whoisxmlapi.com/whoisserver/WhoisService?apiKey=${encodeURIComponent(secret)}&domainName=example.com&outputFormat=JSON` }),
+    domains: async ({ rootDomain, secret }) => {
+      const result = await collectWhoisXmlDrsDomains({ apiKey: secret, rootDomain });
+      return result;
+    }
+  },
   whoisfreaks: {
     label: "WhoisFreaks",
     secretFormat: "api_key",
@@ -208,7 +220,8 @@ async function validateProviderKey(provider, secret) {
     });
     return { ok: true, message: `${definition.label} preflight succeeded.`, docs: definition.docs, usefulFor: definition.usefulFor };
   } catch (error) {
-    return { ok: false, message: `${definition.label} preflight failed: ${error.message}`, docs: definition.docs, usefulFor: definition.usefulFor };
+    const failure = classifyApiFailure(error.message);
+    return { ok: false, status: failure.status, message: `${definition.label} preflight failed: ${error.message}`, docs: definition.docs, usefulFor: definition.usefulFor, action: failure.action };
   }
 }
 
@@ -216,10 +229,11 @@ async function collectProviderDomains({ provider, rootDomain, apiKey }) {
   const definition = PROVIDERS[provider];
   if (!definition?.domains) return { domains: [], metadata: { mode: "unsupported-provider", reason: `${provider} is not configured as a passive domain source.` } };
   if (!apiKey?.api_key) return { domains: [], metadata: { mode: "missing-api-key", reason: `${definition.label} skipped: no active API key.` } };
-  const domains = await definition.domains({ rootDomain, secret: apiKey.api_key });
+  const result = await definition.domains({ rootDomain, secret: apiKey.api_key });
+  const domains = Array.isArray(result) ? result : result.domains || [];
   return {
     domains: [...new Set(domains.map(normalizeDomain).filter(Boolean))],
-    metadata: { mode: "api-provider", provider, docs: definition.docs, usefulFor: definition.usefulFor }
+    metadata: { mode: "api-provider", provider, docs: definition.docs, usefulFor: definition.usefulFor, ...(!Array.isArray(result) ? result.metadata || {} : {}) }
   };
 }
 
@@ -249,6 +263,17 @@ async function requestJson(url, options = {}) {
   }
 }
 
+function classifyApiFailure(message) {
+  const text = String(message || "");
+  if (/(quota|credit|credits|limit|rate.?limit|exhaust|payment|required|plan|subscription|insufficient|no credits|forbidden|not authorized|unauthorized|401|402|403|429)/i.test(text)) {
+    return {
+      status: "exhausted",
+      action: "Replace the API key, upgrade/enable the provider plan, or disable this provider for recon."
+    };
+  }
+  return { status: "failed", action: "Check the API key and provider status." };
+}
+
 function basicAuth(secret) {
   return { Authorization: `Basic ${Buffer.from(String(secret || "")).toString("base64")}` };
 }
@@ -262,6 +287,7 @@ module.exports = {
   PROVIDERS,
   ZOOMEYE_BASE_URL,
   collectProviderDomains,
+  classifyApiFailure,
   providerCatalog,
   validateProviderKey
 };

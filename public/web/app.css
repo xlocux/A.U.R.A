@@ -986,6 +986,11 @@ button:disabled { opacity: .55; cursor: wait; }
   border-color: rgba(239, 111, 108, .62);
   color: var(--bad);
 }
+.api-status-badge.exhausted {
+  background: rgba(242, 184, 75, .16);
+  border-color: rgba(242, 184, 75, .65);
+  color: var(--warn);
+}
 .api-status-badge.disabled,
 .api-status-badge.unknown {
   background: rgba(157, 166, 181, .12);
