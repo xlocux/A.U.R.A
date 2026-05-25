@@ -1,17 +1,18 @@
 :root {
-  --vercel-bg: #05070b;
-  --vercel-bg-2: #080d14;
-  --vercel-panel: rgba(16, 18, 27, 0.82);
-  --vercel-panel-strong: rgba(18, 20, 31, 0.94);
-  --vercel-card: rgba(255, 255, 255, 0.045);
-  --vercel-card-hover: rgba(59, 130, 246, 0.075);
-  --vercel-line: rgba(148, 163, 184, 0.16);
-  --vercel-line-strong: rgba(148, 163, 184, 0.28);
+  --vercel-bg: #030608;
+  --vercel-bg-2: #070b10;
+  --vercel-sidebar: #080c11;
+  --vercel-panel: rgba(15, 18, 26, 0.88);
+  --vercel-panel-strong: rgba(17, 20, 29, 0.96);
+  --vercel-card: rgba(255, 255, 255, 0.04);
+  --vercel-card-hover: rgba(45, 127, 232, 0.1);
+  --vercel-line: rgba(96, 112, 132, 0.24);
+  --vercel-line-strong: rgba(116, 132, 154, 0.36);
   --vercel-text: #f8fafc;
-  --vercel-muted: #a7b0c2;
-  --vercel-subtle: #737d91;
-  --vercel-blue: #2874dc;
-  --vercel-blue-2: #3b82f6;
+  --vercel-muted: #aeb7c8;
+  --vercel-subtle: #687386;
+  --vercel-blue: #1769c2;
+  --vercel-blue-2: #2f7df0;
   --vercel-green: #22c55e;
   --vercel-amber: #f59e0b;
   --vercel-red: #ef4444;
@@ -28,9 +29,9 @@ body {
   grid-template-rows: 72px minmax(0, 1fr);
   color: var(--vercel-text);
   background:
-    radial-gradient(circle at 16% 0%, rgba(40, 116, 220, 0.22), transparent 24rem),
-    radial-gradient(circle at 86% 8%, rgba(59, 130, 246, 0.14), transparent 26rem),
-    linear-gradient(180deg, #070b12 0%, var(--vercel-bg) 58%, #030407 100%) !important;
+    radial-gradient(circle at 16% 0%, rgba(35, 104, 196, 0.18), transparent 24rem),
+    radial-gradient(circle at 86% 8%, rgba(47, 125, 240, 0.1), transparent 26rem),
+    linear-gradient(180deg, #070b10 0%, var(--vercel-bg) 58%, #010304 100%) !important;
   font-family: Inter, "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -59,14 +60,26 @@ header {
   min-height: 70px;
   padding: 0 28px;
   border-bottom: 1px solid var(--vercel-line) !important;
-  background: rgba(5, 7, 11, 0.86) !important;
+  background: rgba(3, 6, 8, 0.92) !important;
   backdrop-filter: blur(18px) saturate(140%);
 }
 
 .headerbar {
   height: 70px;
-  grid-template-columns: minmax(250px, max-content) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(250px, max-content) minmax(0, 1fr) auto;
   gap: 18px;
+}
+
+.sidebar-toggle {
+  width: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  color: var(--vercel-text) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  box-shadow: none !important;
 }
 
 .headerbar h1 {
@@ -168,7 +181,7 @@ header {
   border-bottom: 0 !important;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
-    rgba(5, 7, 11, 0.86) !important;
+    var(--vercel-sidebar) !important;
   backdrop-filter: blur(18px) saturate(140%);
   overflow-y: auto;
 }
@@ -252,6 +265,30 @@ header {
 .workspace-main {
   width: min(1540px, 100%);
   margin: 0 auto;
+}
+
+body.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+body.sidebar-collapsed .tabs {
+  padding: 18px 10px;
+}
+
+body.sidebar-collapsed .tabs::before,
+body.sidebar-collapsed .tabs::after {
+  display: none;
+}
+
+body.sidebar-collapsed .tab {
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+  font-size: 0;
+}
+
+body.sidebar-collapsed .tab::before {
+  margin: 0;
 }
 
 .tab-panel.active {
@@ -390,6 +427,47 @@ button.danger-button {
 .logs-subtabs,
 .topology-view-tabs {
   gap: 8px;
+}
+
+#tab-settings .settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+#tab-settings .settings-layout > .pane:first-child {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px 12px;
+}
+
+#tab-settings .settings-layout > .pane:first-child h2 {
+  flex: 0 0 auto;
+  border: 0 !important;
+  padding: 0 8px 0 2px;
+}
+
+#tab-settings .settings-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 8px;
+  padding: 0;
+  overflow-x: auto;
+}
+
+#tab-settings .settings-tab {
+  width: auto;
+  min-width: 112px;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#tab-settings .settings-panel.active {
+  min-height: 0;
 }
 
 .notice,
@@ -548,5 +626,22 @@ tr:hover td {
   .command-search {
     min-width: min(100%, 420px);
     flex: 1 1 260px;
+  }
+
+  .sidebar-toggle {
+    display: none !important;
+  }
+
+  body.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  #tab-settings .settings-layout > .pane:first-child {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #tab-settings .settings-tab {
+    min-width: 104px;
   }
 }

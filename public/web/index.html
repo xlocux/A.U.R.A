@@ -12,6 +12,7 @@
   <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
   <header>
     <div class="headerbar">
+      <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="workspaceNav" title="Toggle sidebar">☰</button>
       <h1>A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</h1>
       <p id="status" class="muted"></p>
       <div class="top-command" aria-label="Dashboard actions">
@@ -25,15 +26,15 @@
     </div>
   </header>
 
-  <nav class="tabs" aria-label="Workspace tabs">
-    <button class="tab" data-tab="recon">Recon</button>
-    <button class="tab" data-tab="wordlists">Wordlists</button>
-    <button class="tab" data-tab="search">Search</button>
-    <button class="tab" data-tab="topology">Topology</button>
-    <button class="tab" data-tab="results">Results</button>
-    <button class="tab" data-tab="ai-log">AI Log</button>
-    <button class="tab" data-tab="runs">Runs & Logs</button>
-    <button class="tab active" data-tab="settings">Settings</button>
+  <nav id="workspaceNav" class="tabs" aria-label="Workspace tabs">
+    <button class="tab" data-tab="recon" title="Recon">Recon</button>
+    <button class="tab" data-tab="wordlists" title="Wordlists">Wordlists</button>
+    <button class="tab" data-tab="search" title="Search">Search</button>
+    <button class="tab" data-tab="topology" title="Topology">Topology</button>
+    <button class="tab" data-tab="results" title="Results">Results</button>
+    <button class="tab" data-tab="ai-log" title="AI Log">AI Log</button>
+    <button class="tab" data-tab="runs" title="Runs & Logs">Runs & Logs</button>
+    <button class="tab active" data-tab="settings" title="Settings">Settings</button>
   </nav>
 
   <main class="workspace">

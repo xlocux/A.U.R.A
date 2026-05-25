@@ -25,6 +25,7 @@ let imagePreviewIndex = 0;
 
 const $ = (id) => document.getElementById(id);
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "aura.sidebarCollapsed";
 const ACTIVE_TARGET_STORAGE_KEY = "aura.activeTarget";
 const API_KEY_PROVIDER_HINTS = {
   openrouter: {
@@ -328,6 +329,12 @@ function bindDashboardShellActions() {
   document.querySelectorAll("[data-dashboard-tab]").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.dashboardTab));
   });
+  const sidebarToggle = $("sidebarToggle");
+  const savedSidebarState = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+  applySidebarCollapsed(savedSidebarState);
+  sidebarToggle?.addEventListener("click", () => {
+    applySidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+  });
   $("dashboardQuickSearch")?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     const query = event.currentTarget.value.trim();
@@ -335,6 +342,12 @@ function bindDashboardShellActions() {
     activateTab("search");
     if (query) runSearch();
   });
+}
+
+function applySidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  $("sidebarToggle")?.setAttribute("aria-expanded", String(!collapsed));
+  localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
 }
 
 function getUiSettings() {
