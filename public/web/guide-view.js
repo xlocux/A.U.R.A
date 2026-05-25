@@ -25,7 +25,8 @@
     button.className = "tab";
     button.dataset.tab = "guide";
     button.type = "button";
-    button.textContent = "Guide";
+    button.title = "Guide";
+    button.innerHTML = `<span class="tab-icon" data-icon="guide"></span><span class="tab-label">Guide</span>`;
     const settings = tabs.querySelector('[data-tab="settings"]');
     tabs.insertBefore(button, settings || null);
     button.addEventListener("click", () => activateGuideTab());

@@ -92,6 +92,7 @@ async function startWebServer(argv = process.argv) {
 
 function isPublicPath(requestPath) {
   return requestPath === "/login.html" ||
+    requestPath.startsWith("/assets/") ||
     requestPath === "/app.css" ||
     requestPath === "/login.css" ||
     requestPath === "/wave-background.js" ||

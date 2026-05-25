@@ -28,7 +28,8 @@
     const button = document.createElement("button");
     button.className = "tab";
     button.dataset.tab = "projects";
-    button.textContent = "Projects";
+    button.title = "Projects";
+    button.innerHTML = `<span class="tab-icon" data-icon="projects"></span><span class="tab-label">Projects</span>`;
     const results = nav.querySelector('[data-tab="results"]');
     nav.insertBefore(button, results || nav.firstChild);
   }

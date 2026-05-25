@@ -77,7 +77,8 @@
     logsButton.className = "tab";
     logsButton.type = "button";
     logsButton.dataset.tab = "logs";
-    logsButton.textContent = "Logs";
+    logsButton.title = "Logs";
+    logsButton.innerHTML = `<span class="tab-icon" data-icon="logs"></span><span class="tab-label">Logs</span>`;
     tabs.insertBefore(logsButton, aiButton || runButton || null);
     aiButton?.classList.add("aura-hidden-tab");
     runButton?.classList.add("aura-hidden-tab");
