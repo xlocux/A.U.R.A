@@ -118,6 +118,13 @@ header {
   letter-spacing: 0;
 }
 
+.header-logo-img {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 6px;
+}
+
 .brand-logo-img {
   width: 38px;
   height: 38px;
@@ -192,6 +199,7 @@ header {
 }
 
 .tabs {
+  position: relative;
   grid-column: 1;
   grid-row: 2;
   z-index: 11;
@@ -200,7 +208,7 @@ header {
   gap: 8px;
   height: calc(100vh - 72px);
   min-height: 0;
-  padding: 14px 16px 0;
+  padding: 14px 16px 72px;
   border-right: 1px solid var(--vercel-line) !important;
   border-bottom: 0 !important;
   background:
@@ -292,12 +300,14 @@ header {
 }
 
 .tab:hover,
-.tab.active {
+.tabs .tab.active {
   border-color: var(--vercel-line-strong) !important;
   color: #fff !important;
   background: #18181b !important;
+  background-image: none !important;
   filter: none;
   transform: none;
+  box-shadow: none !important;
 }
 
 .tab.active .tab-icon {
@@ -323,6 +333,10 @@ header {
 }
 
 .sidebar-toggle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex !important;
   align-items: center;
   justify-content: center;
@@ -575,6 +589,20 @@ button.danger-button {
   color: #ffffff !important;
   border-color: var(--vercel-line-strong) !important;
   background: #18181b !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+body .tabs .tab.active,
+body .settings-tab.active,
+body .result-subtab.active,
+body .logs-subtabs button.active,
+body .topology-view-tabs button.active {
+  color: #ffffff !important;
+  border-color: var(--vercel-line-strong) !important;
+  background: #18181b !important;
+  background-image: none !important;
+  box-shadow: none !important;
 }
 
 .result-subtabs,
