@@ -1,8 +1,11 @@
 "use strict";
 
 (function initAuraTopologyStableCharts() {
+  let renderSerial = 0;
+
   function boot() {
     document.addEventListener("click", onTopologyClick, true);
+    document.addEventListener("click", onMainTopologyTabClick, true);
   }
 
   function onTopologyClick(event) {
@@ -15,6 +18,7 @@
     const shell = document.querySelector(".topology-shell");
     const panel = document.getElementById("topologyDashboard");
     if (view === "graph") {
+      renderSerial += 1;
       shell?.classList.remove("hidden");
       panel?.classList.add("hidden");
       setTimeout(() => window.AuraTopology?.render?.(), 50);
@@ -25,30 +29,54 @@
     render(view);
   }
 
+  function onMainTopologyTabClick(event) {
+    if (!event.target.closest('[data-tab="topology"]')) return;
+    setTimeout(() => {
+      const active = document.querySelector("[data-topology-view].active")?.dataset.topologyView || "graph";
+      if (active === "graph") window.AuraTopology?.render?.();
+      else render(active);
+    }, 80);
+  }
+
   async function render(view) {
+    const serial = ++renderSerial;
     const panel = document.getElementById("topologyDashboard");
-    const runId = document.getElementById("runId")?.textContent?.trim();
+    const runId = activeRunId();
     if (!panel) return;
-    if (!runId || runId === "-") {
+    if (!runId) {
       panel.innerHTML = card("Topology analytics", "Load a run from Results before opening this view.");
       return;
     }
     panel.innerHTML = card("Topology analytics", "Loading charts...");
     try {
       const data = await loadRun(runId);
+      if (serial !== renderSerial || currentView() !== view) return;
       panel.innerHTML = html(view, data) || card("Topology analytics", "No chart data available yet.");
     } catch (error) {
+      if (serial !== renderSerial || currentView() !== view) return;
       panel.innerHTML = card("Topology analytics", `Unable to load charts: ${error.message}`);
     }
   }
 
+  function activeRunId() {
+    const visibleRun = document.getElementById("runId")?.textContent?.trim();
+    if (visibleRun && visibleRun !== "-") return visibleRun;
+    const status = document.getElementById("status")?.textContent || "";
+    return status.match(/run\s+(\d+)/i)?.[1] || null;
+  }
+
+  function currentView() {
+    return document.querySelector("[data-topology-view].active")?.dataset.topologyView || "graph";
+  }
+
   async function loadRun(runId) {
+    const encodedRunId = encodeURIComponent(runId);
     const [domains, services, urls, tech, tree] = await Promise.all([
-      get(`/api/recon-runs/${runId}/domains`),
-      get(`/api/recon-runs/${runId}/http-services`),
-      get(`/api/recon-runs/${runId}/urls`),
-      get(`/api/recon-runs/${runId}/technologies`),
-      get(`/api/recon-runs/${runId}/result-tree`)
+      get(`/api/recon-runs/${encodedRunId}/domains`),
+      get(`/api/recon-runs/${encodedRunId}/http-services`),
+      get(`/api/recon-runs/${encodedRunId}/urls`),
+      get(`/api/recon-runs/${encodedRunId}/technologies`),
+      get(`/api/recon-runs/${encodedRunId}/result-tree`)
     ]);
     const flat = flatten(tree?.tree || {});
     return {
