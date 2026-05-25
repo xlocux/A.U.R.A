@@ -10,6 +10,7 @@
     injectScript("/auth-persistence.js", "aura-auth-persistence-js");
     injectScript("/workspace-layout.js", "aura-workspace-layout-js");
     injectScript("/topology-stable-charts.js", "aura-topology-stable-charts-js");
+    injectScript("/topology-subtab-guard.js", "aura-topology-subtab-guard-js");
     injectScript("/security-settings.js", "aura-security-settings-js");
   }
 
