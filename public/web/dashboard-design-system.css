@@ -1,6 +1,6 @@
 /* Dashboard Design System Layer
-   Intent: give A.U.R.A a dark cloud-platform dashboard aesthetic with clear hierarchy,
-   modular grids, glass panels, explicit states, and accessible focus defaults. */
+   Intent: TypeUI-inspired dark cloud dashboard visuals without changing A.U.R.A layout or behavior.
+   This file must be a safe skin over app.css: no global width, grid, spacing, or control sizing resets. */
 
 :root {
   --dash-primary: #0C5CAB;
@@ -11,81 +11,79 @@
   --dash-danger: #ef4444;
   --dash-surface: #09090b;
   --dash-surface-2: #0f1117;
-  --dash-surface-3: #151823;
-  --dash-glass: rgba(18, 22, 32, .72);
-  --dash-glass-strong: rgba(20, 24, 36, .88);
-  --dash-border: rgba(148, 163, 184, .18);
-  --dash-border-strong: rgba(148, 163, 184, .32);
+  --dash-surface-3: #171923;
   --dash-text: #fafafa;
-  --dash-muted: #a1a1aa;
-  --dash-subtle: #71717a;
-  --dash-ring: rgba(59, 130, 246, .72);
-  --dash-shadow-sm: 0 1px 2px rgba(0, 0, 0, .28);
-  --dash-shadow-md: 0 16px 48px rgba(0, 0, 0, .32);
-  --dash-shadow-glow: 0 0 0 1px rgba(12, 92, 171, .16), 0 20px 70px rgba(12, 92, 171, .16);
-  --dash-radius-sm: 8px;
-  --dash-radius-md: 12px;
-  --dash-radius-lg: 16px;
-  --dash-space-1: 8px;
-  --dash-space-2: 16px;
-  --dash-space-3: 24px;
-  --dash-space-4: 32px;
-  --dash-font: "IBM Plex Sans", Inter, "Segoe UI", system-ui, sans-serif;
-  --bg: var(--dash-surface);
-  --panel: var(--dash-glass);
-  --panel-2: rgba(9, 9, 11, .74);
-  --ink: var(--dash-text);
-  --muted: var(--dash-muted);
-  --line: var(--dash-border);
-  --accent: var(--dash-primary);
-  --accent-2: var(--dash-primary-400);
-  --ok: var(--dash-success);
-  --warn: var(--dash-warning);
-  --bad: var(--dash-danger);
+  --dash-muted: #b8beca;
+  --dash-subtle: #8a93a3;
+  --dash-border: rgba(148, 163, 184, .24);
+  --dash-border-soft: rgba(148, 163, 184, .14);
+  --dash-glass: rgba(18, 22, 32, .76);
+  --dash-glass-strong: rgba(17, 20, 29, .92);
+  --dash-ring: rgba(59, 130, 246, .75);
+  --dash-shadow-panel: 0 14px 40px rgba(0, 0, 0, .28);
+  --dash-shadow-soft: 0 1px 2px rgba(0, 0, 0, .35);
 }
 
-* { scrollbar-color: rgba(148, 163, 184, .42) rgba(9, 9, 11, .24); }
-
-html { font-family: var(--dash-font); }
+html {
+  font-family: "IBM Plex Sans", Inter, "Segoe UI", system-ui, sans-serif;
+}
 
 body {
   background:
-    radial-gradient(circle at 16% -12%, rgba(12, 92, 171, .30), transparent 34%),
-    radial-gradient(circle at 88% 8%, rgba(16, 185, 129, .13), transparent 30%),
-    linear-gradient(180deg, rgba(15, 17, 23, .92), rgba(9, 9, 11, .98)),
-    var(--dash-surface);
-  letter-spacing: .005em;
+    radial-gradient(circle at 14% -8%, rgba(12, 92, 171, .22), transparent 30%),
+    radial-gradient(circle at 86% 4%, rgba(59, 130, 246, .14), transparent 28%),
+    linear-gradient(180deg, #0d0f16 0%, var(--dash-surface) 100%) !important;
+  color: var(--dash-text);
 }
 
 body::after {
-  opacity: .12;
+  opacity: .10;
   mix-blend-mode: screen;
+}
+
+.background-scope {
+  opacity: .26;
 }
 
 header,
 .tabs {
-  background: rgba(9, 9, 11, .76);
-  border-color: var(--dash-border);
-  backdrop-filter: blur(18px) saturate(140%);
+  background: rgba(9, 9, 11, .82) !important;
+  border-color: var(--dash-border-soft) !important;
+  backdrop-filter: blur(14px) saturate(130%);
 }
 
 .headerbar h1 {
-  font-size: clamp(16px, 1.7vw, 24px);
+  color: var(--dash-text);
   font-weight: 800;
-  letter-spacing: -.035em;
+  letter-spacing: -.025em;
 }
 
-#status {
-  justify-self: end;
-  max-width: min(760px, 60vw);
-  text-align: right;
-  color: var(--dash-muted);
-  font-size: 12px;
+#status,
+.muted,
+label {
+  color: var(--dash-muted) !important;
 }
 
-.tabs {
-  gap: var(--dash-space-1);
-  padding: 8px 14px;
+.pane,
+.embedded-window,
+.output-window,
+.ai-panel,
+.modal-card {
+  border-color: var(--dash-border-soft) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012)),
+    var(--dash-glass) !important;
+  box-shadow: var(--dash-shadow-soft);
+  backdrop-filter: blur(12px) saturate(125%);
+}
+
+.pane h2,
+.embedded-window h2,
+.output-title h2,
+.ai-header h2 {
+  color: var(--dash-text) !important;
+  font-weight: 800;
+  letter-spacing: .065em;
 }
 
 .tab,
@@ -93,13 +91,10 @@ header,
 .result-subtab,
 .logs-subtabs button,
 .topology-view-tabs button {
-  min-height: 36px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  color: var(--dash-muted);
-  background: rgba(24, 24, 27, .58);
-  box-shadow: none;
-  transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+  color: var(--dash-muted) !important;
+  background: rgba(24, 24, 27, .58) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .tab:hover,
@@ -107,9 +102,9 @@ header,
 .result-subtab:hover,
 .logs-subtabs button:hover,
 .topology-view-tabs button:hover {
-  color: var(--dash-text);
-  border-color: var(--dash-border-strong);
-  background: rgba(39, 39, 42, .72);
+  color: var(--dash-text) !important;
+  background: rgba(39, 39, 42, .78) !important;
+  border-color: var(--dash-border) !important;
 }
 
 .tab.active,
@@ -117,82 +112,10 @@ header,
 .result-subtab.active,
 .logs-subtabs button.active,
 .topology-view-tabs button.active {
-  color: var(--dash-text);
-  border-color: rgba(59, 130, 246, .58);
-  background: linear-gradient(135deg, rgba(12, 92, 171, .94), rgba(59, 130, 246, .78));
-  box-shadow: var(--dash-shadow-glow);
-}
-
-.workspace {
-  padding: var(--dash-space-2);
-}
-
-.workspace-main,
-.split,
-.target-grid,
-.row,
-.row3,
-.ai-settings-grid,
-.security-grid,
-.topology-dashboard {
-  gap: var(--dash-space-2);
-}
-
-.pane,
-.embedded-window,
-.metric,
-.mini-metric,
-.detail-metrics div,
-.notice,
-.output-window,
-.ai-panel,
-.modal-card {
-  border: 1px solid var(--dash-border);
-  border-radius: var(--dash-radius-lg);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, .045), transparent 36%),
-    var(--dash-glass);
-  box-shadow: var(--dash-shadow-sm);
-  backdrop-filter: blur(16px) saturate(140%);
-}
-
-.pane:hover,
-.embedded-window:hover,
-.metric:hover,
-.mini-metric:hover {
-  border-color: rgba(148, 163, 184, .28);
-}
-
-.pane h2,
-.output-title h2,
-.ai-header h2 {
-  color: var(--dash-text);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  border-color: var(--dash-border);
-}
-
-.form-body,
-.output-log,
-.scroll,
-.table-shell {
-  border-radius: var(--dash-radius-md);
-}
-
-label,
-.muted,
-.notice.muted,
-.api-preflight small,
-.ai-header p {
-  color: var(--dash-muted);
-}
-
-label {
-  font-size: 12px;
-  font-weight: 700;
+  color: #ffffff !important;
+  border-color: rgba(59, 130, 246, .48) !important;
+  background: linear-gradient(135deg, var(--dash-primary), var(--dash-primary-400)) !important;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, .22), 0 12px 26px rgba(12, 92, 171, .20) !important;
 }
 
 input[type="text"],
@@ -201,122 +124,83 @@ input[type="password"],
 input[type="range"],
 textarea,
 select {
-  min-height: 40px;
-  border: 1px solid var(--dash-border);
-  border-radius: var(--dash-radius-md);
-  background: rgba(9, 9, 11, .72);
-  color: var(--dash-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .03);
-}
-
-textarea {
-  line-height: 1.45;
+  color: var(--dash-text) !important;
+  background: rgba(9, 9, 11, .72) !important;
+  border-color: var(--dash-border-soft) !important;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--dash-subtle);
+  color: var(--dash-subtle) !important;
 }
 
-button,
-.icon-button,
-.ai-restore,
-.table-sort {
-  min-height: 40px;
-  border-radius: var(--dash-radius-md);
-  color: var(--dash-text);
-  background: linear-gradient(135deg, var(--dash-primary), var(--dash-primary-400));
-  box-shadow: 0 10px 26px rgba(12, 92, 171, .18);
+button:not(.tab):not(.settings-tab):not(.result-subtab):not(.table-sort):not(.icon-button),
+.ai-restore {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--dash-primary), var(--dash-primary-400)) !important;
+  box-shadow: 0 10px 22px rgba(12, 92, 171, .18);
 }
 
-button:hover,
-.icon-button:hover,
-.ai-restore:hover,
-.table-sort:hover {
-  transform: translateY(-1px);
+button:not(.tab):not(.settings-tab):not(.result-subtab):not(.table-sort):not(.icon-button):hover,
+.ai-restore:hover {
   filter: brightness(1.08);
-}
-
-button:active,
-.icon-button:active,
-.ai-restore:active,
-.table-sort:active {
-  transform: translateY(0);
-}
-
-button:disabled,
-input:disabled,
-select:disabled,
-textarea:disabled {
-  cursor: not-allowed;
-  opacity: .58;
 }
 
 .danger-button,
 button.danger-button {
-  color: #fff;
-  border: 1px solid rgba(239, 68, 68, .52);
-  background: linear-gradient(135deg, rgba(127, 29, 29, .92), rgba(239, 68, 68, .72));
-  box-shadow: 0 10px 26px rgba(239, 68, 68, .14);
-}
-
-.check {
-  min-height: 32px;
-  align-items: center;
-}
-
-.check input,
-input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--dash-primary-400);
+  color: #ffffff !important;
+  border-color: rgba(239, 68, 68, .55) !important;
+  background: linear-gradient(135deg, rgba(127, 29, 29, .94), rgba(239, 68, 68, .74)) !important;
+  box-shadow: 0 10px 22px rgba(239, 68, 68, .14) !important;
 }
 
 .notice {
-  padding: var(--dash-space-1) 12px;
-  line-height: 1.45;
+  border-color: var(--dash-border-soft) !important;
+  background: rgba(17, 20, 29, .60) !important;
 }
 
 .notice.ok,
 .api-status-badge.active,
 .delta-badge.ok {
-  border-color: rgba(16, 185, 129, .45);
-  background: rgba(16, 185, 129, .12);
-  color: #bbf7d0;
+  border-color: rgba(16, 185, 129, .45) !important;
+  background: rgba(16, 185, 129, .12) !important;
+  color: #bbf7d0 !important;
 }
 
 .notice.warn,
 .api-status-badge.exhausted,
 .delta-badge.warn {
-  border-color: rgba(245, 158, 11, .48);
-  background: rgba(245, 158, 11, .12);
-  color: #fde68a;
+  border-color: rgba(245, 158, 11, .48) !important;
+  background: rgba(245, 158, 11, .12) !important;
+  color: #fde68a !important;
 }
 
 .notice.error,
 .api-status-badge.failed,
 .delta-badge.error {
-  border-color: rgba(239, 68, 68, .50);
-  background: rgba(239, 68, 68, .12);
-  color: #fecaca;
+  border-color: rgba(239, 68, 68, .50) !important;
+  background: rgba(239, 68, 68, .12) !important;
+  color: #fecaca !important;
 }
 
 .metric,
 .mini-metric,
 .detail-metrics div,
 .topology-metrics div,
-.storage-overview div {
-  background: linear-gradient(180deg, rgba(250, 250, 250, .045), rgba(250, 250, 250, .015));
+.storage-overview div,
+.guide-deep-card,
+.model-card-list > * {
+  border-color: var(--dash-border-soft) !important;
+  background:
+    linear-gradient(180deg, rgba(250, 250, 250, .045), rgba(250, 250, 250, .012)),
+    rgba(17, 20, 29, .68) !important;
 }
 
 .metric strong,
 .mini-metric strong,
 .detail-metrics strong,
 .topology-metrics strong {
-  color: var(--dash-text);
-  font-size: clamp(18px, 2vw, 28px);
-  font-weight: 800;
-  letter-spacing: -.035em;
+  color: var(--dash-text) !important;
 }
 
 .metric span,
@@ -324,34 +208,21 @@ input[type="checkbox"] {
 .detail-metrics span,
 .topology-metrics span,
 .storage-overview span {
-  color: var(--dash-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-table {
-  border-collapse: separate;
-  border-spacing: 0;
+  color: var(--dash-muted) !important;
 }
 
 th {
-  color: var(--dash-muted);
-  background: rgba(24, 24, 27, .68);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  color: var(--dash-muted) !important;
+  background: rgba(24, 24, 27, .70) !important;
 }
 
 td {
-  color: rgba(250, 250, 250, .88);
-  border-top: 1px solid rgba(148, 163, 184, .10);
+  color: rgba(250, 250, 250, .90) !important;
+  border-color: rgba(148, 163, 184, .10) !important;
 }
 
 tbody tr:hover td {
-  background: rgba(12, 92, 171, .10);
+  background: rgba(12, 92, 171, .10) !important;
 }
 
 .output-log,
@@ -359,48 +230,22 @@ pre,
 code,
 .artifact-path,
 .compact-log {
-  font-family: "IBM Plex Mono", "IBM Plex Sans", Consolas, monospace;
-}
-
-.ai-panel {
-  box-shadow: var(--dash-shadow-md);
-}
-
-.ai-message {
-  border-radius: var(--dash-radius-md);
+  font-family: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
 }
 
 .ai-message.assistant {
-  border: 1px solid rgba(59, 130, 246, .18);
-  background: rgba(12, 92, 171, .13);
+  border-color: rgba(59, 130, 246, .22) !important;
+  background: rgba(12, 92, 171, .14) !important;
 }
 
 .ai-message.user {
-  border: 1px solid rgba(16, 185, 129, .20);
-  background: rgba(16, 185, 129, .12);
-}
-
-.topology-main,
-#topologyCanvas,
-.screenshot-thumb,
-.model-card-list > *,
-.guide-deep-card {
-  border-radius: var(--dash-radius-lg);
-  border-color: var(--dash-border);
+  border-color: rgba(16, 185, 129, .24) !important;
+  background: rgba(16, 185, 129, .12) !important;
 }
 
 :focus-visible {
-  outline: 3px solid var(--dash-ring);
-  outline-offset: 2px;
-}
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
-[tabindex]:focus-visible {
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, .18);
+  outline: 3px solid var(--dash-ring) !important;
+  outline-offset: 2px !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -414,49 +259,8 @@ select:focus-visible,
 
 @media (prefers-contrast: more) {
   :root {
-    --dash-border: rgba(250, 250, 250, .42);
-    --dash-border-strong: rgba(250, 250, 250, .72);
-    --dash-muted: #d4d4d8;
-  }
-  .pane,
-  .embedded-window,
-  .notice,
-  input,
-  textarea,
-  select {
-    border-width: 2px;
-  }
-}
-
-@media (max-width: 1100px) {
-  .workspace { padding: var(--dash-space-1); }
-  .split,
-  .target-grid,
-  .row,
-  .row3,
-  .ai-settings-grid,
-  .security-grid,
-  .topology-dashboard {
-    grid-template-columns: 1fr !important;
-  }
-  #status {
-    justify-self: start;
-    text-align: left;
-    max-width: 100%;
-  }
-  .headerbar {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (pointer: coarse) {
-  .tab,
-  button,
-  input,
-  select,
-  textarea,
-  .settings-tab,
-  .result-subtab {
-    min-height: 44px;
+    --dash-border: rgba(250, 250, 250, .54);
+    --dash-border-soft: rgba(250, 250, 250, .40);
+    --dash-muted: #e4e4e7;
   }
 }
