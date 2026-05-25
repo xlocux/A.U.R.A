@@ -20,7 +20,7 @@ const { createEnvironmentRunner, setupToolIds } = require("../src/recon/environm
 const { httpxArgsForInput } = require("../src/recon/recon-engine");
 const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWpscanTechnologies } = require("../src/recon/technology-detectors");
 const { calculateTLDConfidence, ipInCIDR, scopeEvaluateTldCandidate } = require("../src/recon/tld-correlation-engine");
-const { ALLOWED_TOOLS, normalizeProxyUrl, redactProxyUrl } = require("../src/recon/wsl-tools");
+const { ALLOWED_TOOLS, normalizeProxyUrl, redactProxyUrl } = require("../src/recon/linux-tools");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
 const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
@@ -571,7 +571,7 @@ test("tool registry loads built-in manifests and validates required fields", () 
 });
 
 test("environment runner selects a valid local mode", () => {
-  assert.ok(["native", "wsl"].includes(createEnvironmentRunner({ distro: "kali-linux" }).mode));
+  assert.equal(createEnvironmentRunner({ runtime: "linux" }).mode, "native");
 });
 
 test("local artifact store writes safe run artifacts", () => {

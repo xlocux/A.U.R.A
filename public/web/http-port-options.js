@@ -66,8 +66,8 @@
         try {
           const body = JSON.parse(init.body);
           const portConfig = selectedPortConfig();
-          if (Array.isArray(body.wslTools)) {
-            body.wslTools = body.wslTools.map((tool) => tool === "httpx" ? { name: "httpx", ...portConfig } : tool);
+          if (Array.isArray(body.linuxTools)) {
+            body.linuxTools = body.linuxTools.map((tool) => tool === "httpx" ? { name: "httpx", ...portConfig } : tool);
           }
           body.httpx = portConfig;
           init = { ...init, body: JSON.stringify(body) };

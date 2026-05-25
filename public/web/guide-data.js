@@ -24,9 +24,9 @@ window.AuraGuideData = {
       ]
     },
     {
-      title: "WSL/Kali tools",
+      title: "Linux tools",
       items: [
-        { name: "Use WSL/Kali", status: "default", purpose: "Enables local Linux tool execution.", collects: "Runs selected CLI tools through the configured WSL distro.", useWhen: "Keep enabled when local tooling is installed and authorized scope is confirmed.", feeds: "All local recon phases." },
+        { name: "Use local Linux runner", status: "default", purpose: "Enables local Linux tool execution.", collects: "Runs selected CLI tools on the local Linux host.", useWhen: "Keep enabled when local tooling is installed and authorized scope is confirmed.", feeds: "All local recon phases." },
         { name: "subfinder", status: "default", purpose: "Passive subdomain discovery.", collects: "Subdomains from multiple passive sources supported by ProjectDiscovery.", useWhen: "Use early in recon to expand the candidate domain set.", feeds: "Domain inventory, dnsx validation, httpx probing." },
         { name: "amass passive", status: "optional", purpose: "Passive asset enumeration.", collects: "Passive DNS and source-derived subdomains.", useWhen: "Use when you want broader but slower passive discovery.", feeds: "Domain inventory and DNS validation." },
         { name: "dnsx validation", status: "default", purpose: "DNS record validation.", collects: "A, AAAA, and CNAME records for discovered names.", useWhen: "Use after passive discovery to separate resolvable domains from stale findings.", feeds: "HTTP probing, DNS evidence, passive DNS review." },

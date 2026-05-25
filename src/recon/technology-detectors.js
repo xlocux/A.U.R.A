@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { commandDisplay, runWslTool } = require("./wsl-tools");
+const { commandDisplay, runLinuxTool } = require("./linux-tools");
 
 const MAX_DETECTOR_URLS = 50;
 const DEFAULT_DETECTOR_ATTEMPTS = 2;
@@ -21,8 +21,8 @@ async function runTechnologyEnrichment({
   store,
   runId,
   targetName,
-  wslDistro = "kali-linux",
-  useWsl = true,
+  linuxRuntime = "linux",
+  useLinuxRunner = true,
   timeoutMs = 180000,
   artifactsDir,
   context,
@@ -41,7 +41,7 @@ async function runTechnologyEnrichment({
 
   await enrichWithBuiltWith({ store, runId, targetName, services, artifactsDir });
 
-  if (!useWsl) {
+  if (!useLinuxRunner) {
     store.appendEvent(runId, {
       phase: "technology-enrichment",
       severity: "warn",
@@ -63,13 +63,13 @@ async function runTechnologyEnrichment({
 
   for (const service of sampled) {
     await waitForRunControl(store, runId);
-    await runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl });
+    await runRetireOnService({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl });
     await waitForRunControl(store, runId);
-    await runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl });
+    await runCmsDetector({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl });
   }
 }
 
-async function runRetireOnService({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
+async function runRetireOnService({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl }) {
   const retireInput = await prepareRetireInput({ service, artifactsDir, proxyUrl });
   if (retireInput.skipped) {
     store.appendEvent(runId, {
@@ -81,11 +81,11 @@ async function runRetireOnService({ store, runId, targetName, service, wslDistro
     return;
   }
   const args = retireArgsForPath(retireInput.inputDir);
-  const result = await runDetectorTool({ store, runId, wslDistro, toolName: "retire", args, timeoutMs: Math.min(timeoutMs, 60000), proxyUrl });
+  const result = await runDetectorTool({ store, runId, linuxRuntime, toolName: "retire", args, timeoutMs: Math.min(timeoutMs, 60000), proxyUrl });
   const artifacts = writeDetectorArtifacts(artifactsDir, "retire", service, result);
   store.recordToolResult(runId, {
     toolName: "retire",
-    commandDisplay: commandDisplay(wslDistro, "retire", result.args || args),
+    commandDisplay: commandDisplay(linuxRuntime, "retire", result.args || args),
     status: result.status,
     exitCode: result.exitCode,
     startedAt: result.startedAt,
@@ -158,15 +158,15 @@ function extractScriptUrls(html, baseUrl) {
   return [...new Set(urls)];
 }
 
-async function runCmsDetector({ store, runId, targetName, service, wslDistro, timeoutMs, artifactsDir, proxyUrl }) {
+async function runCmsDetector({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl }) {
   const tech = (service.technologies || []).join(" ").toLowerCase();
   if (tech.includes("wordpress")) {
     const args = ["--url", service.url, "--format", "json", "--no-update"];
-    const result = await runDetectorTool({ store, runId, wslDistro, toolName: "wpscan", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
+    const result = await runDetectorTool({ store, runId, linuxRuntime, toolName: "wpscan", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
     const artifacts = writeDetectorArtifacts(artifactsDir, "wpscan", service, result);
     store.recordToolResult(runId, {
       toolName: "wpscan",
-      commandDisplay: commandDisplay(wslDistro, "wpscan", args),
+      commandDisplay: commandDisplay(linuxRuntime, "wpscan", args),
       status: result.status,
       exitCode: result.exitCode,
       startedAt: result.startedAt,
@@ -183,11 +183,11 @@ async function runCmsDetector({ store, runId, targetName, service, wslDistro, ti
     const outputDir = path.join(artifactsDir, "cmseek", safeName(service.url));
     fs.mkdirSync(outputDir, { recursive: true });
     const args = ["-u", service.url, "--batch", "--output", toToolPath(outputDir)];
-    const result = await runDetectorTool({ store, runId, wslDistro, toolName: "cmseek", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
+    const result = await runDetectorTool({ store, runId, linuxRuntime, toolName: "cmseek", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
     const artifacts = writeDetectorArtifacts(artifactsDir, "cmseek", service, result);
     store.recordToolResult(runId, {
       toolName: "cmseek",
-      commandDisplay: commandDisplay(wslDistro, "cmseek", args),
+      commandDisplay: commandDisplay(linuxRuntime, "cmseek", args),
       status: result.status,
       exitCode: result.exitCode,
       startedAt: result.startedAt,
@@ -242,7 +242,7 @@ async function enrichWithBuiltWith({ store, runId, targetName, services, artifac
   }
 }
 
-async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeoutMs, proxyUrl = null }) {
+async function runDetectorTool({ store, runId, linuxRuntime, toolName, args, timeoutMs, proxyUrl = null }) {
   store.appendEvent(runId, {
     phase: "technology-enrichment",
     source: toolName,
@@ -252,7 +252,7 @@ async function runDetectorTool({ store, runId, wslDistro, toolName, args, timeou
   let result;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      result = await runWslTool({ distro: wslDistro, toolName, args, timeoutMs, proxyUrl });
+      result = await runLinuxTool({ runtime: linuxRuntime, toolName, args, timeoutMs, proxyUrl });
     } catch (error) {
       result = {
         toolName,

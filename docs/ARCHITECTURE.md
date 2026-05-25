@@ -74,8 +74,7 @@ Browser UI
   -> SQLite control DB
   -> Filesystem artifact store
   -> Local job queue
-  -> WSL tool runner on Windows
-  -> Native Linux tool runner on Linux
+  -> Local Linux tool runner
   -> OpenCode agent provider
 ```
 
@@ -101,7 +100,7 @@ Browser UI
 - `ToolRegistry`: declarative tool manifests.
 - `ParserRegistry`: parser definitions and output contracts.
 - `ProviderRegistry`: API/passive data providers.
-- `ToolRunner`: WSL/native/remote process execution.
+- `ToolRunner`: local/remote Linux process execution.
 - `AgentProvider`: OpenCode or compatible AI runtime.
 - `ScopeEvaluator`: in-scope/out-of-scope/unknown decisions.
 - `RateLimiter`: per provider/tool/target concurrency and backoff.
@@ -331,7 +330,7 @@ AI actions are controlled by autonomy level:
 2. Tool registry manifests and validation.
 3. Local artifact store abstraction.
 4. Job queue schema and local worker loop.
-5. WSL/native Linux `ToolRunner`.
+5. local Linux `ToolRunner`.
 6. Basic parser registry.
 7. Observation store and scope evaluation.
 8. Environment setup UI.

@@ -3,7 +3,7 @@
 const ProxyDetection = require("./proxy-detection");
 const ProxyPreflight = require("./proxy-preflight");
 const ProxyService = require("./proxy-service");
-const { redactProxyUrl, runWslTool } = require("./wsl-tools");
+const { redactProxyUrl, runLinuxTool } = require("./linux-tools");
 
 const DEFAULT_MAX_CANDIDATES = 25;
 const DEFAULT_MAX_RETRIES = 2;
@@ -83,8 +83,8 @@ class ProxyRotationController {
   hasPool() { return this.pool.length > 0; }
   bestProxyUrl() { return this.hasPool() ? this.proxyService.formatProxyUrl(this.pool[0]) : null; }
 
-  async runTool({ distro, toolName, args, timeoutMs, input = null }) {
-    if (!this.hasPool()) return runWslTool({ distro, toolName, args, timeoutMs, input });
+  async runTool({ runtime, toolName, args, timeoutMs, input = null }) {
+    if (!this.hasPool()) return runLinuxTool({ runtime, toolName, args, timeoutMs, input });
     let lastResult = null;
     let previousProxy = null;
     const attempts = Math.min(this.pool.length, this.maxRetries + 1);
@@ -99,7 +99,7 @@ class ProxyRotationController {
           ? `Using preflight-approved proxy ${redactProxyUrl(selection.proxyUrl)} for ${toolName}.`
           : `Rotated ${toolName} from ${previousProxy ? redactProxy(previousProxy) : "previous proxy"} to ${redactProxyUrl(selection.proxyUrl)} after a proxy/network failure.`
       });
-      const result = await runWslTool({ distro, toolName, args, timeoutMs, input, proxyUrl: selection.proxyUrl });
+      const result = await runLinuxTool({ runtime, toolName, args, timeoutMs, input, proxyUrl: selection.proxyUrl });
       result.proxyUrl = selection.proxyUrl;
       result.proxyRotation = { enabled: true, attempt: attempt + 1, maxAttempts: attempts, selectedProxy: redactProxy(selection.proxy), poolSize: selection.size };
       const decision = this.shouldRotate(result, { toolName });
@@ -162,7 +162,7 @@ class ProxyRotationController {
       const proxyId = await this.proxyService.getOrCreateProxyId(proxy);
       const success = result.status === "completed" && !decision.rotate;
       await this.proxyService.store.updateProxyStatus(proxyId, success ? "active" : "failed", { latency_ms: latencyMs, success_rate: success ? 1 : 0, failures_count: success ? 0 : 1, total_tests: 1, successful_tests: success ? 1 : 0, avg_response_time: latencyMs });
-      await this.proxyService.store.recordTestRun(String(this.runId || "recon"), proxyId, result.toolName || "wsl-tool", success, latencyMs, success ? null : decision.reason, null);
+      await this.proxyService.store.recordTestRun(String(this.runId || "recon"), proxyId, result.toolName || "linux-tool", success, latencyMs, success ? null : decision.reason, null);
     } catch (error) {
       this.appendEvent({ phase: "proxy-rotation", severity: "warn", source: "proxy-store", message: `Could not store proxy rotation metrics: ${error.message}` });
     }

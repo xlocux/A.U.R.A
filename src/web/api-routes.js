@@ -6,7 +6,7 @@ const { normalizeDomain, rootForDomain } = require("../recon/domain-utils");
 const { CORRELATION_TECHNIQUES, runCandidateCorrelation } = require("../recon/candidate-correlation");
 const { buildResultTree } = require("../recon/result-tree");
 const { GENERATED_DIR, generateWordlistFromDb } = require("../recon/wordlist-generator");
-const { checkWslEnvironment, createEnvironmentRunner, installWslTools } = require("../recon/environment-setup");
+const { checkLinuxEnvironment, createEnvironmentRunner, installLinuxTools } = require("../recon/environment-setup");
 const { suggestReverseWhoisTerms } = require("../recon/providers/rdap-suggestions");
 const { callReverseWhois } = require("../recon/providers/whoisxmlapi");
 const { callWhoisFreaksHistorical } = require("../recon/providers/whoisfreaks");
@@ -14,13 +14,13 @@ const { classifyApiFailure, providerCatalog, validateProviderKey } = require("..
 const {
   DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS,
-  DEFAULT_WSL_TOOLS,
+  DEFAULT_LINUX_TOOLS,
   isRunControlError,
   runFocusedFollowup,
   runHttpFollowup,
   runRecon
 } = require("../recon/recon-engine");
-const { normalizeProxyUrl } = require("../recon/wsl-tools");
+const { normalizeProxyUrl } = require("../recon/linux-tools");
 const { readJson, resolveTargetConfigPath, writeJson } = require("../core/io");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../core/target-config");
 const { readBody, sendFile, sendJson, sendNotFound } = require("./http-utils");
@@ -32,19 +32,19 @@ const DEFAULT_WORDLISTS = [
     name: "SecLists DNS Top 5K",
     category: "domains",
     path: "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt",
-    notes: "Default Kali/SecLists DNS discovery wordlist"
+    notes: "Default Linux/SecLists DNS discovery wordlist"
   },
   {
     name: "SecLists Web Common",
     category: "paths",
     path: "/usr/share/seclists/Discovery/Web-Content/common.txt",
-    notes: "Default Kali/SecLists web content wordlist"
+    notes: "Default Linux/SecLists web content wordlist"
   },
   {
     name: "SecLists RAFT Small Words",
     category: "paths",
     path: "/usr/share/seclists/Discovery/Web-Content/raft-small-words.txt",
-    notes: "Default Kali/SecLists compact content discovery wordlist"
+    notes: "Default Linux/SecLists compact content discovery wordlist"
   }
 ];
 const DEFAULT_ALTERNATE_TLDS = [
@@ -539,7 +539,7 @@ async function createTarget(request, response, store) {
     target,
     config: built.config,
     authorized: Boolean(body.authorized),
-    wslDistro: body.wslDistro || "kali-linux",
+    linuxRuntime: linuxRuntimeFromBody(body),
     timeoutMs: Number(body.timeoutMs || 180000),
     proxyUrl: proxy
   });
@@ -547,15 +547,15 @@ async function createTarget(request, response, store) {
 }
 
 async function checkEnvironment(response, url) {
-  const distro = url.searchParams.get("distro") || "kali-linux";
-  const result = await checkWslEnvironment({ distro });
+  const runtime = url.searchParams.get("runtime") || "linux";
+  const result = await checkLinuxEnvironment({ runtime });
   sendJson(response, { environment: result });
 }
 
 async function installEnvironment(request, response, store) {
   const body = await readBody(request);
-  const result = await installWslTools({
-    distro: body.distro || "kali-linux",
+  const result = await installLinuxTools({
+    runtime: body.runtime || "linux",
     toolIds: body.toolIds || null
   });
   const wordlists = ensureDefaultWordlists(store);
@@ -569,7 +569,20 @@ function ensureDefaultWordlists(store) {
   }));
 }
 
-function startTargetBootstrap({ store, target, config, authorized, wslDistro, timeoutMs, proxyUrl = null }) {
+function linuxRuntimeFromBody(body) {
+  return body.linuxRuntime || body.runtime || "linux";
+}
+
+function linuxToolsFromBody(body) {
+  return body.linuxTools || DEFAULT_LINUX_TOOLS;
+}
+
+function useLinuxRunnerFromBody(body) {
+  if (body.useLinuxRunner !== undefined) return body.useLinuxRunner !== false;
+  return true;
+}
+
+function startTargetBootstrap({ store, target, config, authorized, linuxRuntime, timeoutMs, proxyUrl = null }) {
   ensureDefaultWordlists(store);
   const rootDomains = inferRootDomains(target);
   const run = store.createRun({
@@ -581,7 +594,7 @@ function startTargetBootstrap({ store, target, config, authorized, wslDistro, ti
   });
   runInBackground(async () => {
     try {
-      await bootstrapTargetRecon({ store, runId: run.id, target, config, rootDomains, authorized, wslDistro, timeoutMs, proxyUrl });
+      await bootstrapTargetRecon({ store, runId: run.id, target, config, rootDomains, authorized, linuxRuntime, timeoutMs, proxyUrl });
     } catch (error) {
       if (isRunControlError(error)) {
         store.appendEvent(run.id, {
@@ -722,7 +735,7 @@ function isInsidePath(candidate, root) {
   return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
-async function bootstrapTargetRecon({ store, runId, target, config, rootDomains, authorized, wslDistro, timeoutMs, proxyUrl = null }) {
+async function bootstrapTargetRecon({ store, runId, target, config, rootDomains, authorized, linuxRuntime, timeoutMs, proxyUrl = null }) {
   store.updateRun(runId, {
     status: "running",
     activePhase: "whois-rdap",
@@ -847,10 +860,10 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
     targetName: target.target_name,
     rootDomains: seeds,
     passiveSources: DEFAULT_PASSIVE_SOURCES,
-    wslTools: DEFAULT_WSL_TOOLS,
+    linuxTools: DEFAULT_LINUX_TOOLS,
     screenshotTools: DEFAULT_SCREENSHOT_TOOLS,
-    wslDistro,
-    useWsl: true,
+    linuxRuntime,
+    useLinuxRunner: true,
     subdomainWordlistPath: domainWordlist?.path || null,
     timeoutMs,
     proxyUrl
@@ -991,10 +1004,10 @@ async function agentChat(request, response, store) {
     return;
   }
   if (settings.provider === "codex" || settings.provider === "claude") {
-    sendJson(response, { message: await callCliAgent({ prompt: contextualPrompt, provider: settings.provider, distro: body.distro || "kali-linux" }) });
+    sendJson(response, { message: await callCliAgent({ prompt: contextualPrompt, provider: settings.provider, runtimeName: body.runtime || body.linuxRuntime || "linux" }) });
     return;
   }
-  const runner = createEnvironmentRunner({ distro: body.distro || "kali-linux" });
+  const runner = createEnvironmentRunner({ runtime: body.runtime || "linux" });
   const check = await runner.run("export PATH=\"$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH\" && command -v opencode", 15000);
   if (check.status === "completed") {
     const safePrompt = [
@@ -1052,8 +1065,8 @@ function formatConversationForPrompt(conversation) {
 }
 
 async function getAiRuntimeStatus(response, url) {
-  const distro = url.searchParams.get("distro") || "kali-linux";
-  const runner = createEnvironmentRunner({ distro });
+  const runtime = url.searchParams.get("runtime") || "linux";
+  const runner = createEnvironmentRunner({ runtime });
   const [opencode, codex, claude] = await Promise.all([
     inspectCliRuntime({ runner, id: "opencode", binary: "opencode", versionArgs: "--version" }),
     inspectCliRuntime({ runner, id: "codex", binary: "codex", versionArgs: "--version" }),
@@ -1061,7 +1074,7 @@ async function getAiRuntimeStatus(response, url) {
   ]);
   const opencodeConfig = await inspectOpenCodeConfig(runner);
   sendJson(response, {
-    distro,
+    runtime,
     mode: runner.mode,
     runtimes: { opencode, codex, claude },
     opencodeConfig
@@ -1113,23 +1126,23 @@ async function inspectOpenCodeConfig(runner) {
   };
 }
 
-async function callCliAgent({ prompt, provider, distro }) {
-  const runtime = provider === "claude"
+async function callCliAgent({ prompt, provider, runtimeName }) {
+  const cliRuntime = provider === "claude"
     ? { name: "Claude Code", binary: "claude", command: (safePrompt) => `claude -p ${shellQuote(safePrompt)}` }
     : { name: "Codex CLI", binary: "codex", command: (safePrompt) => `codex exec --skip-git-repo-check ${shellQuote(safePrompt)}` };
-  const runner = createEnvironmentRunner({ distro });
-  const check = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && command -v ${shellQuote(runtime.binary)}`, 15000);
+  const runner = createEnvironmentRunner({ runtime: runtimeName || "linux" });
+  const check = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && command -v ${shellQuote(cliRuntime.binary)}`, 15000);
   if (check.status !== "completed") {
-    return `${runtime.name} is selected, but the ${runtime.binary} CLI was not found in the execution environment. Install it or select OpenCode/OpenRouter in Settings > AI Agent.`;
+    return `${cliRuntime.name} is selected, but the ${cliRuntime.binary} CLI was not found in the execution environment. Install it or select OpenCode/OpenRouter in Settings > AI Agent.`;
   }
   const safePrompt = [
     "You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity.",
     "",
     prompt
   ].join("\n");
-  const result = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && ${runtime.command(safePrompt)}`, 120000);
+  const result = await runner.run(`export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/go/bin:$PATH" && ${cliRuntime.command(safePrompt)}`, 120000);
   if (result.status === "completed" && result.stdout) return result.stdout;
-  return `${runtime.name} did not complete the request.\n${result.stderr || result.errorMessage || "Check the CLI authentication and configuration."}`;
+  return `${cliRuntime.name} did not complete the request.\n${result.stderr || result.errorMessage || "Check the CLI authentication and configuration."}`;
 }
 
 async function callOpenRouterAgent({ prompt, settings, store }) {
@@ -1441,7 +1454,7 @@ async function createReconRun(request, response, store) {
     targetName: target.target_name,
     runType: reconMode === "full" ? "full-recon" : "recon",
     mode: reconMode,
-    providerProfile: body.useWsl ? "wsl-kali" : "passive"
+    providerProfile: useLinuxRunnerFromBody(body) ? "linux-local" : "passive"
   });
   ensureDefaultWordlists(store);
   sendJson(response, { run }, 202);
@@ -1460,10 +1473,10 @@ async function createReconRun(request, response, store) {
         targetName: target.target_name,
         rootDomains: rootsToScan,
         passiveSources: body.passiveSources || DEFAULT_PASSIVE_SOURCES,
-        wslTools: body.wslTools || DEFAULT_WSL_TOOLS,
+        linuxTools: linuxToolsFromBody(body),
         screenshotTools: body.screenshotTools || DEFAULT_SCREENSHOT_TOOLS,
-        wslDistro: body.wslDistro || "kali-linux",
-        useWsl: body.useWsl !== false,
+        linuxRuntime: linuxRuntimeFromBody(body),
+        useLinuxRunner: useLinuxRunnerFromBody(body),
         subdomainWordlistPath: body.subdomainWordlistPath || domainWordlist?.path || null,
         timeoutMs: Number(body.timeoutMs || 180000),
         proxyUrl: proxy
@@ -1512,7 +1525,7 @@ async function createHttpFollowupRun(request, response, store, sourceRunId) {
     targetName: sourceRun.target_name,
     runType: "http-followup",
     mode: "http-tech-followup",
-    providerProfile: body.useWsl === false ? "passive" : "wsl-kali",
+    providerProfile: useLinuxRunnerFromBody(body) ? "linux-local" : "passive",
     checkpoint: { sourceRunId, sourceDomainCount: domains.length }
   });
   sendJson(response, { run, sourceRunId, sourceDomainCount: domains.length }, 202);
@@ -1524,8 +1537,8 @@ async function createHttpFollowupRun(request, response, store, sourceRunId) {
         targetName: sourceRun.target_name,
         domains: domains.map((item) => item.domain),
         screenshotTools: body.screenshotTools || DEFAULT_SCREENSHOT_TOOLS,
-        wslDistro: body.wslDistro || "kali-linux",
-        useWsl: body.useWsl !== false,
+        linuxRuntime: linuxRuntimeFromBody(body),
+        useLinuxRunner: useLinuxRunnerFromBody(body),
         timeoutMs: Number(body.timeoutMs || 180000),
         proxyUrl: proxy
       });
@@ -1582,7 +1595,7 @@ async function createFocusedFollowupRun(request, response, store, sourceRunId, p
     targetName: sourceRun.target_name,
     runType: "focused-followup",
     mode: `follow-up-${phaseName}`,
-    providerProfile: body.useWsl === false ? "passive" : "wsl-kali",
+    providerProfile: useLinuxRunnerFromBody(body) ? "linux-local" : "passive",
     checkpoint: {
       sourceRunId,
       phase,
@@ -1608,8 +1621,8 @@ async function createFocusedFollowupRun(request, response, store, sourceRunId, p
         services,
         rootDomains,
         screenshotTools: body.screenshotTools || DEFAULT_SCREENSHOT_TOOLS,
-        wslDistro: body.wslDistro || "kali-linux",
-        useWsl: body.useWsl !== false,
+        linuxRuntime: linuxRuntimeFromBody(body),
+        useLinuxRunner: useLinuxRunnerFromBody(body),
         timeoutMs: Number(body.timeoutMs || 180000),
         proxyUrl: proxy
       });

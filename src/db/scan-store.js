@@ -64,7 +64,7 @@ class ScanStore {
     return { deleted: true, runIds };
   }
 
-  createRun({ targetName, runType = "recon", mode = "blackbox", providerProfile = "wsl-kali", checkpoint = {} }) {
+  createRun({ targetName, runType = "recon", mode = "blackbox", providerProfile = "linux-local", checkpoint = {} }) {
     const res = this.db.prepare("INSERT INTO scan_runs (target_name, run_type, status, mode, provider_profile, active_phase, started_at, checkpoint_json) VALUES (?, ?, 'queued', ?, ?, 'queued', ?, ?)").run(targetName, runType, mode, providerProfile, nowIso(), s(checkpoint));
     return this.getRun(Number(res.lastInsertRowid));
   }

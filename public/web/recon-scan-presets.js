@@ -10,7 +10,7 @@
     "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye", "spyse", "intelx",
     "whoisxmlapi", "whoisfreaks"
   ];
-  const WSL_TOOL_IDS = ["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"];
+  const LINUX_TOOL_IDS = ["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"];
   const SCREENSHOT_TOOL_IDS = ["gowitness", "aquatone", "eyewitness"];
   const TOOL_LABELS = {
     crtsh: "crt.sh",
@@ -46,7 +46,7 @@
     rapid: {
       label: "Rapid",
       passive: ["crtsh", "wayback", "rapiddns"],
-      wsl: ["subfinder", "dnsx", "httpx"],
+      linux: ["subfinder", "dnsx", "httpx"],
       screenshots: [],
       timeoutMs: 90000,
       intelPreflight: true,
@@ -55,7 +55,7 @@
     normal: {
       label: "Normal",
       passive: ["crtsh", "wayback", "rapiddns", "certspotter", "securitytrails", "shodan", "virustotal", "urlscan"],
-      wsl: ["subfinder", "dnsx", "gau", "httpx"],
+      linux: ["subfinder", "dnsx", "gau", "httpx"],
       screenshots: ["gowitness"],
       timeoutMs: 180000,
       intelPreflight: true,
@@ -64,7 +64,7 @@
     full: {
       label: "Full",
       passive: [...PASSIVE_TOOL_IDS],
-      wsl: [...WSL_TOOL_IDS],
+      linux: [...LINUX_TOOL_IDS],
       screenshots: [...SCREENSHOT_TOOL_IDS],
       timeoutMs: 300000,
       intelPreflight: true,
@@ -105,7 +105,7 @@
           <option value="normal" selected>Normal - balanced recon</option>
           <option value="full">Full - all available providers/tools</option>
         </select>
-        <div id="scanPresetStatus" class="notice muted compact-notice">Choose a preset to automatically select safe passive sources, WSL tools, screenshots, and API-backed providers.</div>
+        <div id="scanPresetStatus" class="notice muted compact-notice">Choose a preset to automatically select safe passive sources, Linux tools, screenshots, and API-backed providers.</div>
       `);
     }
     const fullOptions = document.getElementById("fullReconOptions");
@@ -144,9 +144,9 @@
     updateSeedPlaceholder();
     applyFullReconVisibility(preset);
     applyTimeoutAndIntel(preset, forceChecks);
-    const selected = new Set([...preset.passive, ...preset.wsl, ...preset.screenshots]);
+    const selected = new Set([...preset.passive, ...preset.linux, ...preset.screenshots]);
     const skipped = [];
-    for (const id of [...PASSIVE_TOOL_IDS, ...WSL_TOOL_IDS, ...SCREENSHOT_TOOL_IDS]) {
+    for (const id of [...PASSIVE_TOOL_IDS, ...LINUX_TOOL_IDS, ...SCREENSHOT_TOOL_IDS]) {
       const input = document.getElementById(id);
       if (!input) continue;
       const requiresApi = API_TOOL_PROVIDERS.has(id);
@@ -157,8 +157,8 @@
       if (selected.has(id) && requiresApi && !hasApi) skipped.push(id);
       annotateTool(input, requiresApi, hasApi);
     }
-    const useWsl = document.getElementById("useWsl");
-    if (useWsl && forceChecks) useWsl.checked = preset.wsl.length > 0;
+    const useLinuxRunner = document.getElementById("useLinuxRunner");
+    if (useLinuxRunner && forceChecks) useLinuxRunner.checked = preset.linux.length > 0;
     renderPresetStatus(preset, skipped);
   }
 

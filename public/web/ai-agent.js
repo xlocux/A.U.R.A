@@ -35,7 +35,7 @@
         prompt: enrichedPrompt,
         targetName: context.targetName || "",
         runId: context.runId || null,
-        distro: context.distro || "kali-linux",
+        runtime: context.linuxRuntime || "linux",
         guideContext,
         conversation: getConversationContext()
       })

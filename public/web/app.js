@@ -131,7 +131,7 @@ window.auraApi = api;
 window.getAuraAgentContext = () => ({
   targetName: $("target")?.value || "",
   runId: activeRunId,
-  distro: $("setupDistro")?.value?.trim() || "kali-linux"
+  linuxRuntime: $("setupRuntime")?.value?.trim() || "linux"
 });
 
 function activeProxyUrl() {
@@ -148,7 +148,7 @@ async function loadAiSettings() {
 
 async function loadAiRuntimeStatus() {
   try {
-    const params = new URLSearchParams({ distro: $("setupDistro")?.value?.trim() || "kali-linux" });
+    const params = new URLSearchParams({ runtime: $("setupRuntime")?.value?.trim() || "linux" });
     const data = await api(`/api/ai-runtime/status?${params.toString()}`);
     aiRuntimeStatus = data;
     renderAiRuntimeStatus();
@@ -274,7 +274,7 @@ function renderAiRuntimeStatus() {
   }
   const runtimes = aiRuntimeStatus.runtimes || {};
   const lines = [
-    `Environment: ${aiRuntimeStatus.mode || "-"} (${aiRuntimeStatus.distro || "-"})`,
+    `Environment: ${aiRuntimeStatus.mode || "-"} (${aiRuntimeStatus.runtime || "-"})`,
     "",
     formatRuntimeStatus("OpenCode", runtimes.opencode),
     formatRuntimeStatus("Codex CLI", runtimes.codex),
@@ -529,7 +529,7 @@ async function createTarget() {
         inScope: textLines("newInScope"),
         outOfScope: textLines("newOutOfScope"),
         authorized: $("authorized").checked,
-        wslDistro: $("distro").value,
+        linuxRuntime: $("linuxRuntime").value,
         timeoutMs: Number($("timeout").value || 180000),
         proxyUrl: activeProxyUrl()
       })
@@ -617,11 +617,11 @@ async function startRecon() {
         "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye",
         "spyse", "intelx", "whoisxmlapi", "whoisfreaks"
       ]),
-      wslTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
+      linuxTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"])
         .map((tool) => tool === "shuffleDns" ? "shuffle-dns" : tool),
       screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
-      useWsl: $("useWsl").checked,
-      wslDistro: $("distro").value,
+      useLinuxRunner: $("useLinuxRunner").checked,
+      linuxRuntime: $("linuxRuntime").value,
       timeoutMs: Number($("timeout").value || 180000),
       authorized: $("authorized").checked,
       proxyUrl: activeProxyUrl()
@@ -774,8 +774,8 @@ async function runHttpFollowup() {
       method: "POST",
       body: JSON.stringify({
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
-        useWsl: $("useWsl").checked,
-        wslDistro: $("distro").value,
+        useLinuxRunner: $("useLinuxRunner").checked,
+        linuxRuntime: $("linuxRuntime").value,
         timeoutMs: Number($("timeout").value || 180000),
         proxyUrl: activeProxyUrl()
       })
@@ -818,8 +818,8 @@ async function runFocusedFollowup(phase, label) {
       method: "POST",
       body: JSON.stringify({
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
-        useWsl: $("useWsl").checked,
-        wslDistro: $("distro").value,
+        useLinuxRunner: $("useLinuxRunner").checked,
+        linuxRuntime: $("linuxRuntime").value,
         timeoutMs: Number($("timeout").value || 180000),
         proxyUrl: activeProxyUrl()
       })
@@ -1232,13 +1232,13 @@ async function checkEnvironment() {
   $("checkEnvironment").disabled = true;
   $("status").textContent = "Checking environment...";
   try {
-    const distro = $("setupDistro").value.trim() || "kali-linux";
-    const data = await api(`/api/environment/check?distro=${encodeURIComponent(distro)}`);
+    const runtime = $("setupRuntime").value.trim() || "linux";
+    const data = await api(`/api/environment/check?runtime=${encodeURIComponent(runtime)}`);
     renderAgentStatus(data.environment.agent);
     renderSetupTools(data.environment.tools);
     $("setupLog").textContent = data.environment.environmentAvailable
-      ? `${data.environment.mode} environment detected: ${data.environment.distroName || data.environment.distro}`
-      : `${data.environment.mode} environment is not available: ${data.environment.distro}`;
+      ? `${data.environment.mode} environment detected: ${data.environment.linuxName || data.environment.runtime}`
+      : `${data.environment.mode} environment is not available: ${data.environment.runtime}`;
     $("setupLog").className = data.environment.environmentAvailable ? "notice ok" : "notice error";
     $("status").textContent = "Environment check completed";
   } catch (error) {
@@ -1256,7 +1256,7 @@ async function installEnvironment() {
   try {
     const data = await api("/api/environment/install", {
       method: "POST",
-      body: JSON.stringify({ distro: $("setupDistro").value.trim() || "kali-linux" })
+      body: JSON.stringify({ runtime: $("setupRuntime").value.trim() || "linux" })
     });
     const [agent, ...tools] = data.environment.tools;
     const prerequisites = agent?.tool_id === "system-prerequisites" ? agent : null;
@@ -1717,7 +1717,7 @@ $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
 $("aiExecutionModel").addEventListener("change", updateAiSettingsPreview);
 $("aiLocalEndpoint").addEventListener("input", updateAiSettingsPreview);
 $("aiLocalModel").addEventListener("input", updateAiSettingsPreview);
-$("setupDistro").addEventListener("change", loadAiRuntimeStatus);
+$("setupRuntime").addEventListener("change", loadAiRuntimeStatus);
 $("aiAutonomyLevel").addEventListener("input", () => {
   updateAiAutonomyLabel();
   updateAiSettingsPreview();

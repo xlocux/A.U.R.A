@@ -48,7 +48,7 @@ The server binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only on a trust
 1. **Prepare environment**
    - Open `Settings > Environment`.
    - Run environment check.
-   - Install or update WSL/Kali tools.
+   - Install or update Linux tools.
    - Confirm that required tools are available.
 
 2. **Configure optional providers**
@@ -64,7 +64,7 @@ The server binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only on a trust
 
 4. **Choose recon mode and tools**
    - Select single-domain, list, or full recon.
-   - Select passive sources, WSL/Kali tools, screenshot tools, API-backed providers, and httpx port preset/custom ports.
+   - Select passive sources, Linux tools, screenshot tools, API-backed providers, and httpx port preset/custom ports.
 
 5. **Confirm authorization**
    - Active enumeration requires the `Authorized scope` checkbox.
@@ -92,9 +92,9 @@ The main operation tab. It contains:
 - authorized seed input
 - full recon provider search terms
 - WHOIS/RDAP and alternate TLD bootstrap toggle
-- WSL distro and timeout settings
+- Linux runtime and timeout settings
 - passive source checkboxes
-- WSL/Kali tool checkboxes
+- Linux tool checkboxes
 - screenshot tool checkboxes
 - provider lead preview controls
 - discovery lead table
@@ -218,7 +218,7 @@ A.U.R.A normalizes target input before scanning:
 
 ### 2. Scope and Safety Gate
 
-The UI requires explicit authorization before active enumeration. Passive bootstrap can run without launching active probes, but WSL/Kali tools and active provider workflows should be used only inside authorized scope.
+The UI requires explicit authorization before active enumeration. Passive bootstrap can run without launching active probes, but Linux tools and active provider workflows should be used only inside authorized scope.
 
 Candidate leads from alternate TLDs, WHOIS, RDAP, code search, or correlation are not automatically scanned. They must be reviewed and added to authorized scope first.
 
@@ -252,9 +252,9 @@ Passive sources collect existing public evidence without directly probing the ta
 
 Optional providers increase coverage for certificate, DNS, host, URL, code, and organization evidence. Provider keys are tested and status-tracked from `Settings > API Keys`.
 
-### 7. WSL/Kali Tool Execution
+### 7. Linux Tool Execution
 
-Selected tools run locally through the configured WSL distro or Linux runtime. A.U.R.A stores raw stdout and stderr artifacts before parsing.
+Selected tools run locally through the local Linux runtime. A.U.R.A stores raw stdout and stderr artifacts before parsing.
 
 ### 8. DNS Validation
 
@@ -670,7 +670,7 @@ Feeds:
 
 - AI chat and assisted analysis when configured
 
-## WSL/Kali Tools
+## Linux Tools
 
 ### subfinder
 

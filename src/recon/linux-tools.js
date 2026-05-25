@@ -18,7 +18,7 @@ const ALLOWED_TOOLS = new Set([
   "cmseek"
 ]);
 
-function runWslTool({
+function runLinuxTool({
   toolName,
   args = [],
   timeoutMs = 180000,
@@ -167,5 +167,5 @@ module.exports = {
   commandDisplay,
   normalizeProxyUrl,
   redactProxyUrl,
-  runWslTool
+  runLinuxTool
 };

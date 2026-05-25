@@ -2,7 +2,7 @@
 
 ## Overview
 
-A.U.R.A currently supports explicit, user-configured outbound proxies for WSL
+A.U.R.A currently supports explicit, user-configured outbound proxies for Linux
 recon tool execution. The feature is intended for authorized interception,
 debugging, and lab egress workflows such as routing traffic through Burp.
 
@@ -12,7 +12,7 @@ The active implementation has two layers:
 - Settings are stored locally in the browser.
 - A single selected proxy is passed to recon requests as `proxyUrl`.
 - The backend validates the proxy URL before starting a run.
-- WSL tool execution exports standard proxy environment variables.
+- Linux tool execution exports standard proxy environment variables.
 - `/api/proxies` exposes optional server-side proxy inventory, import, TCP
   preflight, detection, stats, and health endpoints.
 
@@ -58,7 +58,7 @@ proxy URL in run-start requests.
 
 The backend validates incoming proxy URLs in `src/web/api-routes.js` with
 `parseOptionalProxy()`, which delegates to `normalizeProxyUrl()` from
-`src/recon/wsl-tools.js`.
+`src/recon/linux-tools.js`.
 
 The normalized proxy URL is passed into recon execution paths:
 
@@ -89,7 +89,7 @@ Active modules:
 
 ## Tool Execution
 
-WSL tool execution is handled by `runWslTool()` in `src/recon/wsl-tools.js`.
+Linux tool execution is handled by `runLinuxTool()` in `src/recon/linux-tools.js`.
 
 When a proxy URL is supplied, the runner exports:
 
@@ -145,7 +145,7 @@ The browser saved list is a convenience picker only. Server-side imports through
 - Only one proxy is active per recon run.
 - Proxy preflight currently checks TCP reachability and stores metrics; it does
   not prove that every recon tool will honor the proxy.
-- SOCKS support depends on the underlying WSL tool honoring `ALL_PROXY` or the
+- SOCKS support depends on the underlying Linux tool honoring `ALL_PROXY` or the
   corresponding environment variable.
 
 ## Quick Verification
@@ -154,7 +154,7 @@ Use these checks after proxy-related changes:
 
 ```powershell
 node --check src/web/api-routes.js
-node --check src/recon/wsl-tools.js
+node --check src/recon/linux-tools.js
 node --check src/web/proxy-routes.js
 node --check public/web/proxy-settings.js
 node -e "require('./src/web/api-routes'); console.log('api routes ok')"
@@ -178,7 +178,7 @@ If traffic is not visible in the proxy:
 - Confirm the recon tool being used supports proxy environment variables.
 - Confirm Burp or the upstream proxy is listening on the configured host and
   port.
-- For HTTPS interception, configure the tool or WSL environment to trust the
+- For HTTPS interception, configure the tool or Linux environment to trust the
   interception CA where required.
 
 If the server rejects a run:

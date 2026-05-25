@@ -1,11 +1,11 @@
 "use strict";
 
-const { commandDisplay, runWslTool } = require("./wsl-tools");
+const { commandDisplay, runLinuxTool } = require("./linux-tools");
 const ProxyService = require("./proxy-service");
 
-class WslToolRunner {
-  constructor({ distro = "kali-linux" } = {}) {
-    this.distro = distro;
+class LinuxToolRunner {
+  constructor({ runtime = "linux" } = {}) {
+    this.runtime = runtime;
     this.proxyService = new ProxyService();
   }
 
@@ -28,8 +28,8 @@ class WslToolRunner {
       finalArgs = this._addProxyArgsToTool(tool.binary, finalArgs, proxy);
     }
 
-    const result = await runWslTool({
-      distro: this.distro,
+    const result = await runLinuxTool({
+      runtime: this.runtime,
       toolName: tool.binary,
       args: finalArgs,
       input,
@@ -39,7 +39,7 @@ class WslToolRunner {
     
     return {
       ...result,
-      commandDisplay: commandDisplay(this.distro, tool.binary, finalArgs),
+      commandDisplay: commandDisplay(this.runtime, tool.binary, finalArgs),
       proxyUsed: proxy ? {
         address: proxy.address,
         port: proxy.port,
@@ -88,5 +88,5 @@ class WslToolRunner {
 }
 
 module.exports = {
-  WslToolRunner
+  LinuxToolRunner
 };

@@ -20,10 +20,10 @@ function setupToolIds(registry = loadToolRegistry()) {
   return registry.list().map((tool) => tool.tool_id);
 }
 
-async function checkWslEnvironment({ distro = "linux", toolIds = null, registry = loadToolRegistry() } = {}) {
+async function checkLinuxEnvironment({ runtime = "linux", toolIds = null, registry = loadToolRegistry() } = {}) {
   const requested = toolIds || setupToolIds(registry);
   const runner = createEnvironmentRunner();
-  const distroCheck = await runner.run("printf '%s' \"${PRETTY_NAME:-$(uname -s)}\"", 30000);
+  const runtimeCheck = await runner.run("printf '%s' \"${PRETTY_NAME:-$(uname -s)}\"", 30000);
   const agent = await checkTool({ runner, tool: OPENCODE_TOOL });
   const tools = [];
   for (const toolId of requested) {
@@ -31,18 +31,17 @@ async function checkWslEnvironment({ distro = "linux", toolIds = null, registry 
     tools.push(await checkTool({ runner, tool }));
   }
   return {
-    distro,
+    runtimeName: runtime,
     runtime: "linux",
     mode: runner.mode,
-    environmentAvailable: distroCheck.status === "completed",
-    wslAvailable: false,
-    distroName: distroCheck.stdout || null,
+    environmentAvailable: runtimeCheck.status === "completed",
+    linuxName: runtimeCheck.stdout || null,
     agent,
     tools
   };
 }
 
-async function installWslTools({ distro = "linux", toolIds = null, registry = loadToolRegistry() } = {}) {
+async function installLinuxTools({ runtime = "linux", toolIds = null, registry = loadToolRegistry() } = {}) {
   const requested = toolIds || setupToolIds(registry);
   const runner = createEnvironmentRunner();
   const results = [];
@@ -52,7 +51,7 @@ async function installWslTools({ distro = "linux", toolIds = null, registry = lo
     const tool = registry.require(toolId);
     results.push(await installTool({ runner, tool }));
   }
-  return { distro, runtime: "linux", mode: runner.mode, tools: results };
+  return { runtimeName: runtime, runtime: "linux", mode: runner.mode, tools: results };
 }
 
 async function checkTool({ runner, tool }) {
@@ -222,8 +221,8 @@ function firstLine(value) {
 }
 
 module.exports = {
-  checkWslEnvironment,
+  checkLinuxEnvironment,
   createEnvironmentRunner,
-  installWslTools,
+  installLinuxTools,
   setupToolIds
 };

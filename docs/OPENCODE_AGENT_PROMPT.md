@@ -134,7 +134,7 @@ Default local adapters:
 
 - SQLite for control metadata and normalized rows.
 - Filesystem for raw artifacts and screenshots.
-- WSL tool runner on Windows.
+- local Linux tool runner.
 - Native Linux tool runner on Linux.
 - OpenCode as optional local agent runtime.
 
@@ -575,7 +575,7 @@ keys, but missing optional detectors should not be treated as recon failure when
 OpenCode, Codex CLI, and Claude Code CLI should run in the Linux execution
 environment:
 
-- WSL on Windows.
+- Linux host.
 - Native on Linux desktop/server.
 
 A.U.R.A should expose each runtime through an `AgentProvider` interface.

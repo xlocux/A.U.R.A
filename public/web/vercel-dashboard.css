@@ -13,6 +13,8 @@
   --vercel-subtle: #71717a;
   --vercel-accent: #2387d3;
   --vercel-accent-strong: #0c5cab;
+  --aura-cyan: #6ff4ee;
+  --aura-gold: #e8cf74;
   --vercel-blue: #0c5cab;
   --vercel-blue-2: #2387d3;
   --vercel-green: #22c55e;
@@ -123,15 +125,7 @@ header {
   height: 32px;
   flex: 0 0 32px;
   border-radius: 6px;
-}
-
-.brand-logo-img {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  border-radius: 8px;
-  object-fit: contain;
-  display: block;
+  filter: drop-shadow(0 0 14px rgba(111, 244, 238, .18));
 }
 
 .headerbar h1::after {
@@ -232,12 +226,13 @@ header {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  margin-bottom: 10px;
-  color: var(--vercel-text);
-  font-size: 17px;
+  min-height: 28px;
+  margin: 0 10px 10px;
+  color: var(--vercel-muted);
+  font-size: 12px;
   font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .tabs::after {
@@ -297,7 +292,7 @@ header {
 .tab-icon[data-icon="runs"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='2'/%3E%3Cpath d='m8 9 3 3-3 3'/%3E%3Cpath d='M13 15h3'/%3E%3C/svg%3E"); }
 .tab-icon[data-icon="guide"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/%3E%3Cpath d='M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z'/%3E%3Cpath d='M8 7h8'/%3E%3Cpath d='M8 11h6'/%3E%3C/svg%3E"); }
 .tab-icon[data-icon="settings"] { mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z'/%3E%3Cpath d='M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-.6-1A1.7 1.7 0 0 0 1.9 13H2a2 2 0 1 1 0-4h-.1A1.7 1.7 0 0 0 3.6 7a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8c.2.34.4.67.6 1h.1a2 2 0 1 1 0 4H20a1.7 1.7 0 0 0-.6 1z'/%3E%3C/svg%3E"); }
-}
+
 
 .tab:hover,
 .tabs .tab.active {

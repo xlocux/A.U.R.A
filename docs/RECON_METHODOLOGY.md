@@ -12,7 +12,7 @@ recon phase should be replaceable through configuration or a registry.
 - Let users choose tools, providers, arguments, and recon profiles from the UI.
 - Ensure every major capability is usable from the Web UI.
 - Ensure the AI chat agent can assist every major workflow and phase.
-- Keep the architecture ready for future local workers, WSL workers, native Linux
+- Keep the architecture ready for future local workers, local Linux workers
   workers, and remote workers.
 - Avoid custom scanners when mature tools already provide structured output.
 - Help users find less-tested application surfaces, not only the largest or most
@@ -273,7 +273,7 @@ clear validation errors.
 
 ## Worker Protocol
 
-Recon execution should use a worker protocol that works for local, WSL, native
+Recon execution should use a worker protocol that works for local Linux
 Linux, and future remote workers.
 
 Job lifecycle:
@@ -305,7 +305,7 @@ Job payload should include:
 Worker capability declaration should include:
 
 - Worker ID.
-- OS and execution mode, such as WSL or native Linux.
+- OS and execution mode, such as local Linux.
 - Installed tools and versions.
 - Supported phases.
 - Available CPU, memory, disk, and browser capacity.
@@ -2082,7 +2082,7 @@ Promotion should record:
 ## AI Copilot Role
 
 A.U.R.A should support an AI copilot backed by OpenCode on the Linux execution
-environment. On Windows, this normally means OpenCode runs inside WSL. On Linux
+environment. On Linux
 desktop/server, OpenCode can run natively.
 
 The first A.U.R.A run should detect whether OpenCode is available in the selected

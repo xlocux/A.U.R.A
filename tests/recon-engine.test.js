@@ -45,15 +45,15 @@ test("parseToolSpec supports nmap with the same port selection model", () => {
 test("recovery action pool includes failed tool actions", () => {
   const actions = buildRecoveryActions({
     roots: ["example.com"],
-    wslTools: ["gau"],
-    useWsl: true,
+    linuxTools: ["gau"],
+    useLinuxRunner: true,
     screenshotTools: ["gowitness"],
     artifactsDir: "missing-artifacts",
     context: {
       urls: [],
       httpServices: [{ url: "https://app.example.com", host: "app.example.com" }],
       recoveryQueue: [
-        { id: "retry-httpx-example", phase: "wsl-tool", toolName: "httpx", root: "example.com", reason: "httpx timeout" }
+        { id: "retry-httpx-example", phase: "linux-tool", toolName: "httpx", root: "example.com", reason: "httpx timeout" }
       ]
     }
   });

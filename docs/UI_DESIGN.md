@@ -132,7 +132,7 @@ all scanned surfaces affected by a newly disclosed technology issue or CVE.
 
 Purpose:
 
-- Prepare WSL/native Linux execution.
+- Prepare local Linux execution.
 - Bootstrap OpenCode.
 - Configure model/provider.
 - Check tools.

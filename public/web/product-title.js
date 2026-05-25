@@ -6,11 +6,14 @@
   function applyTitle() {
     document.title = fullName;
     const heading = document.querySelector("header h1");
-    if (heading) heading.textContent = fullName;
+    if (heading) {
+      const textNode = [...heading.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+      if (textNode) textNode.textContent = fullName;
+      else heading.append(document.createTextNode(fullName));
+    }
     injectScript("/auth-persistence.js", "aura-auth-persistence-js");
     injectScript("/workspace-layout-current.js", "aura-workspace-layout-current-js");
     injectScript("/security-settings.js", "aura-security-settings-js");
-    injectScript("/linux-runtime-labels.js", "aura-linux-runtime-labels-js");
   }
 
   function injectScript(src, id) {

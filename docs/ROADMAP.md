@@ -64,7 +64,7 @@ Deliverables:
 - SQLite-backed job queue. (started)
 - Local worker loop. (started)
 - Worker capability checks.
-- WSL tool runner and native Linux tool runner. (started)
+- local Linux tool runner. (started)
 - Rate limit profile model.
 - Structured job events and tool result artifacts.
 
@@ -88,12 +88,12 @@ Exit criteria:
 
 ## Phase 2: Settings-Based Environment And OpenCode Setup UI
 
-Goal: let users prepare the local/WSL/Linux execution environment from the Web UI.
+Goal: let users prepare the local Linux execution environment from the Web UI.
 
 Deliverables:
 
 - `Settings > Environment` setup panel. (started)
-- WSL/native Linux detection. (started)
+- local Linux detection. (started)
 - Tool install/check state. (started)
 - OpenCode detection.
 - Guided OpenCode bootstrap.
