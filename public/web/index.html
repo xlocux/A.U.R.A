@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</title>
   <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/dashboard-design-system.css">
 </head>
 <body>
   <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
@@ -20,6 +21,7 @@
     <button class="tab" data-tab="wordlists">Wordlists</button>
     <button class="tab" data-tab="search">Search</button>
     <button class="tab" data-tab="topology">Topology</button>
+    <button class="tab" data-tab="projects">Projects</button>
     <button class="tab" data-tab="results">Results</button>
     <button class="tab" data-tab="ai-log">AI Log</button>
     <button class="tab" data-tab="runs">Runs & Logs</button>
@@ -228,206 +230,39 @@
           </div>
         </div>
         <div class="pane">
-          <h2>Generate From DB</h2>
-          <div class="form-body">
-            <div class="row">
-              <div>
-                <label for="generatedWordlistName">Name</label>
-                <input id="generatedWordlistName" type="text" placeholder="current-target-domains">
-              </div>
-              <div>
-                <label for="generatedWordlistCategory">Category</label>
-                <select id="generatedWordlistCategory">
-                  <option value="domains">domains</option>
-                  <option value="smart-domains">smart-domains</option>
-                  <option value="params">params</option>
-                  <option value="paths">paths</option>
-                  <option value="technologies">technologies</option>
-                </select>
-              </div>
-            </div>
-            <button id="generateWordlist">Generate Wordlist</button>
-          </div>
+          <h2>Wordlists</h2>
+          <div class="scroll"><table><thead><tr><th>Name</th><th>Category</th><th>Status</th><th>Path</th><th>Actions</th></tr></thead><tbody id="wordlistRows"></tbody></table></div>
         </div>
         <div class="pane">
-          <h2>Saved Wordlists</h2>
-          <div class="scroll">
-            <table>
-              <thead><tr><th>Name</th><th>Category</th><th>Status</th><th>Path</th><th>Actions</th></tr></thead>
-              <tbody id="wordlistRows"></tbody>
-            </table>
-          </div>
+          <h2>Generate From Results</h2>
+          <div class="form-body"><label for="generatedWordlistName">Name</label><input id="generatedWordlistName" type="text" placeholder="generated-from-current-results"><label for="generatedWordlistCategory">Category</label><select id="generatedWordlistCategory"><option value="domains">domains</option><option value="technologies">technologies</option><option value="paths">paths</option><option value="params">params</option></select><button id="generateWordlist">Generate Wordlist</button></div>
         </div>
       </div>
     </section>
 
     <section id="tab-search" class="tab-panel">
-      <div class="split">
-        <div class="pane">
-          <h2>Cross-Data Search</h2>
-          <div class="form-body">
-            <label for="searchQuery">Query</label>
-            <input id="searchQuery" type="text" placeholder="citrix, jquery, joomla, cve-2024, /admin">
-            <label class="check"><input id="searchCurrentTarget" type="checkbox" checked> <span>Current target only</span></label>
-            <button id="runSearch">Search Saved Data</button>
-          </div>
-        </div>
-        <div class="pane">
-          <h2>Search Notes</h2>
-          <div class="notice muted">
-            Search checks saved domains, HTTP services, titles, technologies,
-            URLs, parameters, and asset leads. Use it to quickly answer questions
-            like "which scanned assets use Citrix, jQuery, or Joomla?"
-          </div>
-        </div>
-      </div>
-      <div class="pane">
-        <h2>Results</h2>
-        <div class="scroll">
-          <table>
-            <thead><tr><th>Type</th><th>Target</th><th>Value</th><th>Detail</th><th>Source</th><th>Seen</th></tr></thead>
-            <tbody id="searchRows"></tbody>
-          </table>
-        </div>
-      </div>
+      <div class="pane"><h2>Search Saved Data</h2><div class="form-body"><div class="row"><input id="searchQuery" type="text" placeholder="domain, URL, technology, title"><button id="runSearch">Search</button></div></div><div class="scroll"><table><thead><tr><th>Type</th><th>Target</th><th>Value</th><th>Detail</th><th>Source</th><th>Seen</th></tr></thead><tbody id="searchRows"></tbody></table></div></div>
     </section>
 
     <section id="tab-topology" class="tab-panel">
-      <div class="topology-shell">
-        <div class="topology-main pane">
-          <div class="topology-head">
-            <div>
-              <h2>Recon Topology</h2>
-              <p class="muted" id="topologyHint">Live relationship map for targets, observations, services, artifacts, and future graph edges.</p>
-            </div>
-            <div class="topology-actions">
-              <button id="fitTopology">Fit</button>
-              <button id="pulseTopology">Pulse</button>
-              <button id="zoomTopologyIn">Zoom +</button>
-              <button id="zoomTopologyOut">Zoom -</button>
-            </div>
-          </div>
-          <canvas id="topologyCanvas" width="1200" height="720" aria-label="Recon topology graph"></canvas>
-        </div>
-        <div class="topology-side">
-          <div class="pane">
-            <h2>Graph Metrics</h2>
-            <div class="metrics compact">
-              <div class="metric"><span class="muted">Nodes</span><strong id="topologyNodeCount">0</strong></div>
-              <div class="metric"><span class="muted">Edges</span><strong id="topologyEdgeCount">0</strong></div>
-            </div>
-          </div>
-          <div class="pane">
-            <h2>Layers</h2>
-            <div class="form-body">
-              <label class="check"><input id="topologyDomains" type="checkbox" checked> <span>Domains</span></label>
-              <label class="check"><input id="topologyServices" type="checkbox" checked> <span>HTTP services</span></label>
-              <label class="check"><input id="topologyArtifacts" type="checkbox" checked> <span>Artifacts</span></label>
-              <label class="check"><input id="topologyCandidates" type="checkbox" checked> <span>Candidates</span></label>
-            </div>
-          </div>
-          <div class="pane">
-            <h2>Selection</h2>
-            <div id="topologySelection" class="notice muted">Click a node to inspect it.</div>
-          </div>
-        </div>
-      </div>
+      <div class="pane topology-main"><h2>Topology</h2><div class="topology-actions"><button id="resetTopology" type="button">Reset View</button></div><div class="topology-shell"><canvas id="topologyCanvas"></canvas></div></div>
     </section>
 
     <section id="tab-results" class="tab-panel">
-      <div class="metrics">
-        <div class="metric"><span class="muted">Run</span><strong id="runId">-</strong></div>
-        <div class="metric"><span class="muted">Status</span><strong id="runStatus">idle</strong></div>
-        <div class="metric"><span class="muted">Domains</span><strong id="domainCount">0</strong></div>
-        <div class="metric"><span class="muted">URLs</span><strong id="urlCount">0</strong></div>
-        <div class="metric"><span class="muted">Services</span><strong id="serviceCount">0</strong></div>
-        <div class="metric"><span class="muted">Tech</span><strong id="technologyCount">0</strong></div>
-        <div class="metric"><span class="muted">Screens</span><strong id="screenshotCount">0</strong></div>
-        <div class="metric"><span class="muted">Events</span><strong id="eventCount">0</strong></div>
-        <div class="run-controls" aria-label="Run controls">
-          <button id="pauseRun" type="button" disabled>Pause</button>
-          <button id="resumeRun" type="button" disabled>Resume</button>
-          <button id="cancelRun" class="danger-button" type="button" disabled>Cancel</button>
-        </div>
-      </div>
-
-      <div class="result-subtabs" aria-label="Results views">
-        <button class="result-subtab active" data-results-view="explorer" type="button">Explorer</button>
-        <button class="result-subtab" data-results-view="delta" type="button">Delta</button>
-        <button class="result-subtab" data-results-view="domains" type="button">Domains</button>
-        <button class="result-subtab" data-results-view="services" type="button">Services</button>
-        <button class="result-subtab" data-results-view="urls" type="button">URLs</button>
-        <button class="result-subtab" data-results-view="technologies" type="button">Tech</button>
-        <button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button>
-        <button class="result-subtab" data-results-view="tool-logs" type="button">Tool Logs</button>
-        <button class="result-subtab" data-results-view="export" type="button">Export</button>
-      </div>
-
-      <div id="results-delta" class="pane run-delta-pane result-view">
-        <h2>Run Delta</h2>
-        <div class="result-view-toolbar">
-          <label for="deltaGroupBy">Group by</label>
-          <select id="deltaGroupBy"><option value="none">None</option><option value="change">Change</option><option value="type">Type</option></select>
-        </div>
-        <div class="delta-grid">
-          <div class="delta-summary" id="runDeltaSummary">No run comparison loaded.</div>
-          <div class="delta-card"><span class="muted">New domains</span><strong id="deltaNewDomains">0</strong></div>
-          <div class="delta-card"><span class="muted">Removed domains</span><strong id="deltaRemovedDomains">0</strong></div>
-          <div class="delta-card"><span class="muted">New URLs</span><strong id="deltaNewUrls">0</strong></div>
-          <div class="delta-card"><span class="muted">New services</span><strong id="deltaNewServices">0</strong></div>
-        </div>
-        <div class="scroll delta-scroll"><table><thead><tr><th>Change</th><th>Type</th><th>Value</th><th>Source</th></tr></thead><tbody id="deltaRows"></tbody></table></div>
-      </div>
-
-      <div id="results-export" class="pane export-pane result-view">
-        <h2>Export</h2>
-        <div class="form-body export-actions">
-          <button id="runHttpFollowup" type="button" disabled>HTTP/Tech Follow-up</button>
-          <button id="runUrlFollowup" type="button" disabled>URL/Params</button>
-          <button id="runHttpOnlyFollowup" type="button" disabled>HTTP Only</button>
-          <button id="runTechFollowup" type="button" disabled>Tech Only</button>
-          <button id="runScreenshotFollowup" type="button" disabled>Screenshots</button>
-          <button id="runTrackerFollowup" type="button" disabled>Trackers</button>
-          <button id="runFaviconFollowup" type="button" disabled>Favicons</button>
-          <button id="exportJson" type="button">JSON</button>
-          <button id="exportCsv" type="button">CSV</button>
-          <button id="exportMarkdown" type="button">Markdown</button>
-        </div>
-      </div>
-
-      <div id="results-explorer" class="pane result-explorer-pane result-view active">
-        <h2>Results Explorer</h2>
-        <div class="result-filter-bar">
-          <input id="resultFilterQuery" type="search" placeholder="Filter domains, URLs, technologies, sources, candidates">
-          <select id="resultFilterStatus"><option value="all">All status</option><option value="discovered">Discovered</option><option value="best_candidate">Best candidates</option><option value="review">Review candidates</option><option value="weak_lead">Weak leads</option></select>
-          <input id="resultFilterScore" type="number" min="0" max="100" step="5" placeholder="Min score">
-          <label class="check"><input id="resultFilterHttp" type="checkbox"> <span>Has HTTP</span></label>
-          <label class="check"><input id="resultFilterTech" type="checkbox"> <span>Has tech</span></label>
-          <label class="check"><input id="resultFilterUrls" type="checkbox"> <span>Has URLs</span></label>
-          <label class="check"><input id="resultFilterNew" type="checkbox"> <span>New only</span></label>
-          <button id="exportFilteredJson" type="button">Export View JSON</button>
-          <button id="exportFilteredCsv" type="button">Export View CSV</button>
-        </div>
-        <div id="resultExplorerSummary" class="result-summary"></div>
-        <div class="result-explorer-grid"><div id="resultTree" class="result-tree"><div class="empty-state">No run loaded.</div></div><div id="resultDetail" class="result-detail"><div class="empty-state">Select a domain, service, URL, technology, screenshot run, or candidate.</div></div></div>
-      </div>
-
-      <div id="results-domains" class="pane result-view"><h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="domainGroupBy">Group by</label><select id="domainGroupBy"><option value="none">None</option><option value="kind">Kind</option><option value="root">Root domain</option><option value="source">Source</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead><tbody id="domainRows"></tbody></table></div></div>
-      <div id="results-services" class="pane result-view"><h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="serviceGroupBy">Group by</label><select id="serviceGroupBy"><option value="none">None</option><option value="status">Status code</option><option value="tech">Technology</option><option value="host">Host</option><option value="scheme">Scheme</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead><tbody id="serviceRows"></tbody></table></div></div>
-      <div id="results-technologies" class="pane result-view"><h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="technologyGroupBy">Group by</label><select id="technologyGroupBy"><option value="none">None</option><option value="source">Source</option><option value="serviceCount">Service count</option><option value="hostCount">Host count</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead><tbody id="technologyRows"></tbody></table></div></div>
-      <div id="results-screenshots" class="pane result-view"><h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="screenshotGroupBy">Group by</label><select id="screenshotGroupBy"><option value="none">None</option><option value="tool">Tool</option><option value="status">Status</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead><tbody id="screenshotRows"></tbody></table></div></div>
-      <div id="results-urls" class="pane result-view"><h2>Wayback URLs</h2><div class="result-view-toolbar"><label for="urlGroupBy">Group by</label><select id="urlGroupBy"><option value="none">None</option><option value="host">Host</option><option value="params">Parameters</option><option value="source">Source</option><option value="path">Path prefix</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead><tbody id="artifactRows"></tbody></table></div></div>
-      <div id="results-tool-logs" class="pane result-view"><h2>Tool Logs <span id="toolLogRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="toolLogGroupBy">Group by</label><select id="toolLogGroupBy"><option value="tool">Tool</option><option value="status">Status</option><option value="none">None</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th><th>Logs</th></tr></thead><tbody id="toolLogRows"><tr><td colspan="5" class="muted">No tool results for this run.</td></tr></tbody></table></div></div>
+      <div class="pane"><h2>Run Summary</h2><div class="metrics"><div class="metric"><span>Run</span><strong id="runId">-</strong></div><div class="metric"><span>Status</span><strong id="runStatus">idle</strong></div><div class="metric"><span>Domains</span><strong id="domainCount">0</strong></div><div class="metric"><span>URLs</span><strong id="urlCount">0</strong></div><div class="metric"><span>Services</span><strong id="serviceCount">0</strong></div><div class="metric"><span>Tech</span><strong id="technologyCount">0</strong></div><div class="metric"><span>Screenshots</span><strong id="screenshotCount">0</strong></div><div class="metric"><span>Events</span><strong id="eventCount">0</strong></div></div><div id="runDelta" class="notice muted compact-notice">Run delta is not loaded yet.</div><div class="row"><button id="pauseRun" type="button">Pause</button><button id="resumeRun" type="button">Resume</button><button id="cancelRun" type="button" class="danger-button">Cancel</button></div><div class="result-controls"><button class="result-subtab active" data-results-view="domains" type="button">Domains</button><button class="result-subtab" data-results-view="services" type="button">HTTP Services</button><button class="result-subtab" data-results-view="technologies" type="button">Technologies</button><button class="result-subtab" data-results-view="urls" type="button">URLs</button><button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button><button class="result-subtab" data-results-view="artifacts" type="button">Artifacts</button></div><div id="results-domains" class="result-view active"><div class="scroll"><table><thead><tr><th>Domain</th><th>Root</th><th>Kind</th><th>Source</th><th>Seen</th></tr></thead><tbody id="domainRows"></tbody></table></div></div><div id="results-services" class="result-view"><div class="scroll"><table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th><th>Source</th></tr></thead><tbody id="serviceRows"></tbody></table></div></div><div id="results-technologies" class="result-view"><div class="scroll"><table><thead><tr><th>Technology</th><th>Services</th><th>Hosts</th></tr></thead><tbody id="technologyRows"></tbody></table></div></div><div id="results-urls" class="result-view"><div class="scroll"><table><thead><tr><th>URL</th><th>Host</th><th>Path</th><th>Params</th><th>Source</th></tr></thead><tbody id="urlRows"></tbody></table></div></div><div id="results-screenshots" class="result-view"><div id="screenshotRows" class="screenshot-grid"></div></div><div id="results-artifacts" class="result-view"><div class="scroll"><table><thead><tr><th>Type</th><th>Path</th><th>Source</th></tr></thead><tbody id="artifactRows"></tbody></table></div></div><div class="row"><button id="runHttpFollowup" type="button">HTTP/Tech Follow-up</button><button id="exportJson" type="button">Export JSON</button><button id="exportCsv" type="button">Export CSV</button></div></div>
     </section>
 
-    <section id="tab-ai-log" class="tab-panel"><div class="split"><div class="pane"><h2>AI Correlation Log</h2><div class="notice muted">This log records what the AI-assisted correlation layer is doing. It is separate from chat so the assistant stays clean and useful.</div><div class="scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Evidence</th></tr></thead><tbody id="aiLogRows"><tr><td colspan="4" class="muted">No run loaded.</td></tr></tbody></table></div></div><div class="pane"><h2>Correlation Techniques</h2><div id="aiCorrelationTechniques" class="correlation-techniques"></div></div></div></section>
-    <section id="tab-runs" class="tab-panel"><div class="pane"><h2>Current Activity</h2><div id="runActivity" class="notice muted">No active run loaded.</div></div><div class="pane"><h2>Live Events</h2><div id="events" class="scroll"></div></div></section>
+    <section id="tab-ai-log" class="tab-panel"><div class="pane"><h2>AI Log</h2><div class="scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Evidence</th></tr></thead><tbody id="aiLogRows"></tbody></table></div></div></section>
+    <section id="tab-runs" class="tab-panel"><div class="pane"><h2>Runs & Logs</h2><div id="runActivity" class="notice muted compact-notice">No run activity loaded.</div><div class="scroll"><div id="events"></div></div><div class="scroll"><table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th><th>Logs</th></tr></thead><tbody id="toolLogRows"></tbody></table></div></div></section>
+
+    <section id="tab-projects" class="tab-panel"><div class="pane"><h2>Projects</h2><div id="projectRows" class="notice muted">Projects view is loaded by the project module.</div></div></section>
+
+    <section id="tab-guide" class="tab-panel"><div class="pane"><h2>Guide</h2><div id="guideRoot"></div></div></section>
 
     <section id="tab-settings" class="tab-panel active">
+      <div class="settings-tabs"><button class="settings-tab active" data-settings-panel="appearance" type="button">Appearance</button><button class="settings-tab" data-settings-panel="ai" type="button">AI Agent</button><button class="settings-tab" data-settings-panel="proxy" type="button">Proxy</button><button class="settings-tab" data-settings-panel="credentials" type="button">API Keys</button><button class="settings-tab" data-settings-panel="storage" type="button">Storage</button></div>
       <div class="settings-layout">
-        <div class="pane"><h2>Settings</h2><div class="settings-tabs" aria-label="Settings sections"><button class="settings-tab active" data-settings-panel="environment">Environment</button><button class="settings-tab" data-settings-panel="appearance">Appearance</button><button class="settings-tab" data-settings-panel="ai">AI Agent</button><button class="settings-tab" data-settings-panel="proxy">Proxy</button><button class="settings-tab" data-settings-panel="credentials">API Keys</button><button class="settings-tab" data-settings-panel="storage">Storage</button></div></div>
-        <div class="pane settings-panel active" id="settings-environment"><h2>Environment</h2><div class="split embedded"><div class="embedded-window"><h2>Setup Controls</h2><div class="form-body"><label for="setupDistro">WSL distro</label><input id="setupDistro" type="text" value="kali-linux"><div class="row"><button id="checkEnvironment">Check Environment</button><button id="installEnvironment">Install / Update Tools</button></div><div class="notice muted">API keys are optional during setup. You can skip them now and add provider API keys later in Settings > API Keys.</div></div></div><div class="embedded-window tool-status-window"><h2>Tool Status</h2><div class="scroll"><table><thead><tr><th>Tool</th><th>Status</th><th>Version / Error</th></tr></thead><tbody id="setupToolRows"></tbody></table></div></div></div><div class="embedded-window runtime-window"><h2>AI Runtime</h2><div id="agentStatus" class="notice muted">OpenCode is checked before recon tools.</div></div><div class="embedded-window output-window"><div class="output-title"><h2>Setup Output</h2><span>Scrollable install log</span></div><pre id="setupLog" class="notice muted">Run an environment check before installing tools.</pre></div></div>
-        <div class="pane settings-panel" id="settings-appearance"><h2>Appearance</h2><div class="form-body"><label for="themeSelect">Theme</label><select id="themeSelect"><option value="aura">A.U.R.A Teal</option><option value="raven">Raven Cyan</option><option value="ember">Ember Amber</option><option value="violet">Violet Signal</option><option value="mono">Monochrome Ops</option></select><label for="backgroundEffect">Background effect</label><select id="backgroundEffect"><option value="random">Random rotation</option><option value="waves">Waves</option><option value="particles">Constellation</option><option value="neural">Neural pulse</option><option value="grid">Signal grid</option><option value="flow">Tech flow</option><option value="mesh">Gradient mesh</option><option value="orbit">Orbit arcs</option><option value="horizon">Soft horizon</option><option value="primes">Prime glow</option></select><label for="fontScale">Font size</label><input id="fontScale" type="range" min="90" max="118" value="100"><div id="fontScaleValue" class="notice muted">100%</div></div></div>
+        <div class="pane settings-panel active" id="settings-appearance"><h2>Appearance</h2><div class="form-body"><label for="themeSelect">Theme</label><select id="themeSelect"><option value="aura">A.U.R.A Teal</option><option value="raven">Raven Cyan</option><option value="ember">Ember Amber</option><option value="violet">Violet Signal</option><option value="mono">Monochrome Ops</option></select><label for="backgroundEffect">Background effect</label><select id="backgroundEffect"><option value="random">Random rotation</option><option value="waves">Waves</option><option value="particles">Constellation</option><option value="neural">Neural pulse</option><option value="grid">Signal grid</option><option value="flow">Tech flow</option><option value="mesh">Gradient mesh</option><option value="orbit">Orbit arcs</option><option value="horizon">Soft horizon</option><option value="primes">Prime glow</option></select><label for="fontScale">Font size</label><input id="fontScale" type="range" min="90" max="118" value="100"><div id="fontScaleValue" class="notice muted">100%</div></div></div>
         <div class="pane settings-panel" id="settings-ai"><h2>AI Agent</h2><div class="ai-settings-grid"><div class="ai-settings-main"><div class="ai-metric-row"><div class="metric"><span class="muted">Provider</span><strong id="aiProviderMetric">OpenCode</strong></div><div class="metric"><span class="muted">Planning</span><strong id="aiPlanningMetric">-</strong></div><div class="metric"><span class="muted">Execution</span><strong id="aiExecutionMetric">-</strong></div></div><div class="form-body"><label for="aiProvider">Managed provider</label><select id="aiProvider"><option value="opencode">OpenCode agent runtime</option><option value="codex">Codex CLI</option><option value="claude">Claude Code CLI</option><option value="openrouter">OpenRouter API</option></select><label class="check ai-local-toggle"><input id="useLocalModel" type="checkbox"> <span>Use direct local model endpoint</span></label><div class="notice muted compact-notice">Direct local model mode is off by default. Enable it only when an OpenAI-compatible endpoint is running.</div><div class="row"><div><label for="aiPlanningModel">Planning model</label><select id="aiPlanningModel"></select></div><div><label for="aiExecutionModel">Execution model</label><select id="aiExecutionModel"></select></div></div><div class="row"><div><label for="aiLocalEndpoint">Local endpoint</label><input id="aiLocalEndpoint" type="text" placeholder="http://127.0.0.1:11434/v1/chat/completions"></div><div><label for="aiLocalModel">Local model</label><input id="aiLocalModel" type="text" placeholder="llama3.1"></div></div><label for="aiAutonomyLevel">Autonomy level</label><input id="aiAutonomyLevel" type="range" min="0" max="4" value="1"><div id="aiAutonomyValue" class="notice muted">Level 1 - suggestions only</div><div class="row"><button id="saveAiSettings">Save AI Settings</button><button id="testAiSettings">Test AI</button></div><div id="aiSettingsStatus" class="notice muted">OpenRouter keys belong in Settings > API Keys using provider `openrouter`.</div></div><div class="embedded-window output-window ai-runtime-window"><div class="output-title"><h2>Runtime Configuration</h2><span>OpenCode, Codex, Claude</span></div><pre id="aiRuntimeStatus" class="output-log compact-log">Runtime status has not been loaded yet.</pre></div></div><div class="ai-model-rail"><h2>OpenRouter Free Presets</h2><div id="aiModelCards" class="model-card-list"></div></div></div></div>
         <div class="pane settings-panel" id="settings-proxy"><h2>Proxy</h2><div class="form-body"><label class="check ai-local-toggle"><input id="proxyEnabled" type="checkbox"> <span>Route recon tools through an upstream proxy</span></label><div class="notice muted compact-notice">Use this for an authorized interception or lab egress proxy such as Burp. A.U.R.A does not rotate proxies to bypass rate limits or blocks.</div><label for="proxyUrl">Proxy URL</label><input id="proxyUrl" type="text" placeholder="http://127.0.0.1:8080"><label for="proxySavedList">Saved proxies</label><select id="proxySavedList"></select><div class="row"><div><label for="proxyMode">Mode</label><select id="proxyMode"><option value="http">HTTP / HTTPS</option><option value="socks5">SOCKS5</option><option value="socks4">SOCKS4</option></select></div><div><label for="proxyPurpose">Purpose</label><select id="proxyPurpose"><option value="interception">Burp / interception</option><option value="lab-egress">Lab egress</option></select></div></div><label for="proxyImportList">Import authorized proxies</label><textarea id="proxyImportList" placeholder="http://127.0.0.1:8080&#10;socks5://proxy.local:1080"></textarea><div class="row"><button id="importProxyList" type="button">Import Proxy List</button><button id="clearProxyList" class="danger-button" type="button">Clear Saved Proxies</button></div><button id="saveProxySettings" type="button">Save Proxy Settings</button><div id="proxySettingsStatus" class="notice muted">Proxy settings are stored locally in this browser and applied to WSL recon tool runs.</div></div></div>
         <div class="pane settings-panel" id="settings-credentials"><h2>API Keys</h2><div class="split embedded"><div><div class="form-body"><div class="notice muted">API keys are optional. Add only the free provider keys you want to use; recon still works with local tools and public sources.</div><div class="row3"><div><label for="keyProvider">Provider</label><select id="keyProvider"><option value="binaryedge">BinaryEdge - DNS intelligence</option><option value="builtwith">BuiltWith - technology intelligence</option><option value="censys">Censys - internet intelligence</option><option value="certspotter">Cert Spotter - certificate transparency</option><option value="custom">Custom provider</option><option value="chaos">ProjectDiscovery Chaos - subdomains</option><option value="github">GitHub - code search</option><option value="hunterio">Hunter.io - email/domain intelligence</option><option value="intelx">Intelligence X - domain mentions</option><option value="openrouter">OpenRouter - AI models</option><option value="passivetotal">RiskIQ PassiveTotal - passive DNS</option><option value="rapid7">Rapid7 Open Data - FDNS metadata/local extract</option><option value="securitytrails">SecurityTrails - DNS intelligence</option><option value="shodan">Shodan - host intelligence</option><option value="spyse">Spyse - domain intelligence</option><option value="urlscan">urlscan.io - archived scans</option><option value="virustotal">VirusTotal - domain intelligence</option><option value="whoisfreaks">WhoisFreaks - historical WHOIS</option><option value="whoisxmlapi">WhoisXMLAPI - Reverse WHOIS</option><option value="zoomeye">ZoomEye - internet asset intelligence</option></select></div><div><label for="keyLabel">Label</label><input id="keyLabel" type="text" placeholder="free-tier"></div><div><label for="keyMonthlyLimit">Monthly limit</label><input id="keyMonthlyLimit" type="number" placeholder="50"></div></div><label for="apiKeyValue">API key</label><input id="apiKeyValue" type="text" placeholder="OpenRouter API key"><div class="row"><button id="saveApiKey">Save API Key</button><button id="testAllApiKeys" type="button">Test All API Keys</button></div><div class="row"><button id="exportApiKeys" type="button">Export API Keys</button><button id="importApiKeys" type="button">Import API Keys</button><input id="apiKeyImportFile" type="file" accept="application/json,.json" hidden></div><div id="apiPreflightStatus" class="api-preflight hidden"><div class="api-preflight-rail"><span></span></div><strong>Testing provider...</strong><small>Checking auth method and a lightweight API endpoint.</small></div></div></div><div class="scroll"><table><thead><tr><th><button class="table-sort" type="button" data-api-sort="provider">Provider</button></th><th><button class="table-sort" type="button" data-api-sort="label">Label</button></th><th>Key</th><th><button class="table-sort" type="button" data-api-sort="status">Status</button></th><th><button class="table-sort" type="button" data-api-sort="usage">Usage</button></th><th>Actions</th></tr></thead><tbody id="apiKeyRows"></tbody></table></div></div></div>
