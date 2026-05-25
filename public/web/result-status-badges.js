@@ -1,18 +1,40 @@
 "use strict";
 
 (function initAuraResultStatusBadges() {
+  let observer = null;
+  let scheduled = false;
+
   function boot() {
     injectStyles();
-    enhance();
-    const observer = new MutationObserver(() => enhance());
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    enhanceSoon();
+    watchToolRows();
+  }
+
+  function watchToolRows() {
+    if (observer) observer.disconnect();
+    const root = document.getElementById("toolLogRows");
+    if (!root) {
+      setTimeout(watchToolRows, 500);
+      return;
+    }
+    observer = new MutationObserver(() => enhanceSoon());
+    observer.observe(root, { childList: true, subtree: true });
+  }
+
+  function enhanceSoon() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      enhance();
+    });
   }
 
   function enhance() {
     document.querySelectorAll("#toolLogRows tr").forEach((row) => {
       const cell = row.children[1];
       if (!cell || row.children.length < 5) return;
-      const raw = normalizeRawStatus(cell.textContent || cell.dataset.rawStatus || "");
+      const raw = normalizeRawStatus(cell.dataset.rawStatus || cell.textContent || "");
       if (!raw || raw === "status") return;
       const badge = statusBadge(raw);
       if (cell.dataset.rawStatus === raw && cell.querySelector(".tool-status-badge")) return;
@@ -23,9 +45,8 @@
 
   function normalizeRawStatus(value) {
     return String(value || "")
-      .replace(/[✓✔]/g, "")
-      .replace(/[!⚠]/g, "")
-      .replace(/[↻⟳]/g, "")
+      .replace(/[✓✔⊙○!⚠↻⟳]/g, "")
+      .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
   }
