@@ -324,6 +324,19 @@ function activateTab(name) {
   if (name === "topology") window.AuraTopology?.render();
 }
 
+function bindDashboardShellActions() {
+  document.querySelectorAll("[data-dashboard-tab]").forEach((button) => {
+    button.addEventListener("click", () => activateTab(button.dataset.dashboardTab));
+  });
+  $("dashboardQuickSearch")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const query = event.currentTarget.value.trim();
+    $("searchQuery").value = query;
+    activateTab("search");
+    if (query) runSearch();
+  });
+}
+
 function getUiSettings() {
   try {
     return JSON.parse(localStorage.getItem(UI_SETTINGS_STORAGE_KEY) || "{}");
@@ -1715,6 +1728,7 @@ $("backgroundEffect").addEventListener("change", () => applyBackgroundEffect($("
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tab));
 });
+bindDashboardShellActions();
 
 loadTargets().catch((error) => {
   $("status").textContent = error.message;

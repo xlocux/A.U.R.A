@@ -14,6 +14,14 @@
     <div class="headerbar">
       <h1>A.U.R.A - Asset Unveiling &amp; Reconnaissance Automation</h1>
       <p id="status" class="muted"></p>
+      <div class="top-command" aria-label="Dashboard actions">
+        <label class="command-search" for="dashboardQuickSearch">
+          <span>Ctrl K</span>
+          <input id="dashboardQuickSearch" type="search" placeholder="Search targets, runs, providers">
+        </label>
+        <button class="top-action" type="button" data-dashboard-tab="results">Results</button>
+        <button class="top-action primary" type="button" data-dashboard-tab="recon">New Scan</button>
+      </div>
     </div>
   </header>
 
