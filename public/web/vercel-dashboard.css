@@ -135,7 +135,7 @@ header {
 }
 
 .headerbar h1::after {
-  content: "Authorized surface intelligence";
+  content: "locu.uk";
   display: block;
   margin-left: -2px;
   color: var(--vercel-muted);
