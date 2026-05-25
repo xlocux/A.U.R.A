@@ -83,7 +83,6 @@ function createWebAuth({ store } = {}) {
       }
       const passwordForHash = nextPassword || String(body.currentPassword || "");
       const updatedUser = store.upsertWebUser(hashWebUserPassword({ username: nextUsername, password: passwordForHash }));
-      if (nextUsername !== currentSessionUsername) store.deleteWebUser(currentSessionUsername);
       const token = parseCookies(request.headers.cookie || "")[SESSION_COOKIE];
       if (token) sessions.set(token, nextUsername);
       sendJson(response, { ok: true, username: updatedUser.username, status: updatedUser.status, updatedAt: updatedUser.updated_at });
