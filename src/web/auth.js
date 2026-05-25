@@ -61,7 +61,7 @@ function createWebAuth({ store } = {}) {
       saveStoredSession(store, sessionKey, user.username);
       store.recordWebUserLogin(user.username);
       response.setHeader("Set-Cookie", cookieValue(sessionKey));
-      sendJson(response, { authenticated: true, username: user.username, sessionKey });
+      sendJson(response, { authenticated: true, username: user.username });
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/auth/credentials") {
