@@ -49,7 +49,7 @@
               <button id="saveSecurityCredentials" type="button">Save Credentials</button>
               <button id="logoutSecuritySession" type="button" class="danger-button">Logout</button>
             </div>
-            <div id="securityStatus" class="notice muted compact-notice">Credentials are stored locally in SQLite as salted PBKDF2 hashes.</div>
+            <div id="securityStatus" class="notice muted compact-notice">Credentials are stored locally in SQLite as salted PBKDF2 hashes. The web session is persisted with an HttpOnly cookie.</div>
           </div>
         </div>
         <div class="embedded-window">
@@ -84,10 +84,19 @@
   function bindSecurityActions() {
     document.addEventListener("click", (event) => {
       const tab = event.target.closest('[data-settings-panel="security"]');
-      if (tab) setTimeout(loadCurrentUser, 50);
+      if (tab) {
+        event.preventDefault();
+        activateSettingsPanel("security");
+        setTimeout(loadCurrentUser, 50);
+      }
       if (event.target.closest("#saveSecurityCredentials")) saveCredentials();
       if (event.target.closest("#logoutSecuritySession")) logout();
-    });
+    }, true);
+  }
+
+  function activateSettingsPanel(name) {
+    document.querySelectorAll(".settings-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.settingsPanel === name));
+    document.querySelectorAll(".settings-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `settings-${name}`));
   }
 
   async function loadCurrentUser() {
@@ -110,6 +119,7 @@
     const newPassword = document.getElementById("securityNewPassword")?.value || "";
     const confirmPassword = document.getElementById("securityConfirmPassword")?.value || "";
     const status = document.getElementById("securityStatus");
+    const setStatus = (message, isError) => { if (status) { status.textContent = message; status.classList.toggle("error", Boolean(isError)); } };
     if (!currentPassword) return setStatus("Current password is required.", true);
     if (newPassword && newPassword !== confirmPassword) return setStatus("New password confirmation does not match.", true);
     try {
@@ -128,15 +138,11 @@
     } catch (error) {
       setStatus(error.message, true);
     }
-    function setStatus(message, isError) {
-      if (!status) return;
-      status.textContent = message;
-      status.classList.toggle("error", Boolean(isError));
-    }
   }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
+    try { localStorage.removeItem("aura.authToken"); } catch {}
     window.location.href = "/login.html";
   }
 
