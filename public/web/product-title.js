@@ -7,6 +7,7 @@
     document.title = fullName;
     const heading = document.querySelector("header h1");
     if (heading) heading.textContent = fullName;
+    injectScript("/auth-persistence.js", "aura-auth-persistence-js");
     injectScript("/workspace-layout.js", "aura-workspace-layout-js");
     injectScript("/topology-analytics-fix.js", "aura-topology-analytics-fix-js");
     injectScript("/security-settings.js", "aura-security-settings-js");
