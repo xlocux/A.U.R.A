@@ -1,7 +1,6 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
-const os = require("node:os");
 const { loadToolRegistry } = require("./tool-registry");
 
 const DEFAULT_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
@@ -21,9 +20,9 @@ function setupToolIds(registry = loadToolRegistry()) {
   return registry.list().map((tool) => tool.tool_id);
 }
 
-async function checkWslEnvironment({ distro = "kali-linux", toolIds = null, registry = loadToolRegistry() } = {}) {
+async function checkWslEnvironment({ distro = "linux", toolIds = null, registry = loadToolRegistry() } = {}) {
   const requested = toolIds || setupToolIds(registry);
-  const runner = createEnvironmentRunner({ distro });
+  const runner = createEnvironmentRunner();
   const distroCheck = await runner.run("printf '%s' \"${PRETTY_NAME:-$(uname -s)}\"", 30000);
   const agent = await checkTool({ runner, tool: OPENCODE_TOOL });
   const tools = [];
@@ -33,18 +32,19 @@ async function checkWslEnvironment({ distro = "kali-linux", toolIds = null, regi
   }
   return {
     distro,
+    runtime: "linux",
     mode: runner.mode,
     environmentAvailable: distroCheck.status === "completed",
-    wslAvailable: distroCheck.status === "completed",
+    wslAvailable: false,
     distroName: distroCheck.stdout || null,
     agent,
     tools
   };
 }
 
-async function installWslTools({ distro = "kali-linux", toolIds = null, registry = loadToolRegistry() } = {}) {
+async function installWslTools({ distro = "linux", toolIds = null, registry = loadToolRegistry() } = {}) {
   const requested = toolIds || setupToolIds(registry);
-  const runner = createEnvironmentRunner({ distro });
+  const runner = createEnvironmentRunner();
   const results = [];
   results.push(await installTool({ runner, tool: SYSTEM_PREREQUISITES_TOOL }));
   results.push(await installTool({ runner, tool: OPENCODE_TOOL }));
@@ -52,7 +52,7 @@ async function installWslTools({ distro = "kali-linux", toolIds = null, registry
     const tool = registry.require(toolId);
     results.push(await installTool({ runner, tool }));
   }
-  return { distro, mode: runner.mode, tools: results };
+  return { distro, runtime: "linux", mode: runner.mode, tools: results };
 }
 
 async function checkTool({ runner, tool }) {
@@ -166,13 +166,7 @@ function versionCommand(tool) {
   return `${command}${args ? ` ${args}` : ""}`;
 }
 
-function createEnvironmentRunner({ distro }) {
-  if (os.platform() === "win32") {
-    return {
-      mode: "wsl",
-      run: (command, timeoutMs) => runWslShell({ distro, command, timeoutMs })
-    };
-  }
+function createEnvironmentRunner() {
   return {
     mode: "native",
     run: (command, timeoutMs) => runNativeShell({ command, timeoutMs })
@@ -181,10 +175,6 @@ function createEnvironmentRunner({ distro }) {
 
 function runNativeShell({ command, timeoutMs }) {
   return runShellProcess({ command: "sh", args: ["-lc", command], timeoutMs });
-}
-
-function runWslShell({ distro, command, timeoutMs }) {
-  return runShellProcess({ command: "wsl", args: ["-d", distro, "--", "sh", "-lc", command], timeoutMs });
 }
 
 function runShellProcess({ command, args, timeoutMs }) {
