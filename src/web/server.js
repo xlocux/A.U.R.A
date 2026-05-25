@@ -78,16 +78,19 @@ async function startWebServer(argv = process.argv) {
     const url = `http://${args.host}:${args.port}`;
     process.stdout.write(`A.U.R.A web UI listening on ${url}\n`);
     process.stdout.write("Default login is locu:locu until changed. Set AURA_WEB_PASSWORD before first start to override the initial password.\n");
-    if (args.open) {
-      spawn("rundll32.exe", ["url.dll,FileProtocolHandler", url], {
-        windowsHide: true,
-        detached: true,
-        stdio: "ignore"
-      }).unref();
-    }
+    if (args.open) openBrowser(url);
   });
 
   return server;
+}
+
+function openBrowser(url) {
+  const child = spawn("xdg-open", [url], {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.on("error", () => {});
+  child.unref();
 }
 
 function isPublicPath(requestPath) {
