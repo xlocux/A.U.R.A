@@ -306,9 +306,9 @@
     style.textContent = `
       .aura-hidden-provider-leads, .aura-hidden-tab { display: none !important; }
       .aura-discovery-only-row { grid-template-columns: 1fr !important; }
-      .aura-discovery-leads-wide .scroll { max-height: calc(100vh - 250px); }
+      .aura-discovery-leads-wide .scroll { max-height: none !important; overflow-y: visible !important; overflow-x: auto; }
       .aura-discovery-leads-wide table { table-layout: fixed; min-width: 1120px; }
-      .aura-discovery-leads-wide th, .aura-discovery-leads-wide td { padding: 4px 7px; }
+      .aura-discovery-leads-wide th, .aura-discovery-leads-wide td { padding: 5px 8px; }
       .logs-subtabs, .topology-view-tabs { display: flex; gap: 5px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
       .logs-subtabs button, .topology-view-tabs button { width: auto; margin: 0; padding: 5px 9px; border-radius: 999px; background: rgba(20, 18, 34, .72); }
       .logs-subtabs button.active, .topology-view-tabs button.active { color: #071017; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }

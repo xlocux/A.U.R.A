@@ -1665,10 +1665,48 @@ async function refreshLeads() {
   if (!target) return;
   const data = await api(`/api/targets/${encodeURIComponent(target)}/asset-leads`);
   $("leadRows").innerHTML = data.leads.map((lead) => {
-    const score = lead.metadata?.correlationScore ?? "";
+    const score = normalizeLeadScore(lead.metadata?.correlationScore);
     const rationale = lead.metadata?.correlationRationale || [];
-    return `<tr><td>${esc(lead.value)}</td><td>${esc(lead.source)}</td><td>${esc(lead.status || lead.confidence)}</td><td>${esc(score)}</td><td>${esc(rationale.join("; "))}</td><td>${esc((lead.matchTerms || []).join(", "))}</td></tr>`;
+    const status = lead.status || lead.confidence || "unknown";
+    return `<tr>
+      <td class="lead-value-cell">${esc(lead.value)}</td>
+      <td>${esc(lead.source)}</td>
+      <td>${leadStatusBadge(status)}</td>
+      <td>${leadScoreBar(score)}</td>
+      <td>${esc(rationale.join("; "))}</td>
+      <td>${esc((lead.matchTerms || []).join(", "))}</td>
+    </tr>`;
   }).join("");
+}
+
+function normalizeLeadScore(value) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null;
+}
+
+function leadScoreTone(score) {
+  if (score == null) return "empty";
+  if (score >= 75) return "high";
+  if (score >= 45) return "medium";
+  return "low";
+}
+
+function leadScoreBar(score) {
+  const tone = leadScoreTone(score);
+  const width = score == null ? 0 : Math.max(4, score);
+  const label = score == null ? "n/a" : `${score}`;
+  const title = score == null ? "No score recorded" : `Correlation score ${score}/100`;
+  return `<div class="lead-score-cell lead-score-${tone}" title="${esc(title)}" aria-label="${esc(title)}">
+    <div class="lead-score-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${esc(score ?? 0)}">
+      <span style="width:${esc(width)}%"></span>
+    </div>
+    <strong>${esc(label)}</strong>
+  </div>`;
+}
+
+function leadStatusBadge(status) {
+  if (window.AuraStatusBadges?.badge) return window.AuraStatusBadges.badge(status, { className: "lead-status-badge" });
+  return `<span class="lead-status-text">${esc(status)}</span>`;
 }
 
 $("target").addEventListener("change", () => {

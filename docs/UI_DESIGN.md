@@ -548,3 +548,11 @@ Recon tool selection uses compact toggle cards instead of native checkbox rows. 
 The card layer is progressive enhancement in `public/web/tool-toggle-cards.js`; recon logic still reads the same input ids, so backend payloads and AI-aware recon planning remain unchanged.
 
 Native browser confirmation prompts are replaced by the shared `AuraDialogs` modal helper in `public/web/aura-dialogs.js`. Destructive actions use the danger tone, keyboard focus is trapped while the dialog is open, and existing async flows wait for the modal result before mutating local recon data.
+
+### Discovery Leads score bars and Recon scroll behavior
+
+Discovery Leads now render correlation scores as compact progress meters rather than plain numbers. Scores are normalized to a 0-100 range and use distinct visual states: low confidence, medium confidence, high confidence, and empty/no-score. This keeps AI-assisted provider leads scannable while preserving the original lead source, status, rationale, and match terms.
+
+The Recon tab uses a single vertical scroll container on desktop. Discovery Leads keep horizontal overflow for wide tables, but the lead table no longer creates a nested vertical scroll area; this reduces scroll jitter while preserving access to all saved observations.
+
+Run Delta keeps its summary and metric cards in a dedicated header area above the table. Delta rows remain isolated in the table scroll area so Explorer content cannot visually bleed into the Delta view.
