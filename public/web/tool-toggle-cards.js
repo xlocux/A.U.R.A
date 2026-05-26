@@ -1,6 +1,6 @@
 "use strict";
 
-(function initToolToggleCards() {
+(function initAuraToggleControls() {
   const TOOL_META = {
     crtsh: ["Passive source", "Public CT discovery"],
     wayback: ["Passive source", "Historical URLs"],
@@ -33,73 +33,146 @@
     eyewitness: ["Screenshots", "Visual triage"]
   };
 
+  const GENERIC_META = {
+    intelPreflight: ["AI-assisted intel", "WHOIS/RDAP and TLD pivots"],
+    searchCurrentTarget: ["Search scope", "Limit search to active target"],
+    topologyDomains: ["Topology layer", "Show discovered domains"],
+    topologyServices: ["Topology layer", "Show HTTP services"],
+    topologyArtifacts: ["Topology layer", "Show URLs and screenshot artifacts"],
+    topologyCandidates: ["Topology layer", "Show discovery candidates"],
+    resultFilterHttp: ["Results filter", "Only nodes with HTTP evidence"],
+    resultFilterTech: ["Results filter", "Only nodes with technologies"],
+    resultFilterUrls: ["Results filter", "Only nodes with URL evidence"],
+    resultFilterNew: ["Results filter", "Only new observations"],
+    useLocalModel: ["AI runtime", "Use a direct local model endpoint"],
+    proxyEnabled: ["Proxy routing", "Route recon tools through authorized proxy"],
+    sourceWhoisXml: ["Provider source", "Reverse WHOIS enrichment"],
+    sourceCensys: ["Provider source", "Host and certificate enrichment"],
+    sourceShodan: ["Provider source", "Host, favicon, and service enrichment"],
+    sourceRdap: ["Provider source", "RDAP / WHOIS enrichment"]
+  };
+
+  const TOOL_RECOMMENDED = new Set([
+    "crtsh", "wayback", "rapiddns", "certspotter", "securitytrails", "shodan", "virustotal",
+    "urlscan", "useLinuxRunner", "subfinder", "dnsx", "gau", "httpx", "gowitness"
+  ]);
+
+  let syncQueued = false;
+
   function statusIcon(state) {
     if (state === "locked") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>';
     if (state === "enabled") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>';
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path></svg>';
   }
 
-  function enhanceCard(card) {
-    const input = card.querySelector('input[type="checkbox"]');
-    const label = card.querySelector("span");
-    if (!input || !label || card.dataset.toolCardReady) return;
-    card.dataset.toolCardReady = "true";
-    card.classList.add("tool-toggle-card");
-    card.tabIndex = 0;
-    card.setAttribute("role", "switch");
-    card.setAttribute("aria-labelledby", `${input.id}-tool-title`);
-    label.classList.add("tool-toggle-copy");
-    label.innerHTML = `
-      <span class="tool-toggle-main"><span id="${input.id}-tool-title" class="tool-toggle-name">${label.textContent.trim()}</span><span class="tool-toggle-state"></span></span>
-      <span class="tool-toggle-meta"></span>`;
-    card.insertAdjacentHTML("afterbegin", '<span class="tool-toggle-icon" aria-hidden="true"></span>');
-    card.addEventListener("click", (event) => {
+  function enhanceControl(control) {
+    const input = control.querySelector('input[type="checkbox"]');
+    const label = control.querySelector("span");
+    if (!input || !label || control.dataset.auraToggleReady) return;
+
+    const variant = control.closest(".tool-grid") ? "tool" : "button";
+    const titleId = `${input.id || Math.random().toString(36).slice(2)}-toggle-title`;
+    const labelText = label.textContent.trim();
+
+    control.dataset.auraToggleReady = "true";
+    control.dataset.auraToggleVariant = variant;
+    control.classList.add("aura-toggle-control");
+    control.tabIndex = 0;
+    control.setAttribute("role", "switch");
+    control.setAttribute("aria-labelledby", titleId);
+
+    if (variant === "tool") {
+      control.classList.add("tool-toggle-card");
+      label.classList.add("tool-toggle-copy");
+      label.innerHTML = `
+        <span class="tool-toggle-main"><span id="${titleId}" class="tool-toggle-name">${escapeHtml(labelText)}</span><span class="tool-toggle-state"></span></span>
+        <span class="tool-toggle-meta"></span>`;
+      control.insertAdjacentHTML("afterbegin", '<span class="tool-toggle-icon" aria-hidden="true"></span>');
+    } else {
+      control.classList.add("aura-toggle-button");
+      label.classList.add("aura-toggle-copy");
+      label.innerHTML = `
+        <span class="aura-toggle-icon" aria-hidden="true"></span>
+        <span id="${titleId}" class="aura-toggle-name">${escapeHtml(labelText)}</span>
+        <span class="aura-toggle-state"></span>`;
+    }
+
+    control.addEventListener("click", (event) => {
       if (event.target === input) return;
       event.preventDefault();
       toggleInput(input);
     });
-    card.addEventListener("keydown", (event) => {
+    control.addEventListener("keydown", (event) => {
       if (!["Enter", " "].includes(event.key)) return;
       event.preventDefault();
       toggleInput(input);
     });
-    input.addEventListener("change", () => syncCard(card));
+    input.addEventListener("change", () => syncControl(control));
   }
 
   function toggleInput(input) {
     if (input.disabled) {
-      window.AuraDialogs?.alert({
-        tone: "info",
-        title: "API key required",
-        message: "This provider is locked until an active API key is available in Settings > API Keys.",
-        confirmLabel: "Got it"
-      });
+      if (input.closest(".missing-api") || input.closest(".requires-api")) {
+        window.AuraDialogs?.alert({
+          tone: "info",
+          title: "API key required",
+          message: "This provider is locked until an active API key is available in Settings > API Keys.",
+          confirmLabel: "Got it"
+        });
+      }
       return;
     }
     input.checked = !input.checked;
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function syncCard(card) {
-    const input = card.querySelector('input[type="checkbox"]');
+  function syncControl(control) {
+    const input = control.querySelector('input[type="checkbox"]');
     if (!input) return;
-    const state = input.disabled || card.classList.contains("missing-api") ? "locked" : input.checked ? "enabled" : "disabled";
-    card.dataset.toolState = state;
-    card.setAttribute("aria-checked", input.checked && state !== "locked" ? "true" : "false");
-    card.setAttribute("aria-disabled", state === "locked" ? "true" : "false");
+    const variant = control.dataset.auraToggleVariant || (control.closest(".tool-grid") ? "tool" : "button");
+    const state = input.disabled || control.classList.contains("missing-api") ? "locked" : input.checked ? "enabled" : "disabled";
+
+    control.dataset.toolState = state;
+    control.dataset.toggleState = state;
+    control.setAttribute("aria-checked", input.checked && state !== "locked" ? "true" : "false");
+    control.setAttribute("aria-disabled", state === "locked" ? "true" : "false");
+
+    if (variant === "tool") syncToolControl(control, input, state);
+    else syncButtonControl(control, input, state);
+  }
+
+  function syncToolControl(control, input, state) {
     const meta = TOOL_META[input.id] || ["Recon option", "A.U.R.A aware recon module"];
-    const stateNode = card.querySelector(".tool-toggle-state");
-    const metaNode = card.querySelector(".tool-toggle-meta");
-    const icon = card.querySelector(".tool-toggle-icon");
+    const stateNode = control.querySelector(".tool-toggle-state");
+    const metaNode = control.querySelector(".tool-toggle-meta");
+    const icon = control.querySelector(".tool-toggle-icon");
     if (stateNode) stateNode.textContent = state === "locked" ? "Needs API key" : state === "enabled" ? "Enabled" : "Disabled";
     if (metaNode) metaNode.textContent = state === "locked" ? `${meta[0]} · add key in Settings` : `${meta[0]} · ${meta[1]}`;
     if (icon) icon.innerHTML = statusIcon(state);
   }
 
+  function syncButtonControl(control, input, state) {
+    const icon = control.querySelector(".aura-toggle-icon");
+    const stateNode = control.querySelector(".aura-toggle-state");
+    const meta = GENERIC_META[input.id] || ["Toggle", "A.U.R.A aware option"];
+    control.title = state === "locked" ? `${meta[0]} · locked` : meta[1];
+    if (icon) icon.innerHTML = statusIcon(state);
+    if (stateNode) stateNode.textContent = state === "locked" ? "Locked" : state === "enabled" ? "On" : "Off";
+  }
+
   function syncAll() {
-    document.querySelectorAll(".tool-grid .check").forEach((card) => {
-      enhanceCard(card);
-      syncCard(card);
+    document.querySelectorAll(".check").forEach((control) => {
+      enhanceControl(control);
+      syncControl(control);
+    });
+  }
+
+  function queueSyncAll() {
+    if (syncQueued) return;
+    syncQueued = true;
+    window.requestAnimationFrame(() => {
+      syncQueued = false;
+      syncAll();
     });
   }
 
@@ -120,25 +193,35 @@
   }
 
   function applyQuickAction(action) {
-    const recommended = new Set(["crtsh", "wayback", "rapiddns", "certspotter", "securitytrails", "shodan", "virustotal", "urlscan", "useLinuxRunner", "subfinder", "dnsx", "gau", "httpx", "gowitness"]);
     document.querySelectorAll(".tool-grid input[type='checkbox']").forEach((input) => {
       if (input.disabled) return;
       if (action === "disable") input.checked = false;
-      if (action === "recommended") input.checked = recommended.has(input.id);
-      if (action === "api") input.checked = input.closest(".requires-api") && !input.closest(".missing-api");
+      if (action === "recommended") input.checked = TOOL_RECOMMENDED.has(input.id);
+      if (action === "api") input.checked = Boolean(input.closest(".requires-api")) && !input.closest(".missing-api");
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     syncAll();
   }
 
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
   function boot() {
     addQuickActions();
     syncAll();
-    const grid = document.querySelector(".tool-grid");
-    if (!grid) return;
-    const observer = new MutationObserver(() => syncAll());
-    observer.observe(grid, { attributes: true, subtree: true, attributeFilter: ["class", "disabled", "checked"] });
-    window.setInterval(syncAll, 1500);
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutation.type === "childList" || ["class", "disabled", "checked"].includes(mutation.attributeName))) {
+        queueSyncAll();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "disabled", "checked"] });
+    window.AuraToggleControls = { syncAll, queueSyncAll };
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });

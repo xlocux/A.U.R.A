@@ -27,7 +27,7 @@
     $("pulseTopology")?.addEventListener("click", render);
     $("zoomTopologyIn")?.addEventListener("click", () => zoom(0.15));
     $("zoomTopologyOut")?.addEventListener("click", () => zoom(-0.15));
-    ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", reset));
+    ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", update));
     ["topologySearch", "topologyFocus", "topologyLayout"].forEach((id) => $(id)?.addEventListener("input", handleOptionChange));
     $("topologyResetSmart")?.addEventListener("click", () => {
       options = { query: "", focus: "all", layout: "smart" };

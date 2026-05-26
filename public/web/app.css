@@ -2017,3 +2017,138 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 #results-delta .delta-scroll td:nth-child(3) { width: auto; overflow-wrap: anywhere; }
 #results-delta .delta-scroll th:nth-child(4),
 #results-delta .delta-scroll td:nth-child(4) { width: 160px; }
+
+/* Application-wide checkbox replacement: A.U.R.A aware toggle buttons */
+.check.aura-toggle-control {
+  user-select: none;
+}
+.check.aura-toggle-control input[type="checkbox"] {
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  width: 1px !important;
+}
+.check.aura-toggle-button {
+  align-items: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .052), rgba(255, 255, 255, .018));
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 10px;
+  position: relative;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, opacity .18s ease, transform .18s ease;
+  white-space: nowrap;
+}
+.check.aura-toggle-button:hover {
+  background: linear-gradient(135deg, rgba(64, 195, 255, .10), rgba(255, 255, 255, .028));
+  border-color: rgba(64, 195, 255, .34);
+  transform: translateY(-1px);
+}
+.check.aura-toggle-button:focus-visible {
+  outline: 2px solid rgba(64, 195, 255, .70);
+  outline-offset: 2px;
+}
+.aura-toggle-copy {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  min-width: 0;
+}
+.aura-toggle-icon {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 18px;
+  justify-content: center;
+  width: 18px;
+}
+.aura-toggle-icon svg {
+  height: 12px;
+  width: 12px;
+}
+.aura-toggle-name {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aura-toggle-state {
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  padding: 1px 5px;
+  text-transform: uppercase;
+}
+.check.aura-toggle-button[data-toggle-state="enabled"] {
+  background: linear-gradient(135deg, rgba(64, 195, 255, .15), rgba(52, 211, 153, .055));
+  border-color: rgba(64, 195, 255, .42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px rgba(64, 195, 255, .04);
+}
+.check.aura-toggle-button[data-toggle-state="enabled"] .aura-toggle-icon,
+.check.aura-toggle-button[data-toggle-state="enabled"] .aura-toggle-state {
+  background: rgba(64, 195, 255, .12);
+  border-color: rgba(64, 195, 255, .35);
+  color: var(--accent-2);
+}
+.check.aura-toggle-button[data-toggle-state="disabled"] {
+  opacity: .82;
+}
+.check.aura-toggle-button[data-toggle-state="locked"] {
+  background: linear-gradient(135deg, rgba(251, 191, 36, .10), rgba(255, 255, 255, .018));
+  border-color: rgba(251, 191, 36, .26);
+  opacity: .76;
+}
+.check.aura-toggle-button[data-toggle-state="locked"] .aura-toggle-icon,
+.check.aura-toggle-button[data-toggle-state="locked"] .aura-toggle-state {
+  background: rgba(251, 191, 36, .10);
+  border-color: rgba(251, 191, 36, .28);
+  color: var(--warn);
+}
+.result-filter-bar .check.aura-toggle-button {
+  flex: 0 0 auto;
+  min-height: 36px;
+}
+.result-filter-bar .aura-toggle-state {
+  display: none;
+}
+.topology-side .form-body {
+  gap: 8px;
+}
+.topology-side .check.aura-toggle-button {
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.topology-side .aura-toggle-copy {
+  justify-content: space-between;
+  width: 100%;
+}
+.settings-panel .check.aura-toggle-button,
+#searchCurrentTarget.check.aura-toggle-button {
+  border-radius: 12px;
+  width: fit-content;
+}
+@media (max-width: 760px) {
+  .result-filter-bar .check.aura-toggle-button,
+  .check.aura-toggle-button {
+    width: 100%;
+  }
+  .aura-toggle-copy {
+    justify-content: space-between;
+    width: 100%;
+  }
+}

@@ -560,3 +560,14 @@ Run Delta keeps its summary and metric cards in a dedicated header area above th
 ### Results Explorer detail fit
 
 The Results Explorer keeps the selected-node detail pane free of a nested scrollbar on desktop. Detail sections are rendered in a compact grid and long node collections are summarized with an export hint so the recon workspace stays smooth while preserving complete data in JSON/CSV exports.
+
+### Application-wide toggle buttons
+
+Native checkbox chrome is hidden across the dashboard and progressively enhanced by `public/web/tool-toggle-cards.js`.
+
+- Recon Tools keep the full card treatment with enabled, disabled, and API-key locked states.
+- Compact dashboard filters, Topology layers, Settings switches, and Search scope controls use the same SVG state language in a smaller pill/button treatment.
+- The original checkbox inputs stay in the DOM and continue to drive existing recon, filter, settings, and AI-aware workflows.
+- Disabled API/provider controls render as locked buttons and do not trigger browser-native checkbox visuals.
+
+Topology layer toggles rebuild the graph without calling Fit/Reset, so changing a layer no longer changes the current zoom or pan position.
