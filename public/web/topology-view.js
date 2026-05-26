@@ -25,7 +25,6 @@
     canvas?.addEventListener("pointerup", endPan);
     canvas?.addEventListener("pointerleave", endPan);
     $("fitTopology")?.addEventListener("click", reset);
-    $("pulseTopology")?.addEventListener("click", render);
     $("zoomTopologyIn")?.addEventListener("click", () => zoom(0.15));
     $("zoomTopologyOut")?.addEventListener("click", () => zoom(-0.15));
     ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", handleLayerToggle));
@@ -394,7 +393,7 @@
   }
 
   function isVerifiedCandidate(candidate) {
-    return candidateScore(candidate) >= 100;
+    return candidateScore(candidate) === 100;
   }
 
   function candidateScore(candidate) {

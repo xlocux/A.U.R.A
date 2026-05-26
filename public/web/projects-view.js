@@ -10,6 +10,8 @@
     snapshot: emptySnapshot(),
     activeView: "all",
     selectedItem: null,
+    modalRows: [],
+    modalIndex: -1,
     filter: { query: "", type: "all", onlyLive: false }
   };
 
@@ -94,10 +96,6 @@
                   <tbody id="projectsTableRows"><tr><td class="muted">Select a project.</td></tr></tbody>
                 </table>
               </div>
-              <aside class="projects-detail pane">
-                <h2>Selection</h2>
-                <div id="projectsDetail" class="notice muted">Select any row to inspect full details, including screenshots when available.</div>
-              </aside>
             </div>
           </div>
         </section>
@@ -142,6 +140,7 @@
   async function selectProject(targetName) {
     state.selectedTarget = targetName;
     state.selectedItem = null;
+    closeProjectInspector();
     const runs = runsForTarget(targetName);
     state.selectedRunId = runs[0]?.id || null;
     renderProjectsList();
@@ -156,6 +155,7 @@
   async function loadSelectedRun(runId) {
     state.selectedRunId = runId || null;
     state.selectedItem = null;
+    closeProjectInspector();
     if (!runId) {
       state.snapshot = emptySnapshot();
       renderData();
@@ -220,7 +220,6 @@
     renderSubtabs();
     const rows = filteredRows();
     renderTable(rows);
-    renderDetail(state.selectedItem);
   }
 
   function renderSummary() {
@@ -244,29 +243,85 @@
   }
 
   function renderTable(rows) {
+    state.modalRows = rows;
     $("projectsTableHead").innerHTML = `<tr><th>Type</th><th>Value</th><th>Detail</th><th>Source</th><th>Seen</th></tr>`;
-    $("projectsTableRows").innerHTML = rows.length ? rows.map((row, index) => `<tr data-project-row="${index}"><td><span class="projects-pill">${esc(row.type)}</span></td><td>${esc(row.value)}</td><td>${row.detailHtml || esc(row.detail || "")}</td><td>${esc(row.source || "")}</td><td>${esc(row.seen || "")}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">No data matches the current filters.</td></tr>`;
-    document.querySelectorAll("[data-project-row]").forEach((tr) => tr.addEventListener("click", () => {
-      state.selectedItem = rows[Number(tr.dataset.projectRow)];
-      renderDetail(state.selectedItem);
+    $("projectsTableRows").innerHTML = rows.length ? rows.map((row, index) => `<tr data-project-row="${index}" title="Open row inspector"><td><span class="projects-pill">${esc(row.type)}</span></td><td class="projects-value-cell">${esc(row.value)}</td><td class="projects-detail-cell">${row.detailHtml || esc(row.detail || "")}</td><td class="projects-source-cell">${esc(row.source || "")}</td><td class="projects-seen-cell">${esc(row.seen || "")}</td></tr>`).join("") : `<tr><td colspan="5" class="muted">No data matches the current filters.</td></tr>`;
+    document.querySelectorAll("[data-project-row]").forEach((tr) => tr.addEventListener("click", (event) => {
+      if (event.target.closest(".screenshot-thumb, a, button")) return;
+      openProjectInspector(rows, Number(tr.dataset.projectRow));
     }));
   }
 
-  function renderDetail(row) {
-    if (!row) {
-      $("projectsDetail").className = "notice muted";
-      $("projectsDetail").innerHTML = "Select any row to inspect full details, including screenshots when available.";
-      return;
-    }
+  function ensureProjectInspectorModal() {
+    let modal = $("projectInspectorModal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "projectInspectorModal";
+    modal.className = "image-modal project-inspector-modal hidden";
+    modal.innerHTML = `
+      <div class="project-inspector-dialog" role="dialog" aria-modal="true" aria-labelledby="projectInspectorTitle">
+        <button class="image-modal-close project-inspector-close" type="button" aria-label="Close project inspector">&times;</button>
+        <button class="image-modal-nav image-modal-prev project-inspector-prev" type="button" aria-label="Previous row">&#8249;</button>
+        <section class="project-inspector-card">
+          <div class="project-inspector-head">
+            <div>
+              <span id="projectInspectorType" class="projects-pill">row</span>
+              <h2 id="projectInspectorTitle">Project row</h2>
+              <p id="projectInspectorMeta" class="muted"></p>
+            </div>
+            <span id="projectInspectorCount" class="muted"></span>
+          </div>
+          <div id="projectInspectorBody" class="project-inspector-body"></div>
+        </section>
+        <button class="image-modal-nav image-modal-next project-inspector-next" type="button" aria-label="Next row">&#8250;</button>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal || event.target.closest(".project-inspector-close")) closeProjectInspector();
+      if (event.target.closest(".project-inspector-prev")) showProjectInspectorAt(state.modalIndex - 1);
+      if (event.target.closest(".project-inspector-next")) showProjectInspectorAt(state.modalIndex + 1);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (modal.classList.contains("hidden")) return;
+      if (!$("imagePreviewModal")?.classList.contains("hidden")) return;
+      if (event.key === "Escape") closeProjectInspector();
+      if (event.key === "ArrowLeft") showProjectInspectorAt(state.modalIndex - 1);
+      if (event.key === "ArrowRight") showProjectInspectorAt(state.modalIndex + 1);
+    });
+    return modal;
+  }
+
+  function openProjectInspector(rows, index) {
+    if (!rows.length) return;
+    state.modalRows = rows;
+    const modal = ensureProjectInspectorModal();
+    showProjectInspectorAt(index);
+    modal.classList.remove("hidden");
+  }
+
+  function closeProjectInspector() {
+    $("projectInspectorModal")?.classList.add("hidden");
+    state.modalIndex = -1;
+  }
+
+  function showProjectInspectorAt(index) {
+    if (!state.modalRows.length) return;
+    state.modalIndex = (index + state.modalRows.length) % state.modalRows.length;
+    const row = state.modalRows[state.modalIndex];
     const item = row.raw || {};
     const screenshots = row.type === "screenshot" ? [item] : relatedScreenshots(row);
-    $("projectsDetail").className = "projects-detail-card";
-    $("projectsDetail").innerHTML = `
-      <strong>${esc(row.value)}</strong>
-      <span><b>Type:</b> ${esc(row.type)} · <b>Source:</b> ${esc(row.source || "-")}</span>
-      <code>${esc(JSON.stringify(item, null, 2))}</code>
-      ${screenshots.length ? `<div><strong>Screenshots</strong><div class="projects-screenshot-grid">${screenshots.flatMap((shot) => (shot.images || []).slice(0, 12).map((image) => `<a href="${esc(image.url)}" target="_blank" rel="noreferrer"><img src="${esc(image.url)}" alt="${esc(image.name || "screenshot")}" loading="lazy"></a>`)).join("")}</div></div>` : `<span class="muted">No screenshot preview linked to this selection.</span>`}
+    $("projectInspectorType").textContent = row.type;
+    $("projectInspectorTitle").textContent = row.value || "Project row";
+    $("projectInspectorMeta").textContent = [row.source ? `Source: ${row.source}` : "Source: -", row.seen ? `Seen: ${row.seen}` : "Seen: -", row.detail || ""].filter(Boolean).join(" · ");
+    $("projectInspectorCount").textContent = `${state.modalIndex + 1}/${state.modalRows.length}`;
+    $("projectInspectorBody").innerHTML = `
+      <div class="project-inspector-section">
+        <strong>Raw observation</strong>
+        <code>${esc(JSON.stringify(item, null, 2))}</code>
+      </div>
+      ${screenshots.length ? `<div class="project-inspector-section"><strong>Linked screenshots</strong><div class="projects-screenshot-grid">${screenshots.flatMap((shot) => (shot.images || []).slice(0, 12).map((image) => screenshotThumb(image))).join("")}</div></div>` : `<span class="muted">No screenshot preview linked to this selection.</span>`}
     `;
+    $("projectInspectorModal")?.classList.toggle("single-image", state.modalRows.length <= 1);
   }
 
   function filteredRows() {
@@ -294,7 +349,11 @@
   function screenshotMiniGrid(item) {
     const images = (item.images || []).slice(0, 4);
     if (!images.length) return esc(`${item.metadata?.screenshotCount ?? 0} images`);
-    return `<div class="projects-screenshot-grid">${images.map((image) => `<img src="${esc(image.url)}" alt="${esc(image.name || "screenshot")}" loading="lazy">`).join("")}</div>`;
+    return `<div class="projects-screenshot-grid projects-screenshot-grid-mini">${images.map(screenshotThumb).join("")}</div>`;
+  }
+
+  function screenshotThumb(image) {
+    return `<button class="screenshot-thumb" type="button" data-image-url="${esc(image.url)}" data-image-name="${esc(image.name || "screenshot")}"><img src="${esc(image.url)}" alt="${esc(image.name || "screenshot")}" loading="lazy"></button>`;
   }
 
   function relatedScreenshots(row) {

@@ -583,3 +583,15 @@ The Candidates layer now maps saved Discovery Leads into dedicated graph nodes. 
 Topology is a graph for confirmed recon relationships, not a review backlog. Discovery Leads remain visible in Results and Discovery Leads tables, but the Topology Candidates layer only renders leads with a normalized score of exactly 100% confidence. Lower-scored leads stay reviewable outside the graph and are not drawn as candidate nodes.
 
 The smartbar is treated as its own fixed-height row between the header and the canvas. This prevents the Reset View control from stretching after entering or leaving fullscreen, and keeps the canvas as the only flexible row.
+
+### Topology action simplification
+
+The Topology toolbar keeps only camera actions with clear operator value: Fit, Zoom in, Zoom out, Fullscreen, and Reset View. The former Pulse action was removed because it duplicated redraw behavior without changing recon data or camera state.
+
+### Project data inspector
+
+Projects use a single readable data table plus an on-demand inspector modal. The right-side Selection rail was removed so Domains, URLs, Services, Tech, Screenshots, Leads, and Events have enough horizontal room to wrap cleanly without a horizontal scrollbar.
+
+Clicking any data row opens the project inspector modal. The modal reuses the existing screenshot-preview modal language: overlay, close control, keyboard Escape, and previous/next arrow controls. Screenshot thumbnails inside the inspector reuse the existing `.screenshot-thumb` event path so visual evidence opens in the same image previewer as the Results screenshots view.
+
+The Projects sidebar remains constrained inside the workspace pane so project cards do not slip under the main navigation or footer controls. AI-aware project filtering and export flows still use the same filtered snapshot; only the inspection surface changed from persistent side rail to modal.
