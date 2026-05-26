@@ -577,3 +577,9 @@ Topology layer toggles rebuild the graph without calling Fit/Reset, so changing 
 Topology layer buttons are camera-safe controls. Toggling Domains, HTTP services, Artifacts, or Candidates rebuilds only the graph model and preserves the current pan and zoom, so layer selection no longer behaves like Fit or Reset.
 
 The Candidates layer now maps saved Discovery Leads into dedicated graph nodes. Candidate nodes use the same AI-aware lead data shown in Discovery Leads and connect to the matching domain/cluster when available, otherwise they connect to the target root. This keeps review leads visible even when other topology layers are temporarily hidden.
+
+### Topology verified-candidate guardrail
+
+Topology is a graph for confirmed recon relationships, not a review backlog. Discovery Leads remain visible in Results and Discovery Leads tables, but the Topology Candidates layer only renders leads with a normalized score of exactly 100% confidence. Lower-scored leads stay reviewable outside the graph and are not drawn as candidate nodes.
+
+The smartbar is treated as its own fixed-height row between the header and the canvas. This prevents the Reset View control from stretching after entering or leaving fullscreen, and keeps the canvas as the only flexible row.

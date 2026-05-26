@@ -74,7 +74,7 @@
           ${legendItem("tech", "Technology", "stack")}
           ${legendItem("artifact", "Artifact", "screenshots")}
           ${legendItem("url", "URL", "archive")}
-          ${legendItem("candidate", "Candidate", "AI review lead")}
+          ${legendItem("candidate", "Verified candidate", "100% confidence")}
         </div>
         <div class="topology-tip">Drag to pan, mouse wheel to zoom, click a node for details. Use focus mode when large runs get noisy.</div>
       </div>
@@ -118,6 +118,7 @@
     const urls = filterByFocus(current.urls || [], "url").filter((item) => matchQuery([item.url, item.path, ...(item.params || [])].join(" "), query));
     const screenshots = filterByFocus(current.screenshots || [], "artifact");
     const candidates = filterByFocus(current.candidates || [], "candidate")
+      .filter(isVerifiedCandidate)
       .filter((item) => matchQuery([item.value, item.domain, item.source, item.confidence, item.status, ...(item.matchTerms || [])].join(" "), query));
     const techFromServices = summarizeTechnologies(services);
 
@@ -193,12 +194,12 @@
       if (!value) return;
       const id = `candidate:${value}`;
       if (nodeIds.has(id)) return;
-      const score = Number(candidate.metadata?.correlationScore ?? candidate.score ?? 0);
+      const score = candidateScore(candidate);
       nodes.push({
         id,
         label: value,
         type: "candidate",
-        weight: score >= 75 ? 5 : score >= 45 ? 3 : 2,
+        weight: 6,
         data: candidate
       });
       nodeIds.add(id);
@@ -378,16 +379,41 @@
     const visible = graph.nodes.length;
     const live = (data.services || []).length;
     const domains = (data.domains || []).length;
-    const candidates = (data.candidates || []).length;
-    $("topologyHint").textContent = `${options.focus === "all" ? "Smart" : options.focus} topology: ${visible} visible nodes from ${domains} domains, ${live} live services, and ${candidates} review candidates. Search/focus filters reduce noise.`;
+    const verified = (data.candidates || []).filter(isVerifiedCandidate).length;
+    const totalCandidates = (data.candidates || []).length;
+    const candidateText = totalCandidates ? `${verified} verified candidates (100% confidence) from ${totalCandidates} review leads` : "0 verified candidates";
+    $("topologyHint").textContent = `${options.focus === "all" ? "Smart" : options.focus} topology: ${visible} visible nodes from ${domains} domains, ${live} live services, and ${candidateText}. Search/focus filters reduce noise.`;
   }
 
   function filterByFocus(items, type) {
     if (options.focus === "all") return items;
     if (options.focus === "live") return type === "service" ? items : type === "domain" ? items.filter((item) => hasService(item.domain)) : [];
     if (options.focus === "tech") return ["service", "domain"].includes(type) ? items : [];
-    if (options.focus === "new") return items.filter((item) => item.status === "new" || item.change === "added" || item.kind === "root" || Number(item.score || item.metadata?.correlationScore || 0) >= 75);
+    if (options.focus === "new") return items.filter((item) => item.status === "new" || item.change === "added" || item.kind === "root" || candidateScore(item) >= 100);
     return items;
+  }
+
+  function isVerifiedCandidate(candidate) {
+    return candidateScore(candidate) >= 100;
+  }
+
+  function candidateScore(candidate) {
+    const raw = candidate?.metadata?.correlationScore
+      ?? candidate?.metadata?.confidence_score
+      ?? candidate?.metadata?.score
+      ?? candidate?.score
+      ?? candidate?.confidence_score
+      ?? candidate?.confidence
+      ?? 0;
+    if (typeof raw === "string") {
+      const parsed = Number.parseFloat(raw.replace("%", ""));
+      return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 0;
+    }
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+      const normalized = raw > 0 && raw <= 1 ? raw * 100 : raw;
+      return Math.max(0, Math.min(100, normalized));
+    }
+    return 0;
   }
 
   function hasTopologyData(current) {
@@ -490,7 +516,7 @@
     if (node.type === "cluster") meta.push(`Domains: ${data.count || "-"}`);
     if (node.type === "url") meta.push(`Params: ${(data.params || []).join(", ") || "-"}`);
     if (node.type === "artifact") meta.push(`Tool: ${data.tool_name || "-"}`);
-    if (node.type === "candidate") meta.push(`Source: ${data.source || "-"}`, `Score: ${data.metadata?.correlationScore ?? data.score ?? "n/a"}`);
+    if (node.type === "candidate") meta.push(`Source: ${data.source || "-"}`, `Score: ${candidateScore(data)}%`, "Topology visibility: 100% verified only");
     const code = data.url || data.domain || data.value || data.report_path || data.output_dir || data.technology || node.id;
     return `<div class="topology-selection-card"><strong>${title}</strong>${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}<code>${escapeHtml(code)}</code></div>`;
   }

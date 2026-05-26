@@ -39,7 +39,7 @@
     topologyDomains: ["Topology layer", "Show discovered domains"],
     topologyServices: ["Topology layer", "Show HTTP services"],
     topologyArtifacts: ["Topology layer", "Show URLs and screenshot artifacts"],
-    topologyCandidates: ["Topology layer", "Show discovery candidates"],
+    topologyCandidates: ["Topology layer", "Show 100% verified candidates"],
     resultFilterHttp: ["Results filter", "Only nodes with HTTP evidence"],
     resultFilterTech: ["Results filter", "Only nodes with technologies"],
     resultFilterUrls: ["Results filter", "Only nodes with URL evidence"],

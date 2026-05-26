@@ -99,3 +99,32 @@
     width: 100%;
   }
 }
+
+/* Topology smartbar layout hardening: the injected bar is a real row, never the canvas row. */
+.topology-main {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.topology-smartbar {
+  align-items: center;
+  min-height: 54px;
+}
+
+#topologyResetSmart {
+  width: auto !important;
+  min-width: max-content;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  align-self: center;
+  justify-self: end;
+  padding: 0 12px !important;
+  line-height: 1;
+}
+
+@media (max-width: 900px) {
+  #topologyResetSmart {
+    width: 100% !important;
+    justify-self: stretch;
+  }
+}
