@@ -556,3 +556,7 @@ Discovery Leads now render correlation scores as compact progress meters rather 
 The Recon tab uses a single vertical scroll container on desktop. Discovery Leads keep horizontal overflow for wide tables, but the lead table no longer creates a nested vertical scroll area; this reduces scroll jitter while preserving access to all saved observations.
 
 Run Delta keeps its summary and metric cards in a dedicated header area above the table. Delta rows remain isolated in the table scroll area so Explorer content cannot visually bleed into the Delta view.
+
+### Results Explorer detail fit
+
+The Results Explorer keeps the selected-node detail pane free of a nested scrollbar on desktop. Detail sections are rendered in a compact grid and long node collections are summarized with an export hint so the recon workspace stays smooth while preserving complete data in JSON/CSV exports.

@@ -207,11 +207,13 @@
         ["Tech", node.technologies.length],
         ["Params", node.parameters.length]
       ])}
-      ${detailSection("Sources", node.sources)}
-      ${detailSection("Technologies", node.technologies)}
-      ${serviceSection(node.services)}
-      ${urlSection(node.urls)}
-      ${detailSection("Parameters", node.parameters)}
+      <div class="detail-sections-grid">
+        ${detailSection("Sources", node.sources, 8)}
+        ${detailSection("Technologies", node.technologies, 8)}
+        ${serviceSection(node.services, 4)}
+        ${urlSection(node.urls, 4)}
+        ${detailSection("Parameters", node.parameters, 8)}
+      </div>
     `;
   }
 
@@ -224,11 +226,13 @@
         </div>
         <button type="button" data-export-node="${escapeAttr(candidate.id)}">Export Node JSON</button>
       </div>
-      ${detailSection("Correlation Rationale", candidate.rationale)}
-      ${correlationEngineSection(candidate.correlationEngineResult)}
-      ${detailSection("Techniques", candidate.techniques)}
-      ${detailSection("Matched Terms", candidate.matchTerms)}
-      <div class="detail-section"><h4>Recommended Action</h4><p>${escapeHtml(candidate.recommendedAction)}</p></div>
+      <div class="detail-sections-grid">
+        ${detailSection("Correlation Rationale", candidate.rationale, 4)}
+        ${correlationEngineSection(candidate.correlationEngineResult)}
+        ${detailSection("Techniques", candidate.techniques, 6)}
+        ${detailSection("Matched Terms", candidate.matchTerms, 8)}
+        <div class="detail-section"><h4>Recommended Action</h4><p>${escapeHtml(candidate.recommendedAction)}</p></div>
+      </div>
     `;
   }
 
@@ -247,7 +251,9 @@
         ["Status", shot.metadata?.status || "-"],
         ["Exit", shot.metadata?.exitCode ?? "-"]
       ])}
-      ${detailSection("Output", [shot.report_path || shot.output_dir || "-"])}
+      <div class="detail-sections-grid">
+        ${detailSection("Output", [shot.report_path || shot.output_dir || "-"], 4)}
+      </div>
     `;
   }
 
@@ -255,9 +261,17 @@
     return `<div class="detail-metrics">${items.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>`;
   }
 
-  function detailSection(title, items) {
+  function detailSection(title, items, maxItems = 6) {
     const values = (items || []).filter((item) => String(item ?? "").trim());
-    return `<div class="detail-section"><h4>${escapeHtml(title)}</h4>${values.length ? `<ul>${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">None recorded.</p>`}</div>`;
+    const visible = values.slice(0, maxItems);
+    const remaining = Math.max(0, values.length - visible.length);
+    return `<div class="detail-section"><h4>${escapeHtml(title)}</h4>${visible.length ? `<ul>${visible.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>${moreIndicator(remaining, "item")}` : `<p class="muted">None recorded.</p>`}</div>`;
+  }
+
+  function moreIndicator(count, label) {
+    if (!count) return "";
+    const plural = count === 1 ? label : `${label}s`;
+    return `<div class="detail-more">+${count} more ${escapeHtml(plural)} in export</div>`;
   }
 
   function correlationEngineSection(result) {
@@ -272,28 +286,32 @@
           ["Signals", signals.length],
           ["Eligible", result.promotion_eligible ? "yes" : "review"]
         ])}
-        ${detailSection("Evidence Signals", signals.map((signal) => `[${signal.weight > 0 ? "+" : ""}${signal.weight}] ${signal.signal}: ${signal.evidence}`))}
+        ${detailSection("Evidence Signals", signals.map((signal) => `[${signal.weight > 0 ? "+" : ""}${signal.weight}] ${signal.signal}: ${signal.evidence}`), 4)}
         <p>${escapeHtml(result.reasoning || "")}</p>
       </div>
     `;
   }
 
-  function serviceSection(services) {
-    return `<div class="detail-section"><h4>HTTP Services</h4>${services.length ? services.map((service) => `
+  function serviceSection(services, maxItems = 4) {
+    const visible = services.slice(0, maxItems);
+    const remaining = Math.max(0, services.length - visible.length);
+    return `<div class="detail-section"><h4>HTTP Services</h4>${visible.length ? visible.map((service) => `
       <div class="detail-card">
         <strong>${escapeHtml(service.url)}</strong>
         <span>${escapeHtml(service.statusCode || "-")} / ${escapeHtml(service.title || "-")} / ${escapeHtml((service.technologies || []).join(", ") || "no tech")}</span>
       </div>
-    `).join("") : `<p class="muted">No HTTP services recorded.</p>`}</div>`;
+    `).join("") + moreIndicator(remaining, "service") : `<p class="muted">No HTTP services recorded.</p>`}</div>`;
   }
 
-  function urlSection(urls) {
-    return `<div class="detail-section"><h4>URLs And Pages</h4>${urls.length ? urls.slice(0, 80).map((url) => `
+  function urlSection(urls, maxItems = 4) {
+    const visible = urls.slice(0, maxItems);
+    const remaining = Math.max(0, urls.length - visible.length);
+    return `<div class="detail-section"><h4>URLs And Pages</h4>${visible.length ? visible.map((url) => `
       <div class="detail-card">
         <strong>${escapeHtml(url.path || url.url)}</strong>
         <span>${escapeHtml(url.url)}${(url.params || []).length ? ` / params: ${escapeHtml(url.params.join(", "))}` : ""}</span>
       </div>
-    `).join("") : `<p class="muted">No URLs recorded.</p>`}</div>`;
+    `).join("") + moreIndicator(remaining, "URL") : `<p class="muted">No URLs recorded.</p>`}</div>`;
   }
 
   function updateSummary(tree) {
