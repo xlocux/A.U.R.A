@@ -1056,6 +1056,12 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .pane { background: rgba(23, 25, 31, .90); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; min-height: 0; backdrop-filter: blur(10px); }
 .scroll { max-height: calc(100vh - 225px); overflow: auto; }
+.api-key-table-wrap {
+  max-height: min(450px, calc(100vh - 450px));
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
