@@ -1337,11 +1337,14 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 
 /* API Keys settings viewport fit and usage meters */
 #settings-credentials.api-credentials-panel {
-  display: flex;
-  flex-direction: column;
   height: min(720px, calc(100vh - 108px));
   min-height: 0;
   overflow: hidden;
+}
+
+#settings-credentials.api-credentials-panel.active {
+  display: flex;
+  flex-direction: column;
 }
 
 #settings-credentials .api-credentials-grid {
@@ -1405,6 +1408,7 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 999px;
+  display: none;
   flex: 0 1 180px;
   height: 8px;
   overflow: hidden;
@@ -1453,7 +1457,7 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 .api-usage-progress.danger span { background: var(--bad); }
 
 @media (max-width: 1100px) {
-  #settings-credentials.api-credentials-panel { height: auto; max-height: none; overflow: visible; }
+  #settings-credentials.api-credentials-panel.active { height: auto; max-height: none; overflow: visible; }
   #settings-credentials .api-credentials-grid { grid-template-columns: 1fr; overflow: visible; }
   #settings-credentials .api-key-table-wrap { max-height: 62vh; }
 }
