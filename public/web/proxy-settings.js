@@ -85,22 +85,23 @@
     if (h2) h2.textContent = "Proxy Control";
     const form = panel.querySelector(".form-body");
     if (!form) return;
+
     form.insertAdjacentHTML("afterbegin", `
       <div class="proxy-hero">
         <div>
-          <span class="eyebrow">Guided setup</span>
-          <strong>Import, test, choose the best proxy, then enable it for recon.</strong>
-          <p>Paste lists as <code>host:port</code>. Port 1080 is inferred as SOCKS5; common web proxy ports are inferred as HTTP/HTTPS.</p>
+          <span class="eyebrow">Authorized proxy flow</span>
+          <strong>Paste authorized proxies, import them to the pool, preflight them, then enable the best route for recon.</strong>
+          <p>Use only proxies you are authorized to operate. Paste one proxy per line in <code>Import authorized proxies</code>; <code>host:port</code> entries are normalized automatically.</p>
         </div>
         <div class="proxy-hero-actions">
           <button id="proxyRefresh" type="button">Refresh</button>
         </div>
       </div>
-      <div class="proxy-steps">
-        <div class="proxy-step"><span>1</span><strong>Import</strong><small>Paste proxies below, then add them to the rotation pool.</small><button id="proxyStepImport" type="button">Import to Pool</button></div>
-        <div class="proxy-step"><span>2</span><strong>Test</strong><small>Run preflight against imported proxies, including new unknown ones.</small><button id="proxyStepPreflight" type="button">Run Preflight</button></div>
-        <div class="proxy-step"><span>3</span><strong>Pick</strong><small>Use the fastest active proxy from the preflight results.</small><button id="proxyStepBest" type="button">Use Best</button></div>
-        <div class="proxy-step"><span>4</span><strong>Enable</strong><small>Save the selected proxy for recon runs.</small><button id="proxyStepEnable" type="button">Enable for Runs</button></div>
+      <div class="proxy-steps" aria-label="Proxy setup workflow">
+        <div class="proxy-step"><span>1</span><strong>Paste authorized proxies</strong><small>Use the Import authorized proxies text area below. It is the single source for local save and pool import.</small><button id="proxyStepImport" type="button">Import to Pool</button></div>
+        <div class="proxy-step"><span>2</span><strong>Preflight</strong><small>Run bounded checks against the imported pool before any recon run uses it.</small><button id="proxyStepPreflight" type="button">Run Preflight</button></div>
+        <div class="proxy-step"><span>3</span><strong>Pick</strong><small>Select the fastest healthy authorized proxy from the preflight results.</small><button id="proxyStepBest" type="button">Use Best</button></div>
+        <div class="proxy-step"><span>4</span><strong>Enable</strong><small>Save the selected proxy for recon tools without changing target scope.</small><button id="proxyStepEnable" type="button">Enable for Runs</button></div>
       </div>
       <div id="proxyDashboard" class="proxy-dashboard">
         <div class="proxy-card"><span>Total</span><strong id="proxyMetricTotal">0</strong></div>
@@ -111,23 +112,64 @@
       <div id="proxyActivity" class="proxy-activity idle">
         <div class="proxy-activity-rail"><span></span></div>
         <strong id="proxyActivityTitle">Proxy workflow idle</strong>
-        <small id="proxyActivityDetail">Import proxies, run the guided preflight, then pick the best active route.</small>
-      </div>
-      <div class="proxy-toolbar">
-        <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
-        <select id="proxyStatusFilter"><option value="all">All</option><option value="active">Active</option><option value="unknown">Unknown</option><option value="failed">Failed</option></select>
-        <button id="proxyUseBest" type="button">Use Best</button>
-        <button id="proxyImportServer" type="button">Import to Pool</button>
-      </div>
-      <div class="proxy-table-wrap scroll">
-        <table class="proxy-table">
-          <thead><tr><th>Proxy</th><th>Type</th><th>Region</th><th>Status</th><th>Latency</th><th>Success</th></tr></thead>
-          <tbody id="proxyRows"><tr><td colspan="6" class="muted">No proxy data loaded.</td></tr></tbody>
-        </table>
+        <small id="proxyActivityDetail">Paste authorized proxies below, import them, preflight the pool, then pick the best active route.</small>
       </div>
     `);
+
     const oldNotice = form.querySelector(".compact-notice");
-    if (oldNotice) oldNotice.textContent = "Simple flow: paste proxies, Import to Pool, Run Preflight, Use Best, then Enable for Runs.";
+    if (oldNotice) {
+      oldNotice.textContent = "Use this only for authorized interception or lab egress. Proxy routing changes transport only; it does not expand authorized recon scope.";
+    }
+
+    const importLabel = form.querySelector('label[for="proxyImportList"]');
+    if (importLabel) {
+      importLabel.textContent = "Import authorized proxies";
+      importLabel.classList.add("proxy-import-label");
+      importLabel.insertAdjacentHTML("afterend", `
+        <div class="proxy-import-primer">
+          <strong>Paste proxies here before importing.</strong>
+          <span>One authorized proxy per line: <code>host:port</code>, <code>http://host:port</code>, or <code>socks5://host:port</code>. These entries feed both the local saved list and the server-side preflight pool.</span>
+        </div>
+      `);
+    }
+
+    const importArea = $("proxyImportList");
+    if (importArea) {
+      importArea.placeholder = "Paste authorized proxies here, one per line\nhttp://127.0.0.1:8080\nsocks5://proxy.local:1080\n45.95.23.35:1080";
+      importArea.setAttribute("aria-describedby", "proxyImportHelp");
+    }
+    const importHelp = form.querySelector(".proxy-import-primer");
+    if (importHelp) importHelp.id = "proxyImportHelp";
+
+    const importButton = $("importProxyList");
+    if (importButton) importButton.textContent = "Save Local Proxy List";
+
+    const statusNode = $("proxySettingsStatus");
+    const poolSection = `
+      <section id="proxyPoolSection" class="proxy-pool-section" aria-label="Proxy pool and preflight results">
+        <div class="proxy-pool-header">
+          <div>
+            <span class="eyebrow">Pool results</span>
+            <strong>Imported proxy pool and preflight status</strong>
+            <p>Review health after the form settings. Use Best reads this pool and writes the selected route back to Proxy URL above.</p>
+          </div>
+        </div>
+        <div class="proxy-toolbar">
+          <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
+          <select id="proxyStatusFilter"><option value="all">All</option><option value="active">Active</option><option value="unknown">Unknown</option><option value="failed">Failed</option></select>
+          <button id="proxyUseBest" type="button">Use Best</button>
+          <button id="proxyImportServer" type="button">Import to Pool</button>
+        </div>
+        <div class="proxy-table-wrap scroll">
+          <table class="proxy-table">
+            <thead><tr><th>Proxy</th><th>Type</th><th>Region</th><th>Status</th><th>Latency</th><th>Success</th></tr></thead>
+            <tbody id="proxyRows"><tr><td colspan="6" class="muted">Paste authorized proxies above, then import and preflight the pool.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    `;
+    if (statusNode) statusNode.insertAdjacentHTML("afterend", poolSection);
+    else form.insertAdjacentHTML("beforeend", poolSection);
   }
 
   function render() {

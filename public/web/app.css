@@ -2152,3 +2152,37 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
     width: 100%;
   }
 }
+
+/* Delta flow fix: explicitly assign rows so summary cards cannot overlay the table. */
+#tab-results .result-view:not(.active) {
+  display: none !important;
+}
+
+@media (min-width: 761px) {
+  #results-delta.result-view.active {
+    display: grid !important;
+    grid-template-rows: auto auto auto minmax(0, 1fr) !important;
+    overflow: hidden;
+  }
+
+  #results-delta > h2 { grid-row: 1; }
+  #results-delta > .result-view-toolbar { grid-row: 2; }
+  #results-delta > .delta-grid { grid-row: 3; }
+  #results-delta > .delta-scroll { grid-row: 4; }
+
+  #results-delta .delta-grid,
+  #results-delta .delta-scroll {
+    position: static !important;
+    z-index: auto !important;
+  }
+
+  #results-delta .delta-grid {
+    margin: 0;
+    align-self: start;
+  }
+
+  #results-delta .delta-scroll {
+    min-height: 0;
+    border-top: 1px solid var(--line);
+  }
+}
