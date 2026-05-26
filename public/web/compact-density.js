@@ -58,7 +58,7 @@
       #settings-credentials .form-body .row3 { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr) 112px; }
       #settings-credentials #keyProvider { min-width: 0; width: 100%; font-size: 12px; text-overflow: clip; }
       #settings-credentials #keyProvider option { font-size: 13px; }
-      #settings-credentials .scroll table { min-width: 1040px; table-layout: fixed; }
+      #settings-credentials .api-key-table-wrap table { min-width: 1040px; table-layout: fixed; }
       #settings-credentials th:nth-child(1), #settings-credentials td:nth-child(1) { width: 185px; }
       #settings-credentials th:nth-child(2), #settings-credentials td:nth-child(2) { width: 150px; }
       #settings-credentials th:nth-child(3), #settings-credentials td:nth-child(3) { width: 180px; }
@@ -127,7 +127,7 @@
 
       @media (max-width: 1200px) {
         #settings-credentials .split.embedded { grid-template-columns: 1fr; height: auto; }
-        #settings-credentials .scroll { max-height: calc(100vh - 260px); }
+        #settings-credentials .api-key-table-wrap { max-height: calc(100vh - 260px); }
       }
       @media (max-width: 900px) {
         .workspace { padding: 6px; }

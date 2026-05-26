@@ -136,6 +136,8 @@
       }
       #settings-credentials .api-key-table-wrap {
         max-height: calc(100vh - 400px);
+        overflow-y: auto;
+        padding-bottom: 4px;
       }
       .api-key-actions-cell {
         display: flex;

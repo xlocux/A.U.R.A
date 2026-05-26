@@ -1061,6 +1061,7 @@ button:disabled { opacity: .55; cursor: wait; }
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 6px;
+  padding-bottom: 4px;
 }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
