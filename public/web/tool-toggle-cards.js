@@ -100,6 +100,7 @@
     control.addEventListener("click", (event) => {
       if (event.target === input) return;
       event.preventDefault();
+      event.stopPropagation();
       toggleInput(input);
     });
     control.addEventListener("keydown", (event) => {
@@ -122,8 +123,15 @@
       }
       return;
     }
-    input.checked = !input.checked;
+    setInputChecked(input, !input.checked);
+  }
+
+  function setInputChecked(input, checked) {
+    input.checked = Boolean(checked);
+    input.toggleAttribute("checked", input.checked);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.closest(".check") && syncControl(input.closest(".check"));
   }
 
   function syncControl(control) {
@@ -195,10 +203,9 @@
   function applyQuickAction(action) {
     document.querySelectorAll(".tool-grid input[type='checkbox']").forEach((input) => {
       if (input.disabled) return;
-      if (action === "disable") input.checked = false;
-      if (action === "recommended") input.checked = TOOL_RECOMMENDED.has(input.id);
-      if (action === "api") input.checked = Boolean(input.closest(".requires-api")) && !input.closest(".missing-api");
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      if (action === "disable") setInputChecked(input, false);
+      if (action === "recommended") setInputChecked(input, TOOL_RECOMMENDED.has(input.id));
+      if (action === "api") setInputChecked(input, Boolean(input.closest(".requires-api")) && !input.closest(".missing-api"));
     });
     syncAll();
   }

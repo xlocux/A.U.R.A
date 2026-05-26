@@ -6,8 +6,9 @@
   let frame = null;
   let pulse = 0;
   let graph = { nodes: [], edges: [] };
-  let data = { domains: [], services: [], urls: [], screenshots: [], technologies: [] };
+  let data = { domains: [], services: [], urls: [], screenshots: [], technologies: [], candidates: [] };
   let view = { zoom: 1, offsetX: 0, offsetY: 0 };
+  let canvasSize = { width: 0, height: 0, scale: 0 };
   let drag = null;
   let selectedNodeId = null;
   let options = loadOptions();
@@ -27,7 +28,7 @@
     $("pulseTopology")?.addEventListener("click", render);
     $("zoomTopologyIn")?.addEventListener("click", () => zoom(0.15));
     $("zoomTopologyOut")?.addEventListener("click", () => zoom(-0.15));
-    ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", update));
+    ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", handleLayerToggle));
     ["topologySearch", "topologyFocus", "topologyLayout"].forEach((id) => $(id)?.addEventListener("input", handleOptionChange));
     $("topologyResetSmart")?.addEventListener("click", () => {
       options = { query: "", focus: "all", layout: "smart" };
@@ -73,27 +74,36 @@
           ${legendItem("tech", "Technology", "stack")}
           ${legendItem("artifact", "Artifact", "screenshots")}
           ${legendItem("url", "URL", "archive")}
+          ${legendItem("candidate", "Candidate", "AI review lead")}
         </div>
         <div class="topology-tip">Drag to pan, mouse wheel to zoom, click a node for details. Use focus mode when large runs get noisy.</div>
       </div>
     `);
   }
 
-  function update(nextData = null) {
+  function update(nextData = null, renderOptions = {}) {
+    const camera = { ...view };
     if (nextData) {
       data = {
-        domains: nextData.domains || [],
-        services: nextData.services || [],
-        urls: nextData.urls || [],
-        screenshots: nextData.screenshots || [],
-        technologies: nextData.technologies || []
+        domains: Array.isArray(nextData.domains) ? nextData.domains : data.domains || [],
+        services: Array.isArray(nextData.services) ? nextData.services : data.services || [],
+        urls: Array.isArray(nextData.urls) ? nextData.urls : data.urls || [],
+        screenshots: Array.isArray(nextData.screenshots) ? nextData.screenshots : data.screenshots || [],
+        technologies: Array.isArray(nextData.technologies) ? nextData.technologies : data.technologies || [],
+        candidates: Array.isArray(nextData.candidates) ? nextData.candidates : Array.isArray(nextData.leads) ? nextData.leads : data.candidates || []
       };
     }
     graph = buildGraph(data);
+    if (!graph.nodes.some((node) => node.id === selectedNodeId)) selectedNodeId = null;
     if ($("topologyNodeCount")) $("topologyNodeCount").textContent = graph.nodes.length;
     if ($("topologyEdgeCount")) $("topologyEdgeCount").textContent = graph.edges.length;
     updateHint();
+    if (renderOptions.preserveCamera) view = camera;
     render();
+  }
+
+  function handleLayerToggle() {
+    update(null, { preserveCamera: true });
   }
 
   function buildGraph(current) {
@@ -107,16 +117,21 @@
     const services = filterByFocus(current.services || [], "service").filter((item) => matchQuery([item.url, item.host, item.title, ...(item.technologies || [])].join(" "), query));
     const urls = filterByFocus(current.urls || [], "url").filter((item) => matchQuery([item.url, item.path, ...(item.params || [])].join(" "), query));
     const screenshots = filterByFocus(current.screenshots || [], "artifact");
+    const candidates = filterByFocus(current.candidates || [], "candidate")
+      .filter((item) => matchQuery([item.value, item.domain, item.source, item.confidence, item.status, ...(item.matchTerms || [])].join(" "), query));
     const techFromServices = summarizeTechnologies(services);
 
     if ($("topologyDomains")?.checked) addDomainClusters({ rootId, nodes, edges, nodeIds, domains });
     if ($("topologyServices")?.checked) addServices({ rootId, nodes, edges, nodeIds, services });
     if (options.focus === "tech" || options.focus === "all") addTechnologies({ rootId, nodes, edges, nodeIds, technologies: techFromServices });
     if ($("topologyArtifacts")?.checked) addArtifacts({ rootId, nodes, edges, nodeIds, urls, screenshots });
+    if ($("topologyCandidates")?.checked) addCandidates({ rootId, nodes, edges, nodeIds, candidates });
 
-    const finalNodes = nodes.length > 1 ? nodes : preview(rootId).nodes;
-    const finalEdges = nodes.length > 1 ? edges : preview(rootId).edges;
-    return { nodes: layout(finalNodes, finalEdges), edges: finalEdges };
+    const loaded = hasTopologyData(current);
+    if (nodes.length > 1) return { nodes: layout(nodes, edges), edges };
+    if (loaded) return { nodes: layout(nodes, edges), edges };
+    const fallback = preview(rootId);
+    return { nodes: fallback.nodes, edges: fallback.edges };
   }
 
   function addDomainClusters({ rootId, nodes, edges, nodeIds, domains }) {
@@ -172,6 +187,28 @@
     });
   }
 
+  function addCandidates({ rootId, nodes, edges, nodeIds, candidates }) {
+    candidates.slice(0, options.focus === "new" ? 140 : 90).forEach((candidate) => {
+      const value = candidate.value || candidate.domain;
+      if (!value) return;
+      const id = `candidate:${value}`;
+      if (nodeIds.has(id)) return;
+      const score = Number(candidate.metadata?.correlationScore ?? candidate.score ?? 0);
+      nodes.push({
+        id,
+        label: value,
+        type: "candidate",
+        weight: score >= 75 ? 5 : score >= 45 ? 3 : 2,
+        data: candidate
+      });
+      nodeIds.add(id);
+      const domainParent = `domain:${value}`;
+      const clusterParent = `cluster:${rootForHost(value)}`;
+      const parent = nodeIds.has(domainParent) ? domainParent : nodeIds.has(clusterParent) ? clusterParent : rootId;
+      edges.push({ from: parent, to: id, type: "candidate" });
+    });
+  }
+
   function addArtifacts({ rootId, nodes, edges, nodeIds, urls, screenshots }) {
     urls.slice(0, options.focus === "all" ? 80 : 35).forEach((url) => {
       const id = `url:${url.url}`;
@@ -223,8 +260,13 @@
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const scale = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.floor(rect.width * scale));
-    canvas.height = Math.max(1, Math.floor(rect.height * scale));
+    const width = Math.max(1, Math.floor(rect.width * scale));
+    const height = Math.max(1, Math.floor(rect.height * scale));
+    if (canvasSize.width !== width || canvasSize.height !== height || canvasSize.scale !== scale) {
+      canvas.width = width;
+      canvas.height = height;
+      canvasSize = { width, height, scale };
+    }
     const ctx = canvas.getContext("2d");
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     draw(ctx, rect.width, rect.height);
@@ -336,15 +378,21 @@
     const visible = graph.nodes.length;
     const live = (data.services || []).length;
     const domains = (data.domains || []).length;
-    $("topologyHint").textContent = `${options.focus === "all" ? "Smart" : options.focus} topology: ${visible} visible nodes from ${domains} domains and ${live} live services. Search/focus filters reduce noise.`;
+    const candidates = (data.candidates || []).length;
+    $("topologyHint").textContent = `${options.focus === "all" ? "Smart" : options.focus} topology: ${visible} visible nodes from ${domains} domains, ${live} live services, and ${candidates} review candidates. Search/focus filters reduce noise.`;
   }
 
   function filterByFocus(items, type) {
     if (options.focus === "all") return items;
     if (options.focus === "live") return type === "service" ? items : type === "domain" ? items.filter((item) => hasService(item.domain)) : [];
     if (options.focus === "tech") return ["service", "domain"].includes(type) ? items : [];
-    if (options.focus === "new") return items.filter((item) => item.status === "new" || item.change === "added" || item.kind === "root" || Number(item.score || 0) >= 75);
+    if (options.focus === "new") return items.filter((item) => item.status === "new" || item.change === "added" || item.kind === "root" || Number(item.score || item.metadata?.correlationScore || 0) >= 75);
     return items;
+  }
+
+  function hasTopologyData(current) {
+    return [current.domains, current.services, current.urls, current.screenshots, current.technologies, current.candidates]
+      .some((items) => Array.isArray(items) && items.length > 0);
   }
 
   function hasService(domain) {
@@ -398,14 +446,14 @@
   }
 
   function smartLayout(nodes) {
-    const buckets = { target: [], cluster: [], domain: [], service: [], tech: [], url: [], artifact: [], phase: [] };
+    const buckets = { target: [], cluster: [], domain: [], service: [], tech: [], url: [], artifact: [], candidate: [], phase: [] };
     nodes.forEach((node) => (buckets[node.type] || buckets.phase).push(node));
     const placed = [];
     placed.push(...placeRing(buckets.target, 0, 0, 0));
     placed.push(...placeRing(buckets.cluster, 140, -Math.PI / 2, Math.PI / 2));
     placed.push(...placeRing(buckets.domain, 270, 0, Math.PI * 2));
     placed.push(...placeRing(buckets.service, 420, 0.2, Math.PI * 1.8));
-    placed.push(...placeRing(buckets.tech, 560, Math.PI, Math.PI * 2));
+    placed.push(...placeRing([...buckets.tech, ...buckets.candidate], 560, Math.PI, Math.PI * 2));
     placed.push(...placeRing([...buckets.url, ...buckets.artifact, ...buckets.phase], 650, 0, Math.PI * 2));
     return placed;
   }
@@ -442,7 +490,8 @@
     if (node.type === "cluster") meta.push(`Domains: ${data.count || "-"}`);
     if (node.type === "url") meta.push(`Params: ${(data.params || []).join(", ") || "-"}`);
     if (node.type === "artifact") meta.push(`Tool: ${data.tool_name || "-"}`);
-    const code = data.url || data.domain || data.report_path || data.output_dir || data.technology || node.id;
+    if (node.type === "candidate") meta.push(`Source: ${data.source || "-"}`, `Score: ${data.metadata?.correlationScore ?? data.score ?? "n/a"}`);
+    const code = data.url || data.domain || data.value || data.report_path || data.output_dir || data.technology || node.id;
     return `<div class="topology-selection-card"><strong>${title}</strong>${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}<code>${escapeHtml(code)}</code></div>`;
   }
 
@@ -455,6 +504,7 @@
       tech: ["#a78bfa", 7],
       url: ["#9da6b5", 6],
       artifact: ["#ef6f6c", 7],
+      candidate: ["#f2b84b", 8],
       phase: ["#8fdcc3", 10]
     };
     const [color, radius] = colors[node.type] || ["#9da6b5", 7];

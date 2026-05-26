@@ -572,13 +572,8 @@ Native checkbox chrome is hidden across the dashboard and progressively enhanced
 
 Topology layer toggles rebuild the graph without calling Fit/Reset, so changing a layer no longer changes the current zoom or pan position.
 
-### Proxy Control flow and Delta layout hardening
+### Topology layer toggle behavior
 
-Proxy Control is organized around the operator flow instead of the data table:
+Topology layer buttons are camera-safe controls. Toggling Domains, HTTP services, Artifacts, or Candidates rebuilds only the graph model and preserves the current pan and zoom, so layer selection no longer behaves like Fit or Reset.
 
-- The guided steps and health metrics stay at the top as workflow context.
-- The editable settings remain the primary interaction area: enable routing, choose the current route, select mode/purpose, and paste authorized proxies.
-- `Import authorized proxies` is the only intake surface for proxy text. The helper copy explains accepted formats and reminds users to paste only authorized proxies.
-- The large proxy pool/preflight table is rendered after the settings form so it can be reviewed without hiding the proxy URL, saved list, mode, purpose, or import textarea.
-
-Run Delta now uses explicit grid rows for title, toolbar, summary cards, and table rows. This prevents the delta table from sliding behind the summary cards and keeps inactive Results Explorer panes hidden when switching views.
+The Candidates layer now maps saved Discovery Leads into dedicated graph nodes. Candidate nodes use the same AI-aware lead data shown in Discovery Leads and connect to the matching domain/cluster when available, otherwise they connect to the target root. This keeps review leads visible even when other topology layers are temporarily hidden.

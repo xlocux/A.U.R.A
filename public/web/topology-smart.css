@@ -49,6 +49,7 @@
 .topology-dot.service { color: #f2b84b; background: #f2b84b; }
 .topology-dot.tech { color: #a78bfa; background: #a78bfa; }
 .topology-dot.artifact { color: #ef6f6c; background: #ef6f6c; }
+.topology-dot.candidate { color: #f2b84b; background: #f2b84b; }
 .topology-dot.url { color: #9da6b5; background: #9da6b5; }
 
 .topology-selection-card {

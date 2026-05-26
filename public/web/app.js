@@ -16,6 +16,7 @@ let resultsData = {
   technologies: [],
   urls: [],
   screenshots: [],
+  leads: [],
   toolResults: [],
   delta: null,
   totals: {}
@@ -699,7 +700,13 @@ async function refreshRun() {
   $("technologyCount").textContent = counts.technologies ?? technologyData.technologies.length;
   $("screenshotCount").textContent = counts.screenshots ?? screenshotData.screenshots.length;
   renderAllResultTables();
-  window.AuraTopology?.update({ domains: domainData.domains, services: serviceData.services, urls: urlData.urls, screenshots: screenshotData.screenshots });
+  window.AuraTopology?.update({
+    domains: domainData.domains,
+    services: serviceData.services,
+    urls: urlData.urls,
+    screenshots: screenshotData.screenshots,
+    candidates: resultsData.leads
+  });
   if (runData.run.target_name === $("target").value) {
     refreshLeads().catch(() => {});
   }
@@ -1664,7 +1671,18 @@ async function refreshLeads() {
   const target = $("target").value;
   if (!target) return;
   const data = await api(`/api/targets/${encodeURIComponent(target)}/asset-leads`);
-  $("leadRows").innerHTML = data.leads.map((lead) => {
+  resultsData.leads = data.leads || [];
+  if (window.AuraTopology) {
+    window.AuraTopology.update({
+      domains: resultsData.domains,
+      services: resultsData.services,
+      urls: resultsData.urls,
+      screenshots: resultsData.screenshots,
+      technologies: resultsData.technologies,
+      candidates: resultsData.leads
+    }, { preserveCamera: true });
+  }
+  $("leadRows").innerHTML = resultsData.leads.map((lead) => {
     const score = normalizeLeadScore(lead.metadata?.correlationScore);
     const rationale = lead.metadata?.correlationRationale || [];
     const status = lead.status || lead.confidence || "unknown";
