@@ -1528,3 +1528,243 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
     overscroll-behavior: contain;
   }
 }
+
+/* Modern recon tool selectors */
+.tool-grid {
+  column-gap: 12px;
+  row-gap: 10px;
+}
+.tool-grid > label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .08em;
+  margin-top: 14px;
+  text-transform: uppercase;
+}
+.tool-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+}
+.tool-quick-actions button {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 12px;
+  margin: 0;
+  padding: 7px 10px;
+}
+.tool-quick-actions button:hover {
+  background: rgba(64, 195, 255, .12);
+  border-color: rgba(64, 195, 255, .38);
+}
+.tool-grid .check.tool-toggle-card {
+  align-items: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .018));
+  border: 1px solid rgba(255, 255, 255, .10);
+  border-radius: 12px;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  margin: 0;
+  min-height: 58px;
+  padding: 10px 12px;
+  position: relative;
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease, opacity .18s ease;
+}
+.tool-grid .check.tool-toggle-card:hover {
+  border-color: rgba(64, 195, 255, .34);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .20);
+  transform: translateY(-1px);
+}
+.tool-grid .check.tool-toggle-card:focus-visible {
+  outline: 2px solid rgba(64, 195, 255, .70);
+  outline-offset: 2px;
+}
+.tool-grid .check.tool-toggle-card input[type="checkbox"] {
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
+}
+.tool-toggle-icon {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 999px;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+.tool-toggle-icon svg {
+  height: 14px;
+  width: 14px;
+}
+.tool-toggle-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.tool-toggle-main {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+.tool-toggle-name {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-toggle-state {
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 999px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+.tool-toggle-meta {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-grid .check.tool-toggle-card[data-tool-state="enabled"] {
+  background: linear-gradient(135deg, rgba(64, 195, 255, .13), rgba(52, 211, 153, .045));
+  border-color: rgba(64, 195, 255, .38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px rgba(64, 195, 255, .04);
+}
+.tool-grid .check.tool-toggle-card[data-tool-state="enabled"] .tool-toggle-icon,
+.tool-grid .check.tool-toggle-card[data-tool-state="enabled"] .tool-toggle-state {
+  background: rgba(64, 195, 255, .12);
+  border-color: rgba(64, 195, 255, .35);
+  color: var(--accent-2);
+}
+.tool-grid .check.tool-toggle-card[data-tool-state="disabled"] {
+  opacity: .78;
+}
+.tool-grid .check.tool-toggle-card[data-tool-state="locked"] {
+  background: linear-gradient(135deg, rgba(251, 191, 36, .10), rgba(255, 255, 255, .018));
+  border-color: rgba(251, 191, 36, .24);
+  opacity: .76;
+}
+.tool-grid .check.tool-toggle-card[data-tool-state="locked"] .tool-toggle-icon,
+.tool-grid .check.tool-toggle-card[data-tool-state="locked"] .tool-toggle-state {
+  background: rgba(251, 191, 36, .10);
+  border-color: rgba(251, 191, 36, .28);
+  color: var(--warn);
+}
+.tool-grid .check.missing-api span::after { content: none !important; }
+
+/* Shared styled dialogs replacing native confirms/alerts */
+.aura-dialog-modal {
+  align-items: center;
+  background: radial-gradient(circle at 50% 10%, rgba(64, 195, 255, .12), transparent 34%), rgba(3, 6, 12, .78);
+  backdrop-filter: blur(14px);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1200;
+}
+.aura-dialog-modal.hidden { display: none; }
+.aura-dialog {
+  background: linear-gradient(145deg, rgba(17, 19, 27, .98), rgba(9, 11, 16, .98));
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 18px;
+  box-shadow: 0 30px 120px rgba(0, 0, 0, .68), inset 0 1px 0 rgba(255, 255, 255, .06);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  max-width: min(520px, 94vw);
+  padding: 18px;
+  position: relative;
+  width: 100%;
+}
+.aura-dialog::before {
+  background: linear-gradient(90deg, var(--accent-2), transparent);
+  border-radius: 999px;
+  content: "";
+  height: 2px;
+  left: 18px;
+  position: absolute;
+  right: 18px;
+  top: 0;
+}
+.aura-dialog-icon {
+  align-items: center;
+  background: rgba(64, 195, 255, .10);
+  border: 1px solid rgba(64, 195, 255, .25);
+  border-radius: 14px;
+  color: var(--accent-2);
+  display: inline-flex;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+.aura-dialog-icon svg { height: 22px; width: 22px; }
+.aura-dialog-content h3 {
+  color: var(--ink);
+  font-size: 16px;
+  margin: 2px 0 8px;
+}
+.aura-dialog-content p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
+}
+.aura-dialog-actions {
+  display: flex;
+  gap: 10px;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.aura-dialog-actions button {
+  border-radius: 10px;
+  margin: 0;
+  min-width: 110px;
+  padding: 10px 14px;
+}
+.aura-dialog-secondary {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: var(--ink);
+}
+.aura-dialog-primary {
+  background: var(--accent);
+  border: 1px solid rgba(255, 255, 255, .08);
+  color: #07110e;
+}
+.aura-dialog-modal[data-tone="danger"] .aura-dialog-icon {
+  background: rgba(239, 111, 108, .13);
+  border-color: rgba(239, 111, 108, .38);
+  color: #ffb8b6;
+}
+.aura-dialog-modal[data-tone="danger"] .aura-dialog::before {
+  background: linear-gradient(90deg, #ef6f6c, transparent);
+}
+
+@media (max-width: 720px) {
+  .aura-dialog { grid-template-columns: 1fr; }
+  .aura-dialog-actions { flex-direction: column-reverse; }
+  .aura-dialog-actions button { width: 100%; }
+  .tool-toggle-main { align-items: flex-start; flex-direction: column; gap: 6px; }
+}

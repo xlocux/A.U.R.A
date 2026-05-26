@@ -573,7 +573,12 @@ async function deleteTarget() {
     $("status").textContent = "Select a target to delete.";
     return;
   }
-  const confirmed = window.confirm(`Delete target "${targetName}" and its local runs, observations, and artifacts?`);
+  const confirmed = await window.AuraDialogs.confirm({
+    tone: "danger",
+    title: "Delete target",
+    message: `Delete target "${targetName}" and its local runs, observations, and artifacts?`,
+    confirmLabel: "Delete target"
+  });
   if (!confirmed) return;
   $("deleteTarget").disabled = true;
   $("status").textContent = `Deleting target: ${targetName}`;
@@ -1419,7 +1424,13 @@ function downloadWordlist(id) {
 }
 
 async function deleteWordlist(id) {
-  if (!confirm("Delete this wordlist entry? Generated files under data/wordlists/generated are removed too.")) return;
+  const confirmed = await window.AuraDialogs.confirm({
+    tone: "danger",
+    title: "Delete wordlist",
+    message: "Delete this wordlist entry? Generated files under data/wordlists/generated are removed too.",
+    confirmLabel: "Delete wordlist"
+  });
+  if (!confirmed) return;
   $("status").textContent = "Deleting wordlist...";
   try {
     const data = await api(`/api/wordlists/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -1525,7 +1536,13 @@ async function testAllApiKeys() {
 async function deleteApiKey(id) {
   if (!id) return;
   const row = apiKeysData.find((key) => String(key.id) === String(id));
-  if (!confirm(`Delete API key ${row?.provider || id}/${row?.label || ""}?`)) return;
+  const confirmed = await window.AuraDialogs.confirm({
+    tone: "danger",
+    title: "Delete API key",
+    message: `Delete API key ${row?.provider || id}/${row?.label || ""}?`,
+    confirmLabel: "Delete key"
+  });
+  if (!confirmed) return;
   await api(`/api/api-keys/${encodeURIComponent(id)}`, { method: "DELETE" });
   setApiPreflightState("ok", "API key deleted", "The key was removed from local storage.");
   await refreshApiKeys();

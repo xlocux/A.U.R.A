@@ -536,3 +536,15 @@ The API key settings view uses a two-column, viewport-fit layout:
 - The provider table keeps its header and summary visible while long key inventories scroll inside `.api-key-table-wrap`.
 - Usage cells render a compact progress meter with `apiUsageProgress(key)` so free-tier limits are visible without adding another dependency.
 - Unlimited keys still show a neutral rail and explicit `used/unlimited` text.
+
+## Tool Toggle Cards and Dialogs
+
+Recon tool selection uses compact toggle cards instead of native checkbox rows. Each card keeps the original checkbox input in the DOM for compatibility with the recon payload and preset logic, while presenting a three-state visual model:
+
+- `Enabled`: selected and ready to run.
+- `Disabled`: available but not selected.
+- `Needs API key`: locked because the provider requires an active key in Settings > API Keys.
+
+The card layer is progressive enhancement in `public/web/tool-toggle-cards.js`; recon logic still reads the same input ids, so backend payloads and AI-aware recon planning remain unchanged.
+
+Native browser confirmation prompts are replaced by the shared `AuraDialogs` modal helper in `public/web/aura-dialogs.js`. Destructive actions use the danger tone, keyboard focus is trapped while the dialog is open, and existing async flows wait for the modal result before mutating local recon data.
