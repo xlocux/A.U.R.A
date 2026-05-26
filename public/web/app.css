@@ -1461,3 +1461,70 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   #settings-credentials .api-credentials-grid { grid-template-columns: 1fr; overflow: visible; }
   #settings-credentials .api-key-table-wrap { max-height: 62vh; }
 }
+
+/* Results viewport normalization: keep Results on one outer viewport and let only content panes scroll. */
+@media (min-width: 761px) {
+  #tab-results.tab-panel.active {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #tab-results > .metrics,
+  #tab-results > .result-subtabs {
+    min-height: 0;
+  }
+
+  #tab-results > .result-view.active {
+    min-height: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+  }
+
+  #results-explorer.result-view.active {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
+  #results-explorer .result-filter-bar,
+  #results-explorer .result-summary {
+    min-width: 0;
+  }
+
+  #results-explorer .result-explorer-grid {
+    height: 100%;
+    min-height: 0;
+  }
+
+  #results-explorer .result-tree,
+  #results-explorer .result-detail {
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+    overscroll-behavior: contain;
+  }
+
+  #tab-results .result-view.active:not(#results-explorer):not(#results-export) {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  #results-delta.result-view.active {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  #tab-results .result-table-scroll,
+  #tab-results .delta-scroll,
+  #tab-results .tech-scroll {
+    height: 100%;
+    max-height: none;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  #results-export.result-view.active {
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
