@@ -1334,3 +1334,126 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 
 
 }
+
+/* API Keys settings viewport fit and usage meters */
+#settings-credentials.api-credentials-panel {
+  display: flex;
+  flex-direction: column;
+  height: min(720px, calc(100vh - 108px));
+  min-height: 0;
+  overflow: hidden;
+}
+
+#settings-credentials .api-credentials-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+#settings-credentials .api-key-form-column,
+#settings-credentials .api-key-table-wrap {
+  min-height: 0;
+  overflow: auto;
+}
+
+#settings-credentials .api-key-form-column {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(8, 10, 14, .28);
+}
+
+#settings-credentials .api-key-table-wrap {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+}
+
+#settings-credentials .api-key-table-wrap table {
+  min-width: 860px;
+}
+
+.api-key-table-header {
+  align-items: center;
+  background: rgba(8, 10, 14, .86);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 10px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.api-key-table-header strong {
+  color: var(--ink);
+  display: block;
+  font-size: 12px;
+}
+
+.api-key-table-header span {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.api-key-table-rail {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  flex: 0 1 180px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.api-key-table-rail span {
+  animation: api-preflight-scan 1.4s ease-in-out infinite alternate;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  display: block;
+  height: 100%;
+  width: 42%;
+}
+
+.api-usage-cell {
+  display: grid;
+  gap: 5px;
+  min-width: 120px;
+}
+
+.api-usage-top {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  gap: 10px;
+  justify-content: space-between;
+  line-height: 1;
+}
+
+.api-usage-progress {
+  background: rgba(157, 166, 181, .12);
+  border: 1px solid rgba(157, 166, 181, .2);
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.api-usage-progress span {
+  background: var(--accent);
+  display: block;
+  height: 100%;
+  min-width: 0;
+}
+
+.api-usage-progress.warning span { background: var(--warn); }
+.api-usage-progress.danger span { background: var(--bad); }
+
+@media (max-width: 1100px) {
+  #settings-credentials.api-credentials-panel { height: auto; max-height: none; overflow: visible; }
+  #settings-credentials .api-credentials-grid { grid-template-columns: 1fr; overflow: visible; }
+  #settings-credentials .api-key-table-wrap { max-height: 62vh; }
+}

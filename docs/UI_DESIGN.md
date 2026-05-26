@@ -527,3 +527,12 @@ A.U.R.A status, severity, and health cells use the shared browser helper in `pub
 - Current consumers include API keys, proxy rows, environment tool status, tool results, wordlist rows, and workspace log tables.
 
 The shared component intentionally keeps animated SVG icons inline so the dashboard works as a static drop-in web bundle without additional icon dependencies.
+
+### API Key Table Fit
+
+The API key settings view uses a two-column, viewport-fit layout:
+
+- The provider form and provider table scroll independently inside `#settings-credentials`.
+- The provider table keeps its header and summary visible while long key inventories scroll inside `.api-key-table-wrap`.
+- Usage cells render a compact progress meter with `apiUsageProgress(key)` so free-tier limits are visible without adding another dependency.
+- Unlimited keys still show a neutral rail and explicit `used/unlimited` text.

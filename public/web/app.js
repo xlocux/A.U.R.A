@@ -1440,13 +1440,36 @@ function renderApiKeys() {
   const rows = [...apiKeysData].sort(compareApiKeys);
   renderApiKeyAlerts(rows);
   $("apiKeyRows").innerHTML = rows.map((key) =>
-    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td><td><button class="api-key-delete danger-button" type="button" data-api-key-id="${esc(key.id)}">Delete</button></td></tr>`
+    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${apiUsageProgress(key)}</td><td><button class="api-key-delete danger-button" type="button" data-api-key-id="${esc(key.id)}">Delete</button></td></tr>`
   ).join("");
+  renderApiKeyTableSummary(rows);
   document.querySelectorAll("[data-api-sort]").forEach((button) => {
     const active = button.dataset.apiSort === apiKeySort.key;
     button.classList.toggle("active", active);
     button.textContent = `${button.textContent.replace(/\s+[<>]$/, "")}${active ? apiKeySort.direction === "asc" ? " <" : " >" : ""}`;
   });
+}
+
+
+function apiUsageProgress(key) {
+  const used = Number(key.used_count || 0);
+  const limit = Number(key.monthly_limit || 0);
+  const hasLimit = Number.isFinite(limit) && limit > 0;
+  const percent = hasLimit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const label = hasLimit ? `${used}/${limit}` : `${used}/unlimited`;
+  const tone = hasLimit && percent >= 95 ? "danger" : hasLimit && percent >= 75 ? "warning" : "ok";
+  return `<div class="api-usage-cell" title="${esc(label)}">`
+    + `<div class="api-usage-top"><span>${esc(label)}</span><span>${hasLimit ? `${percent}%` : "unlimited"}</span></div>`
+    + `<div class="api-usage-progress ${tone}" role="progressbar" aria-valuemin="0" aria-valuemax="${hasLimit ? esc(limit) : "0"}" aria-valuenow="${esc(used)}" aria-label="API usage for ${esc(key.provider)}">`
+    + `<span style="width:${percent}%"></span></div></div>`;
+}
+
+function renderApiKeyTableSummary(keys) {
+  const target = document.getElementById("apiKeyTableSummary");
+  if (!target) return;
+  const active = keys.filter((key) => String(key.status || "").toLowerCase() === "active").length;
+  const limited = keys.filter((key) => Number(key.monthly_limit || 0) > 0).length;
+  target.textContent = `${keys.length} provider key${keys.length === 1 ? "" : "s"} · ${active} active · ${limited} metered`;
 }
 
 function compareApiKeys(left, right) {

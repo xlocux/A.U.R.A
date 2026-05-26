@@ -111,8 +111,9 @@
     style.id = "aura-api-key-actions-style";
     style.textContent = `
       #settings-credentials .split.embedded {
-        grid-template-columns: minmax(320px, 420px) minmax(520px, 1fr);
+        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
         gap: 10px;
+        min-height: 0;
       }
       #settings-credentials .form-body {
         padding: 8px 10px;
@@ -139,7 +140,8 @@
       #settings-credentials th {
         font-size: 10px;
       }
-      #settings-credentials .scroll { max-height: calc(100vh - 185px); }
+      #settings-credentials .scroll { max-height: none; }
+      #settings-credentials .api-key-table-wrap { min-height: 0; }
       .api-key-actions-cell {
         display: flex;
         gap: 5px;
