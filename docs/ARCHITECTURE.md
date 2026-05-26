@@ -101,6 +101,7 @@ Browser UI
 - `ParserRegistry`: parser definitions and output contracts.
 - `ProviderRegistry`: API/passive data providers.
 - `ToolRunner`: local/remote Linux process execution.
+- `ToolProxyPolicy`: per-tool proxy routing decisions, including native proxy flags and direct-run exceptions for tools that cannot safely use generic proxies.
 - `AgentProvider`: OpenCode or compatible AI runtime.
 - `ScopeEvaluator`: in-scope/out-of-scope/unknown decisions.
 - `RateLimiter`: per provider/tool/target concurrency and backoff.

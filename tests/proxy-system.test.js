@@ -17,12 +17,14 @@ const ProxySources = require("../src/recon/proxy-sources");
 const ProxyStore = require("../src/db/proxy-store");
 const proxyRoutes = require("../src/web/proxy-routes");
 const { retireArgsForPath } = require("../src/recon/technology-detectors");
+const { commandDisplay } = require("../src/recon/linux-tools");
 const { shouldRetryToolResult } = require("../src/recon/recon-engine");
+const { buildProxyAwareInvocation, getToolProxyPolicy } = require("../src/recon/tool-proxy-policy");
 
 test("proxy sources parse supported manual formats", () => {
   const sources = new ProxySources();
-  const parsed = sources.parseTxtFile("http://127.0.0.1:8080\nuser:pass@proxy.local:1080:socks5");
-  assert.equal(parsed.length, 2);
+  const parsed = sources.parseTxtFile("http://127.0.0.1:8080\nuser:pass@proxy.local:1080:socks5\nproxy.example:4145");
+  assert.equal(parsed.length, 3);
   assert.equal(parsed[0].address, "127.0.0.1");
   assert.equal(parsed[0].port, 8080);
   assert.equal(parsed[0].type, "http");
@@ -32,6 +34,8 @@ test("proxy sources parse supported manual formats", () => {
   assert.equal(parsed[1].type, "socks5");
   assert.equal(parsed[1].username, "user");
   assert.equal(parsed[1].password, "pass");
+  assert.equal(parsed[2].address, "proxy.example");
+  assert.equal(parsed[2].type, "socks5");
 
   assert.equal(sources.parseJsonFile(JSON.stringify([{ address: "10.0.0.1", port: 3128, type: "http" }]))[0].address, "10.0.0.1");
   assert.equal(sources.parseCsvFile("address,port,type\n10.0.0.2,1080,socks5")[0].type, "socks5");
@@ -52,7 +56,27 @@ test("proxy store persists proxies and metrics", async () => {
   }
 });
 
-test("proxy preflight checks tcp reachability and records results", async () => {
+test("proxy preflight checks proxy protocol reachability and records results", async () => {
+  const store = makeStore();
+  const service = new ProxyService({ store });
+  const preflight = new ProxyPreflight({ proxyService: service });
+  const server = net.createServer((socket) => {
+    socket.once("data", () => socket.end("HTTP/1.1 200 Connection Established\r\n\r\n"));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  try {
+    const result = await preflight.testProxy({ address: "127.0.0.1", port, type: "http" }, { timeout: 1000, testHost: "example.com" });
+    assert.equal(result.success, true);
+    assert.equal(result.reachability.protocol.protocol, "http-connect");
+    assert.equal((await store.countProxies()), 1);
+  } finally {
+    server.close();
+    store.close();
+  }
+});
+
+test("proxy preflight rejects tcp-only listeners that are not valid proxies", async () => {
   const store = makeStore();
   const service = new ProxyService({ store });
   const preflight = new ProxyPreflight({ proxyService: service });
@@ -61,12 +85,34 @@ test("proxy preflight checks tcp reachability and records results", async () => 
   const port = server.address().port;
   try {
     const result = await preflight.testProxy({ address: "127.0.0.1", port, type: "http" }, { timeout: 1000 });
-    assert.equal(result.success, true);
-    assert.equal((await store.countProxies()), 1);
+    assert.equal(result.success, false);
+    assert.equal(result.reachability.tcp.success, true);
+    assert.equal(result.reachability.protocol.success, false);
   } finally {
     server.close();
     store.close();
   }
+});
+
+
+test("tool proxy policy keeps DNS resolver tools direct and routes httpx natively", () => {
+  const dnsx = buildProxyAwareInvocation({ toolName: "dnsx", args: ["-l", "hosts.txt"], proxyUrl: "socks5://127.0.0.1:1080" });
+  assert.equal(dnsx.bypassed, true);
+  assert.equal(dnsx.envProxyUrl, null);
+  assert.deepEqual(dnsx.args, ["-l", "hosts.txt"]);
+  assert.equal(getToolProxyPolicy("dnsx").mode, "direct");
+
+  const httpx = buildProxyAwareInvocation({ toolName: "httpx", args: ["-l", "hosts.txt"], proxyUrl: "socks5://127.0.0.1:1080" });
+  assert.equal(httpx.mode, "native");
+  assert.equal(httpx.envProxyUrl, null);
+  assert.deepEqual(httpx.args, ["-l", "hosts.txt", "-proxy", "socks5://127.0.0.1:1080"]);
+});
+
+test("command display redacts proxy credentials", () => {
+  assert.equal(
+    commandDisplay("linux", "httpx", ["-proxy", "http://user:pass@127.0.0.1:8080", "-l", "hosts.txt"]),
+    "httpx -proxy http://****:****@127.0.0.1:8080/ -l hosts.txt"
+  );
 });
 
 test("proxy detection recommends conservative operator actions", () => {

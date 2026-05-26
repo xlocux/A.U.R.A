@@ -115,7 +115,7 @@ function normalizeProxyObject(input) {
 
 function inferProxyTypeFromPort(portValue) {
   const port = Number.parseInt(portValue, 10);
-  if ([1080, 1081, 1085, 9050, 9150].includes(port)) return "socks5";
+  if ([1080, 1081, 1085, 1088, 4145, 9050, 9150].includes(port)) return "socks5";
   if ([8080, 8000, 3128, 8888, 8118, 80].includes(port)) return "http";
   if ([443, 8443].includes(port)) return "https";
   return "http";

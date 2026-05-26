@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { commandDisplay, runLinuxTool } = require("./linux-tools");
+const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
 
 const MAX_DETECTOR_URLS = 50;
 const DEFAULT_DETECTOR_ATTEMPTS = 2;
@@ -252,7 +253,8 @@ async function runDetectorTool({ store, runId, linuxRuntime, toolName, args, tim
   let result;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      result = await runLinuxTool({ runtime: linuxRuntime, toolName, args, timeoutMs, proxyUrl });
+      const invocation = buildProxyAwareInvocation({ toolName, args, proxyUrl });
+      result = await runLinuxTool({ runtime: linuxRuntime, toolName, args: invocation.args, timeoutMs, proxyUrl: invocation.envProxyUrl });
     } catch (error) {
       result = {
         toolName,

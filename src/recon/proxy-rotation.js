@@ -4,6 +4,7 @@ const ProxyDetection = require("./proxy-detection");
 const ProxyPreflight = require("./proxy-preflight");
 const ProxyService = require("./proxy-service");
 const { redactProxyUrl, runLinuxTool } = require("./linux-tools");
+const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
 
 const DEFAULT_MAX_CANDIDATES = 25;
 const DEFAULT_MAX_RETRIES = 2;
@@ -90,18 +91,33 @@ class ProxyRotationController {
     const attempts = Math.min(this.pool.length, this.maxRetries + 1);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       const selection = this.nextProxy({ skipCurrent: attempt > 0 });
+      const invocation = buildProxyAwareInvocation({ toolName, args, proxyUrl: selection.proxyUrl });
       const started = Date.now();
+
+      if (invocation.bypassed) {
+        this.appendEvent({
+          phase: "proxy-rotation",
+          severity: "info",
+          source: "ai-proxy-policy",
+          message: `Running ${toolName} without proxy rotation: ${invocation.reason}`,
+          payload: { toolName, proxyPolicy: invocation.mode, reason: invocation.reason }
+        });
+        const result = await runLinuxTool({ runtime, toolName, args: invocation.args, timeoutMs, input });
+        result.proxyRotation = { enabled: false, bypassed: true, mode: invocation.mode, reason: invocation.reason, poolSize: selection.size };
+        return result;
+      }
+
       this.appendEvent({
         phase: "proxy-rotation",
         severity: attempt === 0 ? "ok" : "warn",
         source: "ai-proxy-policy",
         message: attempt === 0
-          ? `Using preflight-approved proxy ${redactProxyUrl(selection.proxyUrl)} for ${toolName}.`
+          ? `Using preflight-approved proxy ${redactProxyUrl(selection.proxyUrl)} for ${toolName} (${invocation.mode} proxy mode).`
           : `Rotated ${toolName} from ${previousProxy ? redactProxy(previousProxy) : "previous proxy"} to ${redactProxyUrl(selection.proxyUrl)} after a proxy/network failure.`
       });
-      const result = await runLinuxTool({ runtime, toolName, args, timeoutMs, input, proxyUrl: selection.proxyUrl });
+      const result = await runLinuxTool({ runtime, toolName, args: invocation.args, timeoutMs, input, proxyUrl: invocation.envProxyUrl });
       result.proxyUrl = selection.proxyUrl;
-      result.proxyRotation = { enabled: true, attempt: attempt + 1, maxAttempts: attempts, selectedProxy: redactProxy(selection.proxy), poolSize: selection.size };
+      result.proxyRotation = { enabled: true, attempt: attempt + 1, maxAttempts: attempts, selectedProxy: redactProxy(selection.proxy), poolSize: selection.size, mode: invocation.mode };
       const decision = this.shouldRotate(result, { toolName });
       await this.recordAttempt(selection.proxy, result, decision, Date.now() - started);
       lastResult = result;

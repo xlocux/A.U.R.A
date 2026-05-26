@@ -150,7 +150,16 @@ function killProcess(child) {
 }
 
 function commandDisplay(_runtime, toolName, args) {
-  return [toolName, ...args].join(" ");
+  return [toolName, ...args.map(redactCommandArg)].join(" ");
+}
+
+function redactCommandArg(value) {
+  const text = String(value);
+  try {
+    return redactProxyUrl(text) || text;
+  } catch {
+    return text;
+  }
 }
 
 function normalizeProxyUrl(proxyUrl) {

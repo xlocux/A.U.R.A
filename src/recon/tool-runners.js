@@ -2,6 +2,7 @@
 
 const { commandDisplay, runLinuxTool } = require("./linux-tools");
 const ProxyService = require("./proxy-service");
+const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
 
 class LinuxToolRunner {
   constructor({ runtime = "linux" } = {}) {
@@ -21,29 +22,30 @@ class LinuxToolRunner {
    * @returns {Promise<Object>} Tool execution result
    */
   async run({ tool, args = [], proxy = null, input = null, timeoutMs = 180000, useProxy = false }) {
-    let finalArgs = [...args];
     const proxyUrl = useProxy && proxy ? this.proxyService.formatProxyUrl(proxy) : null;
-
-    if (proxyUrl) {
-      finalArgs = this._addProxyArgsToTool(tool.binary, finalArgs, proxy);
-    }
+    const invocation = buildProxyAwareInvocation({ toolName: tool.binary, args, proxyUrl });
 
     const result = await runLinuxTool({
       runtime: this.runtime,
       toolName: tool.binary,
-      args: finalArgs,
+      args: invocation.args,
       input,
       timeoutMs,
-      proxyUrl
+      proxyUrl: invocation.envProxyUrl
     });
     
     return {
       ...result,
-      commandDisplay: commandDisplay(this.runtime, tool.binary, finalArgs),
-      proxyUsed: proxy ? {
+      commandDisplay: commandDisplay(this.runtime, tool.binary, invocation.args),
+      proxyUsed: proxy && invocation.proxied ? {
         address: proxy.address,
         port: proxy.port,
-        type: proxy.type
+        type: proxy.type,
+        mode: invocation.mode
+      } : null,
+      proxyBypassed: invocation.bypassed ? {
+        mode: invocation.mode,
+        reason: invocation.reason
       } : null
     };
   }

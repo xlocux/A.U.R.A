@@ -11,6 +11,7 @@ const { extractFaviconsFromServices } = require("./web-fingerprints");
 const { runPassiveSource } = require("./passive-sources");
 const ProxyRotationController = require("./proxy-rotation");
 const { commandDisplay, redactProxyUrl, runLinuxTool } = require("./linux-tools");
+const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
 
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_LINUX_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
@@ -401,7 +402,8 @@ async function createProxyController({ store, runId, proxyUrl = null, phase = "r
 
 function runLinuxToolWithProxy({ proxyController, runtime, toolName, args, timeoutMs, input = null, proxyUrl = null }) {
   if (proxyController?.hasPool()) return proxyController.runTool({ runtime, toolName, args, timeoutMs, input });
-  return runLinuxTool({ runtime, toolName, args, timeoutMs, input, proxyUrl });
+  const invocation = buildProxyAwareInvocation({ toolName, args, proxyUrl });
+  return runLinuxTool({ runtime, toolName, args: invocation.args, timeoutMs, input, proxyUrl: invocation.envProxyUrl });
 }
 
 function appendAiLog(store, runId, message, payload = {}) {

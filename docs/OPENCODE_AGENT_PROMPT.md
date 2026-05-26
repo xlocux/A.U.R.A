@@ -325,7 +325,7 @@ The AI chat agent should assist every major Web UI workflow:
   registration terms were suggested or skipped.
 - Recon profile selection and per-phase configuration.
 - Rate limit, timeout, concurrency, and stop-condition tuning.
-- Explicit proxy setup for authorized Burp/interception or lab egress.
+- Explicit proxy setup for authorized Burp/interception or lab egress, including explaining protocol preflight and per-tool proxy policy decisions.
 - Run launch, pause, cancel, resume, and live status explanation.
 - Tool failure diagnosis.
 - Artifact search and parser debugging.
