@@ -56,6 +56,39 @@ test("proxy store persists proxies and metrics", async () => {
   }
 });
 
+
+test("proxy store can purge unhealthy imported pool entries", async () => {
+  const store = makeStore();
+  try {
+    const slowId = await store.addProxy("127.0.0.1", 8081, "http", { status: "active" });
+    const failedId = await store.addProxy("127.0.0.2", 8082, "http", { status: "failed" });
+    const keptId = await store.addProxy("127.0.0.3", 8083, "http", { status: "active" });
+    const removed = await store.deleteProxiesByIds([slowId, failedId, failedId]);
+    assert.equal(removed, 2);
+    assert.equal(await store.getProxy(slowId), undefined);
+    assert.equal(await store.getProxy(failedId), undefined);
+    assert.equal((await store.getProxy(keptId)).address, "127.0.0.3");
+  } finally {
+    store.close();
+  }
+});
+
+test("proxy route cleanup classifies failed and high-latency preflight results", () => {
+  const { shouldRemovePreflightResult, normalizePreflightOptions } = proxyRoutes._internal;
+  const options = normalizePreflightOptions({ maxLatencyMs: 2500, purgeFailed: true, purgeHighLatency: true });
+  assert.equal(shouldRemovePreflightResult({ success: false, latency: 100, proxyId: 1 }, options), "failed");
+  assert.equal(shouldRemovePreflightResult({ success: true, latency: 3000, proxyId: 2 }, options), "high_latency");
+  assert.equal(shouldRemovePreflightResult({ success: true, latency: 1200, proxyId: 3 }, options), "");
+});
+
+test("proxy settings use modal-only pool import", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../public/web/index.html"), "utf8");
+  const settingsJs = fs.readFileSync(path.join(__dirname, "../public/web/proxy-settings.js"), "utf8");
+  assert.doesNotMatch(html, /proxyImportList|importProxyList|clearProxyList/);
+  assert.match(settingsJs, /proxyImportModal/);
+  assert.match(settingsJs, /\/api\/proxies\/import-preflight/);
+});
+
 test("proxy preflight checks proxy protocol reachability and records results", async () => {
   const store = makeStore();
   const service = new ProxyService({ store });

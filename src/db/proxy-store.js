@@ -267,6 +267,14 @@ class ProxyStore {
     return result.changes > 0;
   }
 
+  async deleteProxiesByIds(proxyIds) {
+    const ids = [...new Set((proxyIds || []).map((id) => Number.parseInt(id, 10)).filter(Number.isInteger))];
+    if (ids.length === 0) return 0;
+    const placeholders = ids.map(() => "?").join(", ");
+    const result = this.db.prepare(`DELETE FROM proxies WHERE id IN (${placeholders})`).run(...ids);
+    return result.changes;
+  }
+
   async getProxy(proxyId) {
     return this.db.prepare("SELECT * FROM proxies WHERE id = ?").get(proxyId);
   }

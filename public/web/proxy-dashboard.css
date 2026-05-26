@@ -193,7 +193,7 @@
 
 .proxy-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 140px auto auto;
+  grid-template-columns: minmax(220px, 1fr) 140px auto;
   gap: 8px;
   align-items: center;
 }
@@ -263,6 +263,119 @@
   background: rgba(242, 184, 75, .09);
 }
 
+
+.proxy-import-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(2, 4, 8, .72);
+  backdrop-filter: blur(10px);
+}
+
+.proxy-import-modal.hidden {
+  display: none;
+}
+
+.proxy-import-dialog {
+  width: min(720px, calc(100vw - 32px));
+  border: 1px solid rgba(67, 197, 158, .34);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(67, 197, 158, .18), transparent 36%),
+    rgba(12, 15, 20, .98);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .04);
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.proxy-import-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.proxy-import-head .eyebrow {
+  display: inline-flex;
+  width: max-content;
+  margin-bottom: 7px;
+  border: 1px solid rgba(143, 220, 195, .35);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--accent-2);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.proxy-import-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.proxy-import-head p,
+.proxy-import-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.proxy-import-close {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  padding: 0;
+  margin: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.proxy-import-dialog textarea {
+  min-height: 210px;
+  resize: vertical;
+  font-family: Consolas, monospace;
+}
+
+.proxy-import-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.proxy-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.proxy-import-actions button {
+  width: auto;
+  min-width: 120px;
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .proxy-import-grid,
+  .proxy-import-head {
+    grid-template-columns: 1fr;
+  }
+
+  .proxy-import-actions {
+    flex-direction: column-reverse;
+  }
+
+  .proxy-import-actions button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 1100px) {
   .proxy-steps {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
@@ -294,39 +407,6 @@
 }
 
 /* Proxy flow fix: keep the operator form first and put the large pool table after settings. */
-.proxy-import-label {
-  color: var(--accent-2);
-}
-
-.proxy-import-primer {
-  border: 1px solid rgba(67, 197, 158, .28);
-  border-radius: 12px;
-  background: rgba(67, 197, 158, .07);
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-}
-
-.proxy-import-primer strong {
-  color: var(--ink);
-  font-size: 13px;
-}
-
-.proxy-import-primer span {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.proxy-import-primer code {
-  color: var(--accent-2);
-}
-
-.proxy-console textarea#proxyImportList {
-  min-height: 108px;
-  resize: vertical;
-}
-
 .proxy-pool-section {
   border: 1px solid var(--line);
   border-radius: 14px;

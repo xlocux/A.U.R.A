@@ -6,6 +6,8 @@ const ProxyService = require("../recon/proxy-service");
 const ProxySources = require("../recon/proxy-sources");
 const { readBody, sendJson } = require("./http-utils");
 
+const DEFAULT_POOL_MAX_LATENCY_MS = 2500;
+
 let proxyService;
 let proxyPreflight;
 let proxySources;
@@ -44,6 +46,11 @@ async function handleApiRequest({ request, response, url }) {
 
     if (request.method === "POST" && pathParts[0] === "preflight") {
       await preflightActiveProxies(request, response);
+      return true;
+    }
+
+    if (request.method === "POST" && pathParts[0] === "import-preflight") {
+      await importAndPreflightProxies(request, response);
       return true;
     }
 
@@ -176,6 +183,7 @@ async function testProxies(request, response) {
 async function preflightActiveProxies(request, response) {
   const body = await readBody(request);
   const status = body.status || "preflight";
+  const options = normalizePreflightOptions(body.options || {});
   const proxies = status === "active"
     ? await proxyService.store.getProxies({ status: "active" })
     : await proxyService.store.getProxies({ status: "all" });
@@ -184,8 +192,76 @@ async function preflightActiveProxies(request, response) {
     sendJson(response, { error: "No imported proxies to test. Import proxies to the server-side pool first." }, 400);
     return;
   }
-  const results = await proxyPreflight.batchTest(candidates, body.options || {});
-  sendJson(response, { results, summary: summarizeResults(results) });
+  const results = await proxyPreflight.batchTest(candidates, options);
+  const cleanup = await cleanupPreflightResults(results, options);
+  sendJson(response, { results, summary: summarizeResults(results), cleanup });
+}
+
+async function importAndPreflightProxies(request, response) {
+  const body = await readBody(request);
+  const params = body.params || {};
+  const source = String(body.source || "txt").toLowerCase();
+  const content = body.content ?? params.content ?? "";
+  const proxies = await parseProxyImportSource(source, { ...params, content });
+  if (proxies.length === 0) {
+    sendJson(response, { error: "No valid proxy candidates were supplied." }, 400);
+    return;
+  }
+
+  const options = normalizePreflightOptions({ purgeFailed: true, purgeHighLatency: true, ...(body.options || {}) });
+  const imported = [];
+  let invalid = 0;
+  for (const proxy of proxies) {
+    try {
+      const normalized = normalizeProxyRecord(proxy);
+      const id = await proxyService.store.addProxy(normalized.address, normalized.port, normalized.type, {
+        country: normalized.country,
+        username: normalized.username,
+        password: normalized.password,
+        status: "unknown"
+      });
+      imported.push({ ...normalized, id });
+    } catch {
+      invalid += 1;
+    }
+  }
+
+  if (imported.length === 0) {
+    sendJson(response, { error: "Proxy import did not contain any supported entries.", fetched: proxies.length, invalid }, 400);
+    return;
+  }
+
+  const candidates = dedupeProxyRecords(imported);
+  const results = await proxyPreflight.batchTest(candidates, options);
+  const cleanup = await cleanupPreflightResults(results, options);
+  sendJson(response, {
+    fetched: proxies.length,
+    imported: imported.length,
+    invalid,
+    results,
+    summary: summarizeResults(results),
+    cleanup
+  }, 201);
+}
+
+async function parseProxyImportSource(source, params) {
+  if (source === "txt") return proxySources.parseTxtFile(params.content || "");
+  if (source === "json") return proxySources.parseJsonFile(params.content || "[]");
+  if (source === "csv") return proxySources.parseCsvFile(params.content || "");
+  if (source === "github") return proxySources.fetchFromGitHub(params.url);
+  throw new Error(`Unsupported source: ${source}`);
+}
+
+function dedupeProxyRecords(proxies) {
+  const seen = new Set();
+  const unique = [];
+  for (const proxy of proxies) {
+    const key = `${proxy.type}://${proxy.address}:${proxy.port}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(proxy);
+  }
+  return unique;
 }
 
 function listSources(response) {
@@ -203,12 +279,10 @@ async function importFromSource(request, response, source) {
   const body = await readBody(request);
   const params = body.params || {};
   let proxies;
-  if (source === "txt") proxies = proxySources.parseTxtFile(params.content || "");
-  else if (source === "json") proxies = proxySources.parseJsonFile(params.content || "[]");
-  else if (source === "csv") proxies = proxySources.parseCsvFile(params.content || "");
-  else if (source === "github") proxies = await proxySources.fetchFromGitHub(params.url);
-  else {
-    sendJson(response, { error: `Unsupported source: ${source}` }, 400);
+  try {
+    proxies = await parseProxyImportSource(source, params);
+  } catch (error) {
+    sendJson(response, { error: error.message }, 400);
     return;
   }
 
@@ -264,6 +338,47 @@ async function getHealth(response) {
   });
 }
 
+function normalizePreflightOptions(options = {}) {
+  const timeout = parseInteger(options.timeout, 3500);
+  const concurrency = parseInteger(options.concurrency, 5);
+  const maxLatencyMs = parseInteger(options.maxLatencyMs, DEFAULT_POOL_MAX_LATENCY_MS);
+  return {
+    ...options,
+    timeout: Math.max(1000, timeout),
+    concurrency: Math.max(1, concurrency),
+    maxLatencyMs,
+    purgeFailed: options.purgeFailed === true,
+    purgeHighLatency: options.purgeHighLatency === true
+  };
+}
+
+async function cleanupPreflightResults(results, options = {}) {
+  const removalMap = new Map();
+  for (const result of results) {
+    const reason = shouldRemovePreflightResult(result, options);
+    if (!reason || !result.proxyId) continue;
+    removalMap.set(result.proxyId, reason);
+  }
+
+  const ids = [...removalMap.keys()];
+  const removed = ids.length ? await proxyService.store.deleteProxiesByIds(ids) : 0;
+  const reasons = [...removalMap.values()];
+  return {
+    removed,
+    failedRemoved: reasons.filter((reason) => reason === "failed").length,
+    highLatencyRemoved: reasons.filter((reason) => reason === "high_latency").length,
+    maxLatencyMs: options.maxLatencyMs || null
+  };
+}
+
+function shouldRemovePreflightResult(result, options = {}) {
+  if (options.purgeFailed === true && !result.success) return "failed";
+  const latency = Number(result.latency);
+  const maxLatency = Number(options.maxLatencyMs);
+  if (options.purgeHighLatency === true && Number.isFinite(latency) && Number.isFinite(maxLatency) && latency > maxLatency) return "high_latency";
+  return "";
+}
+
 function normalizeProxyRecord(input) {
   const address = String(input.address || input.host || "").trim();
   const port = Number.parseInt(input.port, 10);
@@ -316,5 +431,10 @@ function parseInteger(value, fallback) {
 }
 
 module.exports = {
-  handleApiRequest
+  handleApiRequest,
+  _internal: {
+    shouldRemovePreflightResult,
+    summarizeResults,
+    normalizePreflightOptions
+  }
 };

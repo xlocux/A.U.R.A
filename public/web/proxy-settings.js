@@ -2,6 +2,7 @@
 
 (function initAuraProxySettings() {
   const STORAGE_KEY = "aura.proxySettings";
+  const DEFAULT_MAX_LATENCY_MS = 2500;
   const $ = (id) => document.getElementById(id);
 
   injectStylesheet("/proxy-dashboard.css", "aura-proxy-dashboard-css");
@@ -44,12 +45,9 @@
     if (!$("proxyEnabled")) return;
     upgradeLayout();
     bindAction("saveProxySettings", saveSettings);
-    bindAction("importProxyList", importProxyList);
-    bindAction("clearProxyList", clearProxyList);
     bindAction("proxyRefresh", refreshDashboard);
     bindAction("proxyUseBest", useBestServerProxy);
-    bindAction("proxyImportServer", importServerProxies);
-    bindAction("proxyStepImport", importServerProxies);
+    bindAction("proxyImportServer", openProxyImportModal);
     bindAction("proxyStepPreflight", preflightServerProxies);
     bindAction("proxyStepBest", useBestServerProxy);
     bindAction("proxyStepEnable", enableSelectedProxy);
@@ -86,21 +84,24 @@
     const form = panel.querySelector(".form-body");
     if (!form) return;
 
+    removeLegacyImportControls(form);
+
     form.insertAdjacentHTML("afterbegin", `
       <div class="proxy-hero">
         <div>
           <span class="eyebrow">Authorized proxy flow</span>
-          <strong>Paste authorized proxies, import them to the pool, preflight them, then enable the best route for recon.</strong>
-          <p>Use only proxies you are authorized to operate. Paste one proxy per line in <code>Import authorized proxies</code>; <code>host:port</code> entries are normalized automatically.</p>
+          <strong>Import authorized proxies into the pool, run protocol preflight, then keep only healthy low-latency routes.</strong>
+          <p>Use only proxies you are authorized to operate. The top <code>Import to Pool</code> action opens a modal for one proxy per line; failed and high-latency entries are removed after preflight.</p>
         </div>
         <div class="proxy-hero-actions">
+          <button id="proxyImportServer" type="button">Import to Pool</button>
           <button id="proxyRefresh" type="button">Refresh</button>
         </div>
       </div>
       <div class="proxy-steps" aria-label="Proxy setup workflow">
-        <div class="proxy-step"><span>1</span><strong>Paste authorized proxies</strong><small>Use the Import authorized proxies text area below. It is the single source for local save and pool import.</small><button id="proxyStepImport" type="button">Import to Pool</button></div>
-        <div class="proxy-step"><span>2</span><strong>Preflight</strong><small>Run bounded checks against the imported pool before any recon run uses it.</small><button id="proxyStepPreflight" type="button">Run Preflight</button></div>
-        <div class="proxy-step"><span>3</span><strong>Pick</strong><small>Select the fastest healthy authorized proxy from the preflight results.</small><button id="proxyStepBest" type="button">Use Best</button></div>
+        <div class="proxy-step"><span>1</span><strong>Import</strong><small>Use the top Import to Pool button to paste authorized proxies into the server-side pool.</small></div>
+        <div class="proxy-step"><span>2</span><strong>Preflight + clean</strong><small>Protocol-aware checks remove failed routes and entries above the latency ceiling.</small><button id="proxyStepPreflight" type="button">Run Cleanup Preflight</button></div>
+        <div class="proxy-step"><span>3</span><strong>Pick</strong><small>Select the fastest healthy authorized proxy from the cleaned preflight results.</small><button id="proxyStepBest" type="button">Use Best</button></div>
         <div class="proxy-step"><span>4</span><strong>Enable</strong><small>Save the selected proxy for recon tools without changing target scope.</small><button id="proxyStepEnable" type="button">Enable for Runs</button></div>
       </div>
       <div id="proxyDashboard" class="proxy-dashboard">
@@ -112,7 +113,7 @@
       <div id="proxyActivity" class="proxy-activity idle">
         <div class="proxy-activity-rail"><span></span></div>
         <strong id="proxyActivityTitle">Proxy workflow idle</strong>
-        <small id="proxyActivityDetail">Paste authorized proxies below, import them, preflight the pool, then pick the best active route.</small>
+        <small id="proxyActivityDetail">Import authorized proxies from the top action, preflight and clean the pool, then pick the best active route.</small>
       </div>
     `);
 
@@ -121,29 +122,6 @@
       oldNotice.textContent = "Use this only for authorized interception or lab egress. Proxy routing changes transport only; it does not expand authorized recon scope.";
     }
 
-    const importLabel = form.querySelector('label[for="proxyImportList"]');
-    if (importLabel) {
-      importLabel.textContent = "Import authorized proxies";
-      importLabel.classList.add("proxy-import-label");
-      importLabel.insertAdjacentHTML("afterend", `
-        <div class="proxy-import-primer">
-          <strong>Paste proxies here before importing.</strong>
-          <span>One authorized proxy per line: <code>host:port</code>, <code>http://host:port</code>, or <code>socks5://host:port</code>. These entries feed both the local saved list and the server-side preflight pool.</span>
-        </div>
-      `);
-    }
-
-    const importArea = $("proxyImportList");
-    if (importArea) {
-      importArea.placeholder = "Paste authorized proxies here, one per line\nhttp://127.0.0.1:8080\nsocks5://proxy.local:1080\n45.95.23.35:1080";
-      importArea.setAttribute("aria-describedby", "proxyImportHelp");
-    }
-    const importHelp = form.querySelector(".proxy-import-primer");
-    if (importHelp) importHelp.id = "proxyImportHelp";
-
-    const importButton = $("importProxyList");
-    if (importButton) importButton.textContent = "Save Local Proxy List";
-
     const statusNode = $("proxySettingsStatus");
     const poolSection = `
       <section id="proxyPoolSection" class="proxy-pool-section" aria-label="Proxy pool and preflight results">
@@ -151,25 +129,41 @@
           <div>
             <span class="eyebrow">Pool results</span>
             <strong>Imported proxy pool and preflight status</strong>
-            <p>Review health after the form settings. Use Best reads this pool and writes the selected route back to Proxy URL above.</p>
+            <p>Review the cleaned server-side pool. Use Best reads this table and writes the selected route back to Proxy URL above.</p>
           </div>
         </div>
         <div class="proxy-toolbar">
           <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
           <select id="proxyStatusFilter"><option value="all">All</option><option value="active">Active</option><option value="unknown">Unknown</option><option value="failed">Failed</option></select>
           <button id="proxyUseBest" type="button">Use Best</button>
-          <button id="proxyImportServer" type="button">Import to Pool</button>
         </div>
         <div class="proxy-table-wrap scroll">
           <table class="proxy-table">
             <thead><tr><th>Proxy</th><th>Type</th><th>Region</th><th>Status</th><th>Latency</th><th>Success</th></tr></thead>
-            <tbody id="proxyRows"><tr><td colspan="6" class="muted">Paste authorized proxies above, then import and preflight the pool.</td></tr></tbody>
+            <tbody id="proxyRows"><tr><td colspan="6" class="muted">Import authorized proxies from the top action to start preflight.</td></tr></tbody>
           </table>
         </div>
       </section>
     `;
     if (statusNode) statusNode.insertAdjacentHTML("afterend", poolSection);
     else form.insertAdjacentHTML("beforeend", poolSection);
+  }
+
+  function removeLegacyImportControls(form) {
+    const importLabel = form.querySelector('label[for="proxyImportList"]');
+    const importArea = $("proxyImportList");
+    const importButton = $("importProxyList");
+    const clearButton = $("clearProxyList");
+    const legacyRow = importButton?.closest(".row");
+
+    importLabel?.remove();
+    importArea?.remove();
+    if (legacyRow && (legacyRow.contains(importButton) || legacyRow.contains(clearButton))) {
+      legacyRow.remove();
+    } else {
+      importButton?.remove();
+      clearButton?.remove();
+    }
   }
 
   function render() {
@@ -214,51 +208,110 @@
     $("proxyMode").value = inferProxyMode(selected);
   }
 
-  async function importProxyList() {
-    const current = getSettings();
-    const existing = new Map((current.proxies || []).map((proxy) => [proxy.url, proxy]));
-    const lines = $("proxyImportList").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    let imported = 0;
-    let skipped = 0;
-    for (const line of lines) {
-      try {
-        const normalized = validateProxyUrl(normalizeProxyInput(line, $("proxyMode").value));
-        if (!existing.has(normalized)) {
-          existing.set(normalized, { url: normalized, mode: inferProxyMode(normalized), addedAt: new Date().toISOString() });
-          imported += 1;
-        }
-      } catch {
-        skipped += 1;
-      }
-    }
-    const proxies = [...existing.values()].sort((left, right) => left.url.localeCompare(right.url));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, proxies }));
-    render();
-    setStatus(`Saved locally: ${imported} imported, ${skipped} skipped. Use “Import to Pool” for automatic rotation.`, skipped ? "warn" : "ok");
+  function openProxyImportModal() {
+    const modal = ensureProxyImportModal();
+    modal.classList.remove("hidden");
+    modal.querySelector("#proxyPoolImportContent")?.focus();
   }
 
-  async function importServerProxies() {
-    setActivity("running", "Importing proxy pool", "Parsing supplied proxy list and adding valid entries to the server-side pool.");
-    const lines = $("proxyImportList").value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  function closeProxyImportModal() {
+    $("proxyImportModal")?.classList.add("hidden");
+  }
+
+  function ensureProxyImportModal() {
+    let modal = $("proxyImportModal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "proxyImportModal";
+    modal.className = "proxy-import-modal hidden";
+    modal.innerHTML = `
+      <div class="proxy-import-dialog" role="dialog" aria-modal="true" aria-labelledby="proxyImportModalTitle" aria-describedby="proxyImportModalHelp">
+        <div class="proxy-import-head">
+          <div>
+            <span class="eyebrow">Pool import</span>
+            <h3 id="proxyImportModalTitle">Import authorized proxies</h3>
+            <p id="proxyImportModalHelp">Paste one authorized proxy per line. The pool import immediately runs protocol preflight and removes failed or high-latency entries.</p>
+          </div>
+          <button class="proxy-import-close" type="button" aria-label="Close proxy import">&times;</button>
+        </div>
+        <label for="proxyPoolImportContent">Proxy list</label>
+        <textarea id="proxyPoolImportContent" spellcheck="false" placeholder="host:port&#10;http://host:port&#10;socks5://host:port"></textarea>
+        <div class="proxy-import-grid">
+          <div>
+            <label for="proxyImportLatencyLimit">Max latency to keep</label>
+            <input id="proxyImportLatencyLimit" type="number" min="250" max="30000" step="250" value="${DEFAULT_MAX_LATENCY_MS}">
+          </div>
+          <div>
+            <label for="proxyImportTimeout">Preflight timeout</label>
+            <input id="proxyImportTimeout" type="number" min="1000" max="30000" step="500" value="3500">
+          </div>
+        </div>
+        <div class="proxy-import-note">Failed protocol checks are deleted from the pool. Successful proxies slower than the latency ceiling are deleted too.</div>
+        <div class="proxy-import-actions">
+          <button id="proxyImportCancel" type="button" class="secondary-button">Cancel</button>
+          <button id="proxyImportSubmit" type="button">Import and Preflight</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal || event.target.closest(".proxy-import-close") || event.target.closest("#proxyImportCancel")) closeProxyImportModal();
+      if (event.target.closest("#proxyImportSubmit")) submitProxyImportModal();
+    });
+    modal.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeProxyImportModal();
+    });
+    return modal;
+  }
+
+  async function submitProxyImportModal() {
+    const modal = ensureProxyImportModal();
+    const submit = modal.querySelector("#proxyImportSubmit");
+    const content = modal.querySelector("#proxyPoolImportContent")?.value || "";
+    const maxLatencyMs = clampInteger(modal.querySelector("#proxyImportLatencyLimit")?.value, DEFAULT_MAX_LATENCY_MS, 250, 30000);
+    const timeout = clampInteger(modal.querySelector("#proxyImportTimeout")?.value, 3500, 1000, 30000);
+    try {
+      submit.disabled = true;
+      await importAndPreflightPool(content, { maxLatencyMs, timeout });
+      closeProxyImportModal();
+    } catch (error) {
+      setActivity("failed", "Import failed", error.message);
+      setStatus(error.message, "error");
+    } finally {
+      submit.disabled = false;
+    }
+  }
+
+  async function importAndPreflightPool(content, { maxLatencyMs = DEFAULT_MAX_LATENCY_MS, timeout = 3500 } = {}) {
+    const lines = String(content || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     if (lines.length === 0) {
-      const local = getSettings().proxies || [];
-      if (local.length === 0) {
-        setActivity("failed", "Import blocked", "Paste one or more proxies first.");
-        return setStatus("Step 1: paste one or more proxies first.", "warn");
-      }
-      lines.push(...local.map((proxy) => proxy.url));
+      setActivity("failed", "Import blocked", "Paste one or more authorized proxies in the import modal.");
+      throw new Error("Paste one or more authorized proxies before importing.");
     }
-    const result = await apiFetch("/api/proxies/sources/txt", { method: "POST", body: JSON.stringify({ params: { content: lines.join("\n") } }) });
-    setActivity(result.added ? "ok" : "failed", "Import complete", `${result.added}/${result.fetched} proxies added to the pool.`);
-    setStatus(`Step 1 complete: ${result.added}/${result.fetched} proxies added to the rotation pool. Now run Preflight.`, result.added ? "ok" : "warn");
-    await refreshDashboard();
-  }
 
-  function clearProxyList() {
-    const current = getSettings();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, proxies: [] }));
-    render();
-    setStatus("Local saved proxy list cleared. Server-side rotation pool is unchanged.", "ok");
+    setActivity("running", "Importing and preflighting proxy pool", `Testing ${lines.length} submitted proxies and removing failed or slow entries.`);
+    setStatus("Import to Pool running: parsing, preflighting, and cleaning the server-side pool...", "muted");
+    const result = await apiFetch("/api/proxies/import-preflight", {
+      method: "POST",
+      body: JSON.stringify({
+        source: "txt",
+        content: lines.join("\n"),
+        options: {
+          concurrency: 5,
+          timeout,
+          maxLatencyMs,
+          purgeFailed: true,
+          purgeHighLatency: true
+        }
+      })
+    });
+    const summary = result.summary || {};
+    const cleanup = result.cleanup || {};
+    const healthy = Number(summary.successful || 0) - Number(cleanup.highLatencyRemoved || 0);
+    const removed = Number(cleanup.removed || 0);
+    setActivity(healthy > 0 ? "ok" : "failed", "Import and preflight complete", `${Math.max(healthy, 0)}/${summary.total || 0} proxies kept. Removed ${removed} failed or high-latency entries.`);
+    setStatus(`Import to Pool complete: ${Math.max(healthy, 0)} kept, ${removed} removed, ${result.invalid || 0} invalid skipped.`, healthy > 0 ? "ok" : "warn");
+    await refreshDashboard();
   }
 
   async function refreshDashboard() {
@@ -270,12 +323,26 @@
   }
 
   async function preflightServerProxies() {
-    setActivity("running", "Testing proxies", "Loading imported proxies and running TCP preflight checks with bounded concurrency.");
-    setStatus("Step 2 running: testing imported proxies...", "muted");
+    setActivity("running", "Cleaning proxy pool", "Running protocol preflight and deleting failed or high-latency routes.");
+    setStatus("Cleanup preflight running: testing imported proxies and pruning unhealthy entries...", "muted");
     try {
-      const result = await apiFetch("/api/proxies/preflight", { method: "POST", body: JSON.stringify({ status: "preflight", options: { concurrency: 5, timeout: 3500 } }) });
-      setActivity(result.summary.successful ? "ok" : "failed", "Proxy preflight complete", `${result.summary.successful}/${result.summary.total} healthy proxies. Metrics refreshed below.`);
-      setStatus(`Step 2 complete: ${result.summary.successful}/${result.summary.total} healthy. Now click Use Best.`, result.summary.successful ? "ok" : "warn");
+      const result = await apiFetch("/api/proxies/preflight", {
+        method: "POST",
+        body: JSON.stringify({
+          status: "preflight",
+          options: {
+            concurrency: 5,
+            timeout: 3500,
+            maxLatencyMs: DEFAULT_MAX_LATENCY_MS,
+            purgeFailed: true,
+            purgeHighLatency: true
+          }
+        })
+      });
+      const cleanup = result.cleanup || {};
+      const kept = Math.max(Number(result.summary?.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
+      setActivity(kept ? "ok" : "failed", "Cleanup preflight complete", `${kept}/${result.summary.total} healthy proxies kept. Removed ${cleanup.removed || 0} unhealthy entries.`);
+      setStatus(`Cleanup preflight complete: ${kept} kept, ${cleanup.removed || 0} removed.`, kept ? "ok" : "warn");
       await refreshDashboard();
     } catch (error) {
       setActivity("failed", "Proxy preflight failed", error.message);
@@ -289,7 +356,7 @@
     const best = data.proxies?.[0];
     if (!best) {
       setActivity("failed", "No active proxy", "Run the guided preflight before selecting a proxy.");
-      setStatus("Step 3 blocked: no active proxy available. Run Preflight first.", "warn");
+      setStatus("Step 3 blocked: no active proxy available. Run Import to Pool or Cleanup Preflight first.", "warn");
       return;
     }
     const url = proxyRecordUrl(best);
@@ -298,7 +365,7 @@
     $("proxyEnabled").checked = true;
     await saveSettings();
     setActivity("ok", "Proxy selected", `${redactProxyUrl(url)} is enabled for recon runs.`);
-    setStatus(`Step 3 complete: selected best proxy ${redactProxyUrl(url)}. It is enabled for runs.`, "ok");
+    setStatus(`Selected best proxy ${redactProxyUrl(url)}. It is enabled for runs.`, "ok");
   }
 
   function renderMetrics(proxies, stats) {
@@ -345,7 +412,7 @@
   function inferSchemeFromProxyText(value, mode) {
     const explicitMode = mode === "socks5" || mode === "socks4" || mode === "https" ? mode : null;
     const port = extractPort(value);
-    if (port === 1080 || port === 1081 || port === 1085 || port === 9050 || port === 9150) return "socks5";
+    if (port === 1080 || port === 1081 || port === 1085 || port === 1088 || port === 4145 || port === 9050 || port === 9150) return "socks5";
     if (port === 443 || port === 8443) return "https";
     if (port === 8080 || port === 8000 || port === 3128 || port === 8888 || port === 8118 || port === 80) return "http";
     return explicitMode || "http";
@@ -375,6 +442,12 @@
 
   function proxyRecordUrl(proxy) {
     return `${proxy.type}://${proxy.username ? `${encodeURIComponent(proxy.username)}${proxy.password && proxy.password !== "****" ? `:${encodeURIComponent(proxy.password)}` : ""}@` : ""}${proxy.address}:${proxy.port}`;
+  }
+
+  function clampInteger(value, fallback, min, max) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isInteger(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
   }
 
   async function apiFetch(path, options = {}) {

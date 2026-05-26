@@ -49,8 +49,8 @@ Responsibilities:
 - Bind the `Settings > Proxy` controls.
 - Validate proxy URLs before saving.
 - Normalize host-only entries by applying the selected scheme.
-- Store settings in `localStorage` under `aura.proxySettings`.
-- Maintain an optional manually imported saved-proxy list.
+- Store selected run settings in `localStorage` under `aura.proxySettings`.
+- Keep proxy pool import out of the settings form: the top `Import to Pool` action opens a modal, accepts one authorized proxy per line, imports the list server-side, immediately runs protocol preflight, and deletes failed or high-latency entries.
 - Expose `window.AuraProxySettings.activeProxyUrl()` for recon forms.
 
 The main UI uses this helper from `public/web/app.js` and includes the active
@@ -122,20 +122,24 @@ explain why a tool was routed through a proxy or deliberately kept direct.
 
 ## UI Configuration
 
-The active controls are defined in `public/web/index.html`:
+The active settings controls are defined in `public/web/index.html`:
 
 - `proxyEnabled`
 - `proxyUrl`
 - `proxySavedList`
 - `proxyMode`
 - `proxyPurpose`
-- `proxyImportList`
-- `importProxyList`
-- `clearProxyList`
 - `saveProxySettings`
 
+The legacy inline `Import authorized proxies` textarea was removed from the
+settings pane. Operators import pool candidates only through the top `Import to
+Pool` action injected by `public/web/proxy-settings.js`. That action opens the
+`proxyImportModal`, posts the supplied list to `/api/proxies/import-preflight`,
+and shows the cleaned pool in the proxy table.
+
 The browser saved list is a convenience picker only. Server-side imports through
-`/api/proxies/sources/:source` persist entries to `data/proxies.db`.
+`/api/proxies/import-preflight` or `/api/proxies/sources/:source` persist entries
+to `data/proxies.db`.
 
 ## API Endpoints
 
@@ -146,6 +150,7 @@ The browser saved list is a convenience picker only. Server-side imports through
 - `DELETE /api/proxies/:id`
 - `POST /api/proxies/test`
 - `POST /api/proxies/preflight`
+- `POST /api/proxies/import-preflight`
 - `GET /api/proxies/sources`
 - `POST /api/proxies/sources/:source`
 - `POST /api/proxies/detect`
@@ -154,8 +159,8 @@ The browser saved list is a convenience picker only. Server-side imports through
 
 ## Current Limitations
 
-- Web UI run settings are browser-local unless separately imported through the
-  proxy API.
+- Web UI run settings are browser-local, while proxy pool candidates are imported
+  server-side through the `Import to Pool` modal.
 - Protocol preflight proves the proxy handshake, not that every destination will
   be reachable through that proxy.
 - SOCKS support still depends on either a native tool flag or the underlying
@@ -183,9 +188,10 @@ Manual UI check:
 1. Open the Web UI.
 2. Go to `Settings > Proxy`.
 3. Enable proxy routing.
-4. Enter `http://127.0.0.1:8080` for Burp or another authorized local proxy.
-5. Save settings.
-6. Start a recon run and confirm the run event logs the redacted proxy URL.
+4. Click `Import to Pool`, paste authorized proxies, and submit the modal.
+5. Confirm failed or high-latency entries are removed after preflight.
+6. Use `Use Best`, save or enable the selected proxy, and start a recon run.
+7. Confirm the run event logs the redacted proxy URL.
 
 ## Troubleshooting
 
