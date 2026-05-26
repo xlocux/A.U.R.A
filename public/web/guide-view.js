@@ -2,7 +2,7 @@
 
 (function initAuraGuideView() {
   const GUIDE_CONTEXT = [
-    "A.U.R.A is a local-first recon workbench for authorized bug bounty and security research scopes.",
+    "A.U.R.A is a local-first recon workbench for security research scopes.",
     "Core workflow: define target and scope, confirm authorization, collect passive signals, run controlled local tools, save raw artifacts, parse normalized observations, review deltas, then plan focused follow-ups.",
     "Passive sources include crt.sh, Wayback CDX, RapidDNS, Rapid7 FDNS, and configured provider APIs such as Censys, Shodan, VirusTotal, urlscan, SecurityTrails, Cert Spotter, BinaryEdge, Hunter.io, PassiveTotal, ZoomEye, Spyse, and Intelligence X.",
     "Linux tools include subfinder for subdomain discovery, dnsx and puredns for DNS validation, gau for archived URL mining, httpx for HTTP status, title, technology, and selected port probing, plus screenshot tools for visual triage.",

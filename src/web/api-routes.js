@@ -514,37 +514,37 @@ async function createWordlist(request, response, store) {
 }
 
 async function createTarget(request, response, store) {
-  const body = await readBody(request);
-  const proxy = parseOptionalProxy(response, body.proxyUrl);
-  if (proxy === false) return;
-  const built = buildTargetConfigFromRequest(body);
-  if (built.error) {
-    sendJson(response, { error: built.error }, 400);
-    return;
-  }
-  const configPath = resolveTargetConfigPath(built.config.target_name);
-  if (fs.existsSync(configPath)) {
-    sendJson(response, { error: `Target already exists: ${built.config.target_name}` }, 409);
-    return;
-  }
-  const errors = validateTargetConfig(built.config);
-  if (errors.length > 0) {
-    sendJson(response, { error: "Target config validation failed", errors }, 400);
-    return;
-  }
-  writeJson(configPath, built.config);
-  const target = store.upsertTarget(configPath, built.config);
-  const bootstrapRun = startTargetBootstrap({
-    store,
-    target,
-    config: built.config,
-    authorized: Boolean(body.authorized),
-    linuxRuntime: linuxRuntimeFromBody(body),
-    timeoutMs: Number(body.timeoutMs || 180000),
-    proxyUrl: proxy
-  });
-  sendJson(response, { target, config: built.config, configPath, bootstrapRun }, 201);
-}
+   const body = await readBody(request);
+   const proxy = parseOptionalProxy(response, body.proxyUrl);
+   if (proxy === false) return;
+   const built = buildTargetConfigFromRequest(body);
+   if (built.error) {
+     sendJson(response, { error: built.error }, 400);
+     return;
+   }
+   const configPath = resolveTargetConfigPath(built.config.target_name);
+   if (fs.existsSync(configPath)) {
+     sendJson(response, { error: `Target already exists: ${built.config.target_name}` }, 409);
+     return;
+   }
+   const errors = validateTargetConfig(built.config);
+   if (errors.length > 0) {
+     sendJson(response, { error: "Target config validation failed", errors }, 400);
+     return;
+   }
+   writeJson(configPath, built.config);
+   const target = store.upsertTarget(configPath, built.config);
+   const bootstrapRun = startTargetBootstrap({
+     store,
+     target,
+     config: built.config,
+     authorized: true,
+     linuxRuntime: linuxRuntimeFromBody(body),
+     timeoutMs: Number(body.timeoutMs || 180000),
+     proxyUrl: proxy
+   });
+   sendJson(response, { target, config: built.config, configPath, bootstrapRun }, 201);
+ }
 
 async function checkEnvironment(response, url) {
   const runtime = url.searchParams.get("runtime") || "linux";

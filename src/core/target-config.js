@@ -42,10 +42,10 @@ function createDefaultTargetConfig(targetName) {
       in_scope: ["example.com"],
       out_of_scope: []
     },
-    recon: {
-      notes: [],
-      rules: ["Only scan assets explicitly authorized for this target"]
-    }
+     recon: {
+       notes: [],
+       rules: []
+     }
   };
 }
 

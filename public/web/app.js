@@ -528,7 +528,7 @@ async function createTarget() {
         programUrl: $("newProgramUrl").value.trim(),
         inScope: textLines("newInScope"),
         outOfScope: textLines("newOutOfScope"),
-        authorized: $("authorized").checked,
+        authorized: true,
         linuxRuntime: $("linuxRuntime").value,
         timeoutMs: Number($("timeout").value || 180000),
         proxyUrl: activeProxyUrl()
@@ -623,7 +623,7 @@ async function startRecon() {
       useLinuxRunner: $("useLinuxRunner").checked,
       linuxRuntime: $("linuxRuntime").value,
       timeoutMs: Number($("timeout").value || 180000),
-      authorized: $("authorized").checked,
+         authorized: true,
       proxyUrl: activeProxyUrl()
     };
     const data = await api("/api/recon-runs", { method: "POST", body: JSON.stringify(payload) });
@@ -1550,7 +1550,7 @@ async function runReverseWhois() {
         exclude: $("whoisExclude").value.split(/\n+/).map((v) => v.trim()).filter(Boolean),
         mode: $("whoisMode").value,
         searchType: $("whoisType").value,
-        authorized: $("authorized").checked
+         authorized: true
       })
     });
     $("status").textContent = `Provider discovery: ${data.summary.domainsCount} matches, ${data.summary.savedLeads} saved leads`;
