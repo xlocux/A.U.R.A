@@ -555,6 +555,8 @@ Discovery Leads now render correlation scores as compact progress meters rather 
 
 The Recon tab uses a single vertical scroll container on desktop. Discovery Leads keep horizontal overflow for wide tables, but the lead table no longer creates a nested vertical scroll area; this reduces scroll jitter while preserving access to all saved observations.
 
+The unified Logs workspace also uses one active vertical scroll container. Timeline, Run Events, Tool Results, AI Decisions, and Warnings & Errors render newest entries first so live updates remain visible at the top without forcing operators to scroll to the bottom.
+
 Run Delta keeps its summary and metric cards in a dedicated header area above the table. Delta rows remain isolated in the table scroll area so Explorer content cannot visually bleed into the Delta view.
 
 ### Results Explorer detail fit

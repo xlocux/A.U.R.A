@@ -241,10 +241,13 @@
   function renderActiveLogSubtab(mode) {
     const node = document.getElementById("logsContent");
     if (!node) return;
-    const events = normalizeEvents(currentRunData?.events || []);
-    const tools = collectTableRows("#toolLogRows tr", ["Tool", "Status", "Exit", "Started", "Logs"]);
-    const aiRows = collectTableRows("#aiLogRows tr", ["Time", "Source", "Action", "Evidence"]);
-    const warnings = events.filter((event) => /warn|error|fail/i.test(`${event.severity} ${event.message}`)).concat(tools.filter((tool) => /fail|error/i.test(tool.Status || "")));
+    const events = sortNewestFirst(normalizeEvents(currentRunData?.events || []), (event) => event.time);
+    const tools = sortNewestFirst(collectTableRows("#toolLogRows tr", ["Tool", "Status", "Exit", "Started", "Logs"]), (tool) => tool.Started);
+    const aiRows = sortNewestFirst(collectTableRows("#aiLogRows tr", ["Time", "Source", "Action", "Evidence"]), (row) => row.Time);
+    const warnings = sortNewestFirst(
+      events.filter((event) => /warn|error|fail/i.test(`${event.severity} ${event.message}`)).concat(tools.filter((tool) => /fail|error/i.test(tool.Status || ""))),
+      (item) => item.time || item.Started
+    );
     const views = {
       timeline: timelineHtml(events, tools, aiRows),
       events: tablePane("Run Events", ["Time", "Phase", "Severity", "Source", "Message"], events.map((event) => [event.time, event.phase, event.severity, event.source, event.message])),
@@ -274,14 +277,28 @@
     }).filter(Boolean);
   }
 
+  function sortNewestFirst(items, getTime) {
+    return array(items)
+      .map((item, index) => ({ item, index, key: sortableTime(getTime(item)) }))
+      .sort((a, b) => b.key.localeCompare(a.key) || a.index - b.index)
+      .map((entry) => entry.item);
+  }
+
+  function sortableTime(value) {
+    const text = String(value || "").trim();
+    if (!text || text === "-") return "";
+    const parsed = Date.parse(text);
+    return Number.isNaN(parsed) ? text : new Date(parsed).toISOString();
+  }
+
   function timelineHtml(events, tools, aiRows) {
     const items = [];
-    events.slice(-40).forEach((event) => items.push({ type: "event", time: event.time, title: event.message, meta: `${event.phase} · ${event.severity} · ${event.source}` }));
+    events.slice(0, 40).forEach((event) => items.push({ type: "event", time: event.time, title: event.message, meta: `${event.phase} · ${event.severity} · ${event.source}` }));
     tools.slice(0, 20).forEach((tool) => items.push({ type: "tool", time: tool.Started, title: `${tool.Tool} ${tool.Status}`, meta: `exit ${tool.Exit} · ${tool.Logs}` }));
     aiRows.slice(0, 20).forEach((row) => items.push({ type: "ai", time: row.Time, title: row.Action, meta: `${row.Source} · ${row.Evidence}` }));
-    items.sort((a, b) => String(b.time || "").localeCompare(String(a.time || "")));
-    if (!items.length) return emptyPane("Timeline", "No loaded run logs yet. Start or load a run to populate this view.");
-    return `<div class="pane"><h2>Timeline</h2><div class="aura-timeline">${items.map((item) => `<div class="aura-timeline-item ${esc(item.type)}"><strong>${esc(item.title)}</strong><span>${esc(item.time || "-")}</span><p>${esc(item.meta || "")}</p></div>`).join("")}</div></div>`;
+    const sorted = sortNewestFirst(items, (item) => item.time);
+    if (!sorted.length) return emptyPane("Timeline", "No loaded run logs yet. Start or load a run to populate this view.");
+    return `<div class="pane"><h2>Timeline</h2><div class="aura-timeline">${sorted.map((item) => `<div class="aura-timeline-item ${esc(item.type)}"><strong>${esc(item.title)}</strong><span>${esc(item.time || "-")}</span><p>${esc(item.meta || "")}</p></div>`).join("")}</div></div>`;
   }
 
   function correlationHtml(data) {
@@ -402,8 +419,11 @@
       .logs-subtabs, .topology-view-tabs { display: flex; gap: 5px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
       .logs-subtabs button, .topology-view-tabs button { width: auto; margin: 0; padding: 5px 9px; border-radius: 999px; background: rgba(20, 18, 34, .72); }
       .logs-subtabs button.active, .topology-view-tabs button.active { color: #071017; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
-      .aura-log-content .scroll { max-height: calc(100vh - 190px); }
-      .aura-timeline { display: grid; gap: 7px; }
+      #tab-logs.aura-logs-panel.active { display: grid !important; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden !important; }
+      #tab-logs .aura-log-content { min-height: 0; overflow: hidden; }
+      #tab-logs .aura-log-content > .pane { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden !important; }
+      #tab-logs .aura-log-content .scroll, #tab-logs .aura-log-content .aura-timeline { height: 100%; max-height: none !important; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+      .aura-timeline { display: grid; gap: 7px; align-content: start; }
       .aura-timeline-item { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: rgba(10,14,20,.36); }
       .aura-timeline-item strong { display: block; margin-bottom: 3px; }
       .aura-timeline-item span, .aura-timeline-item p { color: var(--muted); margin: 0; font-size: 12px; }
