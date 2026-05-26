@@ -78,10 +78,11 @@
 
   function updateRowStatus(button, status) {
     const row = button.closest("tr");
-    const cells = row?.querySelectorAll("td");
-    if (cells && cells[3] && window.statusBadgeHtml) {
-      cells[3].innerHTML = window.statusBadgeHtml(status);
-    }
+    const badge = row?.querySelector(".api-status-badge");
+    if (!badge) return;
+    const normalized = String(status || "unknown").toLowerCase();
+    badge.className = `api-status-badge ${["active", "failed", "disabled", "exhausted"].includes(normalized) ? normalized : "unknown"}`;
+    badge.textContent = status || "unknown";
   }
 
   async function apiFetch(path, options = {}) {
@@ -133,13 +134,7 @@
       #settings-credentials th {
         font-size: 10px;
       }
-      #settings-credentials .api-key-table-wrap {
-        max-height: calc(100vh - 520px);
-        overflow-y: auto;
-        padding-bottom: 20px;
-        border: 1px solid var(--line);
-        border-radius: 6px;
-      }
+      #settings-credentials .scroll { max-height: calc(100vh - 185px); }
       .api-key-actions-cell {
         display: flex;
         gap: 5px;

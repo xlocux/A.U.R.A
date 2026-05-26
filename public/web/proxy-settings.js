@@ -275,7 +275,7 @@
         <td><strong>${escapeHtml(proxy.address)}:${escapeHtml(proxy.port)}</strong></td>
         <td><span class="pill">${escapeHtml(proxy.type)}</span></td>
         <td>${escapeHtml(proxy.country || "-")}</td>
-        <td>${window.statusBadgeHtml ? window.statusBadgeHtml(proxy.status) : escapeHtml(proxy.status)}</td>
+        <td><span class="status-pill ${escapeHtml(proxy.status || "unknown")}">${escapeHtml(proxy.status || "unknown")}</span></td>
         <td>${proxy.latency_ms ? `${escapeHtml(Math.round(proxy.latency_ms))} ms` : "-"}</td>
         <td>${Number.isFinite(Number(proxy.success_rate)) ? `${Math.round(Number(proxy.success_rate) * 100)}%` : "-"}</td>
       </tr>`).join("") : `<tr><td colspan="6" class="muted">No proxies match this view.</td></tr>`;
