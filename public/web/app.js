@@ -911,6 +911,9 @@ function renderToolLogs(toolResults, total = toolResults.length) {
     item: result,
     group: resultGroupValue("toolLog", result),
     html: `<tr><td>${esc(result.toolName)}</td><td>${statusBadgeHtml(result.status)}</td><td>${esc(result.exitCode ?? "")}</td><td>${esc(result.startedAt || "")}</td><td>${toolLogButtons(result)}</td></tr>`
+  }));
+  $("toolLogRows").innerHTML = groupedRows(rows, 5) || `<tr><td colspan="5" class="muted">No tool results for this run.</td></tr>`;
+}
 function statusBadgeHtml(status) {
   const s = String(status || "").toLowerCase();
   let type = "muted";
@@ -931,10 +934,6 @@ function statusBadgeHtml(status) {
     icon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle></svg>`;
   }
   return `<span class="status-badge-modern ${type}">${icon} ${esc(status)}</span>`;
-}
-
-  }));
-  $("toolLogRows").innerHTML = groupedRows(rows, 5) || `<tr><td colspan="5" class="muted">No tool results for this run.</td></tr>`;
 }
 
 function toolLogButtons(result) {
