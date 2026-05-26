@@ -847,4 +847,14 @@ tr:hover td {
   #tab-settings .settings-tab {
     min-width: 104px;
   }
+
+.status-badge-modern.primary { border-color: rgba(47, 125, 240, 0.42) !important; color: #48a3e5 !important; background: rgba(47, 125, 240, 0.1) !important; }
+.status-badge-modern.success { border-color: rgba(34, 197, 94, 0.42) !important; color: #bbf7d0 !important; background: rgba(34, 197, 94, 0.1) !important; }
+.status-badge-modern.danger { border-color: rgba(239, 68, 68, 0.48) !important; color: #fecaca !important; background: rgba(239, 68, 68, 0.1) !important; }
+.status-badge-modern.warning { border-color: rgba(245, 158, 11, 0.44) !important; color: #fde68a !important; background: rgba(245, 158, 11, 0.1) !important; }
+
+.status-badge-modern {
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+}
 }

@@ -910,7 +910,29 @@ function renderToolLogs(toolResults, total = toolResults.length) {
   const rows = toolResults.map((result) => ({
     item: result,
     group: resultGroupValue("toolLog", result),
-    html: `<tr><td>${esc(result.toolName)}</td><td>${esc(result.status)}</td><td>${esc(result.exitCode ?? "")}</td><td>${esc(result.startedAt || "")}</td><td>${toolLogButtons(result)}</td></tr>`
+    html: `<tr><td>${esc(result.toolName)}</td><td>${statusBadgeHtml(result.status)}</td><td>${esc(result.exitCode ?? "")}</td><td>${esc(result.startedAt || "")}</td><td>${toolLogButtons(result)}</td></tr>`
+function statusBadgeHtml(status) {
+  const s = String(status || "").toLowerCase();
+  let type = "muted";
+  let icon = "";
+  if (["running", "checking", "installing", "dispatched"].includes(s)) {
+    type = "primary";
+    icon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw animate-spin" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>`;
+  } else if (["succeeded", "completed", "ready", "ok", "installed", "active"].includes(s)) {
+    type = "success";
+    icon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg>`;
+  } else if (["failed", "error", "cancelled"].includes(s)) {
+    type = "danger";
+    icon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg>`;
+  } else if (["timed_out", "warn", "exhausted"].includes(s)) {
+    type = "warning";
+    icon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg>`;
+  } else {
+    icon = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle></svg>`;
+  }
+  return `<span class="status-badge-modern ${type}">${icon} ${esc(status)}</span>`;
+}
+
   }));
   $("toolLogRows").innerHTML = groupedRows(rows, 5) || `<tr><td colspan="5" class="muted">No tool results for this run.</td></tr>`;
 }
