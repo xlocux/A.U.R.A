@@ -891,7 +891,7 @@ function renderScreenshots(screenshots, total = screenshots.length) {
   const imageTotal = screenshots.reduce((sum, shot) => sum + ((shot.images || []).length || Number(shot.metadata?.screenshotCount || 0)), 0);
   $("screenshotRowsHint").textContent = imageTotal
     ? `${imageTotal} images captured across ${screenshots.length} screenshot run${screenshots.length === 1 ? "" : "s"}`
-    : total > screenshots.length ? `showing ${screenshots.length} of ${total}` : `${screenshots.length} shown`;
+    : (total > screenshots.length ? `showing ${screenshots.length} of ${total}` : `${screenshots.length} shown`);
   const rows = screenshots.map((shot) => {
     const count = shot.metadata?.screenshotCount ?? "-";
     const path = shot.report_path || shot.output_dir || "-";
@@ -1231,9 +1231,9 @@ function exportRun(format) {
 
 function renderSetupTools(tools) {
   $("setupToolRows").innerHTML = tools.map((tool) => {
-    const status = tool.installed ? "installed" : tool.status;
+    const status = tool.installed ? "installed" : (tool.status || "unknown");
     const details = cleanText(tool.version || tool.error || tool.stderr || tool.stdout || "");
-    return `<tr><td>${esc(tool.tool_id)}</td><td>${esc(status)}</td><td>${esc(details)}</td></tr>`;
+    return `<tr><td>${esc(tool.tool_id)}</td><td>${statusBadgeHtml(status)}</td><td>${esc(details)}</td></tr>`;
   }).join("");
 }
 
@@ -1401,7 +1401,7 @@ async function refreshWordlists() {
     `<tr>
       <td>${esc(wordlist.name)}</td>
       <td>${esc(wordlist.category)}</td>
-      <td>${wordlistStatusBadge(wordlist.status)}</td>
+      <td>${statusBadgeHtml(wordlist.status)}</td>
       <td>${esc(wordlist.path)}</td>
       <td class="row-actions">
         <button type="button" data-wordlist-preview="${esc(wordlist.id)}">View</button>
@@ -1458,7 +1458,7 @@ function renderApiKeys() {
   const rows = [...apiKeysData].sort(compareApiKeys);
   renderApiKeyAlerts(rows);
   $("apiKeyRows").innerHTML = rows.map((key) =>
-    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${apiStatusBadge(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td><td><button class="api-key-delete danger-button" type="button" data-api-key-id="${esc(key.id)}">Delete</button></td></tr>`
+    `<tr><td>${esc(key.provider)}</td><td>${esc(key.label)}</td><td>${esc(key.key_preview)}</td><td>${statusBadgeHtml(key.status)}</td><td>${esc(key.used_count)}/${esc(key.monthly_limit || "unlimited")}</td><td><button class="api-key-delete danger-button" type="button" data-api-key-id="${esc(key.id)}">Delete</button></td></tr>`
   ).join("");
   document.querySelectorAll("[data-api-sort]").forEach((button) => {
     const active = button.dataset.apiSort === apiKeySort.key;

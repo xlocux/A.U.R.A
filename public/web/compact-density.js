@@ -54,7 +54,7 @@
       #settings-credentials.settings-panel.active { overflow: hidden; }
       #settings-credentials .split.embedded { grid-template-columns: minmax(340px, 410px) minmax(820px, 1fr); gap: 10px; height: auto; min-height: 0; }
       #settings-credentials .split.embedded > div, #settings-credentials .api-key-table-wrap { min-width: 0; min-height: 0; }
-      #settings-credentials .api-key-table-wrap { max-height: calc(100vh - 400px); overflow: auto; }
+      #settings-credentials .api-key-table-wrap { max-height: calc(100vh - 520px); overflow: auto; padding-bottom: 12px; }
       #settings-credentials .form-body .row3 { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr) 112px; }
       #settings-credentials #keyProvider { min-width: 0; width: 100%; font-size: 12px; text-overflow: clip; }
       #settings-credentials #keyProvider option { font-size: 13px; }
@@ -127,7 +127,7 @@
 
       @media (max-width: 1200px) {
         #settings-credentials .split.embedded { grid-template-columns: 1fr; height: auto; }
-        #settings-credentials .api-key-table-wrap { max-height: calc(100vh - 260px); }
+        #settings-credentials .api-key-table-wrap { max-height: calc(100vh - 340px); }
       }
       @media (max-width: 900px) {
         .workspace { padding: 6px; }
