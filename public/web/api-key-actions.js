@@ -134,8 +134,8 @@
       #settings-credentials th {
         font-size: 10px;
       }
-      #settings-credentials .scroll {
-        max-height: calc(100vh - 185px);
+      #settings-credentials .api-key-table-wrap {
+        max-height: calc(100vh - 400px);
       }
       .api-key-actions-cell {
         display: flex;
