@@ -345,7 +345,14 @@
 
   function tablePane(title, headers, rows) {
     if (!rows.length) return emptyPane(title, "No data for this log view yet.");
-    return `<div class="pane"><h2>${esc(title)}</h2><div class="scroll"><table><thead><tr>${headers.map((head) => `<th>${esc(head)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+    return `<div class="pane"><h2>${esc(title)}</h2><div class="scroll"><table><thead><tr>${headers.map((head) => `<th>${esc(head)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell, index) => `<td>${logCellHtml(headers[index], cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>`;
+  }
+
+  function logCellHtml(header, cell) {
+    const label = String(header || "").toLowerCase();
+    if (label === "severity") return window.AuraStatusBadges?.badge(cell, { kind: "severity" }) || esc(cell);
+    if (label === "status" || label === "severity/status") return window.AuraStatusBadges?.badge(cell) || esc(cell);
+    return esc(cell);
   }
 
   function countBy(items, fn) {

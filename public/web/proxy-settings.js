@@ -275,10 +275,14 @@
         <td><strong>${escapeHtml(proxy.address)}:${escapeHtml(proxy.port)}</strong></td>
         <td><span class="pill">${escapeHtml(proxy.type)}</span></td>
         <td>${escapeHtml(proxy.country || "-")}</td>
-        <td><span class="status-pill ${escapeHtml(proxy.status || "unknown")}">${escapeHtml(proxy.status || "unknown")}</span></td>
+        <td>${statusBadge(proxy.status || "unknown")}</td>
         <td>${proxy.latency_ms ? `${escapeHtml(Math.round(proxy.latency_ms))} ms` : "-"}</td>
         <td>${Number.isFinite(Number(proxy.success_rate)) ? `${Math.round(Number(proxy.success_rate) * 100)}%` : "-"}</td>
       </tr>`).join("") : `<tr><td colspan="6" class="muted">No proxies match this view.</td></tr>`;
+  }
+
+  function statusBadge(status, options = {}) {
+    return window.AuraStatusBadges?.badge(status, options) || `<span class="status-pill ${escapeHtml(status || "unknown")}">${escapeHtml(status || "unknown")}</span>`;
   }
 
   function validateProxyUrl(value) {

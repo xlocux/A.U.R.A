@@ -515,3 +515,15 @@ Every major data table should support:
 - Use monospace for commands, artifact paths, IDs, and raw values.
 - Keep destructive actions behind confirmation.
 - Never show raw secrets in UI.
+
+## Status Badge Normalization
+
+A.U.R.A status, severity, and health cells use the shared browser helper in `public/web/status-badges.js`.
+
+- Use `window.AuraStatusBadges.badge(value, options)` when rendering table HTML.
+- Use `window.AuraStatusBadges.applyToElement(node, value, options)` when updating an existing badge after an async action.
+- Keep table-specific renderers focused on data mapping only; do not duplicate SVG markup in feature files.
+- Use `{ kind: "severity" }` for run-event severity cells so `ok`, `info`, `warn`, and `error` map consistently.
+- Current consumers include API keys, proxy rows, environment tool status, tool results, wordlist rows, and workspace log tables.
+
+The shared component intentionally keeps animated SVG icons inline so the dashboard works as a static drop-in web bundle without additional icon dependencies.

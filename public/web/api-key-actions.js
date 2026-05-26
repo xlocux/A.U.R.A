@@ -81,8 +81,13 @@
     const badge = row?.querySelector(".api-status-badge");
     if (!badge) return;
     const normalized = String(status || "unknown").toLowerCase();
-    badge.className = `api-status-badge ${["active", "failed", "disabled", "exhausted"].includes(normalized) ? normalized : "unknown"}`;
-    badge.textContent = status || "unknown";
+    const safe = ["active", "failed", "disabled", "exhausted"].includes(normalized) ? normalized : "unknown";
+    if (window.AuraStatusBadges?.applyToElement) {
+      window.AuraStatusBadges.applyToElement(badge, status || "unknown", { className: `api-status-badge ${safe}` });
+    } else {
+      badge.className = `api-status-badge ${safe}`;
+      badge.textContent = status || "unknown";
+    }
   }
 
   async function apiFetch(path, options = {}) {
