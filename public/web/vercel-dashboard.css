@@ -713,6 +713,7 @@ body .topology-view-tabs button.active {
 .scroll,
 .result-table-scroll,
 .delta-scroll,
+.api-key-table-wrap,
 .table-wrap {
   border-color: var(--vercel-line) !important;
   scrollbar-width: thin;
@@ -740,6 +741,7 @@ tr:hover td {
 .screenshot-thumb,
 .screenshot-card,
 .result-tree-item,
+.api-key-table-wrap,
 .result-detail-card,
 .candidate-card {
   border-color: var(--vercel-line) !important;
