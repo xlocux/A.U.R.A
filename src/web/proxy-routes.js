@@ -7,6 +7,7 @@ const ProxySources = require("../recon/proxy-sources");
 const { readBody, sendJson } = require("./http-utils");
 
 const DEFAULT_POOL_MAX_LATENCY_MS = 2500;
+const PROXIFLY_ALL_URL = ProxySources.PROXIFLY_ALL_URL || "https://github.com/proxifly/free-proxy-list/blob/main/proxies/all/data.txt";
 
 let proxyService;
 let proxyPreflight;
@@ -235,6 +236,8 @@ async function importAndPreflightProxies(request, response) {
   const results = await proxyPreflight.batchTest(candidates, options);
   const cleanup = await cleanupPreflightResults(results, options);
   sendJson(response, {
+    source,
+    sourceUrl: source === "proxifly" ? PROXIFLY_ALL_URL : params.url || null,
     fetched: proxies.length,
     imported: imported.length,
     invalid,
@@ -249,6 +252,7 @@ async function parseProxyImportSource(source, params) {
   if (source === "json") return proxySources.parseJsonFile(params.content || "[]");
   if (source === "csv") return proxySources.parseCsvFile(params.content || "");
   if (source === "github") return proxySources.fetchFromGitHub(params.url);
+  if (source === "proxifly") return proxySources.fetchFromProxifly();
   throw new Error(`Unsupported source: ${source}`);
 }
 
@@ -268,6 +272,7 @@ function listSources(response) {
   sendJson(response, {
     sources: [
       { id: "txt", name: "Text", description: "Manual proxy list, one entry per line" },
+      { id: "proxifly", name: "Proxifly Free Proxy List", description: "Built-in GitHub source for scheme-prefixed proxies", url: PROXIFLY_ALL_URL },
       { id: "json", name: "JSON", description: "Manual JSON proxy list" },
       { id: "csv", name: "CSV", description: "Manual CSV proxy list" },
       { id: "github", name: "GitHub Raw", description: "User-provided raw text URL" }
@@ -317,124 +322,79 @@ async function getStats(response) {
   const counts = await proxyService.store.listStatusCounts();
   const averages = await proxyService.store.getAverages();
   const recentTests = await proxyService.store.getRecentTests();
-  sendJson(response, {
-    counts: counts.reduce((acc, row) => ({ ...acc, [row.status]: row.count }), {}),
-    averages: {
-      successRate: averages?.avg_success_rate || 0,
-      latencyMs: averages?.avg_latency || 0,
-      totalWithMetrics: averages?.total_with_metrics || 0
-    },
-    recentTests
-  });
+  sendJson(response, { counts, averages, recentTests });
 }
 
 async function getHealth(response) {
-  const proxyCount = await proxyService.store.countProxies();
+  const proxies = await proxyService.store.getProxies({ status: "active" });
+  const best = proxies.sort(compareProxyQuality)[0] || null;
   sendJson(response, {
-    status: "healthy",
-    database: "connected",
-    proxyCount,
-    timestamp: new Date().toISOString()
+    healthy: proxies.length > 0,
+    activeCount: proxies.length,
+    best: best ? redactProxy(best) : null,
+    recommendation: proxies.length ? "Proxy pool is ready for recon routing." : "Import and preflight proxies before enabling proxy routing."
   });
 }
 
-function normalizePreflightOptions(options = {}) {
-  const timeout = parseInteger(options.timeout, 3500);
-  const concurrency = parseInteger(options.concurrency, 5);
-  const maxLatencyMs = parseInteger(options.maxLatencyMs, DEFAULT_POOL_MAX_LATENCY_MS);
-  return {
-    ...options,
-    timeout: Math.max(1000, timeout),
-    concurrency: Math.max(1, concurrency),
-    maxLatencyMs,
-    purgeFailed: options.purgeFailed === true,
-    purgeHighLatency: options.purgeHighLatency === true
-  };
-}
-
-async function cleanupPreflightResults(results, options = {}) {
-  const removalMap = new Map();
+async function cleanupPreflightResults(results, options) {
+  const cleanup = { removed: 0, failedRemoved: 0, highLatencyRemoved: 0 };
   for (const result of results) {
-    const reason = shouldRemovePreflightResult(result, options);
-    if (!reason || !result.proxyId) continue;
-    removalMap.set(result.proxyId, reason);
+    const id = result.proxy?.id || result.proxyId || result.proxy?.proxy_id;
+    if (!id) continue;
+    const shouldRemoveFailed = options.purgeFailed && !result.success;
+    const latency = Number(result.latency || result.latencyMs || result.responseTime || 0);
+    const shouldRemoveSlow = options.purgeHighLatency && result.success && latency > options.maxLatencyMs;
+    if (!shouldRemoveFailed && !shouldRemoveSlow) continue;
+    const deleted = await proxyService.store.deleteProxy(Number(id));
+    if (deleted) {
+      cleanup.removed += 1;
+      if (shouldRemoveFailed) cleanup.failedRemoved += 1;
+      if (shouldRemoveSlow) cleanup.highLatencyRemoved += 1;
+    }
   }
-
-  const ids = [...removalMap.keys()];
-  const removed = ids.length ? await proxyService.store.deleteProxiesByIds(ids) : 0;
-  const reasons = [...removalMap.values()];
-  return {
-    removed,
-    failedRemoved: reasons.filter((reason) => reason === "failed").length,
-    highLatencyRemoved: reasons.filter((reason) => reason === "high_latency").length,
-    maxLatencyMs: options.maxLatencyMs || null
-  };
+  return cleanup;
 }
 
-function shouldRemovePreflightResult(result, options = {}) {
-  if (options.purgeFailed === true && !result.success) return "failed";
-  const latency = Number(result.latency);
-  const maxLatency = Number(options.maxLatencyMs);
-  if (options.purgeHighLatency === true && Number.isFinite(latency) && Number.isFinite(maxLatency) && latency > maxLatency) return "high_latency";
-  return "";
+function normalizePreflightOptions(input) {
+  return {
+    concurrency: parseInteger(input.concurrency, 5),
+    timeout: parseInteger(input.timeout, 3500),
+    maxLatencyMs: parseInteger(input.maxLatencyMs, DEFAULT_POOL_MAX_LATENCY_MS),
+    purgeFailed: input.purgeFailed !== false,
+    purgeHighLatency: input.purgeHighLatency !== false
+  };
 }
 
 function normalizeProxyRecord(input) {
-  const address = String(input.address || input.host || "").trim();
+  if (!input || typeof input !== "object") throw new Error("Proxy object is required");
+  const address = String(input.address || input.host || input.ip || "").trim();
   const port = Number.parseInt(input.port, 10);
   const type = String(input.type || "http").toLowerCase();
-  if (!address) throw new Error("Proxy address is required");
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error("Proxy port must be between 1 and 65535");
+  if (!address || !Number.isInteger(port) || port <= 0 || port > 65535) throw new Error("Proxy must include address and valid port");
   if (!["http", "https", "socks4", "socks5"].includes(type)) throw new Error("Proxy type must be http, https, socks4, or socks5");
-  return {
-    address,
-    port,
-    type,
-    country: input.country ? String(input.country).toUpperCase() : null,
-    username: input.username || null,
-    password: input.password || null,
-    status: input.status || "unknown"
-  };
-}
-
-function redactProxy(proxy) {
-  return {
-    ...proxy,
-    password: proxy.password ? "****" : null
-  };
+  return { address, port, type, country: input.country || null, username: input.username || null, password: input.password || null, status: input.status || "unknown" };
 }
 
 function summarizeResults(results) {
-  return {
-    total: results.length,
-    successful: results.filter((result) => result.success).length,
-    failed: results.filter((result) => !result.success).length,
-    averageLatency: results.length
-      ? results.reduce((sum, result) => sum + (result.latency || 0), 0) / results.length
-      : 0
-  };
+  const total = results.length;
+  const successful = results.filter((result) => result.success).length;
+  return { total, successful, failed: total - successful, successRate: total ? successful / total : 0 };
 }
 
-function compareProxyQuality(left, right) {
-  const leftRate = Number(left.success_rate ?? -1);
-  const rightRate = Number(right.success_rate ?? -1);
-  if (leftRate !== rightRate) return rightRate - leftRate;
-  const leftLatency = Number(left.latency_ms ?? Number.MAX_SAFE_INTEGER);
-  const rightLatency = Number(right.latency_ms ?? Number.MAX_SAFE_INTEGER);
-  if (leftLatency !== rightLatency) return leftLatency - rightLatency;
-  return String(right.updated_at || "").localeCompare(String(left.updated_at || ""));
+function compareProxyQuality(a, b) {
+  const leftSuccess = Number(a.success_rate || 0);
+  const rightSuccess = Number(b.success_rate || 0);
+  if (rightSuccess !== leftSuccess) return rightSuccess - leftSuccess;
+  return Number(a.latency_ms || Number.MAX_SAFE_INTEGER) - Number(b.latency_ms || Number.MAX_SAFE_INTEGER);
+}
+
+function redactProxy(proxy) {
+  return { ...proxy, username: proxy.username ? "****" : null, password: proxy.password ? "****" : null };
 }
 
 function parseInteger(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) ? parsed : fallback;
+  const number = Number.parseInt(value, 10);
+  return Number.isInteger(number) ? number : fallback;
 }
 
-module.exports = {
-  handleApiRequest,
-  _internal: {
-    shouldRemovePreflightResult,
-    summarizeResults,
-    normalizePreflightOptions
-  }
-};
+module.exports = { handleApiRequest };
