@@ -50,6 +50,8 @@ For `httpx`, the manifest now checks for ProjectDiscovery-style flags and JSON/s
 
 For `gowitness`, the manifest now checks screenshot/file scan support so screenshot failures can be classified before full recon.
 
+Deprecated screenshot tooling has been removed from supported execution. `gowitness` is the maintained default; `eyewitness` remains optional only when explicitly configured and available.
+
 ## AI-aware recovery classifier
 
 `src/recon/recovery-classifier.js` classifies common failure modes:
@@ -108,7 +110,7 @@ The following modules are now available for gradual replacement of logic current
 - `src/recon/stages/http-probe-stage.js`
   - owns HTTP probing input batching, stage contract creation, parsed service output, and warnings
 - `src/recon/stages/screenshot-stage.js`
-  - owns screenshot input preparation, screenshot tool args, report discovery, image counting, and stage contract output
+  - owns screenshot input preparation, screenshot tool args, report discovery, image counting, and stage contract output for maintained screenshot tooling
 - `src/recon/adaptive-linux-tool-runner.js`
   - owns adaptive tool flag mutation and large `httpx` input splitting
 - `src/recon/recon-engine-runtime-patch.js`
@@ -130,7 +132,7 @@ The following modules are now available for gradual replacement of logic current
 2. Run environment check.
 3. Install/update tools if any required tool is missing or has a wrong capability signature.
 4. Run environment check again.
-5. Start recon only after `httpx`, `dnsx`, and screenshot tooling are visible on terminal PATH.
+5. Start recon only after `httpx`, `dnsx`, and `gowitness` are visible on terminal PATH.
 6. Review `adaptive-preflight` and `ai-stage-awareness` events in Runs & Logs.
 
 The AI assistant should use these events when explaining why tech stack or screenshots are missing.
