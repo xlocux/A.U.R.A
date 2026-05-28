@@ -36,7 +36,7 @@ async function runScreenshotStage({
       warnings.push(`Unsupported screenshot tool: ${toolName}`);
       continue;
     }
-    const result = await runTool({ toolName, args, timeoutMs, input: toolName === "aquatone" ? `${liveUrls.join("\n")}\n` : null });
+    const result = await runTool({ toolName, args, timeoutMs });
     const screenshotCount = countScreenshotFiles(outputDir);
     runs.push({ toolName, outputDir, reportPath: findScreenshotReport(outputDir), screenshotCount, result });
     if (result.status !== "completed") warnings.push(`${toolName} ended with ${result.status}`);
@@ -59,13 +59,12 @@ function screenshotArgsForTool(toolName, inputPath, outputDir, adaptiveProfile =
     if (adaptiveProfile?.screenshotConcurrency) args.push("--threads", String(adaptiveProfile.screenshotConcurrency));
     return args;
   }
-  if (toolName === "aquatone") return ["-out", outputDir, "-ports", "xlarge", "-scan-timeout", "3000"];
   if (toolName === "eyewitness") return ["--web", "-f", inputPath, "-d", outputDir, "--no-prompt"];
   return null;
 }
 
 function findScreenshotReport(outputDir) {
-  const candidates = [path.join(outputDir, "gowitness.sqlite3"), path.join(outputDir, "aquatone_report.html"), path.join(outputDir, "report.html")];
+  const candidates = [path.join(outputDir, "gowitness.sqlite3"), path.join(outputDir, "report.html")];
   return candidates.find((candidate) => fs.existsSync(candidate)) || null;
 }
 
