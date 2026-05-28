@@ -7,81 +7,39 @@
   const STORAGE_KEY = "aura.proxySettings";
 
   function boot() {
+    safePatch("initial proxy UI", patchProxyWorkflow);
     document.addEventListener("click", handleDocumentClick, true);
-    document.addEventListener("click", () => setTimeout(() => {
-      patchProxyWorkflow();
-      patchModal();
-    }, 0));
-    const observer = new MutationObserver(() => {
-      patchProxyWorkflow();
-      patchModal();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    patchProxyWorkflow();
   }
 
-  function patchProxyWorkflow() {
-    const form = document.querySelector("#settings-proxy .form-body");
-    if (!form) return;
-    form.classList.add("proxy-separated-flow");
-    splitUpstreamRoutingSection(form);
-    const steps = document.querySelector(".proxy-steps");
-    if (steps) steps.replaceWith(statusCard());
-    const heroText = document.querySelector(".proxy-hero p");
-    if (heroText) {
-      heroText.textContent = "Proxy pool automation imports and tests a pool of routes. Upstream proxy routing below controls whether recon tools actually use the selected pool route.";
+  function safePatch(label, fn) {
+    try {
+      fn();
+    } catch (error) {
+      console.warn(`[A.U.R.A] Non-blocking proxy UI patch failed: ${label}`, error);
+      setProxyStatus(`Proxy UI patch warning: ${error.message}`, "warn");
     }
   }
 
-  function splitUpstreamRoutingSection(form) {
-    if (document.getElementById("proxyUpstreamRoutingSection")) return;
-    const enabled = document.getElementById("proxyEnabled");
-    const url = document.getElementById("proxyUrl");
-    const saved = document.getElementById("proxySavedList");
-    const mode = document.getElementById("proxyMode");
-    const purpose = document.getElementById("proxyPurpose");
-    const save = document.getElementById("saveProxySettings");
-    if (!enabled || !url || !mode || !purpose || !save) return;
+  function patchProxyWorkflow() {
+    const heroText = document.querySelector(".proxy-hero p");
+    if (heroText) {
+      heroText.textContent = "Proxy pool automation imports and tests routes. Upstream proxy routing controls whether recon tools use the selected top route. Import and Preflight handles setup automatically.";
+    }
 
-    const section = document.createElement("section");
-    section.id = "proxyUpstreamRoutingSection";
-    section.className = "proxy-pool-section upstream-routing-section";
-    section.innerHTML = `
-      <div class="proxy-pool-header">
-        <div>
-          <span class="eyebrow">Upstream proxy routing</span>
-          <strong>Route recon tools through the selected proxy route</strong>
-          <p>This is separate from pool automation. The pool finds and ranks healthy proxies; this switch decides whether A.U.R.A sends recon tools through the selected best route.</p>
-        </div>
-      </div>
-      <div class="upstream-routing-body form-body"></div>
-    `;
-    const body = section.querySelector(".upstream-routing-body");
-    moveControlWithLabel(body, enabled);
-    moveControlWithLabel(body, url);
-    if (saved) moveControlWithLabel(body, saved);
-    const row = document.createElement("div");
-    row.className = "row";
-    row.appendChild(wrapControlWithLabel(mode));
-    row.appendChild(wrapControlWithLabel(purpose));
-    body.appendChild(row);
-    body.appendChild(save);
+    const steps = document.querySelector(".proxy-steps");
+    if (steps && steps.dataset.automationPatched !== "true") {
+      steps.dataset.automationPatched = "true";
+      steps.innerHTML = `
+        <div class="proxy-step"><span>1</span><strong>Proxy pool automation</strong><small>Open Import to Pool, paste proxies or load Proxifly, then click Import and Preflight.</small></div>
+        <div class="proxy-step"><span>2</span><strong>Automatic setup</strong><small>A.U.R.A imports, preflights, cleans, ranks the best pool, enables the top route, and keeps the ranked pool for rotation.</small></div>
+        <div class="proxy-step"><span>3</span><strong>Upstream routing</strong><small>The selected top route appears in Proxy URL. The enable switch controls whether recon tools route through it.</small></div>
+      `;
+    }
 
-    const poolSection = document.getElementById("proxyPoolSection");
-    if (poolSection) form.insertBefore(section, poolSection);
-    else form.appendChild(section);
-  }
-
-  function statusCard() {
-    const card = document.createElement("div");
-    card.id = "proxyAutoWorkflow";
-    card.className = "proxy-activity idle";
-    card.innerHTML = `
-      <div class="proxy-activity-rail"><span></span></div>
-      <strong>Automated proxy pool setup</strong>
-      <small>Import list → preflight → cleanup → rank best pool → enable top route for runs. The full ranked pool remains available for rotation.</small>
-    `;
-    return card;
+    const poolHeader = document.querySelector("#proxyPoolSection .proxy-pool-header p");
+    if (poolHeader) {
+      poolHeader.textContent = "This table is the proxy pool. The selected top route is shown in Upstream proxy routing, while the ranked pool remains available for runtime rotation.";
+    }
   }
 
   function patchModal() {
@@ -101,10 +59,13 @@
     const help = modal.querySelector("#proxyImportModalHelp");
     if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight. A.U.R.A will import, test, clean, rank the best pool, select the top route, and enable routing automatically.";
     const note = modal.querySelector(".proxy-import-note");
-    if (note) note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one automated pipeline.";
+    if (note) note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one automated setup pipeline.";
   }
 
   function handleDocumentClick(event) {
+    safePatch("click proxy workflow", patchProxyWorkflow);
+    safePatch("click proxy modal", patchModal);
+
     const proxiflyButton = event.target.closest?.("#proxyImportProxifly");
     if (proxiflyButton) {
       event.preventDefault();
@@ -237,18 +198,6 @@
     setProxyStatus(`Proxy pool ready: ${redactProxyUrl(url)} enabled; ${pool.length} ranked route(s) available for rotation.`, "ok");
   }
 
-  function moveControlWithLabel(target, control) {
-    target.appendChild(wrapControlWithLabel(control));
-  }
-
-  function wrapControlWithLabel(control) {
-    const wrapper = document.createElement("div");
-    const label = document.querySelector(`label[for="${control.id}"]`);
-    if (label) wrapper.appendChild(label);
-    wrapper.appendChild(control);
-    return wrapper;
-  }
-
   function normalizeProxyText(content) {
     return String(content || "")
       .split(/\r?\n/)
@@ -282,18 +231,10 @@
   function setProxyActivity(state, title, detail) {
     const box = document.getElementById("proxyActivity");
     if (box) box.className = `proxy-activity ${state}`;
-    const autoBox = document.getElementById("proxyAutoWorkflow");
-    if (autoBox) autoBox.className = `proxy-activity ${state}`;
     const titleNode = document.getElementById("proxyActivityTitle");
     const detailNode = document.getElementById("proxyActivityDetail");
     if (titleNode) titleNode.textContent = title;
     if (detailNode) detailNode.textContent = detail;
-    if (autoBox) {
-      const strong = autoBox.querySelector("strong");
-      const small = autoBox.querySelector("small");
-      if (strong) strong.textContent = title;
-      if (small) small.textContent = detail;
-    }
   }
 
   function clampInteger(value, fallback, min, max) {
