@@ -7,6 +7,8 @@ const ProxySources = require("../recon/proxy-sources");
 const { readBody, sendJson } = require("./http-utils");
 
 const DEFAULT_POOL_MAX_LATENCY_MS = 2500;
+const DEFAULT_PREFLIGHT_CONCURRENCY = 50;
+const MAX_PREFLIGHT_CONCURRENCY = 100;
 const PROXIFLY_ALL_URL = ProxySources.PROXIFLY_ALL_URL || "https://github.com/proxifly/free-proxy-list/blob/main/proxies/all/data.txt";
 
 let proxyService;
@@ -177,7 +179,7 @@ async function testProxies(request, response) {
     sendJson(response, { error: "Proxies array is required" }, 400);
     return;
   }
-  const results = await proxyPreflight.batchTest(proxies, body.options || {});
+  const results = await proxyPreflight.batchTest(proxies, normalizePreflightOptions(body.options || {}));
   sendJson(response, { results, summary: summarizeResults(results) });
 }
 
@@ -195,7 +197,7 @@ async function preflightActiveProxies(request, response) {
   }
   const results = await proxyPreflight.batchTest(candidates, options);
   const cleanup = await cleanupPreflightResults(results, options);
-  sendJson(response, { results, summary: summarizeResults(results), cleanup });
+  sendJson(response, { results, summary: summarizeResults(results), cleanup, concurrency: options.concurrency });
 }
 
 async function importAndPreflightProxies(request, response) {
@@ -241,6 +243,7 @@ async function importAndPreflightProxies(request, response) {
     fetched: proxies.length,
     imported: imported.length,
     invalid,
+    concurrency: options.concurrency,
     results,
     summary: summarizeResults(results),
     cleanup
@@ -357,8 +360,9 @@ async function cleanupPreflightResults(results, options) {
 
 function normalizePreflightOptions(input) {
   return {
-    concurrency: parseInteger(input.concurrency, 5),
-    timeout: parseInteger(input.timeout, 3500),
+    concurrency: clampInteger(input.concurrency, DEFAULT_PREFLIGHT_CONCURRENCY, 1, MAX_PREFLIGHT_CONCURRENCY),
+    timeout: clampInteger(input.timeout, 3500, 500, 30000),
+    tcpTimeout: clampInteger(input.tcpTimeout, 1200, 250, 30000),
     maxLatencyMs: parseInteger(input.maxLatencyMs, DEFAULT_POOL_MAX_LATENCY_MS),
     purgeFailed: input.purgeFailed !== false,
     purgeHighLatency: input.purgeHighLatency !== false
@@ -395,6 +399,12 @@ function redactProxy(proxy) {
 function parseInteger(value, fallback) {
   const number = Number.parseInt(value, 10);
   return Number.isInteger(number) ? number : fallback;
+}
+
+function clampInteger(value, fallback, min, max) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isInteger(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
 }
 
 module.exports = { handleApiRequest };
