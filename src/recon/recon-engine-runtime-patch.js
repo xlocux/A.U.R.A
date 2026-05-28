@@ -5,6 +5,7 @@ const path = require("node:path");
 const { applyAdaptiveTimeout, benchmarkReconHost } = require("./adaptive-recon-profile");
 const { patchLinuxToolRunner } = require("./adaptive-linux-tool-runner");
 
+const DEPRECATED_SCREENSHOT_TOOLS = new Set(["aquatone"]);
 let activeProfile = null;
 
 function installReconRuntimePatch() {
@@ -36,19 +37,27 @@ function wrapReconFunction(functionName, original) {
     const previousProfile = activeProfile;
     const profile = benchmarkReconHost();
     activeProfile = profile;
-    const patchedOptions = {
+    const patchedOptions = sanitizeDeprecatedOptions({
       ...options,
       timeoutMs: applyAdaptiveTimeout(options.timeoutMs, profile),
       adaptiveProfile: profile
-    };
+    });
     persistPreflight({ options: patchedOptions, profile, functionName });
     appendPreflightEvents({ options: patchedOptions, profile, functionName });
+    appendDeprecationEvents({ options: patchedOptions, functionName });
     try {
       return await original(patchedOptions);
     } finally {
       activeProfile = previousProfile;
     }
   };
+}
+
+function sanitizeDeprecatedOptions(options) {
+  if (!Array.isArray(options.screenshotTools)) return options;
+  const removed = options.screenshotTools.filter((tool) => DEPRECATED_SCREENSHOT_TOOLS.has(String(tool).toLowerCase()));
+  const screenshotTools = options.screenshotTools.filter((tool) => !DEPRECATED_SCREENSHOT_TOOLS.has(String(tool).toLowerCase()));
+  return { ...options, screenshotTools, deprecatedScreenshotToolsRemoved: removed };
 }
 
 function appendPreflightEvents({ options, profile, functionName }) {
@@ -66,6 +75,17 @@ function appendPreflightEvents({ options, profile, functionName }) {
     source: "ai-stage-awareness",
     message: profile.aiRationale,
     payload: { functionName, adaptiveProfile: profile }
+  });
+}
+
+function appendDeprecationEvents({ options, functionName }) {
+  if (!options?.store || !options?.runId || !options.deprecatedScreenshotToolsRemoved?.length) return;
+  options.store.appendEvent(options.runId, {
+    phase: "tool-deprecation",
+    severity: "warn",
+    source: "tool-registry",
+    message: `${functionName} removed deprecated screenshot tools from this run: ${options.deprecatedScreenshotToolsRemoved.join(", ")}.`,
+    payload: { removed: options.deprecatedScreenshotToolsRemoved, replacement: "gowitness" }
   });
 }
 
