@@ -7,6 +7,11 @@
     "command": "httpx",
     "args": ["-version"]
   },
+  "capability_check": {
+    "command": "httpx",
+    "args": ["-h"],
+    "expected_output": "projectdiscovery|tech-detect|status-code|json"
+  },
   "input_type": "domain_list",
   "output_format": "jsonl",
   "output_path": "stdout",
