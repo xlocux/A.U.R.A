@@ -31,15 +31,20 @@
   }
 
   function installDiagnosticsExportButton() {
-    const exportPane = document.getElementById("results-export") || document.querySelector(".export-actions");
-    const actions = exportPane?.querySelector(".export-actions") || exportPane;
-    if (!actions || document.getElementById("exportDiagnostics")) return;
-    const button = document.createElement("button");
-    button.id = "exportDiagnostics";
-    button.type = "button";
-    button.textContent = "Diagnostics JSON";
-    button.title = "Download run events, tool results, stdout/stderr previews, preflight, and artifact index for troubleshooting.";
-    button.addEventListener("click", () => {
+    if (document.getElementById("exportDiagnostics")) return;
+    const runActivity = document.getElementById("runActivity");
+    const runsPane = runActivity?.closest(".pane") || document.getElementById("tab-runs")?.querySelector(".pane");
+    if (!runsPane) return;
+    const header = runsPane.querySelector("h2") || runsPane.firstElementChild;
+    const toolbar = document.createElement("div");
+    toolbar.className = "result-view-toolbar diagnostics-toolbar";
+    toolbar.innerHTML = `
+      <button id="exportDiagnostics" class="primary" type="button" title="Download run events, tool results, stdout/stderr previews, preflight, and artifact index for troubleshooting.">Export Diagnostics JSON</button>
+      <span class="muted">Attach this file when A.U.R.A tools, tech stack, or screenshots misbehave.</span>
+    `;
+    if (header?.nextSibling) runsPane.insertBefore(toolbar, header.nextSibling);
+    else runsPane.appendChild(toolbar);
+    document.getElementById("exportDiagnostics").addEventListener("click", () => {
       const runId = currentRunId();
       const status = document.getElementById("status");
       if (!runId) {
@@ -48,7 +53,6 @@
       }
       window.location.href = `/api/recon-runs/${encodeURIComponent(runId)}/diagnostics`;
     });
-    actions.appendChild(button);
   }
 
   function currentRunId() {
