@@ -1,14 +1,32 @@
 "use strict";
 
 (function initProxiflyImportPatch() {
-  const PROXIFLY_LABEL = "Import Proxifly + Preflight";
+  const PROXIFLY_LABEL = "Import from Proxifly";
+  const PROXIFLY_RAW_URL = "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/all/data.txt";
   const DEFAULT_MAX_LATENCY_MS = 2500;
 
   function boot() {
     document.addEventListener("click", handleDocumentClick, true);
-    document.addEventListener("click", () => setTimeout(patchModal, 0));
-    const observer = new MutationObserver(() => patchModal());
+    document.addEventListener("click", () => setTimeout(() => {
+      patchProxyWorkflow();
+      patchModal();
+    }, 0));
+    const observer = new MutationObserver(() => {
+      patchProxyWorkflow();
+      patchModal();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
+    patchProxyWorkflow();
+  }
+
+  function patchProxyWorkflow() {
+    const cleanupButton = document.getElementById("proxyStepPreflight");
+    const cleanupStep = cleanupButton?.closest(".proxy-step");
+    if (cleanupStep) cleanupStep.remove();
+    const importStep = document.querySelector(".proxy-step strong");
+    const importStepBox = importStep?.closest(".proxy-step");
+    const importSmall = importStepBox?.querySelector("small");
+    if (importSmall) importSmall.textContent = "Paste proxies manually or load Proxifly into the modal, then Import and Preflight runs import, preflight, and cleanup once.";
   }
 
   function patchModal() {
@@ -22,13 +40,13 @@
     button.type = "button";
     button.className = "secondary-button";
     button.textContent = PROXIFLY_LABEL;
-    button.title = "Fetch https://github.com/proxifly/free-proxy-list/blob/main/proxies/all/data.txt, import it, run preflight once, and clean failed/slow proxies.";
+    button.title = "Load the Proxifly free proxy list into the textarea for review before running Import and Preflight.";
     actions.insertBefore(button, actions.querySelector("#proxyImportSubmit"));
 
+    const help = modal.querySelector("#proxyImportModalHelp");
+    if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight to run import, preflight, and cleanup once.";
     const note = modal.querySelector(".proxy-import-note");
-    if (note) {
-      note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one import → preflight → cleanup pipeline.";
-    }
+    if (note) note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one import → preflight → cleanup pipeline.";
   }
 
   function handleDocumentClick(event) {
@@ -36,7 +54,7 @@
     if (proxiflyButton) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      runImportPipeline({ source: "proxifly", label: "Proxifly" });
+      loadProxiflyIntoTextarea(proxiflyButton);
       return;
     }
 
@@ -48,47 +66,73 @@
       event.stopImmediatePropagation();
       const content = modal.querySelector("#proxyPoolImportContent")?.value || "";
       if (!content.trim()) {
-        setProxyStatus("Paste one or more proxies, or use Import Proxifly + Preflight.", "error");
+        setProxyStatus("Paste proxies or click Import from Proxifly before running Import and Preflight.", "error");
         setProxyActivity("failed", "Import blocked", "No proxy candidates were supplied.");
         return;
       }
-      runImportPipeline({ source: "txt", content, label: "manual list" });
+      runImportPipeline({ content, label: "proxy list" });
     }
   }
 
-  async function runImportPipeline({ source, content = "", label }) {
+  async function loadProxiflyIntoTextarea(button) {
+    const modal = document.getElementById("proxyImportModal");
+    const textarea = modal?.querySelector("#proxyPoolImportContent");
+    if (!textarea) return;
+    const previousLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Loading Proxifly...";
+    setProxyStatus("Loading Proxifly proxy list into the import textarea...", "muted");
+    try {
+      const response = await fetch(PROXIFLY_RAW_URL, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Proxifly fetch failed: HTTP ${response.status}`);
+      const text = await response.text();
+      const normalized = normalizeProxyText(text);
+      textarea.value = normalized;
+      const count = normalized ? normalized.split(/\r?\n/).length : 0;
+      setProxyActivity("ok", "Proxifly loaded", `${count} proxy candidates loaded into the textarea. Review them, then click Import and Preflight.`);
+      setProxyStatus(`Loaded ${count} Proxifly proxy candidates into the textarea.`, "ok");
+      textarea.focus();
+    } catch (error) {
+      setProxyActivity("failed", "Proxifly load failed", error.message);
+      setProxyStatus(error.message, "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = previousLabel;
+    }
+  }
+
+  async function runImportPipeline({ content = "", label }) {
     const modal = document.getElementById("proxyImportModal");
     const maxLatencyMs = clampInteger(modal?.querySelector("#proxyImportLatencyLimit")?.value, DEFAULT_MAX_LATENCY_MS, 250, 30000);
     const timeout = clampInteger(modal?.querySelector("#proxyImportTimeout")?.value, 3500, 1000, 30000);
     closeModal();
-    setProxyActivity("running", `Importing ${label}`, "Running one server-side import → preflight → cleanup pipeline. The modal is closed so the preflight is not triggered twice.");
+    setProxyActivity("running", `Importing ${label}`, "Running one server-side import → preflight → cleanup pipeline. The modal is closed so preflight cannot be triggered twice.");
     setProxyStatus(`Importing ${label}, running preflight, and cleaning unhealthy proxies...`, "muted");
     try {
-      const payload = {
-        source,
-        options: {
-          concurrency: 5,
-          timeout,
-          maxLatencyMs,
-          purgeFailed: true,
-          purgeHighLatency: true
-        }
-      };
-      if (source === "txt") payload.content = normalizeProxyText(content);
       const result = await apiFetch("/api/proxies/import-preflight", {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          source: "txt",
+          content: normalizeProxyText(content),
+          options: {
+            concurrency: 5,
+            timeout,
+            maxLatencyMs,
+            purgeFailed: true,
+            purgeHighLatency: true
+          }
+        })
       });
       const summary = result.summary || {};
       const cleanup = result.cleanup || {};
       const kept = Math.max(Number(summary.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
       const removed = Number(cleanup.removed || 0);
       const invalid = Number(result.invalid || 0);
-      setProxyActivity(kept > 0 ? "ok" : "failed", `${label} import complete`, `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}.`);
-      setProxyStatus(`${label} import complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped.`, kept > 0 ? "ok" : "warn");
+      setProxyActivity(kept > 0 ? "ok" : "failed", "Proxy import complete", `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}.`);
+      setProxyStatus(`Proxy import complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped.`, kept > 0 ? "ok" : "warn");
       document.getElementById("proxyRefresh")?.click();
     } catch (error) {
-      setProxyActivity("failed", `${label} import failed`, error.message);
+      setProxyActivity("failed", "Proxy import failed", error.message);
       setProxyStatus(error.message, "error");
     }
   }
@@ -97,7 +141,7 @@
     return String(content || "")
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter(Boolean)
+      .filter((line) => line && !line.startsWith("#"))
       .join("\n");
   }
 
