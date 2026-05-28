@@ -31,7 +31,8 @@ The selected profile affects:
 - `httpx` thread count
 - `dnsx` thread count
 - screenshot concurrency
-- future batch sizing and stage workers
+- adaptive `httpx` batch sizing
+- future stage workers
 
 ## Tool setup hardening
 
@@ -92,15 +93,36 @@ The adaptive benchmark is wired into runtime execution through `src/recon/recon-
 - `runHttpFollowup`
 - `runFocusedFollowup`
 
-It also patches Linux tool execution so selected adaptive limits are applied to:
+It also patches Linux tool execution through `src/recon/adaptive-linux-tool-runner.js` so selected adaptive limits are applied to:
 
-- `httpx`: thread, retry, and timeout flags
+- `httpx`: adaptive batches, thread, retry, and timeout flags
 - `dnsx`: thread and retry flags
 - `gowitness`: screenshot thread flag
 
-## Recommended next refactor
+When the `httpx` input file is larger than the selected `httpxBatchSize`, the adaptive runner creates `httpx-batches/` under the run artifacts directory, executes one batch at a time, preserves per-batch status metadata, and merges JSONL stdout for the existing parser. This avoids one oversized `httpx` process blocking tech stack and screenshot stages.
 
-The remaining structural improvement is to move `httpx` execution out of the generic `collectLinuxTools` loop into a dedicated `HttpProbeStage` that explicitly batches large domain sets using the benchmark `httpxBatchSize`. The current runtime patch reduces risk immediately, while the future stage split should give finer per-batch artifacts and recovery decisions.
+## Modular stage extraction
+
+The following modules are now available for gradual replacement of logic currently inside `src/recon/recon-engine.js`:
+
+- `src/recon/stages/http-probe-stage.js`
+  - owns HTTP probing input batching, stage contract creation, parsed service output, and warnings
+- `src/recon/stages/screenshot-stage.js`
+  - owns screenshot input preparation, screenshot tool args, report discovery, image counting, and stage contract output
+- `src/recon/adaptive-linux-tool-runner.js`
+  - owns adaptive tool flag mutation and large `httpx` input splitting
+- `src/recon/recon-engine-runtime-patch.js`
+  - owns runtime orchestration patching only
+
+`recon-engine.js` should continue shrinking by delegating one phase at a time to these stage modules. Avoid moving unrelated phases in the same commit.
+
+## Next refactor checkpoints
+
+1. Replace the inline `httpx` branch in `collectLinuxTools` with `runHttpProbeStage`.
+2. Replace the inline `collectScreenshots` implementation with `runScreenshotStage`.
+3. Move recovery action building into a dedicated recovery stage module.
+4. Move run-control helpers into a run lifecycle module.
+5. Keep `recon-engine.js` as a thin orchestrator that wires stages together and updates final run state.
 
 ## Operator workflow
 
