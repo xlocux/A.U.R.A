@@ -94,3 +94,60 @@
 
   window.AuraStatusBadges = { badge, applyToElement, escapeHtml, normalize, typeFor };
 })();
+
+(function installAuraBootstrapCompatibilityAliases() {
+  const $ = (id) => document.getElementById(id);
+
+  function aliasId(existingId, expectedId) {
+    if ($(expectedId)) return;
+    const existing = $(existingId);
+    if (existing) existing.id = expectedId;
+  }
+
+  function ensureHiddenInput(id, value = "") {
+    if ($(id)) return;
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.id = id;
+    input.value = value;
+    document.body.appendChild(input);
+  }
+
+  function ensureHiddenFileInput(id) {
+    if ($(id)) return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.id = id;
+    input.accept = "application/json,.json";
+    input.hidden = true;
+    document.body.appendChild(input);
+  }
+
+  function ensureApiPreflightNode() {
+    if ($("apiPreflightStatus")) return;
+    const reference = $("apiKeyFormStatus") || $("apiKeyRows")?.closest(".pane") || document.body;
+    const node = document.createElement("div");
+    node.id = "apiPreflightStatus";
+    node.className = "api-preflight hidden";
+    node.innerHTML = `<div class="api-preflight-rail"><span></span></div><strong>API preflight idle</strong><small>Provider checks will appear here.</small>`;
+    if (reference.parentNode) reference.parentNode.insertBefore(node, reference);
+    else document.body.appendChild(node);
+  }
+
+  function install() {
+    aliasId("apiProvider", "keyProvider");
+    aliasId("apiLabel", "keyLabel");
+    aliasId("apiKey", "apiKeyValue");
+    aliasId("apiMonthlyLimit", "keyMonthlyLimit");
+    aliasId("preflightApiKeys", "testAllApiKeys");
+    ensureHiddenFileInput("apiKeyImportFile");
+    ensureHiddenInput("wordlistPath", "");
+    ensureHiddenInput("wordlistStatus", "active");
+    ensureHiddenInput("wordlistNotes", "");
+    ensureApiPreflightNode();
+    if (!$('apiKeyTableSummary')) ensureHiddenInput("apiKeyTableSummary", "");
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install, { once: true });
+  else install();
+})();
