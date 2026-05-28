@@ -4,6 +4,7 @@
   const PROXIFLY_LABEL = "Import from Proxifly";
   const PROXIFLY_RAW_URL = "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/all/data.txt";
   const DEFAULT_MAX_LATENCY_MS = 2500;
+  const STORAGE_KEY = "aura.proxySettings";
 
   function boot() {
     document.addEventListener("click", handleDocumentClick, true);
@@ -20,13 +21,26 @@
   }
 
   function patchProxyWorkflow() {
-    const cleanupButton = document.getElementById("proxyStepPreflight");
-    const cleanupStep = cleanupButton?.closest(".proxy-step");
-    if (cleanupStep) cleanupStep.remove();
-    const importStep = document.querySelector(".proxy-step strong");
-    const importStepBox = importStep?.closest(".proxy-step");
-    const importSmall = importStepBox?.querySelector("small");
-    if (importSmall) importSmall.textContent = "Paste proxies manually or load Proxifly into the modal, then Import and Preflight runs import, preflight, and cleanup once.";
+    const steps = document.querySelector(".proxy-steps");
+    if (steps) {
+      steps.replaceWith(statusCard());
+    }
+    const heroText = document.querySelector(".proxy-hero p");
+    if (heroText) {
+      heroText.textContent = "Paste proxies manually or load Proxifly into the import modal. Import and Preflight automatically imports, tests, cleans, selects the best healthy proxy, and enables it for recon runs.";
+    }
+  }
+
+  function statusCard() {
+    const card = document.createElement("div");
+    card.id = "proxyAutoWorkflow";
+    card.className = "proxy-activity idle";
+    card.innerHTML = `
+      <div class="proxy-activity-rail"><span></span></div>
+      <strong>Automated proxy setup</strong>
+      <small>Import list → preflight → cleanup → use best → enable for runs. No extra setup steps required.</small>
+    `;
+    return card;
   }
 
   function patchModal() {
@@ -44,9 +58,9 @@
     actions.insertBefore(button, actions.querySelector("#proxyImportSubmit"));
 
     const help = modal.querySelector("#proxyImportModalHelp");
-    if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight to run import, preflight, and cleanup once.";
+    if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight. A.U.R.A will import, test, clean, select the best proxy, and enable it automatically.";
     const note = modal.querySelector(".proxy-import-note");
-    if (note) note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one import → preflight → cleanup pipeline.";
+    if (note) note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one automated pipeline.";
   }
 
   function handleDocumentClick(event) {
@@ -105,15 +119,18 @@
     const modal = document.getElementById("proxyImportModal");
     const maxLatencyMs = clampInteger(modal?.querySelector("#proxyImportLatencyLimit")?.value, DEFAULT_MAX_LATENCY_MS, 250, 30000);
     const timeout = clampInteger(modal?.querySelector("#proxyImportTimeout")?.value, 3500, 1000, 30000);
+    const normalizedContent = normalizeProxyText(content);
+    const candidates = normalizedContent.split(/\r?\n/).filter(Boolean);
+    const stopTicker = startPreflightTicker(candidates);
     closeModal();
-    setProxyActivity("running", `Importing ${label}`, "Running one server-side import → preflight → cleanup pipeline. The modal is closed so preflight cannot be triggered twice.");
-    setProxyStatus(`Importing ${label}, running preflight, and cleaning unhealthy proxies...`, "muted");
+    setProxyActivity("running", `Testing ${label}`, "Importing candidates, running preflight, cleaning unhealthy routes, then enabling the best proxy automatically.");
+    setProxyStatus(`Testing ${candidates.length} proxy candidates...`, "muted");
     try {
       const result = await apiFetch("/api/proxies/import-preflight", {
         method: "POST",
         body: JSON.stringify({
           source: "txt",
-          content: normalizeProxyText(content),
+          content: normalizedContent,
           options: {
             concurrency: 5,
             timeout,
@@ -123,18 +140,58 @@
           }
         })
       });
+      stopTicker();
       const summary = result.summary || {};
       const cleanup = result.cleanup || {};
       const kept = Math.max(Number(summary.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
       const removed = Number(cleanup.removed || 0);
       const invalid = Number(result.invalid || 0);
-      setProxyActivity(kept > 0 ? "ok" : "failed", "Proxy import complete", `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}.`);
-      setProxyStatus(`Proxy import complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped.`, kept > 0 ? "ok" : "warn");
+      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}. Selecting best proxy...`);
+      setProxyStatus(`Preflight complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped. Selecting best proxy...`, kept > 0 ? "ok" : "warn");
+      if (kept > 0) await selectBestAndEnable();
       document.getElementById("proxyRefresh")?.click();
     } catch (error) {
+      stopTicker();
       setProxyActivity("failed", "Proxy import failed", error.message);
       setProxyStatus(error.message, "error");
     }
+  }
+
+  function startPreflightTicker(candidates) {
+    const list = candidates.slice(0, 500);
+    let index = 0;
+    if (!list.length) return () => {};
+    const tick = () => {
+      const candidate = list[index % list.length];
+      setProxyActivity("running", "Preflight in progress", `Testing proxy candidate ${index + 1}/${list.length}: ${redactProxyLine(candidate)}`);
+      index += 1;
+    };
+    tick();
+    const timer = setInterval(tick, 850);
+    return () => clearInterval(timer);
+  }
+
+  async function selectBestAndEnable() {
+    const data = await apiFetch("/api/proxies?status=all&best=true&limit=1");
+    const best = data.proxies?.[0];
+    if (!best) {
+      setProxyActivity("failed", "No healthy proxy", "Preflight finished, but no active proxy survived cleanup.");
+      setProxyStatus("No active proxy survived preflight cleanup.", "warn");
+      return;
+    }
+    const url = proxyRecordUrl(best);
+    const mode = best.type === "socks5" ? "socks5" : best.type === "socks4" ? "socks4" : best.type === "https" ? "https" : "http";
+    const current = readStoredSettings();
+    const next = { ...current, enabled: true, url, mode, purpose: current.purpose || "lab-egress", proxies: Array.isArray(current.proxies) ? current.proxies : [] };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const enabled = document.getElementById("proxyEnabled");
+    const input = document.getElementById("proxyUrl");
+    const modeSelect = document.getElementById("proxyMode");
+    if (enabled) enabled.checked = true;
+    if (input) input.value = url;
+    if (modeSelect) modeSelect.value = mode;
+    setProxyActivity("ok", "Proxy setup complete", `${redactProxyUrl(url)} selected as best healthy proxy and enabled for recon runs.`);
+    setProxyStatus(`Proxy setup complete: ${redactProxyUrl(url)} is enabled for recon runs.`, "ok");
   }
 
   function normalizeProxyText(content) {
@@ -170,16 +227,61 @@
   function setProxyActivity(state, title, detail) {
     const box = document.getElementById("proxyActivity");
     if (box) box.className = `proxy-activity ${state}`;
+    const autoBox = document.getElementById("proxyAutoWorkflow");
+    if (autoBox) autoBox.className = `proxy-activity ${state}`;
     const titleNode = document.getElementById("proxyActivityTitle");
     const detailNode = document.getElementById("proxyActivityDetail");
     if (titleNode) titleNode.textContent = title;
     if (detailNode) detailNode.textContent = detail;
+    if (autoBox) {
+      const strong = autoBox.querySelector("strong");
+      const small = autoBox.querySelector("small");
+      if (strong) strong.textContent = title;
+      if (small) small.textContent = detail;
+    }
   }
 
   function clampInteger(value, fallback, min, max) {
     const number = Number.parseInt(value, 10);
     if (!Number.isInteger(number)) return fallback;
     return Math.max(min, Math.min(max, number));
+  }
+
+  function proxyRecordUrl(proxy) {
+    const auth = proxy.username && proxy.username !== "****" ? `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password || "")}@` : "";
+    return `${proxy.type || "http"}://${auth}${proxy.address}:${proxy.port}`;
+  }
+
+  function redactProxyLine(value) {
+    try {
+      const text = String(value || "").trim();
+      const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `proxy://${text}`;
+      const parsed = new URL(withScheme);
+      if (parsed.username) parsed.username = "****";
+      if (parsed.password) parsed.password = "****";
+      return withScheme.startsWith("proxy://") ? `${parsed.hostname}:${parsed.port}` : parsed.toString();
+    } catch {
+      return String(value || "").replace(/^[^:@]+:[^:@]+@/, "****:****@");
+    }
+  }
+
+  function redactProxyUrl(value) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.username) parsed.username = "****";
+      if (parsed.password) parsed.password = "****";
+      return parsed.toString();
+    } catch {
+      return value || "";
+    }
+  }
+
+  function readStoredSettings() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    } catch {
+      return {};
+    }
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
