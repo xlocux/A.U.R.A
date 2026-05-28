@@ -4,13 +4,19 @@ const net = require("node:net");
 const tls = require("node:tls");
 const ProxyService = require("./proxy-service");
 
+const DEFAULT_CONCURRENCY = 50;
+const MAX_CONCURRENCY = 100;
+const DEFAULT_TIMEOUT_MS = 3500;
+const DEFAULT_TCP_TIMEOUT_MS = 1200;
+
 class ProxyPreflight {
   constructor({ proxyService = new ProxyService() } = {}) {
     this.proxyService = proxyService;
   }
 
   async testProxy(proxy, options = {}) {
-    const timeout = Number.isInteger(options.timeout) ? options.timeout : 5000;
+    const timeout = clampInteger(options.timeout, DEFAULT_TIMEOUT_MS, 500, 30000);
+    const tcpTimeout = clampInteger(options.tcpTimeout || Math.min(timeout, DEFAULT_TCP_TIMEOUT_MS), DEFAULT_TCP_TIMEOUT_MS, 250, timeout);
     const runId = options.runId || `proxy_preflight_${Date.now()}`;
     const protocolCheck = options.protocolCheck !== false;
     const testHost = options.testHost || "example.com";
@@ -29,7 +35,7 @@ class ProxyPreflight {
     };
 
     try {
-      const tcpResult = await testTcp(proxy.address, proxy.port, timeout);
+      const tcpResult = await testTcp(proxy.address, proxy.port, tcpTimeout);
       result.reachability.tcp = tcpResult;
       if (!tcpResult.success) {
         result.errors.push(tcpResult.error || "TCP connection failed");
@@ -65,19 +71,29 @@ class ProxyPreflight {
   }
 
   async batchTest(proxies, options = {}) {
-    const concurrency = Math.max(1, Number.parseInt(options.concurrency || 5, 10));
+    const concurrency = clampInteger(options.concurrency, DEFAULT_CONCURRENCY, 1, MAX_CONCURRENCY);
     const runId = options.runId || `proxy_batch_${Date.now()}`;
-    const results = [];
+    const results = new Array(proxies.length);
     let index = 0;
+    let completed = 0;
 
     const worker = async () => {
       while (index < proxies.length) {
-        const proxy = proxies[index++];
-        results.push(await this.testProxy(proxy, { ...options, runId }));
+        const currentIndex = index;
+        index += 1;
+        const proxy = proxies[currentIndex];
+        const result = await this.testProxy(proxy, { ...options, runId });
+        results[currentIndex] = result;
+        completed += 1;
+        if (typeof options.onProgress === "function") {
+          options.onProgress({ completed, total: proxies.length, proxy: redactProxy(proxy), result });
+        }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(concurrency, proxies.length) }, worker));
-    return results.sort((left, right) => {
+
+    const workerCount = Math.min(concurrency, proxies.length);
+    await Promise.all(Array.from({ length: workerCount }, worker));
+    return results.filter(Boolean).sort((left, right) => {
       if (left.success !== right.success) return Number(right.success) - Number(left.success);
       return (left.latency || Number.MAX_SAFE_INTEGER) - (right.latency || Number.MAX_SAFE_INTEGER);
     });
@@ -97,7 +113,7 @@ function testTcp(host, port, timeout) {
     };
     socket.setTimeout(timeout);
     socket.once("connect", () => finish({ success: true }));
-    socket.once("timeout", () => finish({ success: false, error: "Connection timed out" }));
+    socket.once("timeout", () => finish({ success: false, error: "TCP connection timed out" }));
     socket.once("error", (error) => finish({ success: false, error: error.message, code: error.code }));
     socket.connect(port, host);
   });
@@ -262,24 +278,25 @@ function testSocks4Proxy(proxy, { timeout, testHost, testPort }) {
 }
 
 function socks4aConnectRequest(host, port, userId) {
+  const user = Buffer.from(String(userId || "aura"));
+  const hostBuffer = Buffer.from(String(host));
   return Buffer.concat([
     Buffer.from([0x04, 0x01, (port >> 8) & 0xff, port & 0xff, 0x00, 0x00, 0x00, 0x01]),
-    Buffer.from(String(userId)),
+    user,
     Buffer.from([0x00]),
-    Buffer.from(String(host)),
+    hostBuffer,
     Buffer.from([0x00])
   ]);
 }
 
 function redactProxy(proxy) {
-  return {
-    address: proxy.address,
-    port: proxy.port,
-    type: proxy.type,
-    country: proxy.country || null,
-    username: proxy.username || null,
-    password: proxy.password ? "****" : null
-  };
+  return { ...proxy, username: proxy.username ? "****" : null, password: proxy.password ? "****" : null };
+}
+
+function clampInteger(value, fallback, min, max) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isInteger(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
 }
 
 module.exports = ProxyPreflight;
