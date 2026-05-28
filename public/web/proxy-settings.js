@@ -8,6 +8,7 @@
   injectStylesheet("/proxy-dashboard.css", "aura-proxy-dashboard-css");
   injectScript("/projects-view.js", "aura-projects-view-js");
   injectScript("/aura-modern.js", "aura-modern-js");
+  injectScript("/proxifly-import.js", "aura-proxifly-import-js");
 
   function injectStylesheet(href, id) {
     if (document.getElementById(id)) return;
@@ -419,60 +420,59 @@
   }
 
   function extractPort(value) {
-    const text = String(value || "").trim();
-    const withoutType = text.replace(/:(http|https|socks4|socks5)$/i, "");
-    const match = withoutType.match(/:(\d{1,5})$/);
-    return match ? Number.parseInt(match[1], 10) : null;
-  }
-
-  function redactProxyUrl(value) {
-    const parsed = new URL(validateProxyUrl(value));
-    if (parsed.username) parsed.username = "****";
-    if (parsed.password) parsed.password = "****";
-    return parsed.toString();
-  }
-
-  function inferProxyMode(value) {
-    const text = String(value || "");
-    if (text.startsWith("socks5:")) return "socks5";
-    if (text.startsWith("socks4:")) return "socks4";
-    if (text.startsWith("https:")) return "https";
-    return "http";
+    const match = String(value || "").match(/:(\d+)(?:\D*)$/);
+    return match ? Number(match[1]) : null;
   }
 
   function proxyRecordUrl(proxy) {
-    return `${proxy.type}://${proxy.username ? `${encodeURIComponent(proxy.username)}${proxy.password && proxy.password !== "****" ? `:${encodeURIComponent(proxy.password)}` : ""}@` : ""}${proxy.address}:${proxy.port}`;
+    const auth = proxy.username ? `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password || "")}@` : "";
+    return `${proxy.type || "http"}://${auth}${proxy.address}:${proxy.port}`;
   }
 
-  function clampInteger(value, fallback, min, max) {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isInteger(parsed)) return fallback;
-    return Math.min(max, Math.max(min, parsed));
-  }
-
-  async function apiFetch(path, options = {}) {
-    const res = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
-  }
-
-  function setStatus(message, statusClass) {
-    $("proxySettingsStatus").textContent = message;
-    $("proxySettingsStatus").className = `notice ${statusClass}`;
+  function redactProxyUrl(value) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.username) parsed.username = "****";
+      if (parsed.password) parsed.password = "****";
+      return parsed.toString();
+    } catch {
+      return value || "";
+    }
   }
 
   function setActivity(state, title, detail) {
-    const node = $("proxyActivity");
+    const box = $("proxyActivity");
+    if (box) box.className = `proxy-activity ${state}`;
+    if ($("proxyActivityTitle")) $("proxyActivityTitle").textContent = title;
+    if ($("proxyActivityDetail")) $("proxyActivityDetail").textContent = detail;
+  }
+
+  function setStatus(message, kind = "muted") {
+    const node = $("proxySettingsStatus");
     if (!node) return;
-    node.className = `proxy-activity ${state}`;
-    $("proxyActivityTitle").textContent = title;
-    $("proxyActivityDetail").textContent = detail || "";
+    node.textContent = message;
+    node.className = `notice ${kind}`;
+  }
+
+  async function apiFetch(path, options = {}) {
+    if (window.auraApi) return window.auraApi(path, options);
+    const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  function clampInteger(value, fallback, min, max) {
+    const number = Number.parseInt(value, 10);
+    if (!Number.isInteger(number)) return fallback;
+    return Math.max(min, Math.min(max, number));
   }
 
   function escapeHtml(value) {
     return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   }
 
-  window.AuraProxySettings = { activeProxyUrl, bind, refreshDashboard };
+  window.AuraProxySettings = { activeProxyUrl };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
+  else bind();
 })();
