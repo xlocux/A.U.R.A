@@ -48,15 +48,20 @@ class ProxyRotationController {
     if (candidates.length === 0) return this;
     let usable = candidates;
     if (this.preflight) {
-      this.appendEvent({ phase: "proxy-preflight", severity: "ok", source: "proxy-preflight", message: `Testing ${candidates.length} proxy candidates before selecting the fastest available route.` });
+      this.appendEvent({ phase: "proxy-preflight", severity: "ok", source: "proxy-preflight", message: `Testing ${candidates.length} proxy candidates before building the quality-ranked rotation pool.` });
       const results = await this.proxyPreflight.batchTest(candidates, { concurrency: this.preflightConcurrency, timeout: this.preflightTimeout, runId: `recon_${this.runId}_proxy_preflight` });
-      usable = results.filter((result) => result.success).map((result) => ({ ...result.proxy, password: candidates.find((item) => sameProxy(item, result.proxy))?.password || null, status: "active" }));
+      usable = results
+        .filter((result) => result.success)
+        .map((result) => ({ ...result.proxy, password: candidates.find((item) => sameProxy(item, result.proxy))?.password || null, status: "active", latency_ms: Number(result.latency || result.latencyMs || result.responseTime || Number.MAX_SAFE_INTEGER), success_rate: 1 }))
+        .sort(compareProxyQuality);
       const failed = results.length - usable.length;
       if (usable.length > 0) {
-        this.appendEvent({ phase: "proxy-preflight", severity: failed ? "warn" : "ok", source: "proxy-preflight", message: `Selected ${redactProxy(usable[0])} as best proxy (${usable.length} usable, ${failed} failed).` });
+        this.appendEvent({ phase: "proxy-preflight", severity: failed ? "warn" : "ok", source: "proxy-preflight", message: `Built quality-ranked proxy pool with ${usable.length} usable route(s), best=${redactProxy(usable[0])}, failed=${failed}.`, payload: { usable: usable.length, failed, best: redactProxy(usable[0]), poolSize: Math.min(usable.length, this.maxCandidates) } });
       } else {
         this.appendEvent({ phase: "proxy-preflight", severity: "warn", source: "proxy-preflight", message: `No usable proxies passed preflight (${failed} failed). Continuing without automatic proxy rotation.` });
       }
+    } else {
+      usable = usable.sort(compareProxyQuality);
     }
     this.pool = usable.slice(0, this.maxCandidates);
     return this;
@@ -66,19 +71,19 @@ class ProxyRotationController {
     const byKey = new Map();
     if (this.preferredProxyUrl) {
       try {
-        const preferred = parseProxyUrl(this.preferredProxyUrl, { status: "active" });
+        const preferred = parseProxyUrl(this.preferredProxyUrl, { status: "active", preferred: true });
         if (preferred) byKey.set(proxyKey(preferred), preferred);
       } catch (error) {
         this.appendEvent({ phase: "proxy-preflight", severity: "warn", source: "proxy-preflight", message: `Configured proxy ignored: ${error.message}` });
       }
     }
     const records = await this.proxyService.store.getProxies({ status: "all" });
-    for (const record of records) {
+    for (const record of records.sort(compareProxyQuality)) {
       if (["inactive", "failed"].includes(record.status)) continue;
       const normalized = normalizeProxyRecord(record);
       if (normalized) byKey.set(proxyKey(normalized), normalized);
     }
-    return [...byKey.values()].slice(0, this.maxCandidates);
+    return [...byKey.values()].sort(compareProxyQuality).slice(0, this.maxCandidates);
   }
 
   hasPool() { return this.pool.length > 0; }
@@ -112,7 +117,7 @@ class ProxyRotationController {
         severity: attempt === 0 ? "ok" : "warn",
         source: "ai-proxy-policy",
         message: attempt === 0
-          ? `Using preflight-approved proxy ${redactProxyUrl(selection.proxyUrl)} for ${toolName} (${invocation.mode} proxy mode).`
+          ? `Using best-ranked proxy ${redactProxyUrl(selection.proxyUrl)} for ${toolName} (${invocation.mode} proxy mode, pool ${selection.index + 1}/${selection.size}).`
           : `Rotated ${toolName} from ${previousProxy ? redactProxy(previousProxy) : "previous proxy"} to ${redactProxyUrl(selection.proxyUrl)} after a proxy/network failure.`
       });
       const result = await runLinuxTool({ runtime, toolName, args: invocation.args, timeoutMs, input, proxyUrl: invocation.envProxyUrl });
@@ -131,7 +136,7 @@ class ProxyRotationController {
         return result;
       }
       previousProxy = selection.proxy;
-      this.appendEvent({ phase: "proxy-rotation", severity: "warn", source: "ai-proxy-policy", message: `Detected proxy/network failure for ${toolName}: ${decision.reason}. Retrying with the next preflight-approved proxy.` });
+      this.appendEvent({ phase: "proxy-rotation", severity: "warn", source: "ai-proxy-policy", message: `Detected proxy/network failure for ${toolName}: ${decision.reason}. Retrying with the next preflight-approved proxy from the quality-ranked pool.` });
       this.appendRecoveryEvent({ stage: "retrying", toolName, attempt: attempt + 1, maxAttempts: attempts, reason: decision.reason });
     }
     return lastResult;
@@ -212,7 +217,7 @@ function normalizeProxyRecord(input) {
   const type = String(input.type || "http").toLowerCase();
   if (!address || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
   if (!["http", "https", "socks4", "socks5"].includes(type)) return null;
-  return { address, port, type, country: input.country ? String(input.country).toUpperCase() : null, username: input.username || null, password: input.password || null, status: input.status || "unknown" };
+  return { address, port, type, country: input.country ? String(input.country).toUpperCase() : null, username: input.username || null, password: input.password || null, status: input.status || "unknown", latency_ms: Number(input.latency_ms || input.avg_response_time || input.latency || Number.MAX_SAFE_INTEGER), success_rate: Number(input.success_rate || 0), preferred: Boolean(input.preferred) };
 }
 
 function inferHttpResponse(result, toolName) {
@@ -224,6 +229,16 @@ function inferHttpResponse(result, toolName) {
 function firstMatchingReason(text) {
   const line = String(text || "").split(/\r?\n/).map((value) => value.trim()).find((value) => ROTATION_ERROR_PATTERNS.some((pattern) => pattern.test(value)));
   return line ? line.slice(0, 160) : "network/proxy failure signal";
+}
+
+function compareProxyQuality(left, right) {
+  const leftPreferred = left.preferred ? 1 : 0;
+  const rightPreferred = right.preferred ? 1 : 0;
+  if (rightPreferred !== leftPreferred) return rightPreferred - leftPreferred;
+  const leftSuccess = Number(left.success_rate || 0);
+  const rightSuccess = Number(right.success_rate || 0);
+  if (rightSuccess !== leftSuccess) return rightSuccess - leftSuccess;
+  return Number(left.latency_ms || Number.MAX_SAFE_INTEGER) - Number(right.latency_ms || Number.MAX_SAFE_INTEGER);
 }
 
 function proxyKey(proxy) { return `${proxy.type}://${proxy.address}:${proxy.port}`; }
