@@ -14,7 +14,6 @@ const ALLOWED_TOOLS = new Set([
   "gau",
   "httpx",
   "gowitness",
-  "aquatone",
   "eyewitness",
   "retire",
   "wpscan",
