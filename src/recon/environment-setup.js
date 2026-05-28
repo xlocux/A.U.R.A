@@ -4,10 +4,12 @@ const { spawn } = require("node:child_process");
 const { loadToolRegistry } = require("./tool-registry");
 
 const DEFAULT_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
+const TOOL_PATH_EXPORT = "export PATH=\"$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH\"";
 const OPENCODE_TOOL = {
   tool_id: "opencode",
   binary: "opencode",
   version_check: { command: "opencode", args: ["--version"] },
+  capability_check: { command: "opencode", args: ["--version"], expected_output: "opencode" },
   install: { method: "shell", source: "curl -fsSL https://opencode.ai/install | bash" }
 };
 const SYSTEM_PREREQUISITES_TOOL = {
@@ -24,6 +26,7 @@ async function checkLinuxEnvironment({ runtime = "linux", toolIds = null, regist
   const requested = toolIds || setupToolIds(registry);
   const runner = createEnvironmentRunner();
   const runtimeCheck = await runner.run("printf '%s' \"${PRETTY_NAME:-$(uname -s)}\"", 30000);
+  const terminal = await checkTerminalPath({ runner });
   const agent = await checkTool({ runner, tool: OPENCODE_TOOL });
   const tools = [];
   for (const toolId of requested) {
@@ -36,8 +39,10 @@ async function checkLinuxEnvironment({ runtime = "linux", toolIds = null, regist
     mode: runner.mode,
     environmentAvailable: runtimeCheck.status === "completed",
     linuxName: runtimeCheck.stdout || null,
+    terminal,
     agent,
-    tools
+    tools,
+    aiSetupAssessment: buildAiSetupAssessment({ terminal, agent, tools })
   };
 }
 
@@ -51,20 +56,55 @@ async function installLinuxTools({ runtime = "linux", toolIds = null, registry =
     const tool = registry.require(toolId);
     results.push(await installTool({ runner, tool }));
   }
-  return { runtimeName: runtime, runtime: "linux", mode: runner.mode, tools: results };
+  const verification = await checkLinuxEnvironment({ runtime, toolIds: requested, registry });
+  return {
+    runtimeName: runtime,
+    runtime: "linux",
+    mode: runner.mode,
+    tools: results,
+    verification,
+    aiSetupAssessment: verification.aiSetupAssessment
+  };
+}
+
+async function checkTerminalPath({ runner }) {
+  const command = [
+    TOOL_PATH_EXPORT,
+    "printf 'PATH=%s\\n' \"$PATH\"",
+    "for binary in sh bash node npm go git curl jq; do command -v \"$binary\" >/dev/null 2>&1 && printf '%s=%s\\n' \"$binary\" \"$(command -v \"$binary\")\" || printf '%s=missing\\n' \"$binary\"; done"
+  ].join(" && ");
+  const result = await runner.run(command, 60000);
+  return {
+    status: result.status,
+    availableOnTerminal: result.status === "completed",
+    stdout: result.stdout,
+    stderr: result.stderr,
+    error: result.errorMessage
+  };
 }
 
 async function checkTool({ runner, tool }) {
   const binary = shellQuote(tool.binary);
-  const command = `export PATH="$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH" && command -v ${binary} >/dev/null 2>&1 && ${versionCommand(tool)} || exit 127`;
+  const command = [
+    TOOL_PATH_EXPORT,
+    `resolved=\"$(command -v ${binary} 2>/dev/null || true)\"`,
+    "test -n \"$resolved\"",
+    "printf 'path=%s\\n' \"$resolved\"",
+    versionCommand(tool),
+    capabilityCommand(tool)
+  ].filter(Boolean).join(" && ");
   const result = await runner.run(command, 60000);
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+  const capability = evaluateCapability(tool, output, result.status);
   return {
     tool_id: tool.tool_id,
     binary: tool.binary,
-    installed: result.status === "completed",
-    status: result.status,
-    version: result.status === "completed" ? firstLine(result.stdout || result.stderr) : null,
-    error: result.status === "completed" ? null : firstLine(result.stderr || result.errorMessage || "Tool not found")
+    installed: result.status === "completed" && capability.ok,
+    status: result.status === "completed" && capability.ok ? "completed" : result.status === "completed" ? "failed" : result.status,
+    version: result.status === "completed" ? firstNonPathLine(output) : null,
+    path: extractPath(output),
+    capability,
+    error: result.status === "completed" && capability.ok ? null : firstLine(result.stderr || capability.message || result.errorMessage || "Tool not found or wrong binary")
   };
 }
 
@@ -83,7 +123,7 @@ async function installTool({ runner, tool }) {
     ? [
       "command -v curl >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y curl)",
       tool.install.source,
-      `export PATH="$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"`,
+      TOOL_PATH_EXPORT,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ")
     : tool.install.method === "npm_global"
@@ -91,7 +131,7 @@ async function installTool({ runner, tool }) {
         "command -v npm >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y nodejs npm)",
         "mkdir -p \"$HOME/.npm-global\"",
         "npm config set prefix \"$HOME/.npm-global\"",
-        `export PATH="$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"`,
+        TOOL_PATH_EXPORT,
         `npm install -g ${shellQuote(tool.install.source)}`,
         `command -v ${shellQuote(tool.binary)}`
       ].join(" && ")
@@ -100,12 +140,14 @@ async function installTool({ runner, tool }) {
           "command -v apt-get >/dev/null 2>&1 || exit 127",
           "sudo apt-get update",
           `sudo apt-get install -y ${shellQuote(tool.install.source)}`,
+          TOOL_PATH_EXPORT,
           `command -v ${shellQuote(tool.binary)}`
         ].join(" && ")
         : [
       "command -v go >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y golang-go git)",
-      `export PATH="$HOME/go/bin:$PATH"`,
+      TOOL_PATH_EXPORT,
       `go install ${shellQuote(tool.install.source)}`,
+      TOOL_PATH_EXPORT,
       `command -v ${shellQuote(tool.binary)}`
     ].join(" && ");
   const result = await runner.run(command, DEFAULT_SETUP_TIMEOUT_MS);
@@ -128,23 +170,26 @@ async function installSystemPrerequisites({ runner, tool }) {
     "  sudo apt-get update",
     "  sudo apt-get install -y ca-certificates curl git build-essential unzip tar jq golang-go dnsutils python3 ruby ruby-dev pkg-config libcurl4-openssl-dev",
     "  sudo apt-get install -y seclists || true",
-    "  sudo apt-get install -y chromium || sudo apt-get install -y chromium-browser || true",
+    "  sudo apt-get install -y chromium chromium-driver || sudo apt-get install -y chromium-browser || true",
     "  if ! node -v 2>/dev/null | grep -q '^v24\\.'; then",
     "    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -",
     "    sudo apt-get install -y nodejs",
     "  fi",
     "elif command -v dnf >/dev/null 2>&1; then",
-    "  sudo dnf install -y ca-certificates curl git gcc make unzip tar jq golang bind-utils",
+    "  sudo dnf install -y ca-certificates curl git gcc make unzip tar jq golang bind-utils chromium || true",
     "elif command -v pacman >/dev/null 2>&1; then",
-    "  sudo pacman -Sy --needed --noconfirm ca-certificates curl git base-devel unzip tar jq go bind",
+    "  sudo pacman -Sy --needed --noconfirm ca-certificates curl git base-devel unzip tar jq go bind chromium || true",
     "else",
-    "  echo 'No supported package manager found. Install ca-certificates curl git build tools jq Go Node.js 24 and DNS tools manually.' >&2",
+    "  echo 'No supported package manager found. Install ca-certificates curl git build tools jq Go Node.js 24 Chromium and DNS tools manually.' >&2",
     "  exit 1",
     "fi",
+    "mkdir -p \"$HOME/go/bin\" \"$HOME/.npm-global/bin\" \"$HOME/.local/bin\"",
+    TOOL_PATH_EXPORT,
     "node -v",
     "go version",
     "git --version",
-    "curl --version | head -n 1"
+    "curl --version | head -n 1",
+    "command -v chromium || command -v chromium-browser || true"
   ].join("\n");
   const result = await runner.run(command, DEFAULT_SETUP_TIMEOUT_MS);
   return {
@@ -163,6 +208,27 @@ function versionCommand(tool) {
   const command = shellQuote(check.command || tool.binary);
   const args = (check.args || []).map(shellQuote).join(" ");
   return `${command}${args ? ` ${args}` : ""}`;
+}
+
+function capabilityCommand(tool) {
+  const check = tool.capability_check || tool.identity_check || null;
+  if (!check?.command) return "";
+  const command = shellQuote(check.command);
+  const args = (check.args || []).map(shellQuote).join(" ");
+  return `${command}${args ? ` ${args}` : ""}`;
+}
+
+function evaluateCapability(tool, output, status) {
+  if (status !== "completed") return { ok: false, message: "Version/capability command failed" };
+  const check = tool.capability_check || tool.identity_check || null;
+  if (!check?.expected_output) return { ok: true, message: "No explicit capability signature declared" };
+  const expected = new RegExp(check.expected_output, "i");
+  const ok = expected.test(output);
+  return {
+    ok,
+    expectedOutput: check.expected_output,
+    message: ok ? "Expected tool signature matched" : `Expected signature not found: ${check.expected_output}`
+  };
 }
 
 function createEnvironmentRunner() {
@@ -212,12 +278,33 @@ function runShellProcess({ command, args, timeoutMs }) {
   });
 }
 
+function buildAiSetupAssessment({ terminal, agent, tools }) {
+  const missing = tools.filter((tool) => !tool.installed).map((tool) => tool.tool_id);
+  const wrongIdentity = tools.filter((tool) => tool.capability && tool.capability.ok === false).map((tool) => tool.tool_id);
+  const messages = [];
+  if (!terminal.availableOnTerminal) messages.push("The terminal PATH preflight failed; recon tools may not be callable from the runner shell.");
+  if (!agent.installed) messages.push("The AI coding/diagnostic agent is not available on PATH.");
+  if (missing.length) messages.push(`Missing or unusable recon tools: ${missing.join(", ")}.`);
+  if (wrongIdentity.length) messages.push(`Tool identity mismatch detected: ${wrongIdentity.join(", ")}. Install the declared ProjectDiscovery/screenshot binaries before running recon.`);
+  if (!messages.length) messages.push("Environment looks ready: terminal PATH, AI agent, and recon tools passed preflight checks.");
+  return messages.join(" ");
+}
+
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 }
 
 function firstLine(value) {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) || null;
+}
+
+function firstNonPathLine(value) {
+  return String(value || "").split(/\r?\n/).map((line) => line.trim()).find((line) => line && !line.startsWith("path=")) || null;
+}
+
+function extractPath(value) {
+  const line = String(value || "").split(/\r?\n/).find((item) => item.startsWith("path="));
+  return line ? line.slice(5).trim() : null;
 }
 
 module.exports = {
