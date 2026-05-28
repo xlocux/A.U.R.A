@@ -17,7 +17,8 @@ function patchLinuxToolRunner(linuxTools, getActiveProfile) {
   linuxTools.runLinuxTool = function adaptiveRunLinuxTool(options = {}) {
     const profile = getActiveProfile?.() || null;
     if (!profile) return original(options);
-    const adapted = adaptToolInvocation(options, profile);
+    const context = profile.__auraRunContext || {};
+    const adapted = adaptToolInvocation({ ...context, ...options }, profile);
     if (String(options.toolName || "").toLowerCase() === "httpx") {
       return runBatchedHttpx({ original, options: adapted, profile });
     }
@@ -32,10 +33,10 @@ async function runBatchedHttpx({ original, options, profile }) {
   const hosts = fs.readFileSync(inputPath, "utf8").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (hosts.length <= profile.httpxBatchSize) return original(options);
 
-  const store = options.store || null;
-  const runId = options.runId || null;
-  const targetName = options.targetName || null;
-  const linuxRuntime = options.runtime || "linux";
+  const context = profile.__auraRunContext || {};
+  const store = options.store || context.store || null;
+  const runId = options.runId || context.runId || null;
+  const targetName = options.targetName || context.targetName || null;
   const proxied = httpxUsesProxy(options.args) || Boolean(options.proxyUrl);
   const batchSize = proxied ? Math.min(profile.httpxBatchSize, 300) : profile.httpxBatchSize;
   const batches = chunkList(hosts, batchSize);
@@ -64,7 +65,6 @@ async function runBatchedHttpx({ original, options, profile }) {
     fs.writeFileSync(batchPath, `${batches[index].join("\n")}\n`, "utf8");
     const batchTimeoutMs = deriveHttpxBatchTimeout({ options, profile, proxied });
     const batchArgs = replaceFlagValue(options.args || [], "-l", batchPath);
-
     appendRunEvent(store, runId, {
       phase: "httpx-batch",
       severity: "info",
@@ -94,16 +94,7 @@ async function runBatchedHttpx({ original, options, profile }) {
       });
     }
 
-    const batchSummary = {
-      batch: batchNumber,
-      inputCount: batches[index].length,
-      status: result.status,
-      exitCode: result.exitCode,
-      errorMessage: result.errorMessage || null,
-      parsedServices: services.length,
-      stdoutPath,
-      stderrPath
-    };
+    const batchSummary = { batch: batchNumber, inputCount: batches[index].length, status: result.status, exitCode: result.exitCode, errorMessage: result.errorMessage || null, parsedServices: services.length, stdoutPath, stderrPath };
     childResults.push(batchSummary);
     if (result.stdout) stdout.push(result.stdout);
     if (result.stderr) stderr.push(`[batch ${batchNumber}/${batches.length}]\n${result.stderr}`);
