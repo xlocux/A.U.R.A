@@ -21,14 +21,55 @@
   }
 
   function patchProxyWorkflow() {
+    const form = document.querySelector("#settings-proxy .form-body");
+    if (!form) return;
+    form.classList.add("proxy-separated-flow");
+    splitUpstreamRoutingSection(form);
     const steps = document.querySelector(".proxy-steps");
-    if (steps) {
-      steps.replaceWith(statusCard());
-    }
+    if (steps) steps.replaceWith(statusCard());
     const heroText = document.querySelector(".proxy-hero p");
     if (heroText) {
-      heroText.textContent = "Paste proxies manually or load Proxifly into the import modal. Import and Preflight automatically imports, tests, cleans, selects the best healthy proxy, and enables it for recon runs.";
+      heroText.textContent = "Proxy pool automation imports and tests a pool of routes. Upstream proxy routing below controls whether recon tools actually use the selected pool route.";
     }
+  }
+
+  function splitUpstreamRoutingSection(form) {
+    if (document.getElementById("proxyUpstreamRoutingSection")) return;
+    const enabled = document.getElementById("proxyEnabled");
+    const url = document.getElementById("proxyUrl");
+    const saved = document.getElementById("proxySavedList");
+    const mode = document.getElementById("proxyMode");
+    const purpose = document.getElementById("proxyPurpose");
+    const save = document.getElementById("saveProxySettings");
+    if (!enabled || !url || !mode || !purpose || !save) return;
+
+    const section = document.createElement("section");
+    section.id = "proxyUpstreamRoutingSection";
+    section.className = "proxy-pool-section upstream-routing-section";
+    section.innerHTML = `
+      <div class="proxy-pool-header">
+        <div>
+          <span class="eyebrow">Upstream proxy routing</span>
+          <strong>Route recon tools through the selected proxy route</strong>
+          <p>This is separate from pool automation. The pool finds and ranks healthy proxies; this switch decides whether A.U.R.A sends recon tools through the selected best route.</p>
+        </div>
+      </div>
+      <div class="upstream-routing-body form-body"></div>
+    `;
+    const body = section.querySelector(".upstream-routing-body");
+    moveControlWithLabel(body, enabled);
+    moveControlWithLabel(body, url);
+    if (saved) moveControlWithLabel(body, saved);
+    const row = document.createElement("div");
+    row.className = "row";
+    row.appendChild(wrapControlWithLabel(mode));
+    row.appendChild(wrapControlWithLabel(purpose));
+    body.appendChild(row);
+    body.appendChild(save);
+
+    const poolSection = document.getElementById("proxyPoolSection");
+    if (poolSection) form.insertBefore(section, poolSection);
+    else form.appendChild(section);
   }
 
   function statusCard() {
@@ -37,8 +78,8 @@
     card.className = "proxy-activity idle";
     card.innerHTML = `
       <div class="proxy-activity-rail"><span></span></div>
-      <strong>Automated proxy setup</strong>
-      <small>Import list → preflight → cleanup → use best → enable for runs. No extra setup steps required.</small>
+      <strong>Automated proxy pool setup</strong>
+      <small>Import list → preflight → cleanup → rank best pool → enable top route for runs. The full ranked pool remains available for rotation.</small>
     `;
     return card;
   }
@@ -58,7 +99,7 @@
     actions.insertBefore(button, actions.querySelector("#proxyImportSubmit"));
 
     const help = modal.querySelector("#proxyImportModalHelp");
-    if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight. A.U.R.A will import, test, clean, select the best proxy, and enable it automatically.";
+    if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight. A.U.R.A will import, test, clean, rank the best pool, select the top route, and enable routing automatically.";
     const note = modal.querySelector(".proxy-import-note");
     if (note) note.textContent = "Accepted formats: host:port, http://host:port, socks4://host:port, socks5://host:port. Import and Preflight closes this modal and runs one automated pipeline.";
   }
@@ -123,7 +164,7 @@
     const candidates = normalizedContent.split(/\r?\n/).filter(Boolean);
     const stopTicker = startPreflightTicker(candidates);
     closeModal();
-    setProxyActivity("running", `Testing ${label}`, "Importing candidates, running preflight, cleaning unhealthy routes, then enabling the best proxy automatically.");
+    setProxyActivity("running", `Testing ${label}`, "Importing candidates, preflighting routes, cleaning unhealthy entries, ranking the best pool, and enabling the top route.");
     setProxyStatus(`Testing ${candidates.length} proxy candidates...`, "muted");
     try {
       const result = await apiFetch("/api/proxies/import-preflight", {
@@ -146,9 +187,9 @@
       const kept = Math.max(Number(summary.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
       const removed = Number(cleanup.removed || 0);
       const invalid = Number(result.invalid || 0);
-      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}. Selecting best proxy...`);
-      setProxyStatus(`Preflight complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped. Selecting best proxy...`, kept > 0 ? "ok" : "warn");
-      if (kept > 0) await selectBestAndEnable();
+      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}. Ranking best pool...`);
+      setProxyStatus(`Preflight complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped. Ranking best pool...`, kept > 0 ? "ok" : "warn");
+      if (kept > 0) await selectBestPoolAndEnable();
       document.getElementById("proxyRefresh")?.click();
     } catch (error) {
       stopTicker();
@@ -171,9 +212,10 @@
     return () => clearInterval(timer);
   }
 
-  async function selectBestAndEnable() {
-    const data = await apiFetch("/api/proxies?status=all&best=true&limit=1");
-    const best = data.proxies?.[0];
+  async function selectBestPoolAndEnable() {
+    const data = await apiFetch("/api/proxies?status=all&best=true&limit=10");
+    const pool = data.proxies || [];
+    const best = pool[0];
     if (!best) {
       setProxyActivity("failed", "No healthy proxy", "Preflight finished, but no active proxy survived cleanup.");
       setProxyStatus("No active proxy survived preflight cleanup.", "warn");
@@ -182,7 +224,8 @@
     const url = proxyRecordUrl(best);
     const mode = best.type === "socks5" ? "socks5" : best.type === "socks4" ? "socks4" : best.type === "https" ? "https" : "http";
     const current = readStoredSettings();
-    const next = { ...current, enabled: true, url, mode, purpose: current.purpose || "lab-egress", proxies: Array.isArray(current.proxies) ? current.proxies : [] };
+    const bestPool = pool.map((proxy) => ({ url: proxyRecordUrl(proxy), type: proxy.type, latencyMs: proxy.latency_ms || null, successRate: proxy.success_rate || null }));
+    const next = { ...current, enabled: true, url, mode, purpose: current.purpose || "lab-egress", bestPool, proxies: Array.isArray(current.proxies) ? current.proxies : [] };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     const enabled = document.getElementById("proxyEnabled");
     const input = document.getElementById("proxyUrl");
@@ -190,8 +233,20 @@
     if (enabled) enabled.checked = true;
     if (input) input.value = url;
     if (modeSelect) modeSelect.value = mode;
-    setProxyActivity("ok", "Proxy setup complete", `${redactProxyUrl(url)} selected as best healthy proxy and enabled for recon runs.`);
-    setProxyStatus(`Proxy setup complete: ${redactProxyUrl(url)} is enabled for recon runs.`, "ok");
+    setProxyActivity("ok", "Proxy pool ready", `${redactProxyUrl(url)} selected as top route and enabled. ${pool.length} best healthy route(s) are retained for runtime rotation.`);
+    setProxyStatus(`Proxy pool ready: ${redactProxyUrl(url)} enabled; ${pool.length} ranked route(s) available for rotation.`, "ok");
+  }
+
+  function moveControlWithLabel(target, control) {
+    target.appendChild(wrapControlWithLabel(control));
+  }
+
+  function wrapControlWithLabel(control) {
+    const wrapper = document.createElement("div");
+    const label = document.querySelector(`label[for="${control.id}"]`);
+    if (label) wrapper.appendChild(label);
+    wrapper.appendChild(control);
+    return wrapper;
   }
 
   function normalizeProxyText(content) {
