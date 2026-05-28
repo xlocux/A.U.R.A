@@ -36,7 +36,15 @@ function wrapReconFunction(functionName, original) {
   return async function patchedReconFunction(options = {}) {
     const previousProfile = activeProfile;
     const profile = benchmarkReconHost();
-    activeProfile = profile;
+    activeProfile = {
+      ...profile,
+      __auraRunContext: {
+        store: options.store || null,
+        runId: options.runId || null,
+        targetName: options.targetName || null,
+        functionName
+      }
+    };
     const patchedOptions = sanitizeDeprecatedOptions({
       ...options,
       timeoutMs: applyAdaptiveTimeout(options.timeoutMs, profile),
