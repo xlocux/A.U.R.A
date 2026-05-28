@@ -145,9 +145,9 @@
     ensureHiddenInput("wordlistStatus", "active");
     ensureHiddenInput("wordlistNotes", "");
     ensureApiPreflightNode();
-    if (!$('apiKeyTableSummary')) ensureHiddenInput("apiKeyTableSummary", "");
+    ensureHiddenInput("apiKeyTableSummary", "");
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install, { once: true });
-  else install();
+  if (document.body) install();
+  else document.addEventListener("DOMContentLoaded", install, { once: true });
 })();
