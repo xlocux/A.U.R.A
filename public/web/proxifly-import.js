@@ -125,8 +125,8 @@
     const candidates = normalizedContent.split(/\r?\n/).filter(Boolean);
     const stopTicker = startPreflightTicker(candidates);
     closeModal();
-    setProxyActivity("running", `Testing ${label}`, "Importing candidates, preflighting routes, cleaning unhealthy entries, ranking the best pool, and enabling the top route.");
-    setProxyStatus(`Testing ${candidates.length} proxy candidates...`, "muted");
+    setProxyActivity("running", `Testing ${label}`, "Importing candidates, preflighting routes in parallel, cleaning unhealthy entries, ranking the best pool, and enabling the top route.");
+    setProxyStatus(`Testing ${candidates.length} proxy candidates in parallel...`, "muted");
     try {
       const result = await apiFetch("/api/proxies/import-preflight", {
         method: "POST",
@@ -134,8 +134,8 @@
           source: "txt",
           content: normalizedContent,
           options: {
-            concurrency: 5,
             timeout,
+            tcpTimeout: Math.min(timeout, 1200),
             maxLatencyMs,
             purgeFailed: true,
             purgeHighLatency: true
@@ -148,8 +148,9 @@
       const kept = Math.max(Number(summary.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
       const removed = Number(cleanup.removed || 0);
       const invalid = Number(result.invalid || 0);
-      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `${kept}/${summary.total || 0} proxies kept. Removed ${removed}; invalid skipped ${invalid}. Ranking best pool...`);
-      setProxyStatus(`Preflight complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped. Ranking best pool...`, kept > 0 ? "ok" : "warn");
+      const concurrency = result.concurrency || "auto";
+      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `${kept}/${summary.total || 0} proxies kept using ${concurrency} parallel workers. Removed ${removed}; invalid skipped ${invalid}. Ranking best pool...`);
+      setProxyStatus(`Preflight complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped. Parallel workers: ${concurrency}.`, kept > 0 ? "ok" : "warn");
       if (kept > 0) await selectBestPoolAndEnable();
       document.getElementById("proxyRefresh")?.click();
     } catch (error) {
@@ -165,7 +166,7 @@
     if (!list.length) return () => {};
     const tick = () => {
       const candidate = list[index % list.length];
-      setProxyActivity("running", "Preflight in progress", `Testing proxy candidate ${index + 1}/${list.length}: ${redactProxyLine(candidate)}`);
+      setProxyActivity("running", "Parallel preflight in progress", `Testing proxy candidates in parallel. Sample ${index + 1}/${list.length}: ${redactProxyLine(candidate)}`);
       index += 1;
     };
     tick();
