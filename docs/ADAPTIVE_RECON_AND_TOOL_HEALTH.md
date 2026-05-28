@@ -97,11 +97,17 @@ The adaptive benchmark is wired into runtime execution through `src/recon/recon-
 
 It also patches Linux tool execution through `src/recon/adaptive-linux-tool-runner.js` so selected adaptive limits are applied to:
 
-- `httpx`: adaptive batches, thread, retry, and timeout flags
-- `dnsx`: thread and retry flags
+- `httpx`: adaptive batches, per-batch timeout, thread, retry, and rate-limit flags
+- `dnsx`: capped thread and retry flags
 - `gowitness`: screenshot thread flag
 
-When the `httpx` input file is larger than the selected `httpxBatchSize`, the adaptive runner creates `httpx-batches/` under the run artifacts directory, executes one batch at a time, preserves per-batch status metadata, and merges JSONL stdout for the existing parser. This avoids one oversized `httpx` process blocking tech stack and screenshot stages.
+When the `httpx` input file is larger than the selected `httpxBatchSize`, the adaptive runner creates `httpx-batches/` under the run artifacts directory, executes one batch at a time, preserves per-batch stdout/stderr artifacts, records each batch as a tool result, emits `httpx-batch` events, and stores parsed HTTP services immediately. A slow or timed-out batch no longer hides output from earlier batches.
+
+Proxy-aware `httpx` is intentionally more conservative than direct `httpx`: batch size is capped, thread count is capped, retries are disabled, and rate-limit/timeout values are reduced to avoid a single SOCKS/HTTP proxy causing long heartbeat-only hangs.
+
+## Diagnostics export
+
+The Web UI exposes diagnostics in `Runs & Logs` next to Current Activity as `Export Diagnostics JSON`. Use this when a run has missing tech stack, screenshots, HTTP services, or tool output. The export includes run events, tool results, preflight data, artifact previews, stdout/stderr snippets, observation counts, and AI diagnostic hints.
 
 ## Modular stage extraction
 
@@ -112,9 +118,9 @@ The following modules are now available for gradual replacement of logic current
 - `src/recon/stages/screenshot-stage.js`
   - owns screenshot input preparation, screenshot tool args, report discovery, image counting, and stage contract output for maintained screenshot tooling
 - `src/recon/adaptive-linux-tool-runner.js`
-  - owns adaptive tool flag mutation and large `httpx` input splitting
+  - owns adaptive tool flag mutation, large `httpx` input splitting, per-batch logging, and partial service persistence
 - `src/recon/recon-engine-runtime-patch.js`
-  - owns runtime orchestration patching only
+  - owns runtime orchestration patching and active run-context propagation
 
 `recon-engine.js` should continue shrinking by delegating one phase at a time to these stage modules. Avoid moving unrelated phases in the same commit.
 
@@ -133,6 +139,7 @@ The following modules are now available for gradual replacement of logic current
 3. Install/update tools if any required tool is missing or has a wrong capability signature.
 4. Run environment check again.
 5. Start recon only after `httpx`, `dnsx`, and `gowitness` are visible on terminal PATH.
-6. Review `adaptive-preflight` and `ai-stage-awareness` events in Runs & Logs.
+6. Review `adaptive-preflight`, `httpx-batch`, and `ai-stage-awareness` events in Runs & Logs.
+7. Export diagnostics from Runs & Logs when something looks degraded.
 
 The AI assistant should use these events when explaining why tech stack or screenshots are missing.
