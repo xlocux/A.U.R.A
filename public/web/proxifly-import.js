@@ -5,10 +5,14 @@
   const PROXIFLY_RAW_URL = "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/all/data.txt";
   const DEFAULT_MAX_LATENCY_MS = 2500;
   const STORAGE_KEY = "aura.proxySettings";
+  const sortState = { key: "latency", direction: "asc" };
 
   function boot() {
     safePatch("initial proxy UI", patchProxyWorkflow);
     document.addEventListener("click", handleDocumentClick, true);
+    document.addEventListener("change", handleDocumentChange, true);
+    document.addEventListener("input", handleDocumentInput, true);
+    scheduleDashboardPatch();
   }
 
   function safePatch(label, fn) {
@@ -38,7 +42,7 @@
 
     const poolHeader = document.querySelector("#proxyPoolSection .proxy-pool-header p");
     if (poolHeader) {
-      poolHeader.textContent = "This table is the proxy pool. The selected top route is shown in Upstream proxy routing, while the ranked pool remains available for runtime rotation.";
+      poolHeader.textContent = "This table is the cleaned proxy pool. Click table headers to sort by status, latency, success, type, or host.";
     }
   }
 
@@ -46,6 +50,13 @@
     const delays = [0, 25, 100, 250];
     for (const delay of delays) {
       setTimeout(() => safePatch(`proxy import modal after ${delay}ms`, patchModal), delay);
+    }
+  }
+
+  function scheduleDashboardPatch() {
+    const delays = [0, 150, 500];
+    for (const delay of delays) {
+      setTimeout(() => enhanceProxyDashboard().catch(() => {}), delay);
     }
   }
 
@@ -78,6 +89,16 @@
       return;
     }
 
+    const sortButton = event.target.closest?.("[data-proxy-sort]");
+    if (sortButton) {
+      event.preventDefault();
+      const key = sortButton.dataset.proxySort;
+      sortState.direction = sortState.key === key && sortState.direction === "asc" ? "desc" : "asc";
+      sortState.key = key;
+      enhanceProxyDashboard().catch(() => {});
+      return;
+    }
+
     safePatch("click proxy modal", patchModal);
 
     const proxiflyButton = event.target.closest?.("#proxyImportProxifly");
@@ -101,7 +122,19 @@
         return;
       }
       runImportPipeline({ content, label: "proxy list" });
+      return;
     }
+
+    if (event.target.closest?.("#proxyRefresh")) scheduleDashboardPatch();
+  }
+
+  function handleDocumentChange(event) {
+    if (event.target?.id === "proxyStatusFilter") scheduleDashboardPatch();
+  }
+
+  function handleDocumentInput(event) {
+    if (event.target?.id === "proxyFilter") window.clearTimeout(window.__auraProxyTableTimer);
+    if (event.target?.id === "proxyFilter") window.__auraProxyTableTimer = window.setTimeout(() => enhanceProxyDashboard().catch(() => {}), 120);
   }
 
   async function loadProxiflyIntoTextarea(button) {
@@ -159,14 +192,16 @@
       stopTicker();
       const summary = result.summary || {};
       const cleanup = result.cleanup || {};
+      const tested = Number(summary.total || result.imported || candidates.length || 0);
       const kept = Math.max(Number(summary.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
       const removed = Number(cleanup.removed || 0);
       const invalid = Number(result.invalid || 0);
       const concurrency = result.concurrency || "auto";
-      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `${kept}/${summary.total || 0} proxies kept using ${concurrency} parallel workers. Removed ${removed}; invalid skipped ${invalid}. Ranking best pool...`);
-      setProxyStatus(`Preflight complete: ${kept} kept, ${removed} removed, ${invalid} invalid skipped. Parallel workers: ${concurrency}.`, kept > 0 ? "ok" : "warn");
+      setProxyActivity(kept > 0 ? "running" : "failed", "Preflight complete", `Tested ${tested} proxies with ${concurrency} parallel workers. Kept ${kept}, removed ${removed}, invalid skipped ${invalid}. Ranking best pool...`);
+      setProxyStatus(`Preflight complete: tested ${tested}, kept ${kept}, removed ${removed}, invalid skipped ${invalid}.`, kept > 0 ? "ok" : "warn");
       if (kept > 0) await selectBestPoolAndEnable();
       document.getElementById("proxyRefresh")?.click();
+      scheduleDashboardPatch();
     } catch (error) {
       stopTicker();
       setProxyActivity("failed", "Proxy import failed", error.message);
@@ -211,6 +246,100 @@
     if (modeSelect) modeSelect.value = mode;
     setProxyActivity("ok", "Proxy pool ready", `${redactProxyUrl(url)} selected as top route and enabled. ${pool.length} best healthy route(s) are retained for runtime rotation.`);
     setProxyStatus(`Proxy pool ready: ${redactProxyUrl(url)} enabled; ${pool.length} ranked route(s) available for rotation.`, "ok");
+  }
+
+  async function enhanceProxyDashboard() {
+    const rows = document.getElementById("proxyRows");
+    if (!rows) return;
+    const status = document.getElementById("proxyStatusFilter")?.value || "all";
+    const query = String(document.getElementById("proxyFilter")?.value || "").toLowerCase();
+    const data = await apiFetch(`/api/proxies?status=${encodeURIComponent(status)}&limit=500`);
+    const proxies = (data.proxies || []).filter((proxy) => [proxy.address, proxy.type, proxy.country, proxy.status].join(" ").toLowerCase().includes(query));
+    const sorted = sortProxies(proxies);
+    patchMetricCards(sorted, data.total || sorted.length);
+    patchTableHeader();
+    rows.innerHTML = sorted.length ? sorted.map(renderProxyRow).join("") : `<tr><td colspan="6" class="muted">No proxies match this view.</td></tr>`;
+  }
+
+  function patchMetricCards(proxies, total) {
+    const enabled = Boolean(document.getElementById("proxyEnabled")?.checked);
+    const active = proxies.filter((proxy) => proxy.status === "active").length;
+    const bestPool = Math.min(active, 10);
+    setMetric("proxyMetricTotal", "Pool view", total || proxies.length || 0);
+    setMetric("proxyMetricActive", "Healthy", active);
+    setMetric("proxyMetricLatency", "Best pool", bestPool ? `${bestPool} routes` : "-");
+    setMetric("proxyMetricSuccess", "Routing", enabled ? "enabled" : "off");
+  }
+
+  function setMetric(id, label, value) {
+    const strong = document.getElementById(id);
+    if (!strong) return;
+    const card = strong.closest(".proxy-card");
+    const span = card?.querySelector("span");
+    if (span) span.textContent = label;
+    strong.textContent = String(value);
+  }
+
+  function patchTableHeader() {
+    const table = document.querySelector(".proxy-table");
+    const head = table?.querySelector("thead");
+    if (!head || head.dataset.sortable === "true") return;
+    head.dataset.sortable = "true";
+    head.innerHTML = `<tr>
+      <th><button type="button" data-proxy-sort="host">Proxy ${sortIndicator("host")}</button></th>
+      <th><button type="button" data-proxy-sort="type">Type ${sortIndicator("type")}</button></th>
+      <th><button type="button" data-proxy-sort="country">Region ${sortIndicator("country")}</button></th>
+      <th><button type="button" data-proxy-sort="status">Status ${sortIndicator("status")}</button></th>
+      <th><button type="button" data-proxy-sort="latency">MS ${sortIndicator("latency")}</button></th>
+      <th><button type="button" data-proxy-sort="success">Success ${sortIndicator("success")}</button></th>
+    </tr>`;
+  }
+
+  function sortIndicator(key) {
+    return sortState.key === key ? (sortState.direction === "asc" ? "▲" : "▼") : "";
+  }
+
+  function sortProxies(proxies) {
+    const direction = sortState.direction === "asc" ? 1 : -1;
+    return [...proxies].sort((left, right) => compareProxy(left, right, sortState.key) * direction);
+  }
+
+  function compareProxy(left, right, key) {
+    if (key === "latency") return numberValue(left.latency_ms, Number.MAX_SAFE_INTEGER) - numberValue(right.latency_ms, Number.MAX_SAFE_INTEGER);
+    if (key === "success") return numberValue(left.success_rate, -1) - numberValue(right.success_rate, -1);
+    if (key === "status") return statusRank(left.status) - statusRank(right.status);
+    if (key === "type") return textValue(left.type).localeCompare(textValue(right.type));
+    if (key === "country") return textValue(left.country).localeCompare(textValue(right.country));
+    return textValue(`${left.address}:${left.port}`).localeCompare(textValue(`${right.address}:${right.port}`));
+  }
+
+  function renderProxyRow(proxy) {
+    return `<tr>
+      <td><strong>${escapeHtml(proxy.address)}:${escapeHtml(proxy.port)}</strong></td>
+      <td><span class="pill">${escapeHtml(proxy.type || "-")}</span></td>
+      <td>${escapeHtml(proxy.country || "-")}</td>
+      <td>${statusBadge(proxy.status || "unknown")}</td>
+      <td>${Number.isFinite(Number(proxy.latency_ms)) ? `${escapeHtml(Math.round(Number(proxy.latency_ms)))} ms` : "-"}</td>
+      <td>${Number.isFinite(Number(proxy.success_rate)) ? `${Math.round(Number(proxy.success_rate) * 100)}%` : "-"}</td>
+    </tr>`;
+  }
+
+  function statusRank(status) {
+    const value = String(status || "unknown").toLowerCase();
+    if (value === "active") return 0;
+    if (value === "testing") return 1;
+    if (value === "unknown") return 2;
+    if (value === "failed") return 3;
+    return 4;
+  }
+
+  function numberValue(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function textValue(value) {
+    return String(value || "").toLowerCase();
   }
 
   function normalizeProxyText(content) {
@@ -293,6 +422,14 @@
     } catch {
       return {};
     }
+  }
+
+  function statusBadge(status, options = {}) {
+    return window.AuraStatusBadges?.badge(status, options) || `<span class="status-pill ${escapeHtml(status || "unknown")}">${escapeHtml(status || "unknown")}</span>`;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
