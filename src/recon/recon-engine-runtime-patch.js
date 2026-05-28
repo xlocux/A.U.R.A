@@ -3,12 +3,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { applyAdaptiveTimeout, benchmarkReconHost } = require("./adaptive-recon-profile");
+const { patchLinuxToolRunner } = require("./adaptive-linux-tool-runner");
 
 let activeProfile = null;
 
 function installReconRuntimePatch() {
   const linuxTools = require("./linux-tools");
-  patchLinuxToolRunner(linuxTools);
+  patchLinuxToolRunner(linuxTools, () => activeProfile);
 
   const reconEngine = require("./recon-engine");
   if (reconEngine.__auraAdaptiveRuntimePatched) return reconEngine;
@@ -30,21 +31,6 @@ function installReconRuntimePatch() {
   return reconEngine;
 }
 
-function patchLinuxToolRunner(linuxTools) {
-  if (!linuxTools || linuxTools.__auraAdaptiveToolRunnerPatched || typeof linuxTools.runLinuxTool !== "function") return;
-  const original = linuxTools.runLinuxTool;
-  linuxTools.runLinuxTool = function adaptiveRunLinuxTool(options = {}) {
-    const profile = activeProfile;
-    if (!profile) return original(options);
-    const adapted = adaptToolInvocation(options, profile);
-    return original(adapted);
-  };
-  Object.defineProperty(linuxTools, "__auraAdaptiveToolRunnerPatched", {
-    value: true,
-    enumerable: false
-  });
-}
-
 function wrapReconFunction(functionName, original) {
   return async function patchedReconFunction(options = {}) {
     const previousProfile = activeProfile;
@@ -63,51 +49,6 @@ function wrapReconFunction(functionName, original) {
       activeProfile = previousProfile;
     }
   };
-}
-
-function adaptToolInvocation(options, profile) {
-  const toolName = String(options.toolName || "").toLowerCase();
-  const adapted = {
-    ...options,
-    timeoutMs: applyAdaptiveTimeout(options.timeoutMs, profile)
-  };
-  if (toolName === "httpx") {
-    adapted.args = adaptFlagValue(options.args || [], ["-threads", "-t"], String(profile.httpxThreads));
-    adapted.args = ensureFlagValue(adapted.args, "-retries", "1");
-    adapted.args = ensureFlagValue(adapted.args, "-timeout", "10");
-  }
-  if (toolName === "dnsx") {
-    adapted.args = adaptFlagValue(options.args || [], ["-t", "-threads"], String(profile.dnsxThreads));
-    adapted.args = ensureFlagValue(adapted.args, "-retry", "1");
-  }
-  if (toolName === "gowitness") {
-    adapted.args = ensureFlagValue(options.args || [], "--threads", String(profile.screenshotConcurrency));
-  }
-  return adapted;
-}
-
-function adaptFlagValue(args, flags, value) {
-  const output = [...args];
-  for (const flag of flags) {
-    const index = output.indexOf(flag);
-    if (index !== -1) {
-      output[index + 1] = value;
-      return output;
-    }
-  }
-  output.push(flags[0], value);
-  return output;
-}
-
-function ensureFlagValue(args, flag, value) {
-  const output = [...args];
-  const index = output.indexOf(flag);
-  if (index !== -1) {
-    if (output[index + 1] === undefined || String(output[index + 1]).startsWith("-")) output.splice(index + 1, 0, value);
-    return output;
-  }
-  output.push(flag, value);
-  return output;
 }
 
 function appendPreflightEvents({ options, profile, functionName }) {
