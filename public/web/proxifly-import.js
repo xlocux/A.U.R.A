@@ -42,20 +42,28 @@
     }
   }
 
+  function scheduleModalPatch() {
+    const delays = [0, 25, 100, 250];
+    for (const delay of delays) {
+      setTimeout(() => safePatch(`proxy import modal after ${delay}ms`, patchModal), delay);
+    }
+  }
+
   function patchModal() {
     const modal = document.getElementById("proxyImportModal");
-    if (!modal || modal.dataset.proxiflyPatched === "true") return;
-    modal.dataset.proxiflyPatched = "true";
+    if (!modal) return;
     const actions = modal.querySelector(".proxy-import-actions");
     if (!actions) return;
-    const button = document.createElement("button");
-    button.id = "proxyImportProxifly";
-    button.type = "button";
-    button.className = "secondary-button";
-    button.textContent = PROXIFLY_LABEL;
-    button.title = "Load the Proxifly free proxy list into the textarea for review before running Import and Preflight.";
-    actions.insertBefore(button, actions.querySelector("#proxyImportSubmit"));
-
+    if (!document.getElementById("proxyImportProxifly")) {
+      const button = document.createElement("button");
+      button.id = "proxyImportProxifly";
+      button.type = "button";
+      button.className = "secondary-button";
+      button.textContent = PROXIFLY_LABEL;
+      button.title = "Load the Proxifly free proxy list into the textarea for review before running Import and Preflight.";
+      actions.insertBefore(button, actions.querySelector("#proxyImportSubmit"));
+    }
+    modal.dataset.proxiflyPatched = "true";
     const help = modal.querySelector("#proxyImportModalHelp");
     if (help) help.textContent = "Paste proxies manually or load Proxifly into the textarea. Review/edit the list, then click Import and Preflight. A.U.R.A will import, test, clean, rank the best pool, select the top route, and enable routing automatically.";
     const note = modal.querySelector(".proxy-import-note");
@@ -64,6 +72,12 @@
 
   function handleDocumentClick(event) {
     safePatch("click proxy workflow", patchProxyWorkflow);
+    const importPoolButton = event.target.closest?.("#proxyImportServer");
+    if (importPoolButton) {
+      scheduleModalPatch();
+      return;
+    }
+
     safePatch("click proxy modal", patchModal);
 
     const proxiflyButton = event.target.closest?.("#proxyImportProxifly");
