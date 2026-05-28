@@ -1,16 +1,22 @@
 "use strict";
 
+const PROXIFLY_ALL_URL = "https://github.com/proxifly/free-proxy-list/blob/main/proxies/all/data.txt";
+
 class ProxySources {
   async fetchFromGitHub(rawUrl) {
     if (!rawUrl) throw new Error("GitHub raw URL is required");
     const url = normalizeGithubRawUrl(rawUrl);
     const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error(`Failed to fetch proxy list: HTTP ${response.status}`);
-    return this.parseTxtFile(await response.text());
+    return this.parseTxtFile(await response.text(), { source: rawUrl.includes("proxifly/free-proxy-list") ? "proxifly" : "github" });
   }
 
-  parseTxtFile(content) {
-    return parseProxyText(content);
+  async fetchFromProxifly() {
+    return this.fetchFromGitHub(PROXIFLY_ALL_URL);
+  }
+
+  parseTxtFile(content, metadata = {}) {
+    return parseProxyText(content, metadata);
   }
 
   parseJsonFile(content) {
@@ -36,21 +42,22 @@ class ProxySources {
         type: values[2] || inferProxyTypeFromPort(values[1]),
         country: values[3] || null,
         username: values[4] || null,
-        password: values[5] || null
+        password: values[5] || null,
+        source: "csv"
       });
     }).filter(Boolean);
   }
 }
 
-function parseProxyText(content) {
+function parseProxyText(content, metadata = {}) {
   return String(content || "").split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith("#"))
-    .map(parseProxyString)
+    .map((line) => parseProxyString(line, metadata))
     .filter(Boolean);
 }
 
-function parseProxyString(value) {
+function parseProxyString(value, metadata = {}) {
   const text = String(value || "").trim();
   if (!text) return null;
   try {
@@ -61,7 +68,8 @@ function parseProxyString(value) {
         port: parsed.port,
         type: parsed.protocol.replace(":", ""),
         username: parsed.username ? decodeURIComponent(parsed.username) : null,
-        password: parsed.password ? decodeURIComponent(parsed.password) : null
+        password: parsed.password ? decodeURIComponent(parsed.password) : null,
+        source: metadata.source || "text"
       });
     }
   } catch {
@@ -77,7 +85,8 @@ function parseProxyString(value) {
     port: parsed.port,
     type: parsed.type || inferProxyTypeFromPort(parsed.port),
     username: authMatch ? authMatch[1] : null,
-    password: authMatch ? authMatch[2] : null
+    password: authMatch ? authMatch[2] : null,
+    source: metadata.source || "text"
   });
 }
 
@@ -143,3 +152,4 @@ function splitCsvLine(line) {
 }
 
 module.exports = ProxySources;
+module.exports.PROXIFLY_ALL_URL = PROXIFLY_ALL_URL;
