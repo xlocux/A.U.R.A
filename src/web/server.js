@@ -8,6 +8,7 @@ const { openScanStore } = require("../db/scan-store");
 const { handleApiRequest } = require("./api-routes");
 const { handleApiKeyRequest } = require("./api-key-routes");
 const { handleWordlistRequest } = require("./wordlist-routes");
+const { handleDiagnosticRequest } = require("./diagnostic-routes");
 const { createWebAuth } = require("./auth");
 const { discoverTargets } = require("./target-service");
 const { safeResolveStatic, sendFile, sendJson, sendNotFound } = require("./http-utils");
@@ -54,6 +55,10 @@ async function startWebServer(argv = process.argv) {
         }
         serveStatic(response, staticRoot, "/login.html");
         return;
+      }
+      if (url.pathname.startsWith("/api/recon-runs/") && url.pathname.includes("/diagnostics")) {
+        const handled = await handleDiagnosticRequest({ request, response, url, store });
+        if (handled) return;
       }
       if (url.pathname.startsWith("/api/api-keys/")) {
         const handled = await handleApiKeyRequest({ request, response, url, store });
