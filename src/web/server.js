@@ -9,6 +9,10 @@ const { handleApiRequest } = require("./api-routes");
 const { handleApiKeyRequest } = require("./api-key-routes");
 const { handleWordlistRequest } = require("./wordlist-routes");
 const { handleDiagnosticRequest } = require("./diagnostic-routes");
+const { handleApiRequest: handleTargetRequest } = require("./target-routes");
+const { handleApiRequest: handleReconRequest } = require("./recon-routes");
+const { handleApiRequest: handleAiRequest } = require("./ai-routes");
+const { handleApiRequest: handleExportRequest } = require("./export-routes");
 const { createWebAuth } = require("./auth");
 const { discoverTargets } = require("./target-service");
 const { safeResolveStatic, sendFile, sendJson, sendNotFound } = require("./http-utils");
@@ -66,6 +70,22 @@ async function startWebServer(argv = process.argv) {
       }
       if (url.pathname.startsWith("/api/wordlists/")) {
         const handled = await handleWordlistRequest({ request, response, url, store });
+        if (handled) return;
+      }
+      if (url.pathname.startsWith("/api/targets")) {
+        const handled = await handleTargetRequest({ request, response, url, store });
+        if (handled) return;
+      }
+      if (url.pathname.startsWith("/api/recon-runs")) {
+        const handled = await handleReconRequest({ request, response, url, store });
+        if (handled) return;
+      }
+      if (url.pathname.startsWith("/api/ai-") || url.pathname.startsWith("/api/agent/")) {
+        const handled = await handleAiRequest({ request, response, url, store });
+        if (handled) return;
+      }
+      if (url.pathname.includes("/export") && url.pathname.startsWith("/api/recon-runs/")) {
+        const handled = await handleExportRequest({ request, response, url, store });
         if (handled) return;
       }
       if (url.pathname.startsWith("/api/")) {

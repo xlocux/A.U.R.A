@@ -3,8 +3,42 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { sendJson } = require("./http-utils");
+const apiRoutes = require("./api-routes");
 
 async function handleWordlistRequest({ request, response, url, store }) {
+  // GET /api/wordlists
+  if (request.method === "GET" && url.pathname === "/api/wordlists") {
+    return apiRoutes._internal.listWordlists(response, store);
+  }
+
+  // POST /api/wordlists
+  if (request.method === "POST" && url.pathname === "/api/wordlists") {
+    return await apiRoutes._internal.createWordlist(request, response, store);
+  }
+
+  // POST /api/wordlists/generate
+  if (request.method === "POST" && url.pathname === "/api/wordlists/generate") {
+    return await apiRoutes._internal.generateWordlist(request, response, store);
+  }
+
+  // GET /api/wordlists/:id
+  const idMatch = url.pathname.match(/^\/api\/wordlists\/(\d+)$/);
+  if (idMatch && request.method === "GET") {
+    return apiRoutes._internal.getWordlist(response, store, Number(idMatch[1]));
+  }
+
+  // GET /api/wordlists/:id/download (or read)
+  const downloadMatch = url.pathname.match(/^\/api\/wordlists\/(\d+)\/(download|read)$/);
+  if (downloadMatch && request.method === "GET") {
+    return apiRoutes._internal.serveWordlistArtifact(response, store, Number(downloadMatch[1]), downloadMatch[2]);
+  }
+
+  // DELETE /api/wordlists/:id
+  const deleteMatch = url.pathname.match(/^\/api\/wordlists\/(\d+)$/);
+  if (deleteMatch && request.method === "DELETE") {
+    return apiRoutes._internal.deleteWordlist(response, store, Number(deleteMatch[1]));
+  }
+
   const metadataMatch = url.pathname.match(/^\/api\/wordlists\/(\d+)\/metadata$/);
   if (!metadataMatch || request.method !== "GET") return false;
   sendWordlistMetadata(response, store, Number(metadataMatch[1]));
