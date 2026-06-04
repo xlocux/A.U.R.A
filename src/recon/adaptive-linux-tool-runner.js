@@ -11,19 +11,26 @@ const DIRECT_HTTPX_BATCH_TIMEOUT_MS = 75000;
 const PROXY_HTTPX_THREADS_CAP = 25;
 const DIRECT_HTTPX_THREADS_CAP = 50;
 
+function createAdaptiveToolRunner(originalRunner, getActiveProfile) {
+  return {
+    runLinuxTool: function adaptiveRunLinuxTool(options = {}) {
+      const profile = getActiveProfile?.() || null;
+      if (!profile) return originalRunner.runLinuxTool(options);
+      const context = profile.__auraRunContext || {};
+      const adapted = adaptToolInvocation({ ...context, ...options }, profile);
+      if (String(options.toolName || "").toLowerCase() === "httpx") {
+        return runBatchedHttpx({ original: originalRunner.runLinuxTool, options: adapted, profile });
+      }
+      return originalRunner.runLinuxTool(adapted);
+    }
+  };
+}
+
 function patchLinuxToolRunner(linuxTools, getActiveProfile) {
   if (!linuxTools || linuxTools.__auraAdaptiveToolRunnerPatched || typeof linuxTools.runLinuxTool !== "function") return;
   const original = linuxTools.runLinuxTool;
-  linuxTools.runLinuxTool = function adaptiveRunLinuxTool(options = {}) {
-    const profile = getActiveProfile?.() || null;
-    if (!profile) return original(options);
-    const context = profile.__auraRunContext || {};
-    const adapted = adaptToolInvocation({ ...context, ...options }, profile);
-    if (String(options.toolName || "").toLowerCase() === "httpx") {
-      return runBatchedHttpx({ original, options: adapted, profile });
-    }
-    return original(adapted);
-  };
+  const adapted = createAdaptiveToolRunner({ runLinuxTool: original }, getActiveProfile);
+  linuxTools.runLinuxTool = adapted.runLinuxTool;
   Object.defineProperty(linuxTools, "__auraAdaptiveToolRunnerPatched", { value: true, enumerable: false });
 }
 
@@ -208,4 +215,4 @@ function replaceFlagValue(args, flag, value) {
   return output;
 }
 
-module.exports = { adaptToolInvocation, patchLinuxToolRunner, runBatchedHttpx };
+module.exports = { adaptToolInvocation, createAdaptiveToolRunner, patchLinuxToolRunner, runBatchedHttpx };

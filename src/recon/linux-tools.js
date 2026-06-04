@@ -202,10 +202,20 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
 }
 
+function createLinuxToolRunner(options = {}) {
+  const { runLinuxToolImpl = runLinuxTool } = options;
+  return {
+    runLinuxTool: function(opts) {
+      return runLinuxToolImpl(opts);
+    }
+  };
+}
+
 module.exports = {
   ALLOWED_TOOLS,
   commandDisplay,
   normalizeProxyUrl,
   redactProxyUrl,
-  runLinuxTool
+  runLinuxTool,
+  createLinuxToolRunner
 };

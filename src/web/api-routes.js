@@ -347,7 +347,7 @@ async function runTldDiscoveryPhase(request, response, store, runId) {
     rootDomains,
     leads: candidates,
     config: target,
-    autoPromote: body.auto_promotion_enabled !== false
+    autoPromote: body.auto_promotion_enabled === true
   });
   const jobsQueued = strategies.map((strategy) => store.createJob({
     runId,

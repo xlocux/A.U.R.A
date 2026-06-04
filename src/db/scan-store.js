@@ -172,7 +172,7 @@ class ScanStore {
 
 function countDistinct(db, table, col, runId) { return db.prepare(`SELECT COUNT(*) count FROM (SELECT 1 FROM ${table} WHERE run_id=? GROUP BY lower(${col}))`).get(runId).count; }
 function countRows(db, table, runId) { return db.prepare(`SELECT COUNT(*) count FROM ${table} WHERE run_id=?`).get(runId).count; }
-function defaultAiSettings() { return { provider:"opencode", planningModel:"qwen/qwen3-coder:free", executionModel:"qwen/qwen3-coder:free", localEndpoint:"http://127.0.0.1:11434/v1/chat/completions", localModel:"llama3.1", autonomyLevel:1 }; }
+function defaultAiSettings() { return { provider:"opencode", planningModel:"qwen/qwen3-coder:free", executionModel:"qwen/qwen3-coder:free", localEndpoint:"http://127.0.0.1:11434/v1/chat/completions", localModel:"llama3.1", autonomyLevel:3 }; }
 function hydrateTarget(r) { return { ...r, scope: j(r.scope_json,{}) }; }
 function hydrateRun(r) { return { ...r, checkpoint: j(r.checkpoint_json, {}) }; }
 function hydrateJob(r) { return { ...r, payload: j(r.payload_json,{}), checkpoint: j(r.checkpoint_json,{}) }; }

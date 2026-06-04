@@ -279,6 +279,12 @@ class ProxyStore {
     return this.db.prepare("SELECT * FROM proxies WHERE id = ?").get(proxyId);
   }
 
+  async findProxyByCoords(address, port, type) {
+    return this.db.prepare(
+      "SELECT * FROM proxies WHERE address = ? AND port = ? AND type = ?"
+    ).get(address, port, type);
+  }
+
   async updateProxy(proxyId, proxy) {
     this.db.prepare(`
       UPDATE proxies

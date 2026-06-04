@@ -34,9 +34,7 @@ class ProxyService {
   }
 
   async findProxy(proxy) {
-    return this.store.db.prepare(
-      "SELECT * FROM proxies WHERE address = ? AND port = ? AND type = ?"
-    ).get(proxy.address, proxy.port, proxy.type);
+    return this.store.findProxyByCoords(proxy.address, proxy.port, proxy.type);
   }
 
   async storeProxyMetrics(proxyId, metrics) {
