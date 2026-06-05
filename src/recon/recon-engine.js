@@ -12,6 +12,7 @@ const { runPassiveSource } = require("./passive-sources");
 const ProxyRotationController = require("./proxy-rotation");
 const { commandDisplay, redactProxyUrl, runLinuxTool } = require("./linux-tools");
 const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
+const { preflightCheckToolAvailability, assertToolsAvailable } = require("./tool-preflight-check");
 
 const DEFAULT_PASSIVE_SOURCES = ["crtsh", "wayback"];
 const DEFAULT_LINUX_TOOLS = ["subfinder", "dnsx", "gau", "httpx"];
@@ -69,6 +70,26 @@ async function runRecon({
 }) {
   const roots = [...new Set(rootDomains.map(normalizeDomain).filter(Boolean))];
   if (roots.length === 0) throw new Error("Recon requires at least one valid root domain");
+
+  // Pre-flight check for tool availability (but non-blocking - passive recon can run without tools)
+  if (useLinuxRunner) {
+    const toolNames = [...new Set(linuxTools.map(tool => (typeof tool === "string" ? tool.split(":")[0] : tool.name || tool.tool)))];
+    const screenshotToolNames = screenshotTools || [];
+    const allToolNames = [...new Set([...toolNames, ...screenshotToolNames])];
+    const preflightCheck = await preflightCheckToolAvailability({ toolIds: allToolNames });
+    if (preflightCheck.missing.length || preflightCheck.wrongCapability.length) {
+      const issues = [];
+      if (preflightCheck.missing.length) issues.push(`Missing: ${preflightCheck.missing.join(", ")}`);
+      if (preflightCheck.wrongCapability.length) issues.push(`Wrong identity: ${preflightCheck.wrongCapability.join(", ")}`);
+      store.appendEvent(runId, {
+        phase: "preflight",
+        severity: "warn",
+        source: "preflight-check",
+        message: `Tool availability warning: ${issues.join("; ")}. Passive sources will run, but these tools will be skipped.`,
+        payload: preflightCheck
+      });
+    }
+  }
 
   fs.mkdirSync(artifactsDir, { recursive: true });
   await waitForRunControl(store, runId);
@@ -156,6 +177,22 @@ async function runHttpFollowup({
 }) {
   const hosts = [...new Set((domains || []).map(normalizeDomain).filter(Boolean))].sort();
   if (hosts.length === 0) throw new Error("HTTP follow-up requires at least one saved domain");
+
+  // Pre-flight check for httpx availability
+  const criticalTools = ["httpx"];
+  const allTools = [...criticalTools, ...(screenshotTools || [])];
+  const preflightCheck = await preflightCheckToolAvailability({ toolIds: allTools });
+  if (preflightCheck.missing.includes("httpx") || preflightCheck.wrongCapability.includes("httpx")) {
+    store.appendEvent(runId, {
+      phase: "preflight",
+      severity: "error",
+      source: "preflight-check",
+      message: `HTTP follow-up requires httpx, but it is ${preflightCheck.missing.includes("httpx") ? "missing from PATH" : "has wrong identity/capability"}. Run environment setup from Settings > Environment.`,
+      payload: preflightCheck
+    });
+    throw new Error(`Critical tool httpx not available: ${preflightCheck.details.find(d => d.tool_id === "httpx")?.error || "unknown error"}`);
+  }
+
   fs.mkdirSync(artifactsDir, { recursive: true });
   await waitForRunControl(store, runId);
   store.updateRun(runId, {
@@ -472,6 +509,29 @@ async function collectLinuxTools({ store, runId, targetName, roots, linuxTools, 
     return collectedResults;
   }
 
+  // Verify tool availability before attempting to run them
+  const toolSpecs = linuxTools.map(tool => typeof tool === "string" ? tool : tool.name || tool.tool);
+  const toolNames = [...new Set(toolSpecs.map(spec => (typeof spec === "string" ? spec.split(":")[0] : spec)))];
+  const preflightCheck = await preflightCheckToolAvailability({ toolIds: toolNames });
+  if (preflightCheck.missing.length) {
+    store.appendEvent(runId, {
+      phase: "recon",
+      severity: "warn",
+      source: "preflight-check",
+      message: `Tools unavailable on PATH: ${preflightCheck.missing.join(", ")}. These will be skipped. If you need them, run environment setup from Settings > Environment.`,
+      payload: { missing: preflightCheck.missing, details: preflightCheck.details }
+    });
+  }
+  if (preflightCheck.wrongCapability.length) {
+    store.appendEvent(runId, {
+      phase: "recon",
+      severity: "warn",
+      source: "preflight-check",
+      message: `Tool identity mismatch: ${preflightCheck.wrongCapability.join(", ")}. These tools may be outdated or wrong binaries. Reinstall from Settings > Environment.`,
+      payload: { wrongCapability: preflightCheck.wrongCapability, details: preflightCheck.details }
+    });
+  }
+
   for (const root of roots) {
     for (const toolSpec of linuxTools) {
       await waitForRunControl(store, runId);
@@ -757,7 +817,8 @@ async function runRecoveryActionPool({
   discoveredDomains = roots,
   subdomainWordlistPath = null,
   proxyUrl = null,
-  proxyController = null
+  proxyController = null,
+  maxRecoveryAttempts = 2
 }) {
   const actions = buildRecoveryActions({ roots, linuxTools, useLinuxRunner, context, screenshotTools, artifactsDir });
   store.appendEvent(runId, {
@@ -770,13 +831,29 @@ async function runRecoveryActionPool({
     payload: { actions }
   });
   context.recoveryMode = true;
+  let completedActions = 0;
+  let incompleteActions = 0;
   for (const action of actions) {
     await waitForRunControl(store, runId);
+    // Safety: limit retry attempts to prevent infinite recovery loops
+    if (!action.attemptCount) action.attemptCount = 0;
+    if (action.attemptCount >= maxRecoveryAttempts) {
+      store.appendEvent(runId, {
+        phase: "ai-action-pool",
+        severity: "warn",
+        source: "ai-action-pool",
+        message: `Recovery action ${action.id} exhausted after ${action.attemptCount} attempts. Marking as incomplete and continuing.`,
+        payload: { action, status: "exhausted" }
+      });
+      incompleteActions += 1;
+      continue;
+    }
+    action.attemptCount += 1;
     store.appendEvent(runId, {
       phase: "ai-action-pool",
       severity: "info",
       source: "ai-action-pool",
-      message: `Running recovery action ${action.id}: ${action.reason}`,
+      message: `Running recovery action ${action.id} (attempt ${action.attemptCount}/${maxRecoveryAttempts}): ${action.reason}`,
       payload: { action, status: "running" }
     });
     try {
@@ -807,26 +884,39 @@ async function runRecoveryActionPool({
         await collectFavicons({ store, runId, targetName, services: context.httpServices, timeoutMs, artifactsDir });
       }
       const completed = recoveryActionCompleted(action, { context, artifactsDir });
+      if (completed) {
+        completedActions += 1;
+      } else {
+        incompleteActions += 1;
+      }
       store.appendEvent(runId, {
         phase: "ai-action-pool",
         severity: completed ? "ok" : "warn",
         source: "ai-action-pool",
         message: completed
-          ? `Recovery action ${action.id} completed.`
-          : `Recovery action ${action.id} ran but the expected output is still missing.`,
-        payload: { action, status: completed ? "completed" : "incomplete" }
+          ? `Recovery action ${action.id} completed (attempt ${action.attemptCount}).`
+          : `Recovery action ${action.id} ran (attempt ${action.attemptCount}) but the expected output is still missing.`,
+        payload: { action, status: completed ? "completed" : "incomplete", attempt: action.attemptCount, maxAttempts: maxRecoveryAttempts }
       });
     } catch (error) {
+      incompleteActions += 1;
       store.appendEvent(runId, {
         phase: "ai-action-pool",
         severity: "warn",
         source: "ai-action-pool",
-        message: `Recovery action ${action.id} failed: ${error.message}`,
+        message: `Recovery action ${action.id} failed (attempt ${action.attemptCount}): ${error.message}`,
         payload: { action, status: "failed" }
       });
     }
   }
   context.recoveryMode = false;
+  store.appendEvent(runId, {
+    phase: "ai-action-pool",
+    severity: incompleteActions > 0 ? "warn" : "ok",
+    source: "ai-action-pool",
+    message: `Recovery action pool completed: ${completedActions} actions succeeded, ${incompleteActions} incomplete or exhausted.`,
+    payload: { completedActions, incompleteActions, totalActions: actions.length }
+  });
 }
 
 async function retryHttpToolAction({ store, runId, targetName, domains, linuxRuntime, timeoutMs, artifactsDir, context, proxyUrl = null, proxyController = null }) {
@@ -896,10 +986,39 @@ function addRecoveryAction(actions, action) {
 function recoveryActionCompleted(action, { context, artifactsDir }) {
   if (typeof action.completed === "boolean") return action.completed;
   if (action.phase === "urls") return context.urls.length > 0;
-  if (action.phase === "screenshots") return countAllScreenshots(path.join(artifactsDir, "screenshots")) > 0;
-  if (action.phase === "screenshot-tool") return countAllScreenshots(path.join(artifactsDir, "screenshots", action.toolName)) > 0;
-  if (action.phase === "trackers") return fs.existsSync(path.join(artifactsDir, "tracker-findings.json"));
-  if (action.phase === "favicons") return fs.existsSync(path.join(artifactsDir, "favicon-findings.json"));
+  if (action.phase === "screenshots") {
+    const count = countAllScreenshots(path.join(artifactsDir, "screenshots"));
+    return count > 0;
+  }
+  if (action.phase === "screenshot-tool") {
+    const count = countAllScreenshots(path.join(artifactsDir, "screenshots", action.toolName));
+    return count > 0;
+  }
+  if (action.phase === "trackers") {
+    const path_trackers = path.join(artifactsDir, "tracker-findings.json");
+    if (!fs.existsSync(path_trackers)) return false;
+    // Also check that file is not empty
+    const stats = fs.statSync(path_trackers);
+    if (stats.size < 20) return false; // Too small to be valid JSON
+    try {
+      const content = JSON.parse(fs.readFileSync(path_trackers, "utf8"));
+      return Array.isArray(content.findings) && content.findings.length > 0;
+    } catch {
+      return false;
+    }
+  }
+  if (action.phase === "favicons") {
+    const path_favicons = path.join(artifactsDir, "favicon-findings.json");
+    if (!fs.existsSync(path_favicons)) return false;
+    const stats = fs.statSync(path_favicons);
+    if (stats.size < 20) return false;
+    try {
+      const content = JSON.parse(fs.readFileSync(path_favicons, "utf8"));
+      return Array.isArray(content.findings) && content.findings.length > 0;
+    } catch {
+      return false;
+    }
+  }
   return true;
 }
 

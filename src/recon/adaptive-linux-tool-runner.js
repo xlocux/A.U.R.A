@@ -118,25 +118,56 @@ async function runBatchedHttpx({ original, options, profile }) {
   }
 
   const parsedTotal = childResults.reduce((sum, item) => sum + Number(item.parsedServices || 0), 0);
+  const failedBatches = childResults.filter(b => b.status !== "completed");
+  const batchesMissingOutput = childResults.filter(b => b.parsedServices === 0 && b.status === "completed");
+
   appendRunEvent(store, runId, {
     phase: "httpx-batch",
-    severity: parsedTotal > 0 ? "ok" : "warn",
+    severity: parsedTotal > 0 ? "ok" : status === "completed" && batchesMissingOutput.length ? "warn" : "error",
     source: "adaptive-httpx",
-    message: `Adaptive httpx batching finished with ${parsedTotal} parsed services from ${hosts.length} hosts.`,
-    payload: { inputCount: hosts.length, parsedServices: parsedTotal, batchCount: batches.length, status }
+    message: parsedTotal > 0
+      ? `Adaptive httpx batching finished with ${parsedTotal} parsed services from ${hosts.length} hosts across ${batches.length} batches.`
+      : status === "completed" && batchesMissingOutput.length
+        ? `Adaptive httpx batching completed all batches but parsed ${parsedTotal} services (${batchesMissingOutput.length} batches produced no output). This may indicate httpx is not compatible with your environment or the target hosts are blocking requests.`
+        : `Adaptive httpx batching failed: ${failedBatches.length}/${batches.length} batches did not complete.`,
+    payload: {
+      inputCount: hosts.length,
+      parsedServices: parsedTotal,
+      batchCount: batches.length,
+      failedBatches: failedBatches.length,
+      batchesMissingOutput: batchesMissingOutput.length,
+      status,
+      childResults
+    }
   });
 
   return {
     toolName: options.toolName,
     args: options.args,
-    status: parsedTotal > 0 ? "completed" : status,
+    status: parsedTotal > 0 ? "completed" : status === "completed" && batchesMissingOutput.length ? "completed_no_output" : status,
     exitCode: parsedTotal > 0 ? 0 : exitCode,
     startedAt,
     finishedAt: new Date().toISOString(),
     stdout: stdout.join("\n"),
     stderr: stderr.join("\n"),
-    errorMessage: parsedTotal > 0 ? null : status === "completed" ? null : "One or more adaptive httpx batches did not complete.",
-    adaptiveBatching: { enabled: true, inputCount: hosts.length, batchSize, batchCount: batches.length, parsedServices: parsedTotal, proxied, childResults }
+    errorMessage: parsedTotal > 0
+      ? null
+      : status === "completed" && batchesMissingOutput.length
+        ? `httpx completed but parsed zero services from ${hosts.length} hosts. This may indicate the target is unreachable, blocking, or httpx binary incompatibility.`
+        : status === "timeout"
+          ? `One or more httpx batches timed out after ${batchTimeoutMs}ms. Try increasing timeout or reducing batch size.`
+          : `One or more adaptive httpx batches failed: ${failedBatches.map(b => `batch ${b.batch}: ${b.status}`).join(", ")}`,
+    adaptiveBatching: {
+      enabled: true,
+      inputCount: hosts.length,
+      batchSize,
+      batchCount: batches.length,
+      parsedServices: parsedTotal,
+      failedBatches: failedBatches.length,
+      batchesMissingOutput: batchesMissingOutput.length,
+      proxied,
+      childResults
+    }
   };
 }
 
