@@ -8,6 +8,11 @@ async function handleApiRequest({ request, response, url, store, config }) {
   try {
     const pathParts = url.pathname.replace(/^\/api\/targets\/?/, "").split("/").filter(Boolean);
 
+    // GET /api/targets/:name  (alias used by loadTargetConfig in app.js)
+    if (request.method === "GET" && pathParts.length === 1) {
+      return apiRoutes._internal.getTargetConfig(response, store, pathParts[0]);
+    }
+
     // GET /api/targets/:name/config
     if (request.method === "GET" && pathParts.length === 2 && pathParts[1] === "config") {
       return apiRoutes._internal.getTargetConfig(response, store, pathParts[0]);

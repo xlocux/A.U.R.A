@@ -2374,11 +2374,58 @@ function runSnapshotMarkdown(snapshot) {
   ].join("\n");
 }
 
+function listApiKeys(response, store) {
+  sendJson(response, { apiKeys: store.listApiKeys(), providers: providerCatalog() });
+}
+
+function listWordlists(response, store) {
+  ensureDefaultWordlists(store);
+  sendJson(response, { wordlists: store.listWordlists() });
+}
+
+function getWordlist(response, store, id) {
+  const wordlist = store.getWordlist(id);
+  if (!wordlist) { sendJson(response, { error: "Wordlist not found" }, 404); return; }
+  sendJson(response, { wordlist });
+}
+
 module.exports = {
   buildRunDelta,
   buildTargetConfigFromRequest,
   extractBrandTerms,
   filterScopeDomains,
   generateAlternateTldLeads,
-  handleApiRequest
+  handleApiRequest,
+  _internal: {
+    // target
+    getTargetConfig,
+    updateTargetConfig,
+    deleteTarget,
+    // recon runs
+    createReconRun,
+    updateRunControl,
+    createHttpFollowupRun,
+    createFocusedFollowupRun,
+    // api keys
+    listApiKeys,
+    exportApiKeys,
+    createApiKey,
+    preflightAllApiKeys,
+    importApiKeys,
+    deleteApiKey,
+    // ai
+    saveAiSettings,
+    getAiRuntimeStatus,
+    agentChat,
+    listOpenRouterFreeModels,
+    // wordlists
+    listWordlists,
+    createWordlist,
+    generateWordlist,
+    getWordlist,
+    serveWordlistArtifact,
+    deleteWordlist,
+    // exports
+    exportRun
+  }
 };
