@@ -477,7 +477,15 @@
     return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   }
 
-  window.AuraProxySettings = { activeProxyUrl };
+  function inferProxyMode(url) {
+    const s = String(url || "").toLowerCase();
+    if (s.startsWith("socks5://")) return "socks5";
+    if (s.startsWith("socks4://")) return "socks4";
+    if (s.startsWith("https://")) return "https";
+    return "http";
+  }
+
+  window.AuraProxySettings = { activeProxyUrl, bind };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
   else bind();
 })();
