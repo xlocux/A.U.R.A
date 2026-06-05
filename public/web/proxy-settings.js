@@ -169,10 +169,15 @@
 
   function render() {
     const settings = getSettings();
-    $("proxyEnabled").checked = Boolean(settings.enabled);
-    $("proxyUrl").value = settings.url || "";
-    $("proxyMode").value = settings.mode || inferProxyMode(settings.url);
-    $("proxyPurpose").value = settings.purpose || "interception";
+    const proxyEnabled = $("proxyEnabled");
+    const proxyUrl = $("proxyUrl");
+    const proxyMode = $("proxyMode");
+    const proxyPurpose = $("proxyPurpose");
+    if (!proxyEnabled || !proxyUrl || !proxyMode || !proxyPurpose) return;
+    proxyEnabled.checked = Boolean(settings.enabled);
+    proxyUrl.value = settings.url || "";
+    proxyMode.value = settings.mode || inferProxyMode(settings.url);
+    proxyPurpose.value = settings.purpose || "interception";
     renderSavedList(settings);
   }
 

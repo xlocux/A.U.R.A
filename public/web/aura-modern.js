@@ -63,26 +63,12 @@
     }
   }
 
-  function injectScript(src, id) {
-    if (document.getElementById(id)) return;
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = src;
-    script.defer = true;
-    document.head.appendChild(script);
-  }
-
   function boot() {
     bindLightTheme();
     restoreLightThemeIfNeeded();
-    injectScript("/product-title.js", "aura-product-title-js");
-    injectScript("/compact-density.js", "aura-compact-density-js");
-    injectScript("/api-key-actions.js", "aura-api-key-actions-js");
-    injectScript("/http-port-options.js", "aura-http-port-options-js");
-    injectScript("/screenshot-alignment.js", "aura-screenshot-alignment-js");
-    injectScript("/guide-data.js", "aura-guide-data-js");
-    injectScript("/guide-view.js", "aura-guide-view-js");
-    injectScript("/guide-details.js", "aura-guide-details-js");
+    // Note: do NOT inject scripts already loaded by index.html (product-title, compact-density,
+    // api-key-actions, http-port-options, screenshot-alignment, guide-*.js).
+    // Double-loading causes duplicate event bindings that freeze the UI.
     window.addEventListener("aura:appearance-change", () => {
       ensureLightOption();
       if (document.documentElement.dataset.theme !== "light") clearLightFlag();
