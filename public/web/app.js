@@ -1286,6 +1286,11 @@ $("target").addEventListener("change", () => {
     $("status").textContent = error.message;
   });
 });
+function updateReconModeUi() {
+  const mode = $("reconMode")?.value;
+  const fullOptions = $("fullReconOptions");
+  if (fullOptions) fullOptions.style.display = mode === "full" ? "" : "none";
+}
 $("reconMode").addEventListener("change", updateReconModeUi);
 $("start").addEventListener("click", startRecon);
 $("pauseRun").addEventListener("click", () => updateRunControl("pause"));
