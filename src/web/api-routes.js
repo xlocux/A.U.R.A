@@ -2075,6 +2075,42 @@ function handleReadEndpoint(response, url, store) {
     return true;
   }
 
+  // GET /api/recon-runs/:id/artifacts — URLs/artifacts as artifact_type/value records for the run log UI
+  const artifactsMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/artifacts$/);
+  if (artifactsMatch) {
+    const runId = Number(artifactsMatch[1]);
+    const urls = store.listUrls({ runId, limit: 2000 });
+    const artifacts = urls.map((u) => ({
+      artifact_type: "url",
+      value: u.url,
+      source: u.source,
+      extra_json: { host: u.host, path: u.path, query: u.query, params: u.params }
+    }));
+    sendJson(response, { artifacts });
+    return true;
+  }
+
+  // GET /api/recon-runs/:id/artifacts/file?path=... — serve a raw artifact file
+  const artifactFileMatch = url.pathname.match(/^\/api\/recon-runs\/(\d+)\/artifacts\/file$/);
+  if (artifactFileMatch) {
+    const filePath = url.searchParams.get("path") || "";
+    const dataDir = path.resolve("data");
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(dataDir) || !fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+      sendJson(response, { error: "Artifact file not found or outside data directory" }, 404);
+      return true;
+    }
+    sendFile(response, resolved);
+    return true;
+  }
+
+  // GET /api/targets/:name/leads — alias for /api/targets/:name/asset-leads
+  const targetLeadsMatch = url.pathname.match(/^\/api\/targets\/([^/]+)\/leads$/);
+  if (targetLeadsMatch) {
+    sendJson(response, { leads: store.listAssetLeads({ targetName: decodeURIComponent(targetLeadsMatch[1]) }) });
+    return true;
+  }
+
   return false;
 }
 

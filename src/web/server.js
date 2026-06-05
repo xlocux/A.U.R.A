@@ -75,10 +75,11 @@ async function startWebServer(argv = process.argv) {
         let handled = false;
         for (const handler of handlers) {
           handled = await handler({ request, response, url, store });
-          if (handled) return;
+          if (handled || response.headersSent) return;
         }
+        if (response.headersSent) return;
         handled = await handleApiRequest({ request, response, url, store });
-        if (!handled) sendNotFound(response);
+        if (!handled && !response.headersSent) sendNotFound(response);
         return;
       }
       serveStatic(response, staticRoot, url.pathname);
