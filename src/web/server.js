@@ -60,42 +60,34 @@ async function startWebServer(argv = process.argv) {
         serveStatic(response, staticRoot, "/login.html");
         return;
       }
-      if (url.pathname.startsWith("/api/recon-runs/") && url.pathname.includes("/diagnostics")) {
-        const handled = await handleDiagnosticRequest({ request, response, url, store });
-        if (handled) return;
-      }
-      if (url.pathname.startsWith("/api/api-keys/")) {
-        const handled = await handleApiKeyRequest({ request, response, url, store });
-        if (handled) return;
-      }
-      if (url.pathname.startsWith("/api/wordlists/")) {
-        const handled = await handleWordlistRequest({ request, response, url, store });
-        if (handled) return;
-      }
-      if (url.pathname.startsWith("/api/targets")) {
-        const handled = await handleTargetRequest({ request, response, url, store });
-        if (handled) return;
-      }
-      if (url.pathname.startsWith("/api/recon-runs")) {
-        const handled = await handleReconRequest({ request, response, url, store });
-        if (handled) return;
-      }
-      if (url.pathname.startsWith("/api/ai-") || url.pathname.startsWith("/api/agent/")) {
-        const handled = await handleAiRequest({ request, response, url, store });
-        if (handled) return;
-      }
-      if (url.pathname.includes("/export") && url.pathname.startsWith("/api/recon-runs/")) {
-        const handled = await handleExportRequest({ request, response, url, store });
-        if (handled) return;
-      }
       if (url.pathname.startsWith("/api/")) {
-        const handled = await handleApiRequest({ request, response, url, store });
+        // Try focused route handlers first, then fall through to the main handler.
+        // Each handler returns true if it responded, false to pass to the next.
+        const handlers = [
+          handleApiKeyRequest,
+          handleTargetRequest,
+          handleReconRequest,
+          handleAiRequest,
+          handleExportRequest,
+          handleDiagnosticRequest,
+          handleWordlistRequest,
+        ];
+        let handled = false;
+        for (const handler of handlers) {
+          handled = await handler({ request, response, url, store });
+          if (handled) return;
+        }
+        handled = await handleApiRequest({ request, response, url, store });
         if (!handled) sendNotFound(response);
         return;
       }
       serveStatic(response, staticRoot, url.pathname);
     } catch (error) {
-      sendJson(response, { error: error.message }, 500);
+      if (!response.headersSent) {
+        sendJson(response, { error: error.message }, 500);
+      } else {
+        console.error("[server] unhandled error after headers sent:", error.message);
+      }
     }
   });
 
