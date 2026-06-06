@@ -4,6 +4,7 @@
   let currentRunData = null;
   let refreshTimer = null;
   let topologyRenderSerial = 0;
+  let refreshInFlight = false;
 
   function boot() {
     injectStyles();
@@ -120,13 +121,19 @@
 
   function observeRunData() {
     const refresh = async () => {
+      if (refreshInFlight) return;
       const runId = activeRunId();
       if (!runId) return;
-      await loadRunData(runId);
-      renderActiveLogSubtab(document.querySelector("[data-log-subtab].active")?.dataset.logSubtab || "timeline");
-      const view = activeTopologyView();
-      if (view !== "graph" && !document.getElementById("topologyDashboard")?.classList.contains("hidden")) {
-        renderTopologyView(view, { useCache: true });
+      refreshInFlight = true;
+      try {
+        await loadRunData(runId);
+        renderActiveLogSubtab(document.querySelector("[data-log-subtab].active")?.dataset.logSubtab || "timeline");
+        const view = activeTopologyView();
+        if (view !== "graph" && !document.getElementById("topologyDashboard")?.classList.contains("hidden")) {
+          renderTopologyView(view, { useCache: true });
+        }
+      } finally {
+        refreshInFlight = false;
       }
     };
     refresh();
@@ -178,7 +185,7 @@
 
   async function fetchJson(url) {
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 15000) : null;
     try {
       const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
       if (!response.ok) return null;

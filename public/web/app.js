@@ -4,6 +4,7 @@ let targets = [];
 let activeRunId = null;
 let lastEventId = 0;
 let poll = null;
+let refreshRunInFlight = false;
 let latestRunActivity = "";
 let aiSettings = null;
 let aiModels = [];
@@ -464,6 +465,12 @@ async function restoreLatestRunForSelectedTarget() {
 }
 
 async function refreshRun() {
+  if (!activeRunId || refreshRunInFlight) return;
+  refreshRunInFlight = true;
+  try { await _refreshRun(); } finally { refreshRunInFlight = false; }
+}
+
+async function _refreshRun() {
   if (!activeRunId) return;
   const [runData, eventData, counts, domainData, artifactData, serviceData, technologyData, screenshotData, toolData, deltaData] = await Promise.all([
     api(`/api/recon-runs/${activeRunId}`),
@@ -477,7 +484,8 @@ async function refreshRun() {
     api(`/api/recon-runs/${activeRunId}/tool-results`),
     api(`/api/recon-runs/${activeRunId}/delta`)
   ]);
-  const run = runData.run;
+  const run = runData?.run;
+  if (!run) return;
   $("runStatus").textContent = run.status;
   updateRunControlButtons(run.status);
   $("domainCount").textContent = counts.domains;
