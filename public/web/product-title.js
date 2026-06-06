@@ -16,6 +16,7 @@
     injectScript("/security-settings.js", "aura-security-settings-js");
     injectScript("/header-profile-menu.js", "aura-header-profile-menu-js");
     injectScript("/topology-fullscreen-fix.js", "aura-topology-fullscreen-fix-js");
+    injectScript("/recon-status-bar.js", "aura-recon-status-bar-js");
   }
 
   function injectScript(src, id) {
