@@ -97,13 +97,15 @@ The adaptive benchmark is wired into runtime execution through `src/recon/recon-
 
 It also patches Linux tool execution through `src/recon/adaptive-linux-tool-runner.js` so selected adaptive limits are applied to:
 
-- `httpx`: adaptive batches, per-batch timeout, thread, retry, and rate-limit flags
-- `dnsx`: capped thread and retry flags
+- `httpx`: adaptive batches, per-batch timeout, thread count cap, minimum retry (1), and rate-limit/timeout flags. Zero-output + proxy scenarios trigger a direct-only recovery action.
+- `dnsx`: capped thread count and retry minimum (1 — required by dnsx, zero is rejected as fatal)
 - `gowitness`: screenshot thread flag
 
 When the `httpx` input file is larger than the selected `httpxBatchSize`, the adaptive runner creates `httpx-batches/` under the run artifacts directory, executes one batch at a time, preserves per-batch stdout/stderr artifacts, records each batch as a tool result, emits `httpx-batch` events, and stores parsed HTTP services immediately. A slow or timed-out batch no longer hides output from earlier batches.
 
-Proxy-aware `httpx` is intentionally more conservative than direct `httpx`: batch size is capped, thread count is capped, retries are disabled, and rate-limit/timeout values are reduced to avoid a single SOCKS/HTTP proxy causing long heartbeat-only hangs.
+Proxy-aware `httpx` is intentionally more conservative than direct `httpx`: batch size is capped, thread count is capped, retries are set to the minimum (1), and rate-limit/timeout values are reduced to avoid a single SOCKS/HTTP proxy causing long heartbeat-only hangs.
+
+When `httpx` completes through a proxy and returns zero parsed HTTP services, the engine queues a bounded direct-only retry action (no proxy) for that root domain. This prevents silent data loss when the upstream proxy blocks connections silently. The recovery action runs in the same AI action pool that handles other zero-output scenarios and emits a `warn`-severity event before and after the retry attempt.
 
 ## Diagnostics export
 

@@ -56,6 +56,7 @@ Top-level workspace tabs:
 - Search
 - Topology
 - Results
+- AI Log
 - Runs & Logs
 - Settings
 
@@ -109,7 +110,8 @@ Recommended macro tab patterns:
   such as HTTP status code, technology, host, source, tool, and delta type.
   Screenshot views should render available image thumbnails instead of only
   local filesystem paths.
-- Runs & Logs: Live Run, Jobs, Events, Artifacts.
+- AI Log: AI Correlation Log, Correlation Techniques.
+- Runs & Logs: Activity (live run activity panel transplanted from the Recon tab), Events (timestamped log, newest first, clearable), Tool Results.
 - Settings: Environment, Appearance, AI Models, API Keys, Notifications,
   Safety, Proxy, Storage.
 
@@ -272,6 +274,21 @@ Key UI:
 - Dry-run preview.
 - AI-generated run config.
 
+### Persistent Recon Status Bar
+
+A.U.R.A injects a compact status pill into the application header bar between the logo and the action buttons. The bar is always visible across all workspace tabs.
+
+It shows:
+
+- Animated pulse dot (cyan when active, dim when idle or completed).
+- Run ID.
+- Status label (Queued, Running, Paused, Completed, Failed, Cancelled, or Idle).
+- Active phase.
+- Latest activity excerpt (truncated to 60 characters; full text on hover).
+- Compact domain/service count when data is available.
+
+Clicking the bar navigates to the Runs & Logs tab. The bar uses grid-column placement to stay centered in the header without displacing the action buttons.
+
 ### Live Run
 
 Purpose:
@@ -282,11 +299,13 @@ Key UI:
 
 - Run status summary.
 - Phase progress.
-- Jobs table.
-- Event timeline.
+- Event timeline (newest first, clearable via Clear button in the Logs subtab).
+- Activity panel showing current phase, latest event, seeds, and error summary.
 - Artifact links.
 - Pause/cancel/resume controls.
+- Focused follow-up launchers for HTTP, URL/params, HTTP-only, tech, screenshots, trackers, and favicons.
 - AI failure explanation.
+- Export Diagnostics JSON for degraded or partial runs.
 - Visible activity feedback for every long-running action so the operator can
   tell when A.U.R.A is importing, testing, probing, installing, or refreshing.
 

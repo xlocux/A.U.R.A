@@ -32,15 +32,15 @@ and UI direction lives in `docs/UI_DESIGN.md`.
 
 ## Phase 0: Foundations
 
-Status: in progress.
+Status: complete.
 
 Deliverables:
 
-- Recon methodology document.
-- Architecture document.
-- UI design direction.
-- OpenCode agent prompt.
-- English-only product rule.
+- Recon methodology document. (done)
+- Architecture document. (done)
+- UI design direction. (done)
+- OpenCode agent prompt. (done)
+- English-only product rule. (done)
 
 Exit criteria:
 
@@ -53,54 +53,63 @@ Exit criteria:
 Goal: replace hardcoded recon orchestration with a job-based, registry-driven
 execution core.
 
-Status: started.
+Status: largely complete; refinement ongoing.
 
 Deliverables:
 
-- Tool registry manifest schema and validator. (started)
-- Built-in tool manifests for initial recon tools. (started)
-- Parser registry and parser contract.
-- Local artifact store abstraction. (started)
-- SQLite-backed job queue. (started)
-- Local worker loop. (started)
-- Worker capability checks.
-- local Linux tool runner. (started)
-- Rate limit profile model.
-- Structured job events and tool result artifacts.
+- Tool registry manifest schema and validator. (done)
+- Built-in tool manifests for initial recon tools. (done — subfinder, dnsx, httpx, gau, gowitness, retire.js)
+- Parser registry and parser contract. (done — parsers.js, result-tree.js)
+- Local artifact store abstraction. (done — scan-store.js, SQLite via node:sqlite)
+- SQLite-backed job queue. (done — integrated into recon-engine.js)
+- Local worker loop. (done — recon engine runs phases sequentially with AI action pool)
+- Worker capability checks. (done — environment-setup.js, tool manifests with capability signatures)
+- Local Linux tool runner. (done — linux-tools.js, runLinuxTool)
+- Rate limit profile model. (done — adaptive-recon-profile.js: conservative, balanced, aggressive)
+- Structured job events and tool result artifacts. (done — appendEvent, recordToolResult)
 
-Initial tools:
+Adaptive execution:
+
+- Adaptive preflight benchmark runs before each execution, recording CPU/RAM profile. (done)
+- httpx runs in adaptive batches; each batch saved as artifact with partial service persistence. (done)
+- dnsx thread count capped; retry minimum enforced. (done)
+- gowitness thread count adapted from profile. (done)
+- AI action pool runs recovery retries for zero-output, missing screenshot, missing URL artifacts. (done)
+- httpx zero-output + proxy scenario triggers a direct-only retry action. (done)
+
+Initial tools running in production:
 
 - `subfinder`
 - `dnsx`
 - `gau`
-- `httpx`
-- `katana`
-- `naabu`
-- `nuclei`
+- `httpx` (with adaptive batching and proxy fallback)
 - `gowitness`
+- `retire.js` (technology detection)
 
 Exit criteria:
 
-- A run is composed of jobs, not one monolithic function.
-- stdout/stderr/raw outputs are stored as artifacts.
-- Parsed observations link back to artifacts.
-- Workers can declare installed tool capabilities.
+- A run is composed of phases orchestrated by recon-engine.js.
+- stdout/stderr/raw outputs are stored as artifacts with file paths.
+- Parsed observations link back to tool results and artifacts.
+- Workers declare installed tool capabilities through environment-setup.js.
 
 ## Phase 2: Settings-Based Environment And OpenCode Setup UI
 
 Goal: let users prepare the local Linux execution environment from the Web UI.
 
+Status: largely complete; OpenCode integration partial.
+
 Deliverables:
 
-- `Settings > Environment` setup panel. (started)
-- local Linux detection. (started)
-- Tool install/check state. (started)
-- OpenCode detection.
-- Guided OpenCode bootstrap.
-- OpenCode provider/model management.
-- Planning model and execution model settings.
-- Masked credential management.
-- AI chat panel connected through A.U.R.A, not directly to OpenCode.
+- `Settings > Environment` setup panel. (done)
+- local Linux detection via WSL/native. (done)
+- Tool install/check state with capability signatures. (done)
+- OpenCode detection. (done — agentStatus in Settings > AI)
+- Guided OpenCode bootstrap. (partial — AI settings panel present, full bootstrap flow pending)
+- OpenCode provider/model management. (done — provider/model selectors in Settings > AI)
+- Planning model and execution model settings. (done)
+- Masked credential management. (done — API keys in Settings > API Keys)
+- AI chat panel connected through A.U.R.A, not directly to OpenCode. (done — ai-agent.js)
 
 Exit criteria:
 
@@ -112,15 +121,17 @@ Exit criteria:
 
 Goal: make target and scope management reliable and auditable.
 
+Status: in progress — target creation and basic scope done; authorization records and scope evaluation service pending.
+
 Deliverables:
 
-- Target creation UI. (started)
-- Scope editor for domains, wildcards, URLs, and out-of-scope rules.
-- Structured scope import flow.
-- Authorization record storage.
-- Policy snapshot and uploaded authorization artifacts.
-- Scope evaluation service.
-- Scope confirmation gate before active phases.
+- Target creation UI. (done — create/delete from Recon tab)
+- Scope editor for domains, wildcards, URLs, and out-of-scope rules. (partial — seed domain input done; structured in/out-of-scope editor pending)
+- Structured scope import flow. (pending)
+- Authorization record storage. (pending)
+- Policy snapshot and uploaded authorization artifacts. (pending)
+- Scope evaluation service. (pending)
+- Scope confirmation gate before active phases. (pending)
 
 Exit criteria:
 
@@ -132,35 +143,38 @@ Exit criteria:
 
 Goal: implement the production-quality MVP recon flow.
 
-MVP phases:
+Status: core pipeline operational; see tool list for current support.
 
-- Target and scope setup.
-- Seed normalization.
-- Passive subdomain discovery.
+Currently operational phases:
+
+- Target and seed setup. (done)
+- Seed normalization and WHOIS/RDAP intel preflight. (done)
+- Passive subdomain discovery via subfinder and API providers. (done)
+- Domain intelligence and provider enrichment. (done — RDAP/WHOIS, alternate TLD correlation, Shodan/Censys via API keys)
+- Active subdomain enumeration. (done — subfinder + dnsx)
+- DNS resolution and record collection. (done — dnsx)
+- HTTP probing. (done — httpx with adaptive batching)
+- Archive URL discovery. (done — gau)
+- Technology fingerprinting. (done — httpx -tech-detect + retire.js)
+- Screenshot capture. (done — gowitness)
+- Asset promotion for collected data. (done — auto-promote 100% TLD candidates, save domains/services/URLs/screenshots)
+- AI correlation log. (done — candidate correlation techniques logged in AI Log tab)
+- Focused follow-up runs for HTTP, URL/params, tech, screenshots, trackers, favicons. (done)
+- Run delta comparison. (done — buildRunDelta)
+- Export JSON/CSV/Markdown. (done)
+
+Pending:
+
 - Search engine dorking support.
 - GitHub/code search support.
-- Domain intelligence and provider enrichment.
-- Active subdomain enumeration with conservative defaults.
-- DNS resolution and record collection.
 - DNS wildcard detection.
 - CDN origin candidate discovery.
-- HTTP probing.
 - Well-known file discovery.
-- Archive URL discovery.
 - Crawling and URL discovery.
-- Asset promotion.
-
-Deliverables:
-
-- Observation store.
-- Asset promotion service.
-- Review item model.
-- Confidence scoring.
-- Deduplication and canonicalization.
-- DNS wildcard filtering.
-- HTTP fingerprints.
-- Well-known resource checks.
-- Raw artifact links from every observation.
+- Observation store (normalized with scope status and confidence per observation).
+- Review item queue.
+- Suppression rules.
+- Scope evaluation gate.
 
 Exit criteria:
 

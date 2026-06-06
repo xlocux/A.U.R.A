@@ -325,6 +325,29 @@ AI actions are controlled by autonomy level:
 - Level 4: guarded autopilot within pre-approved limits.
 - Level 5: out of MVP.
 
+## Current Web UI Component Model
+
+Frontend modules in `public/web/` are plain IIFE scripts loaded in HTML order. Each module exposes its API on a `window.Aura*` global and is progressively enhanced — the page remains functional if a module fails to load.
+
+Key modules:
+
+- `app.js`: main application logic, target/run management, result table renders, tab navigation.
+- `topology-view.js`: canvas-based force/smart layout graph, real-time update via `AuraTopology.update()`.
+- `results-explorer.js`: domain-centered result tree, filterable by query/status/score.
+- `recon-status-bar.js`: persistent header pill showing run ID, status, phase, latest activity, and counts.
+- `ai-agent.js`: floating AI chat assistant, draggable/resizable, context-aware run feed.
+- `ai-log.js`: AI correlation log, separate from the chat assistant.
+- `proxy-settings.js`: proxy pool management and active proxy URL helper.
+- `status-badges.js`: shared badge renderer for status, severity, and health cells.
+- `tool-toggle-cards.js`: progressive enhancement for checkbox-driven tool/filter controls.
+
+The `_refreshRun()` function in `app.js` fetches all result APIs in parallel and updates:
+- badge counts from `GET /api/recon-runs/:id/counts` (response: `{ counts: { domains, urls, httpServices, technologies, screenshots, events, toolResults } }`).
+- result tables via `renderDomains`, `renderHttpServices`, `renderTechnologies`, `renderScreenshots`, `renderArtifacts`, `renderToolResults`.
+- topology graph via `AuraTopology.update()`.
+- results explorer via `AuraResultsExplorer.refresh()`.
+- AI log via `AuraAiLog.refresh()`.
+
 ## MVP Implementation Order
 
 1. Documented architecture and UI direction.
