@@ -123,9 +123,11 @@
         padding: 5px 12px; border-radius: 999px;
         font-size: 12px; white-space: nowrap; cursor: pointer;
         border: 1px solid var(--line); background: rgba(10,14,20,.55);
-        max-width: 520px; overflow: hidden;
+        max-width: 480px; overflow: hidden;
         transition: border-color .2s, background .2s;
         flex-shrink: 1; min-width: 0;
+        grid-column: 2; grid-row: 1;
+        justify-self: center; align-self: center;
       }
       #reconStatusBar:hover { border-color: var(--accent); background: rgba(10,14,20,.8); }
 

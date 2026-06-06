@@ -110,6 +110,12 @@ header {
   gap: 18px;
 }
 
+/* When the recon status bar is present, hide the old #status text */
+.headerbar:has(#reconStatusBar) #status { display: none; }
+
+/* Force top-command to always occupy the last (right) column */
+.headerbar .top-command { grid-column: 3; grid-row: 1; }
+
 .headerbar h1 {
   display: flex;
   align-items: center;
