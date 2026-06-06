@@ -222,12 +222,17 @@
   function boot() {
     addQuickActions();
     syncAll();
+    // Observe only the .check elements and their inputs directly.
+    // Observing document.body with childList+subtree fires on every DOM insertion
+    // anywhere on the page (run events, tables, topology renders), creating an rAF
+    // loop that saturates the render pipeline and freezes the UI.
     const observer = new MutationObserver((mutations) => {
-      if (mutations.some((mutation) => mutation.type === "childList" || ["class", "disabled", "checked"].includes(mutation.attributeName))) {
+      if (mutations.some((m) => ["class", "disabled", "checked"].includes(m.attributeName))) {
         queueSyncAll();
       }
     });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "disabled", "checked"] });
+    const attrOpts = { attributes: true, attributeFilter: ["class", "disabled", "checked"] };
+    document.querySelectorAll(".check, .check input").forEach((el) => observer.observe(el, attrOpts));
     window.AuraToggleControls = { syncAll, queueSyncAll };
   }
 
