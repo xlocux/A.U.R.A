@@ -54,13 +54,17 @@
     const target = document.getElementById("events");
     if (!target || target.dataset.newestFirstObserver === "true") return;
     target.dataset.newestFirstObserver = "true";
-    const observer = new MutationObserver(() => sortRunEventsNewestFirst());
+    const observer = new MutationObserver(() => {
+      observer.disconnect();
+      sortRunEventsNewestFirst(target);
+      observer.observe(target, { childList: true });
+    });
     observer.observe(target, { childList: true });
-    sortRunEventsNewestFirst();
+    sortRunEventsNewestFirst(target);
   }
 
-  function sortRunEventsNewestFirst() {
-    const target = document.getElementById("events");
+  function sortRunEventsNewestFirst(target) {
+    if (!target) target = document.getElementById("events");
     if (!target || eventsReordering) return;
     const nodes = [...target.children].filter((node) => node.classList?.contains("event"));
     if (nodes.length < 2) return;
@@ -85,7 +89,11 @@
       const tbody = document.getElementById(tbodyId);
       if (!tbody || tbody.dataset.newestFirstObserver === "true") return;
       tbody.dataset.newestFirstObserver = "true";
-      const observer = new MutationObserver(() => sortTableNewestFirst(tbody, timeCellIndex, getLock, setLock));
+      const observer = new MutationObserver(() => {
+        observer.disconnect();
+        sortTableNewestFirst(tbody, timeCellIndex, getLock, setLock);
+        observer.observe(tbody, { childList: true });
+      });
       observer.observe(tbody, { childList: true });
       sortTableNewestFirst(tbody, timeCellIndex, getLock, setLock);
     };

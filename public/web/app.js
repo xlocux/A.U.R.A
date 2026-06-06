@@ -502,12 +502,16 @@ async function _refreshRun() {
     div.textContent = `[${event.created_at}] ${event.phase || "-"} ${event.source || "-"}: ${event.message}`;
     $("events").prepend(div);
   }
-  renderDomains(domainData.domains || []);
-  renderArtifacts(artifactData.artifacts || []);
-  renderHttpServices(serviceData.services || []);
-  renderTechnologies(technologyData.technologies || []);
-  renderScreenshots(screenshotData.screenshots || []);
-  renderToolResults(toolData.results || []);
+  // Only re-render each table when its count changes — full re-render every 1.5s
+  // on hundreds of rows saturates the renderer even when nothing changed.
+  const prev = resultsData.totals || {};
+  if (counts.domains !== prev.domains) renderDomains(domainData.domains || []);
+  if (counts.urls !== prev.urls) renderArtifacts(artifactData.artifacts || []);
+  if (counts.httpServices !== prev.httpServices) renderHttpServices(serviceData.services || []);
+  if (counts.technologies !== prev.technologies) renderTechnologies(technologyData.technologies || []);
+  if (counts.screenshots !== prev.screenshots) renderScreenshots(screenshotData.screenshots || []);
+  if ((toolData.results || []).length !== (resultsData.toolResults || []).length) renderToolResults(toolData.results || []);
+  resultsData.totals = { ...counts };
   renderRunDelta(deltaData.delta || null);
   window.AuraAiAgent.onRunUpdate?.({
     run,
