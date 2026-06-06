@@ -58,6 +58,7 @@
         <button type="button" data-log-subtab="ai">AI Decisions</button>
         <button type="button" data-log-subtab="correlation">Correlation</button>
         <button type="button" data-log-subtab="errors">Warnings & Errors</button>
+        <button type="button" id="logsClearBtn" class="logs-clear-btn" title="Clear live events log">Clear logs</button>
       </div>
       <div id="logsActivityMount" class="aura-activity-mount"></div>
       <div id="logsContent" class="aura-log-content" style="display:none"></div>
@@ -87,6 +88,16 @@
       event.preventDefault();
       document.querySelectorAll("[data-log-subtab]").forEach((node) => node.classList.toggle("active", node === button));
       renderActiveLogSubtab(button.dataset.logSubtab);
+    });
+    document.getElementById("logsClearBtn")?.addEventListener("click", () => {
+      // Clear the live events list
+      const events = document.getElementById("events");
+      if (events) events.innerHTML = "";
+      // Clear the rendered log content
+      const node = document.getElementById("logsContent");
+      if (node) node.innerHTML = "";
+      // Reset currentRunData events so timeline/tables also clear
+      if (currentRunData) currentRunData.events = [];
     });
   }
 
@@ -464,6 +475,8 @@
       .logs-subtabs, .topology-view-tabs { display: flex; gap: 5px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
       .logs-subtabs button, .topology-view-tabs button { width: auto; margin: 0; padding: 5px 9px; border-radius: 999px; background: rgba(20, 18, 34, .72); }
       .logs-subtabs button.active, .topology-view-tabs button.active { color: #071017; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+      .logs-subtabs .logs-clear-btn { margin-left: auto; background: rgba(200, 60, 60, .18); color: var(--muted); border: 1px solid rgba(200, 60, 60, .3); }
+      .logs-subtabs .logs-clear-btn:hover { background: rgba(200, 60, 60, .35); color: #fff; }
       #tab-logs.aura-logs-panel.active { display: grid !important; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden !important; }
       .aura-activity-mount { min-height: 0; overflow: auto; overscroll-behavior: contain; display: grid; gap: 8px; align-content: start; }
       .aura-activity-mount .pane { overflow: visible; }
