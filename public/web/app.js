@@ -671,13 +671,15 @@ async function startRecon() {
   $("start").disabled = true;
   $("status").textContent = "Starting recon...";
   try {
-    const data = await api("/api/recon/start", {
+    const reconMode = $("reconMode").value;
+    const data = await api("/api/recon-runs", {
       method: "POST",
       body: JSON.stringify({
+        authorized: true,
         targetName: $("target").value,
-        domains,
-        mode: $("reconMode").value,
-        providerDiscovery: $("reconMode").value === "full" ? {
+        rootDomains: domains,
+        reconMode,
+        fullRecon: reconMode === "full" ? {
           include: textLines("fullWhoisInclude"),
           exclude: textLines("fullWhoisExclude"),
           mode: $("fullWhoisMode").value,
@@ -687,14 +689,14 @@ async function startRecon() {
         intelPreflight: $("intelPreflight").checked,
         useLinuxRunner: $("useLinuxRunner").checked,
         linuxRuntime: $("linuxRuntime").value,
+        linuxTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"]),
         timeoutMs: Number($("timeout").value || 180000),
-        tools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"]),
         passiveSources: selectedValues(["crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan", "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye", "spyse", "intelx", "whoisxmlapi", "whoisfreaks"]),
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
         proxyUrl: activeProxyUrl()
       })
     });
-    activeRunId = data.runId;
+    activeRunId = data.run?.id || data.runId;
     lastEventId = 0;
     latestRunActivity = "";
     window.AuraAiAgent.resetRunFeed(activeRunId);
