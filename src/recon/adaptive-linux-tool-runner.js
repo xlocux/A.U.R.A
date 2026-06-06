@@ -178,13 +178,13 @@ function adaptToolInvocation(options, profile) {
   if (toolName === "httpx") {
     const cap = proxied ? PROXY_HTTPX_THREADS_CAP : DIRECT_HTTPX_THREADS_CAP;
     adapted.args = adaptFlagValue(options.args || [], ["-threads", "-t"], String(Math.min(Number(profile.httpxThreads || cap), cap)));
-    adapted.args = ensureFlagValue(adapted.args, "-retries", "0");
+    adapted.args = ensureFlagValue(adapted.args, "-retries", "1");
     adapted.args = ensureFlagValue(adapted.args, "-timeout", proxied ? "6" : "8");
     adapted.args = ensureFlagValue(adapted.args, "-rate-limit", proxied ? "40" : "120");
   }
   if (toolName === "dnsx") {
     adapted.args = adaptFlagValue(options.args || [], ["-t", "-threads"], String(Math.min(Number(profile.dnsxThreads || 50), 50)));
-    adapted.args = ensureFlagValue(adapted.args, "-retry", "0");
+    adapted.args = ensureFlagValue(adapted.args, "-retry", "1");
   }
   if (toolName === "gowitness") {
     adapted.args = ensureFlagValue(options.args || [], "--threads", String(profile.screenshotConcurrency));

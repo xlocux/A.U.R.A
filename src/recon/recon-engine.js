@@ -611,7 +611,23 @@ async function collectLinuxTools({ store, runId, targetName, roots, linuxTools, 
         const services = parseHttpxJsonLines(result.stdout);
         context.httpServices.push(...services);
         store.saveHttpServices(runId, targetName, services, "httpx");
-        store.appendEvent(runId, { phase: "recon", severity: "ok", source: "httpx", message: `httpx parsed ${services.length} HTTP services with status/tech` });
+        store.appendEvent(runId, { phase: "recon", severity: services.length ? "ok" : "warn", source: "httpx", message: `httpx parsed ${services.length} HTTP services with status/tech` });
+        // If httpx ran with proxy and returned 0 services, queue a direct (no-proxy) retry
+        const wasProxied = proxyUrl || proxyController?.hasPool();
+        if (services.length === 0 && wasProxied && result.status === "completed") {
+          store.appendEvent(runId, { phase: "recon", severity: "warn", source: "httpx", message: `httpx returned 0 services with proxy; queuing direct (no-proxy) retry for ${root}` });
+          queueToolRecoveryAction(context, {
+            id: `retry-httpx-direct-${root}`,
+            phase: "http-tool",
+            toolName: "httpx",
+            toolSpec: spec,
+            root,
+            domains: [...discovered],
+            reason: `httpx returned 0 services through proxy for ${root}; retrying without proxy`,
+            status: "zero_output_with_proxy",
+            directOnly: true
+          });
+        }
       }
     }
   }
@@ -869,7 +885,8 @@ async function runRecoveryActionPool({
         action.completed = results.some((item) => item.toolName === action.toolName && item.status === "completed");
       }
       if (action.phase === "http-tool") {
-        action.completed = await retryHttpToolAction({ store, runId, targetName, domains: action.domains || discoveredDomains || roots, linuxRuntime, timeoutMs, artifactsDir, context, proxyUrl, proxyController });
+        const useDirectOnly = action.directOnly === true;
+        action.completed = await retryHttpToolAction({ store, runId, targetName, domains: action.domains || discoveredDomains || roots, linuxRuntime, timeoutMs, artifactsDir, context, proxyUrl: useDirectOnly ? null : proxyUrl, proxyController: useDirectOnly ? null : proxyController });
       }
       if (action.phase === "screenshots") {
         await collectScreenshots({ store, runId, targetName, screenshotTools, linuxRuntime, useLinuxRunner, timeoutMs, artifactsDir, context, proxyUrl, proxyController });

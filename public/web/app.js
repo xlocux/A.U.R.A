@@ -472,7 +472,7 @@ async function refreshRun() {
 
 async function _refreshRun() {
   if (!activeRunId) return;
-  const [runData, eventData, counts, domainData, artifactData, serviceData, technologyData, screenshotData, toolData, deltaData] = await Promise.all([
+  const [runData, eventData, countsResp, domainData, artifactData, serviceData, technologyData, screenshotData, toolData, deltaData] = await Promise.all([
     api(`/api/recon-runs/${activeRunId}`),
     api(`/api/recon-runs/${activeRunId}/events?after=${lastEventId}`),
     api(`/api/recon-runs/${activeRunId}/counts`),
@@ -486,6 +486,7 @@ async function _refreshRun() {
   ]);
   const run = runData?.run;
   if (!run) return;
+  const counts = countsResp?.counts || {};
   $("runStatus").textContent = run.status;
   updateRunControlButtons(run.status);
   $("domainCount").textContent = counts.domains;
@@ -513,6 +514,13 @@ async function _refreshRun() {
   if ((toolData.results || []).length !== (resultsData.toolResults || []).length) renderToolResults(toolData.results || []);
   resultsData.totals = { ...counts };
   renderRunDelta(deltaData.delta || null);
+  window.AuraTopology?.update?.({
+    domains: domainData.domains || [],
+    services: serviceData.services || [],
+    urls: artifactData.artifacts || [],
+    screenshots: screenshotData.screenshots || [],
+    technologies: technologyData.technologies || []
+  }, { preserveCamera: true });
   window.AuraAiAgent.onRunUpdate?.({
     run,
     events: eventData.events,
