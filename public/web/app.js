@@ -467,7 +467,7 @@ async function restoreLatestRunForSelectedTarget() {
 async function refreshRun() {
   if (!activeRunId || refreshRunInFlight) return;
   refreshRunInFlight = true;
-  try { await _refreshRun(); } finally { refreshRunInFlight = false; }
+  try { await _refreshRun(); } catch (err) { console.error("[refreshRun]", err); } finally { refreshRunInFlight = false; }
 }
 
 async function _refreshRun() {
@@ -511,7 +511,7 @@ async function _refreshRun() {
   if (counts.httpServices !== prev.httpServices) renderHttpServices(serviceData.services || []);
   if (counts.technologies !== prev.technologies) renderTechnologies(technologyData.technologies || []);
   if (counts.screenshots !== prev.screenshots) renderScreenshots(screenshotData.screenshots || []);
-  if ((toolData.results || []).length !== (resultsData.toolResults || []).length) renderToolResults(toolData.results || []);
+  if ((toolData.toolResults || []).length !== (resultsData.toolResults || []).length) renderToolResults(toolData.toolResults || []);
   resultsData.totals = { ...counts };
   renderRunDelta(deltaData.delta || null);
   window.AuraTopology?.update?.({
