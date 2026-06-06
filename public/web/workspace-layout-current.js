@@ -51,21 +51,35 @@
     panel.className = "tab-panel aura-logs-panel";
     panel.innerHTML = `
       <div class="logs-subtabs">
-        <button type="button" class="active" data-log-subtab="timeline">Timeline</button>
+        <button type="button" class="active" data-log-subtab="activity">Activity</button>
+        <button type="button" data-log-subtab="timeline">Timeline</button>
         <button type="button" data-log-subtab="events">Run Events</button>
         <button type="button" data-log-subtab="tools">Tool Results</button>
         <button type="button" data-log-subtab="ai">AI Decisions</button>
         <button type="button" data-log-subtab="correlation">Correlation</button>
         <button type="button" data-log-subtab="errors">Warnings & Errors</button>
       </div>
-      <div id="logsContent" class="aura-log-content"></div>
+      <div id="logsActivityMount" class="aura-activity-mount"></div>
+      <div id="logsContent" class="aura-log-content" style="display:none"></div>
     `;
     document.querySelector(".workspace-main")?.appendChild(panel);
 
     logsButton.addEventListener("click", (event) => {
       event.preventDefault();
       activateMainPanel("logs");
-      renderActiveLogSubtab("timeline");
+      renderActiveLogSubtab("activity");
+    });
+    // Restore #tab-runs children when navigating away from logs tab to runs tab.
+    document.addEventListener("click", (event) => {
+      const tab = event.target.closest(".tab[data-tab]");
+      if (tab && tab.dataset.tab !== "logs") {
+        const mount = document.getElementById("logsActivityMount");
+        if (mount?.dataset.runsAttached === "true") {
+          const runsPanel = document.getElementById("tab-runs");
+          if (runsPanel) while (mount.firstChild) runsPanel.appendChild(mount.firstChild);
+          mount.dataset.runsAttached = "";
+        }
+      }
     });
     document.addEventListener("click", (event) => {
       const button = event.target.closest("[data-log-subtab]");
@@ -246,8 +260,32 @@
   }
 
   function renderActiveLogSubtab(mode) {
+    const mount = document.getElementById("logsActivityMount");
     const node = document.getElementById("logsContent");
-    if (!node) return;
+    if (!node || !mount) return;
+
+    if (mode === "activity") {
+      // Transplant #tab-runs children into the activity mount so live updates keep working.
+      const runsPanel = document.getElementById("tab-runs");
+      if (runsPanel && mount.dataset.runsAttached !== "true") {
+        while (runsPanel.firstChild) mount.appendChild(runsPanel.firstChild);
+        mount.dataset.runsAttached = "true";
+        mount.dataset.runsSource = "tab-runs";
+      }
+      mount.style.display = "";
+      node.style.display = "none";
+      return;
+    }
+
+    // Restore #tab-runs children if they were transplanted.
+    if (mount.dataset.runsAttached === "true") {
+      const runsPanel = document.getElementById("tab-runs");
+      if (runsPanel) while (mount.firstChild) runsPanel.appendChild(mount.firstChild);
+      mount.dataset.runsAttached = "";
+    }
+    mount.style.display = "none";
+    node.style.display = "";
+
     const events = sortNewestFirst(normalizeEvents(currentRunData?.events || []), (event) => event.time);
     const tools = sortNewestFirst(collectTableRows("#toolLogRows tr", ["Tool", "Status", "Exit", "Started", "Logs"]), (tool) => tool.Started);
     const aiRows = sortNewestFirst(collectTableRows("#aiLogRows tr", ["Time", "Source", "Action", "Evidence"]), (row) => row.Time);
@@ -427,6 +465,9 @@
       .logs-subtabs button, .topology-view-tabs button { width: auto; margin: 0; padding: 5px 9px; border-radius: 999px; background: rgba(20, 18, 34, .72); }
       .logs-subtabs button.active, .topology-view-tabs button.active { color: #071017; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
       #tab-logs.aura-logs-panel.active { display: grid !important; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden !important; }
+      .aura-activity-mount { min-height: 0; overflow: auto; overscroll-behavior: contain; display: grid; gap: 8px; align-content: start; }
+      .aura-activity-mount .pane { overflow: visible; }
+      .aura-activity-mount #events.scroll { max-height: 60vh; overflow: auto; }
       #tab-logs .aura-log-content { min-height: 0; overflow: hidden; }
       #tab-logs .aura-log-content > .pane { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden !important; }
       #tab-logs .aura-log-content .scroll, #tab-logs .aura-log-content .aura-timeline { height: 100%; max-height: none !important; min-height: 0; overflow: auto; overscroll-behavior: contain; }
