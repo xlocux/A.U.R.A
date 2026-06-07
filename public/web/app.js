@@ -319,6 +319,7 @@ function activateSettingsPanel(name) {
   document.querySelectorAll(".settings-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `settings-${name}`);
   });
+  if (name === "credentials") refreshApiKeys().catch(() => {});
 }
 
 function activateResultsView(name) {
@@ -328,6 +329,11 @@ function activateResultsView(name) {
   document.querySelectorAll(".result-view").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `results-${name}`);
   });
+}
+
+function activateRunActivityView() {
+  activateTab("results");
+  activateResultsView("activity");
 }
 
 async function loadTargets() {
@@ -611,7 +617,7 @@ async function runHttpFollowup() {
     $("toolLogRows").innerHTML = "";
     renderRunDelta(null);
     $("status").textContent = `HTTP/tech follow-up running for ${data.sourceDomainCount} saved domains`;
-    activateTab("runs");
+    activateRunActivityView();
     if (poll) clearInterval(poll);
     poll = setInterval(refreshRun, 1500);
     await refreshRun();
@@ -655,7 +661,7 @@ async function runFocusedFollowup(phase, label) {
     $("toolLogRows").innerHTML = "";
     renderRunDelta(null);
     $("status").textContent = `${label} running for ${data.sourceDomainCount || 0} saved domains`;
-    activateTab("runs");
+    activateRunActivityView();
     if (poll) clearInterval(poll);
     poll = setInterval(refreshRun, 1500);
     await refreshRun();
@@ -719,7 +725,7 @@ async function startRecon() {
     $("toolLogRows").innerHTML = "";
     renderRunDelta(null);
     updateRunControlButtons("queued");
-    activateTab("runs");
+    activateRunActivityView();
     if (poll) clearInterval(poll);
     poll = setInterval(refreshRun, 1500);
     await refreshRun();
@@ -1423,6 +1429,7 @@ loadAiSettings().catch((error) => {
   $("aiSettingsStatus").textContent = error.message;
   $("aiSettingsStatus").className = "notice error";
 });
+refreshApiKeys().catch(() => {});
 window.AuraProxySettings?.bind?.();
 window.AuraTopology?.bind?.();
 updateReconModeUi();

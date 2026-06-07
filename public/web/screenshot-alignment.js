@@ -33,7 +33,7 @@
   function installDiagnosticsExportButton() {
     if (document.getElementById("exportDiagnostics")) return;
     const runActivity = document.getElementById("runActivity");
-    const runsPane = runActivity?.closest(".pane") || document.getElementById("tab-runs")?.querySelector(".pane");
+    const runsPane = runActivity?.closest(".pane") || document.getElementById("results-activity")?.querySelector(".pane");
     if (!runsPane) return;
     const header = runsPane.querySelector("h2") || runsPane.firstElementChild;
     const toolbar = document.createElement("div");

@@ -33,9 +33,8 @@
       <span class="rsb-counts"></span>
     `;
     el.addEventListener("click", () => {
-      const logsTab = document.querySelector('[data-tab="logs"]') || document.querySelector('[data-dashboard-tab="logs"]');
-      if (logsTab) logsTab.click();
-      else document.querySelector('[data-tab="runs"]')?.click();
+      document.querySelector('[data-tab="results"]')?.click();
+      document.querySelector('[data-results-view="activity"]')?.click();
     });
     el.title = "Click to open Logs";
     return el;

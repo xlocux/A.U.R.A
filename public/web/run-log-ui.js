@@ -11,7 +11,7 @@
     observeNewestFirstTable("aiLogRows", 0, () => aiRowsReordering, (value) => { aiRowsReordering = value; });
     observeNewestFirstTable("toolLogRows", 3, () => toolRowsReordering, (value) => { toolRowsReordering = value; });
     document.addEventListener("click", (event) => {
-      if (event.target.closest?.('[data-tab="runs"]') || event.target.closest?.('[data-dashboard-tab="runs"]')) {
+      if (event.target.closest?.('[data-results-view="activity"]')) {
         setTimeout(installDiagnosticsExportButton, 0);
         setTimeout(sortRunEventsNewestFirst, 0);
       }
@@ -27,7 +27,7 @@
   function installDiagnosticsExportButton() {
     if (document.getElementById("exportDiagnostics")) return;
     const runActivity = document.getElementById("runActivity");
-    const runsPane = runActivity?.closest(".pane") || document.getElementById("tab-runs")?.querySelector(".pane");
+    const runsPane = runActivity?.closest(".pane") || document.getElementById("results-activity")?.querySelector(".pane");
     if (!runsPane) return;
     const toolbar = document.createElement("div");
     toolbar.id = "diagnosticsToolbar";

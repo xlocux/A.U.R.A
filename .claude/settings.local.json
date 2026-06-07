@@ -4,6 +4,9 @@
       "Bash(powershell:*)",
       "Bash(cd:*)",
       "Bash(git:*)",
+      "Bash(node:*)",
+      "Bash(rtk:*)",
+      "Bash(*:*)",
       "Bash(pwsh:*)"
     ]
   }

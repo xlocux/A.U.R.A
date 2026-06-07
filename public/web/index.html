@@ -32,8 +32,6 @@
     <button class="tab" data-tab="search" title="Search"><span class="tab-icon" data-icon="search"></span><span class="tab-label">Search</span></button>
     <button class="tab" data-tab="topology" title="Topology"><span class="tab-icon" data-icon="topology"></span><span class="tab-label">Topology</span></button>
     <button class="tab" data-tab="results" title="Results"><span class="tab-icon" data-icon="results"></span><span class="tab-label">Results</span></button>
-    <button class="tab" data-tab="ai-log" title="AI Log"><span class="tab-icon" data-icon="ai-log"></span><span class="tab-label">AI Log</span></button>
-    <button class="tab" data-tab="runs" title="Runs & Logs"><span class="tab-icon" data-icon="runs"></span><span class="tab-label">Runs & Logs</span></button>
     <button class="tab active" data-tab="settings" title="Settings"><span class="tab-icon" data-icon="settings"></span><span class="tab-label">Settings</span></button>
     <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="workspaceNav" title="Toggle sidebar"><span></span><span></span><span></span></button>
   </nav>
@@ -349,13 +347,15 @@
 
       <div class="result-subtabs" aria-label="Results views">
         <button class="result-subtab active" data-results-view="explorer" type="button">Explorer</button>
-        <button class="result-subtab" data-results-view="delta" type="button">Delta</button>
         <button class="result-subtab" data-results-view="domains" type="button">Domains</button>
         <button class="result-subtab" data-results-view="services" type="button">Services</button>
         <button class="result-subtab" data-results-view="urls" type="button">URLs</button>
         <button class="result-subtab" data-results-view="technologies" type="button">Tech</button>
         <button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button>
         <button class="result-subtab" data-results-view="tool-logs" type="button">Tool Logs</button>
+        <button class="result-subtab" data-results-view="activity" type="button">Activity</button>
+        <button class="result-subtab" data-results-view="ai-log" type="button">AI Log</button>
+        <button class="result-subtab" data-results-view="delta" type="button">Delta</button>
         <button class="result-subtab" data-results-view="export" type="button">Export</button>
       </div>
 
@@ -414,10 +414,11 @@
       <div id="results-screenshots" class="pane result-view"><h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="screenshotGroupBy">Group by</label><select id="screenshotGroupBy"><option value="none">None</option><option value="tool">Tool</option><option value="status">Status</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead><tbody id="screenshotRows"></tbody></table></div></div>
       <div id="results-urls" class="pane result-view"><h2>Wayback URLs</h2><div class="result-view-toolbar"><label for="urlGroupBy">Group by</label><select id="urlGroupBy"><option value="none">None</option><option value="host">Host</option><option value="params">Parameters</option><option value="source">Source</option><option value="path">Path prefix</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead><tbody id="artifactRows"></tbody></table></div></div>
       <div id="results-tool-logs" class="pane result-view"><h2>Tool Logs <span id="toolLogRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="toolLogGroupBy">Group by</label><select id="toolLogGroupBy"><option value="tool">Tool</option><option value="status">Status</option><option value="none">None</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th><th>Logs</th></tr></thead><tbody id="toolLogRows"><tr><td colspan="5" class="muted">No tool results for this run.</td></tr></tbody></table></div></div>
-    </section>
 
-    <section id="tab-ai-log" class="tab-panel"><div class="split"><div class="pane"><h2>AI Correlation Log</h2><div class="notice muted">This log records what the AI-assisted correlation layer is doing. It is separate from chat so the assistant stays clean and useful.</div><div class="scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Evidence</th></tr></thead><tbody id="aiLogRows"><tr><td colspan="4" class="muted">No run loaded.</td></tr></tbody></table></div></div><div class="pane"><h2>Correlation Techniques</h2><div id="aiCorrelationTechniques" class="correlation-techniques"></div></div></div></section>
-    <section id="tab-runs" class="tab-panel"><div class="pane"><h2>Current Activity</h2><div id="runActivity" class="notice muted">No active run loaded.</div></div><div class="pane"><h2>Live Events</h2><div id="events" class="scroll"></div></div></section>
+      <div id="results-activity" class="pane result-view"><div class="split"><div class="pane"><h2>Current Activity</h2><div id="runActivity" class="notice muted">No active run loaded.</div></div><div class="pane"><h2>Live Events</h2><div id="events" class="scroll"></div></div></div></div>
+
+      <div id="results-ai-log" class="pane result-view"><div class="split"><div class="pane"><h2>AI Correlation Log</h2><div class="notice muted">This log records what the AI-assisted correlation layer is doing. It is separate from chat so the assistant stays clean and useful.</div><div class="scroll"><table><thead><tr><th>Time</th><th>Source</th><th>Action</th><th>Evidence</th></tr></thead><tbody id="aiLogRows"><tr><td colspan="4" class="muted">No run loaded.</td></tr></tbody></table></div></div><div class="pane"><h2>Correlation Techniques</h2><div id="aiCorrelationTechniques" class="correlation-techniques"></div></div></div></div>
+    </section>
 
     <section id="tab-settings" class="tab-panel active">
       <div class="settings-layout">
