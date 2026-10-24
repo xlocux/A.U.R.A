@@ -733,3 +733,61 @@ tbody tr:hover {
   overflow: auto !important;
 }
 body.results-view-expanded { overflow: hidden; }
+
+/* ── Compact table views: title and Group-by on one row, table directly below ─
+   Removes the empty band between the pane title and the table so the data gets
+   the space. Applies both inline and inside the fullscreen modal. */
+#results-domains.result-view.active,
+#results-services.result-view.active,
+#results-urls.result-view.active,
+#results-technologies.result-view.active,
+#results-screenshots.result-view.active,
+#results-tool-logs.result-view.active {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  column-gap: 12px;
+  align-items: center;
+}
+#results-domains.result-view.active > h2,
+#results-services.result-view.active > h2,
+#results-urls.result-view.active > h2,
+#results-technologies.result-view.active > h2,
+#results-screenshots.result-view.active > h2,
+#results-tool-logs.result-view.active > h2 {
+  grid-column: 1;
+  grid-row: 1;
+  border-bottom: 0 !important;
+}
+#results-domains.result-view.active > .result-view-toolbar,
+#results-services.result-view.active > .result-view-toolbar,
+#results-urls.result-view.active > .result-view-toolbar,
+#results-technologies.result-view.active > .result-view-toolbar,
+#results-screenshots.result-view.active > .result-view-toolbar,
+#results-tool-logs.result-view.active > .result-view-toolbar {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  padding: 6px 12px;
+  border-bottom: 0 !important;
+  background: transparent !important;
+}
+#results-domains.result-view.active > .result-table-scroll,
+#results-services.result-view.active > .result-table-scroll,
+#results-urls.result-view.active > .result-table-scroll,
+#results-technologies.result-view.active > .result-table-scroll,
+#results-screenshots.result-view.active > .result-table-scroll,
+#results-tool-logs.result-view.active > .result-table-scroll {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 0;
+}
+#results-tool-logs.result-view.active > .muted { grid-column: 1 / -1; }
+/* Sticky table header so column labels stay visible while scrolling. */
+#tab-results .result-table-scroll thead th,
+.results-fullscreen-body .result-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel, #0d0e11);
+}
