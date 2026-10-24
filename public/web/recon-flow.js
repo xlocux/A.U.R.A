@@ -21,6 +21,7 @@
     { id: "fingerprint", label: "Trackers & favicons", phases: ["tracker-extraction", "favicon-fingerprint"], tools: [], hint: "Analytics IDs and favicon hashes" },
     { id: "dirs", label: "Directory discovery", phases: ["follow-up-dirs"], tools: ["ffuf"], hint: "Content discovery on live services" },
     { id: "cloud", label: "Cloud resources", phases: ["follow-up-cloud"], tools: ["cloud_enum"], hint: "Public cloud buckets/blobs by keyword" },
+    { id: "bypass403", label: "403/401 bypass", phases: ["follow-up-bypass403"], tools: ["gobypass403"], hint: "Attempt access-control bypasses on forbidden endpoints" },
     { id: "recovery", label: "AI recovery pool", phases: ["ai-action-pool", "ai-tool-recovery"], tools: [], hint: "Retries incomplete phases" }
   ];
 

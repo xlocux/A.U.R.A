@@ -1,0 +1,23 @@
+{
+  "tool_id": "gobypass403",
+  "type": "cli",
+  "phase": "access_control_bypass",
+  "binary": "gobypass403",
+  "version_check": { "command": "gobypass403", "args": ["-h"] },
+  "capability_check": { "command": "gobypass403", "args": ["-h"], "expected_output": "url|bypass|target" },
+  "input_type": "url_list",
+  "output_format": "sqlite",
+  "output_path": "artifact_dir",
+  "rate_limit_profile": "default_active",
+  "parser": "gobypass403_sqlite",
+  "tags": ["active", "access-control", "403-bypass"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/slicingmelon/gobypass403/cmd/gobypass403@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "active"
+  }
+}

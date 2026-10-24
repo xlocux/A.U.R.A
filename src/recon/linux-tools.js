@@ -23,7 +23,8 @@ const ALLOWED_TOOLS = new Set([
   "wpscan",
   "cmseek",
   "ffuf",
-  "cloud_enum"
+  "cloud_enum",
+  "gobypass403"
 ]);
 
 // Runs an allowlisted tool through `sh -lc`. Inside a recon run the adaptive runner applies the

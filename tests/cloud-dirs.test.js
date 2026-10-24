@@ -82,3 +82,29 @@ test("parseCloudEnumJson dedupes repeated resources", () => {
   ].join("\n");
   assert.equal(parseCloudEnumJson(content).length, 1);
 });
+
+test("bypass403Args builds a single-URL invocation with output dir", () => {
+  const { bypass403Args } = require("../src/recon/engine/cloud-dirs");
+  const args = bypass403Args("https://acme.example/admin", "/tmp/out");
+  assert.equal(args[args.indexOf("-u") + 1], "https://acme.example/admin");
+  assert.ok(args.includes("-o"));
+});
+
+test("parseBypass403Db reads the scan_results sqlite and keeps successful bypasses", () => {
+  const { parseBypass403Db } = require("../src/recon/engine/cloud-dirs");
+  const { DatabaseSync } = require("node:sqlite");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aura-bypass-"));
+  const db = new DatabaseSync(path.join(dir, "gobypass403.db"));
+  db.exec("CREATE TABLE scan_results (bypass_module TEXT, curl_cmd TEXT, status_code INTEGER, content_length INTEGER, url TEXT)");
+  db.prepare("INSERT INTO scan_results VALUES (?,?,?,?,?)").run("header", "curl https://acme.example/admin", 200, 1200, "https://acme.example/admin");
+  db.prepare("INSERT INTO scan_results VALUES (?,?,?,?,?)").run("path", "curl https://acme.example/admin", 403, 12, "https://acme.example/admin");
+  db.prepare("INSERT INTO scan_results VALUES (?,?,?,?,?)").run("verb", "curl https://acme.example/secret", 301, 0, null);
+  db.close();
+  const findings = parseBypass403Db(dir);
+  assert.equal(findings.length, 2, "only the 200 and 301 rows are kept");
+  assert.ok(findings.some((f) => f.status === 200 && f.target === "https://acme.example/admin"));
+  assert.ok(findings.some((f) => f.status === 301 && f.target === "https://acme.example/secret"), "url recovered from curl_cmd when column is null");
+});

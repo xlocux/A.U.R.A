@@ -5,6 +5,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { DatabaseSync } = require("node:sqlite");
 const { normalizeDomain } = require("../domain-utils");
 const { DEFAULT_TOOL_RECOVERY_ATTEMPTS } = require("./constants");
 const { waitForRunControl } = require("./run-control");
@@ -12,6 +13,11 @@ const { toToolPath } = require("./tool-args");
 const { recordToolRun, runLinuxToolWithProxy, runToolWithRecovery, toolFailureDetail } = require("./tool-execution");
 
 const MAX_FFUF_TARGETS = 25;
+const MAX_BYPASS_TARGETS = 20;
+// Status codes worth attempting a 403/401 bypass against.
+const BYPASS_TARGET_CODES = new Set([401, 403, 405]);
+// A bypass is interesting when the tool reached a non-forbidden, successful-ish response.
+const BYPASS_SUCCESS_CODES = new Set([200, 201, 202, 203, 204, 206, 301, 302, 307, 308]);
 
 const FFUF_MATCH_CODES = "200,204,301,302,307,401,403,405";
 const DEFAULT_CLOUD_KEYWORD_LIMIT = 12;
@@ -260,13 +266,119 @@ async function runCloudEnum({ store, runId, targetName, linuxRuntime, timeoutMs,
   return findings.length;
 }
 
+// ── gobypass403 (403/401 access-control bypass) ───────────────────────────────
+function bypass403Args(url, outDir) {
+  return ["-u", String(url), "-o", toToolPath(outDir), "-dpb", "-T", "20000"];
+}
+
+// gobypass403 writes results to a SQLite DB under its output dir (no JSON). Read scan_results and
+// keep rows whose status code indicates the forbidden resource became reachable.
+function parseBypass403Db(outDir) {
+  const findings = [];
+  let dbFile = null;
+  try {
+    const stack = [outDir];
+    while (stack.length && !dbFile) {
+      const dir = stack.pop();
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) stack.push(full);
+        else if (/\.(db|sqlite3?)$/i.test(entry.name)) { dbFile = full; break; }
+      }
+    }
+  } catch {
+    return findings;
+  }
+  if (!dbFile) return findings;
+  let db;
+  try {
+    db = new DatabaseSync(dbFile, { readOnly: true });
+  } catch {
+    try { db = new DatabaseSync(dbFile); } catch { return findings; }
+  }
+  try {
+    const rows = db.prepare("SELECT * FROM scan_results").all();
+    const seen = new Set();
+    for (const row of rows) {
+      const status = Number(row.status_code ?? row.status ?? 0);
+      if (!BYPASS_SUCCESS_CODES.has(status)) continue;
+      const target = row.url || row.target || extractUrlFromCurl(row.curl_cmd) || "";
+      const module = row.bypass_module || row.module || "bypass";
+      const key = `${module}|${target}|${status}`;
+      if (!target || seen.has(key)) continue;
+      seen.add(key);
+      findings.push({ target, status, module, curl: row.curl_cmd || null, contentLength: row.content_length ?? null });
+    }
+  } catch {
+    // table/schema not as expected; return what we have
+  } finally {
+    try { db.close(); } catch { /* ignore */ }
+  }
+  return findings;
+}
+
+function extractUrlFromCurl(curl) {
+  const match = String(curl || "").match(/https?:\/\/[^\s"']+/);
+  return match ? match[0] : "";
+}
+
+// Runs gobypass403 against services that returned 401/403/405.
+async function runBypass403({ store, runId, targetName, linuxRuntime, timeoutMs, artifactsDir, proxyController, proxyUrl, services = [] }) {
+  const targets = [...new Set(services.filter((service) => BYPASS_TARGET_CODES.has(Number(service.statusCode ?? service.status_code)))
+    .map((service) => service.url).filter(Boolean))].slice(0, MAX_BYPASS_TARGETS);
+  if (targets.length === 0) {
+    store.appendEvent(runId, { phase: "follow-up-bypass403", severity: "info", source: "gobypass403", message: "403 bypass skipped: no 401/403/405 services to test." });
+    return 0;
+  }
+  let total = 0;
+  for (let index = 0; index < targets.length; index += 1) {
+    await waitForRunControl(store, runId);
+    const url = targets[index];
+    const outDir = path.join(artifactsDir, `gobypass403-${index}`);
+    fs.mkdirSync(outDir, { recursive: true });
+    const args = bypass403Args(url, outDir);
+    const result = await runToolWithRecovery({
+      store,
+      runId,
+      phase: "heartbeat",
+      source: "gobypass403",
+      heartbeatMessage: (elapsed) => `gobypass403 is still testing ${url} (${elapsed}s elapsed)`,
+      maxAttempts: 1,
+      task: () => runLinuxToolWithProxy({ proxyController, runtime: linuxRuntime, toolName: "gobypass403", args, timeoutMs: Math.max(timeoutMs, 60000), proxyUrl })
+    });
+    recordToolRun({ store, runId, artifactsDir, artifactName: `gobypass403-${index}`, toolName: "gobypass403", args, linuxRuntime, result });
+    const hits = parseBypass403Db(outDir);
+    if (hits.length) {
+      store.saveAssetLeads(runId, targetName, hits.map((hit) => ({
+        leadType: "access_bypass",
+        value: hit.target,
+        source: `gobypass403:${hit.module}`,
+        confidence: "candidate",
+        metadata: { statusCode: hit.status, module: hit.module, curl: hit.curl, originalUrl: url, reason: "403/401 access control bypassed. Verify manually before relying on it." }
+      })));
+      total += hits.length;
+    }
+    store.appendEvent(runId, {
+      phase: "follow-up-bypass403",
+      severity: hits.length ? "warn" : result.status === "completed" ? "ok" : "warn",
+      source: "gobypass403",
+      message: `gobypass403 ${result.status} on ${url}: ${hits.length} bypass(es) found${toolFailureDetail(result)}`
+    });
+  }
+  store.appendEvent(runId, { phase: "follow-up-bypass403", severity: total ? "warn" : "ok", source: "engine", message: `403 bypass completed: ${total} bypass(es) across ${targets.length} forbidden endpoints.` });
+  return total;
+}
+
 module.exports = {
   FFUF_MATCH_CODES,
+  bypass403Args,
   cloudEnumArgs,
   deriveCloudKeywords,
   ffufArgsForUrl,
+  parseBypass403Db,
   parseCloudEnumJson,
   parseFfufJson,
+  runBypass403,
   runCloudEnum,
   runDirectoryDiscovery
 };
