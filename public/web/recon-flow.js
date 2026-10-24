@@ -17,6 +17,7 @@
     { id: "urls", label: "URL mining", phases: ["recon"], tools: ["gau"], hint: "Archived URLs and parameters" },
     { id: "http", label: "HTTP probing", phases: ["recon", "http-tech-followup", "follow-up-http"], tools: ["httpx"], hint: "Live services, status, titles, tech" },
     { id: "tech", label: "Technology enrichment", phases: ["technology-enrichment"], tools: ["retire", "wpscan", "cmseek"], hint: "Per-service tech detectors" },
+    { id: "js", label: "JavaScript discovery", phases: ["follow-up-js"], tools: ["getJS"], hint: "Extract script URLs from live services" },
     { id: "screenshots", label: "Screenshots", phases: ["recon"], tools: ["gowitness", "eyewitness", "chromium"], hint: "Visual triage of live services" },
     { id: "fingerprint", label: "Trackers & favicons", phases: ["tracker-extraction", "favicon-fingerprint"], tools: [], hint: "Analytics IDs and favicon hashes" },
     { id: "dirs", label: "Directory discovery", phases: ["follow-up-dirs"], tools: ["ffuf"], hint: "Content discovery on live services" },

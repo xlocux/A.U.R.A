@@ -108,3 +108,9 @@ test("parseBypass403Db reads the scan_results sqlite and keeps successful bypass
   assert.ok(findings.some((f) => f.status === 200 && f.target === "https://acme.example/admin"));
   assert.ok(findings.some((f) => f.status === 301 && f.target === "https://acme.example/secret"), "url recovered from curl_cmd when column is null");
 });
+
+test("parseJsUrls extracts http(s) script URLs one per line", () => {
+  const { parseJsUrls } = require("../src/recon/engine/cloud-dirs");
+  const out = parseJsUrls("https://acme.example/app.js\n/relative/skip.js\nhttps://cdn.acme.example/vendor.js\n");
+  assert.deepEqual(out, ["https://acme.example/app.js", "https://cdn.acme.example/vendor.js"]);
+});

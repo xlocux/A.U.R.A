@@ -24,7 +24,8 @@ const ALLOWED_TOOLS = new Set([
   "cmseek",
   "ffuf",
   "cloud_enum",
-  "gobypass403"
+  "gobypass403",
+  "getJS"
 ]);
 
 // Runs an allowlisted tool through `sh -lc`. Inside a recon run the adaptive runner applies the

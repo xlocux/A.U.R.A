@@ -4,7 +4,23 @@ const { createEnvironmentRunner } = require("../../recon/environment-setup");
 const { TOOL_PATH_EXPORT, shellQuote } = require("../../core/shell");
 const { listOpenRouterFreeModels } = require("./ai-runtime");
 
-const SYSTEM_PROMPT = "You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity.";
+// Keep this capability summary in sync with the recon pipeline so the assistant can explain and
+// recommend the actual steps/tools the product runs.
+const CAPABILITIES = [
+  "A.U.R.A recon pipeline (in order): intel preflight (WHOIS/RDAP + alternate-TLD correlation);",
+  "passive sources (crt.sh, Wayback, RapidDNS and optional provider APIs); subdomain & DNS",
+  "(subfinder, amass, dnsx, puredns, shuffle-dns); URL mining (gau); HTTP probing (httpx);",
+  "technology enrichment (retire.js, wpscan, cmseek); JavaScript discovery (getJS); screenshots",
+  "(gowitness, with a Chromium-headless fallback); trackers & favicons; directory discovery (ffuf);",
+  "public cloud resources (cloud_enum, keywords derived from domains/URLs); 403/401 access-control",
+  "bypass (gobypass403); and an AI recovery pool that retries incomplete phases. Each enumeration",
+  "step is opt-in from the Recon tools or runnable as a focused follow-up on a completed run.",
+  "Runs can be paused (after the current tool finishes), resumed, or cancelled (stops the running tool).",
+  "Results appear under Results (Domains, Services, URLs, Tech, Screenshots, Tool Logs, Activity,",
+  "AI Log, Delta, Export), the Topology graph, and a live recon flow diagram opened from the status bar."
+].join(" ");
+
+const SYSTEM_PROMPT = `You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity. Only recommend actions inside authorized scope.\n\nProduct capabilities you can explain and recommend:\n${CAPABILITIES}`;
 const CLI_CHECK_TIMEOUT_MS = 15000;
 const CLI_RUN_TIMEOUT_MS = 120000;
 const HTTP_TIMEOUT_MS = 120000;

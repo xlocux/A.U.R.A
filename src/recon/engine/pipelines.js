@@ -10,7 +10,7 @@ const { completeRun, waitForRunControl } = require("./run-control");
 const { inferRoots, normalizeHosts, parseToolSpec } = require("./tool-args");
 const { announceProxy, appendAiLog, createProxyController, runHttpxOnHosts, toolFailureDetail } = require("./tool-execution");
 const { collectFavicons, collectScreenshots, collectTrackers } = require("./web-collectors");
-const { runBypass403, runCloudEnum, runDirectoryDiscovery } = require("./cloud-dirs");
+const { runBypass403, runCloudEnum, runDirectoryDiscovery, runJsDiscovery } = require("./cloud-dirs");
 
 const DEFAULT_TIMEOUT_MS = 180000;
 
@@ -50,7 +50,8 @@ async function runRecon({
   useProxyPool = false,
   runFfuf = false,
   runCloudEnum: cloudEnumEnabled = false,
-  runBypass403: bypass403Enabled = false
+  runBypass403: bypass403Enabled = false,
+  runGetJs = false
 }) {
   const roots = [...new Set((rootDomains || []).map(normalizeDomain).filter(Boolean))];
   if (roots.length === 0) throw new Error("Recon requires at least one valid root domain");
@@ -90,6 +91,10 @@ async function runRecon({
     if (useLinuxRunner && bypass403Enabled) {
       await waitForRunControl(store, runId);
       await runBypass403({ ...shared, services: context.httpServices });
+    }
+    if (useLinuxRunner && runGetJs) {
+      await waitForRunControl(store, runId);
+      await runJsDiscovery({ ...shared, services: context.httpServices });
     }
 
     store.saveDomains(runId, targetName, [...discovered].map((domain) => ({
@@ -180,16 +185,16 @@ async function runFocusedFollowup({
   proxyUrl = null,
   useProxyPool = false
 }) {
-  const handlers = { urls: true, http: true, tech: true, screenshots: true, trackers: true, favicons: true, dirs: true, cloud: true, bypass403: true };
+  const handlers = { urls: true, http: true, tech: true, screenshots: true, trackers: true, favicons: true, dirs: true, cloud: true, bypass403: true, js: true };
   if (!handlers[phase]) throw new Error(`Unsupported focused follow-up phase: ${phase}`);
-  if (["urls", "http", "screenshots", "dirs", "cloud", "bypass403"].includes(phase) && !useLinuxRunner) {
+  if (["urls", "http", "screenshots", "dirs", "cloud", "bypass403", "js"].includes(phase) && !useLinuxRunner) {
     throw new Error(`The ${phase} follow-up requires the Linux tool runner`);
   }
   fs.mkdirSync(artifactsDir, { recursive: true });
   store.updateRun(runId, { status: "running", activePhase: `follow-up-${phase}`, checkpoint: { phase, domainCount: domains.length, serviceCount: services.length } });
   store.appendEvent(runId, { phase: `follow-up-${phase}`, severity: "ok", source: "engine", message: `Focused ${phase} follow-up started` });
 
-  const needsNetwork = ["urls", "http", "screenshots", "dirs", "bypass403"].includes(phase);
+  const needsNetwork = ["urls", "http", "screenshots", "dirs", "bypass403", "js"].includes(phase);
   const { proxyController, selectedProxyUrl } = needsNetwork
     ? await setUpNetwork({ store, runId, phase: `follow-up-${phase}`, proxyUrl, useProxyPool, useLinuxRunner })
     : { proxyController: null, selectedProxyUrl: proxyUrl };
@@ -230,6 +235,9 @@ async function runFocusedFollowup({
     } else if (phase === "bypass403") {
       const found = await runBypass403({ ...shared, services });
       checkpoint = { phase, bypasses: found };
+    } else if (phase === "js") {
+      const found = await runJsDiscovery({ ...shared, services });
+      checkpoint = { phase, jsUrls: found };
     }
     return await completeRun(store, runId, checkpoint);
   } finally {

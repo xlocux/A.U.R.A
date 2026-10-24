@@ -669,7 +669,7 @@ function updateRunControlButtons(status) {
   $("resumeRun").disabled = !hasRun || status !== "paused";
   $("cancelRun").disabled = !hasRun || ["completed", "failed", "cancelled", "idle"].includes(status);
   $("runHttpFollowup").disabled = !canFollowUp;
-  ["runUrlFollowup", "runHttpOnlyFollowup", "runTechFollowup", "runScreenshotFollowup", "runTrackerFollowup", "runFaviconFollowup", "runDirsFollowup", "runCloudFollowup", "runBypass403Followup"].forEach((id) => {
+  ["runUrlFollowup", "runHttpOnlyFollowup", "runTechFollowup", "runScreenshotFollowup", "runTrackerFollowup", "runFaviconFollowup", "runDirsFollowup", "runCloudFollowup", "runBypass403Followup", "runJsFollowup"].forEach((id) => {
     if ($(id)) $(id).disabled = !canFollowUp;
   });
 }
@@ -811,6 +811,7 @@ async function startRecon() {
         ffuf: $("useFfuf")?.checked || false,
         cloudEnum: $("useCloudEnum")?.checked || false,
         bypass403: $("useBypass403")?.checked || false,
+        getjs: $("useGetJs")?.checked || false,
         timeoutMs: Number($("timeout").value || 180000),
         passiveSources: selectedValues(["crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan", "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye", "spyse", "intelx", "whoisxmlapi", "whoisfreaks"]),
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
@@ -1604,6 +1605,7 @@ $("runFaviconFollowup").addEventListener("click", () => runFocusedFollowup("favi
 $("runDirsFollowup")?.addEventListener("click", () => runFocusedFollowup("dirs", "directory discovery (ffuf)"));
 $("runCloudFollowup")?.addEventListener("click", () => runFocusedFollowup("cloud", "cloud resource enumeration"));
 $("runBypass403Followup")?.addEventListener("click", () => runFocusedFollowup("bypass403", "403/401 access bypass"));
+$("runJsFollowup")?.addEventListener("click", () => runFocusedFollowup("js", "JavaScript discovery"));
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);

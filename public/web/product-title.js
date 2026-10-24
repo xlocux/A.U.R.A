@@ -7,9 +7,17 @@
     document.title = fullName;
     const heading = document.querySelector("header h1");
     if (heading) {
-      const textNode = [...heading.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
-      if (textNode) textNode.textContent = fullName;
-      else heading.append(document.createTextNode(fullName));
+      // Wrap the name in a span so CSS can clamp it to two lines instead of cutting it off.
+      let titleSpan = heading.querySelector(".header-title-text");
+      if (!titleSpan) {
+        titleSpan = document.createElement("span");
+        titleSpan.className = "header-title-text";
+        for (const node of [...heading.childNodes]) {
+          if (node.nodeType === Node.TEXT_NODE) node.remove();
+        }
+        heading.appendChild(titleSpan);
+      }
+      titleSpan.textContent = fullName;
     }
     injectScript("/auth-persistence.js", "aura-auth-persistence-js");
     injectScript("/workspace-layout-current.js", "aura-workspace-layout-current-js");

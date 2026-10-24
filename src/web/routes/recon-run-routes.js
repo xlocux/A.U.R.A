@@ -13,8 +13,8 @@ const DEFAULT_TIMEOUT_MS = 180000;
 const ALL_ROWS = 1000000;
 const RECON_MODES = new Set(["single", "list", "full"]);
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
-const FOCUSED_PHASES = new Set(["urls", "http-only", "tech", "screenshots", "trackers", "favicons", "dirs", "cloud", "bypass403"]);
-const SERVICE_PHASES = new Set(["tech", "screenshots", "trackers", "favicons", "dirs", "bypass403"]);
+const FOCUSED_PHASES = new Set(["urls", "http-only", "tech", "screenshots", "trackers", "favicons", "dirs", "cloud", "bypass403", "js"]);
+const SERVICE_PHASES = new Set(["tech", "screenshots", "trackers", "favicons", "dirs", "bypass403", "js"]);
 
 function parseProxyOrThrow(value) {
   try {
@@ -94,6 +94,7 @@ async function createReconRun({ request, response, store }) {
         runFfuf: body.ffuf === true,
         runCloudEnum: body.cloudEnum === true,
         runBypass403: body.bypass403 === true,
+        runGetJs: body.getjs === true,
         ...options
       });
     }

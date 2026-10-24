@@ -617,15 +617,21 @@ tbody tr:hover {
 .headerbar h1 {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: clamp(160px, 22vw, 320px);
-  font-size: 15px !important;
+  /* Wide enough for the full product name on normal screens; wraps to two lines before truncating. */
+  max-width: clamp(240px, 42vw, 520px);
+  font-size: 14px !important;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.15;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
-.headerbar h1 .header-logo-img { flex: 0 0 28px; width: 28px; height: 28px; }
+.headerbar h1 .header-title-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.headerbar h1 .header-logo-img { flex: 0 0 26px; width: 26px; height: 26px; }
 /* The running-status pill takes the flexible middle space and never pushes its neighbours. */
 .headerbar #reconStatusBar {
   flex: 1 1 auto;

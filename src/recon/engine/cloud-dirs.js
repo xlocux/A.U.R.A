@@ -369,16 +369,73 @@ async function runBypass403({ store, runId, targetName, linuxRuntime, timeoutMs,
   return total;
 }
 
+// ── getJS (JavaScript file discovery) ─────────────────────────────────────────
+function getjsArgs(inputPath) {
+  return ["-input", toToolPath(inputPath), "-complete", "-threads", "5"];
+}
+
+function parseJsUrls(stdout) {
+  const urls = new Set();
+  for (const line of String(stdout || "").split(/\r?\n/)) {
+    const raw = line.trim();
+    const match = raw.match(/https?:\/\/[^\s"']+/);
+    if (match) urls.add(match[0]);
+  }
+  return [...urls];
+}
+
+// Extracts JavaScript URLs referenced by live services; saved as URLs (source getjs) which also
+// feed retire.js technology detection.
+async function runJsDiscovery({ store, runId, targetName, linuxRuntime, timeoutMs, artifactsDir, proxyController, proxyUrl, services = [] }) {
+  const liveUrls = [...new Set(services.map((service) => service.url).filter(Boolean))];
+  if (liveUrls.length === 0) {
+    store.appendEvent(runId, { phase: "follow-up-js", severity: "info", source: "getjs", message: "JavaScript discovery skipped: no live HTTP services." });
+    return 0;
+  }
+  const inputPath = path.join(artifactsDir, "getjs-input.txt");
+  fs.writeFileSync(inputPath, `${liveUrls.join("\n")}\n`, "utf8");
+  const args = getjsArgs(inputPath);
+  const result = await runToolWithRecovery({
+    store,
+    runId,
+    phase: "heartbeat",
+    source: "getjs",
+    heartbeatMessage: (elapsed) => `getJS is still extracting script URLs (${elapsed}s elapsed)`,
+    maxAttempts: proxyController?.hasPool() ? 1 : DEFAULT_TOOL_RECOVERY_ATTEMPTS,
+    task: () => runLinuxToolWithProxy({ proxyController, runtime: linuxRuntime, toolName: "getJS", args, timeoutMs, proxyUrl })
+  });
+  recordToolRun({ store, runId, artifactsDir, artifactName: "getjs", toolName: "getJS", args, linuxRuntime, result });
+  const jsUrls = parseJsUrls(result.stdout);
+  if (jsUrls.length) {
+    store.saveUrls(runId, targetName, jsUrls.map((url) => {
+      let host = "";
+      let urlPath = "";
+      try { const parsed = new URL(url); host = parsed.hostname; urlPath = parsed.pathname; } catch { /* keep */ }
+      return { url, host, path: urlPath, query: "", params: [], metadata: { kind: "javascript", tool: "getjs" } };
+    }), "getjs");
+  }
+  store.appendEvent(runId, {
+    phase: "follow-up-js",
+    severity: result.status === "completed" ? "ok" : "warn",
+    source: "getjs",
+    message: `getJS ${result.status}; found ${jsUrls.length} JavaScript URLs${toolFailureDetail(result)}`
+  });
+  return jsUrls.length;
+}
+
 module.exports = {
   FFUF_MATCH_CODES,
   bypass403Args,
   cloudEnumArgs,
   deriveCloudKeywords,
   ffufArgsForUrl,
+  getjsArgs,
   parseBypass403Db,
   parseCloudEnumJson,
   parseFfufJson,
+  parseJsUrls,
   runBypass403,
   runCloudEnum,
-  runDirectoryDiscovery
+  runDirectoryDiscovery,
+  runJsDiscovery
 };

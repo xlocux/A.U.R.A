@@ -1,0 +1,22 @@
+{
+  "tool_id": "getjs",
+  "type": "cli",
+  "phase": "javascript_discovery",
+  "binary": "getJS",
+  "version_check": { "command": "getJS", "args": ["-h"] },
+  "input_type": "url_list",
+  "output_format": "text",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "getjs_urls",
+  "tags": ["active", "javascript", "urls"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/003random/getJS/v2@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "active"
+  }
+}
