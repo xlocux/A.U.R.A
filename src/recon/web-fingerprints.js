@@ -75,23 +75,26 @@ function extractIconHrefs(html) {
 }
 
 async function fetchText(url, { fetchImpl = fetch, timeoutMs = 12000 } = {}) {
-  const response = await fetchWithTimeout(url, { fetchImpl, timeoutMs, accept: "text/html,application/xhtml+xml" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return { text: await response.text(), url: response.url || url };
+  return fetchWithTimeout(url, { fetchImpl, timeoutMs, accept: "text/html,application/xhtml+xml" }, async (response) => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return { text: await response.text(), url: response.url || url };
+  });
 }
 
 async function fetchBytes(url, { fetchImpl = fetch, timeoutMs = 12000 } = {}) {
-  const response = await fetchWithTimeout(url, { fetchImpl, timeoutMs, accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return { bytes: buffer, contentType: response.headers.get("content-type") || "", url: response.url || url };
+  return fetchWithTimeout(url, { fetchImpl, timeoutMs, accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" }, async (response) => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    return { bytes: buffer, contentType: response.headers.get("content-type") || "", url: response.url || url };
+  });
 }
 
-async function fetchWithTimeout(url, { fetchImpl = fetch, timeoutMs = 12000, accept = "*/*" } = {}) {
+// The timeout covers reading the body too, so a server that trickles bytes cannot stall the run.
+async function fetchWithTimeout(url, { fetchImpl = fetch, timeoutMs = 12000, accept = "*/*" } = {}, readBody = (response) => response) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchImpl(url, {
+    const response = await fetchImpl(url, {
       redirect: "follow",
       headers: {
         "Accept": accept,
@@ -99,6 +102,7 @@ async function fetchWithTimeout(url, { fetchImpl = fetch, timeoutMs = 12000, acc
       },
       signal: controller.signal
     });
+    return await readBody(response);
   } finally {
     clearTimeout(timer);
   }

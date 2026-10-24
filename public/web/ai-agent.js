@@ -224,7 +224,9 @@
     if (Number.isFinite(state.height)) panel.style.height = `${state.height}px`;
     if (Number.isFinite(state.left)) panel.style.left = `${state.left}px`;
     if (Number.isFinite(state.top)) panel.style.top = `${state.top}px`;
-    if (state.minimized) {
+    // Start minimized until the operator opens it, so the assistant never covers results on first load.
+    const minimized = state.minimized ?? (Object.keys(state).length === 0);
+    if (minimized) {
       panel.classList.add("minimized");
       $("aiRestore").classList.add("active");
     }

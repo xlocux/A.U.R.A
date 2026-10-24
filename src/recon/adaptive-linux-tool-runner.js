@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { applyAdaptiveTimeout, chunkList } = require("./adaptive-recon-profile");
 const { parseHttpxJsonLines } = require("./parsers");
+const { commandDisplay } = require("./linux-tools");
 
 const DEFAULT_HTTPX_BATCH_TIMEOUT_MS = 90000;
 const PROXY_HTTPX_BATCH_TIMEOUT_MS = 60000;
@@ -11,36 +12,34 @@ const DIRECT_HTTPX_BATCH_TIMEOUT_MS = 75000;
 const PROXY_HTTPX_THREADS_CAP = 25;
 const DIRECT_HTTPX_THREADS_CAP = 50;
 
+// Entry point used by linux-tools.runLinuxTool while a recon run context is active.
+function runAdaptiveTool(spawnTool, options, context) {
+  const profile = context.adaptiveProfile;
+  const adapted = adaptToolInvocation(options, profile);
+  if (String(options.toolName || "").toLowerCase() === "httpx") {
+    return runBatchedHttpx({ original: spawnTool, options: adapted, profile, context });
+  }
+  return spawnTool(adapted);
+}
+
+// Test/compat helper: wraps any runner with the adaptive behavior for an explicit profile source.
 function createAdaptiveToolRunner(originalRunner, getActiveProfile) {
   return {
-    runLinuxTool: function adaptiveRunLinuxTool(options = {}) {
+    runLinuxTool(options = {}) {
       const profile = getActiveProfile?.() || null;
       if (!profile) return originalRunner.runLinuxTool(options);
-      const context = profile.__auraRunContext || {};
-      const adapted = adaptToolInvocation({ ...context, ...options }, profile);
-      if (String(options.toolName || "").toLowerCase() === "httpx") {
-        return runBatchedHttpx({ original: originalRunner.runLinuxTool, options: adapted, profile });
-      }
-      return originalRunner.runLinuxTool(adapted);
+      const context = { ...(profile.__auraRunContext || {}), adaptiveProfile: profile };
+      return runAdaptiveTool((opts) => originalRunner.runLinuxTool(opts), options, context);
     }
   };
 }
 
-function patchLinuxToolRunner(linuxTools, getActiveProfile) {
-  if (!linuxTools || linuxTools.__auraAdaptiveToolRunnerPatched || typeof linuxTools.runLinuxTool !== "function") return;
-  const original = linuxTools.runLinuxTool;
-  const adapted = createAdaptiveToolRunner({ runLinuxTool: original }, getActiveProfile);
-  linuxTools.runLinuxTool = adapted.runLinuxTool;
-  Object.defineProperty(linuxTools, "__auraAdaptiveToolRunnerPatched", { value: true, enumerable: false });
-}
-
-async function runBatchedHttpx({ original, options, profile }) {
+async function runBatchedHttpx({ original, options, profile, context = {} }) {
   const inputPath = findFlagValue(options.args || [], "-l");
   if (!inputPath || !fs.existsSync(inputPath)) return original(options);
   const hosts = fs.readFileSync(inputPath, "utf8").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (hosts.length <= profile.httpxBatchSize) return original(options);
 
-  const context = profile.__auraRunContext || {};
   const store = options.store || context.store || null;
   const runId = options.runId || context.runId || null;
   const targetName = options.targetName || context.targetName || null;
@@ -55,6 +54,7 @@ async function runBatchedHttpx({ original, options, profile }) {
   const childResults = [];
   let status = "completed";
   let exitCode = 0;
+  let lastBatchTimeoutMs = 0;
 
   appendRunEvent(store, runId, {
     phase: "httpx-batch",
@@ -71,6 +71,7 @@ async function runBatchedHttpx({ original, options, profile }) {
     const stderrPath = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}.stderr.txt`);
     fs.writeFileSync(batchPath, `${batches[index].join("\n")}\n`, "utf8");
     const batchTimeoutMs = deriveHttpxBatchTimeout({ options, profile, proxied });
+    lastBatchTimeoutMs = batchTimeoutMs;
     const batchArgs = replaceFlagValue(options.args || [], "-l", batchPath);
     appendRunEvent(store, runId, {
       phase: "httpx-batch",
@@ -90,7 +91,7 @@ async function runBatchedHttpx({ original, options, profile }) {
     if (store?.recordToolResult) {
       store.recordToolResult(runId, {
         toolName: "httpx-batch",
-        commandDisplay: ["httpx", ...batchArgs].join(" "),
+        commandDisplay: commandDisplay(null, "httpx", batchArgs),
         status: result.status,
         exitCode: result.exitCode,
         startedAt: result.startedAt,
@@ -106,6 +107,7 @@ async function runBatchedHttpx({ original, options, profile }) {
     if (result.stdout) stdout.push(result.stdout);
     if (result.stderr) stderr.push(`[batch ${batchNumber}/${batches.length}]\n${result.stderr}`);
     if (result.status !== "completed" && status === "completed") status = result.status;
+    if (result.status === "cancelled") break;
     if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
 
     appendRunEvent(store, runId, {
@@ -155,7 +157,7 @@ async function runBatchedHttpx({ original, options, profile }) {
       : status === "completed" && batchesMissingOutput.length
         ? `httpx completed but parsed zero services from ${hosts.length} hosts. This may indicate the target is unreachable, blocking, or httpx binary incompatibility.`
         : status === "timeout"
-          ? `One or more httpx batches timed out after ${batchTimeoutMs}ms. Try increasing timeout or reducing batch size.`
+          ? `One or more httpx batches timed out after ${lastBatchTimeoutMs}ms. Try increasing timeout or reducing batch size.`
           : `One or more adaptive httpx batches failed: ${failedBatches.map(b => `batch ${b.batch}: ${b.status}`).join(", ")}`,
     adaptiveBatching: {
       enabled: true,
@@ -246,4 +248,4 @@ function replaceFlagValue(args, flag, value) {
   return output;
 }
 
-module.exports = { adaptToolInvocation, createAdaptiveToolRunner, patchLinuxToolRunner, runBatchedHttpx };
+module.exports = { adaptToolInvocation, createAdaptiveToolRunner, runAdaptiveTool, runBatchedHttpx };

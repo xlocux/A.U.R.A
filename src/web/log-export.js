@@ -3,7 +3,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const MAX_TEXT_BYTES = 512 * 1024;
+const MAX_TEXT_BYTES = 128 * 1024;
+const MAX_TOOL_ARTIFACT_RESULTS = 60;
 const MAX_ARTIFACT_FILES = 80;
 const ARTIFACT_EXTENSIONS = new Set([".txt", ".log", ".json", ".jsonl", ".stderr", ".stdout"]);
 
@@ -12,8 +13,8 @@ function exportRunDiagnostics({ store, runId }) {
   if (!run) return null;
   const target = store.getTarget(run.target_name);
   const counts = store.getRunObservationCounts(runId);
-  const events = store.listEvents(runId, 0, 10000);
-  const toolResults = store.listToolResults({ runId, limit: 10000 });
+  const events = store.listEvents(runId, 0, 5000);
+  const toolResults = store.listToolResults({ runId, limit: 2000 });
   const domains = store.listDomains({ runId, limit: 2000 });
   const urls = store.listUrls({ runId, limit: 2000 });
   const httpServices = store.listHttpServices({ runId, limit: 2000 });
@@ -86,9 +87,10 @@ function buildDiagnosticHints({ counts, events, toolResults, screenshots, artifa
   return hints;
 }
 
+// Only the most recent tool results get their stdout/stderr embedded, to keep exports bounded.
 function collectToolArtifacts(toolResults) {
   const artifacts = [];
-  for (const tool of toolResults) {
+  for (const tool of toolResults.slice(0, MAX_TOOL_ARTIFACT_RESULTS)) {
     for (const stream of ["stdout", "stderr"]) {
       const filePath = stream === "stdout" ? tool.stdoutPath : tool.stderrPath;
       if (!filePath) continue;

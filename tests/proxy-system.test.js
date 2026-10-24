@@ -15,7 +15,8 @@ const ProxyPreflight = require("../src/recon/proxy-preflight");
 const ProxyService = require("../src/recon/proxy-service");
 const ProxySources = require("../src/recon/proxy-sources");
 const ProxyStore = require("../src/db/proxy-store");
-const proxyRoutes = require("../src/web/proxy-routes");
+const proxyRoutes = require("../src/web/routes/proxy-routes");
+const { createRouter } = require("../src/web/router");
 const { retireArgsForPath } = require("../src/recon/technology-detectors");
 const { commandDisplay } = require("../src/recon/linux-tools");
 const { shouldRetryToolResult } = require("../src/recon/recon-engine");
@@ -99,8 +100,8 @@ test("proxy preflight checks proxy protocol reachability and records results", a
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = server.address().port;
   try {
-    const result = await preflight.testProxy({ address: "127.0.0.1", port, type: "http" }, { timeout: 1000, testHost: "example.com" });
-    assert.equal(result.success, true);
+    const result = await preflight.testProxy({ address: "127.0.0.1", port, type: "http" }, { timeout: 5000, tcpTimeout: 5000, testHost: "example.com" });
+    assert.equal(result.success, true, JSON.stringify(result));
     assert.equal(result.reachability.protocol.protocol, "http-connect");
     assert.equal((await store.countProxies()), 1);
   } finally {
@@ -159,7 +160,7 @@ test("proxy detection recommends conservative operator actions", () => {
 
 test("proxy routes are mounted in the custom api style", async () => {
   const response = createMockResponse();
-  const handled = await proxyRoutes.handleApiRequest({
+  const handled = await createRouter([proxyRoutes])({
     request: { method: "GET" },
     response,
     url: new URL("http://localhost/api/proxies/health")

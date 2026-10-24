@@ -69,33 +69,29 @@ class ProxyStore {
     `);
   }
 
+  // Re-importing an existing proxy keeps stored credentials/country unless new values are supplied,
+  // and only changes status when the caller passes one explicitly.
   async addProxy(address, port, type, metadata = {}) {
-    const {
-      country = null,
-      username = null,
-      password = null,
-      status = 'unknown'
-    } = metadata;
-
-    const existing = this.db.prepare(
-      "SELECT id FROM proxies WHERE address = ? AND port = ? AND type = ?"
-    ).get(address, port, type);
+    const { country = null, username = null, password = null, status } = metadata;
+    const existing = this.db.prepare("SELECT id FROM proxies WHERE address = ? AND port = ? AND type = ?").get(address, port, type);
     const timestamp = nowIso();
     if (existing) {
       this.db.prepare(`
         UPDATE proxies
-        SET country = ?, username = ?, password = ?, status = ?, updated_at = ?
+        SET country = COALESCE(?, country), username = COALESCE(?, username), password = COALESCE(?, password),
+            status = COALESCE(?, status), updated_at = ?
         WHERE id = ?
-      `).run(country, username, password, status, timestamp, existing.id);
+      `).run(country, username, password, status ?? null, timestamp, existing.id);
       return existing.id;
     }
     const result = this.db.prepare(`
       INSERT INTO proxies (address, port, type, country, username, password, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(address, port, type, country, username, password, status, timestamp, timestamp);
+    `).run(address, port, type, country, username, password, status || "unknown", timestamp, timestamp);
     return Number(result.lastInsertRowid);
   }
 
+  // Sets status and overwrites metric columns with the supplied values.
   async updateProxyStatus(proxyId, status, metrics = {}) {
     const {
       latency_ms = null,
@@ -105,11 +101,10 @@ class ProxyStore {
       successful_tests = null,
       avg_response_time = null
     } = metrics;
-
-    this.db.prepare("UPDATE proxies SET status = ?, updated_at = ? WHERE id = ?")
-      .run(status, nowIso(), proxyId);
-
-    if (latency_ms !== null || success_rate !== null) {
+    const timestamp = nowIso();
+    this.transaction(() => {
+      this.db.prepare("UPDATE proxies SET status = ?, updated_at = ? WHERE id = ?").run(status, timestamp, proxyId);
+      if (latency_ms === null && success_rate === null) return;
       const current = this.db.prepare("SELECT * FROM proxy_metrics WHERE proxy_id = ?").get(proxyId);
       if (current) {
         this.db.prepare(`
@@ -124,28 +119,61 @@ class ProxyStore {
           total_tests ?? current.total_tests,
           successful_tests ?? current.successful_tests,
           avg_response_time ?? current.avg_response_time,
-          nowIso(),
+          timestamp,
           proxyId
         );
       } else {
         this.db.prepare(`
           INSERT INTO proxy_metrics
-            (proxy_id, latency_ms, success_rate, failures_count, total_tests,
-             successful_tests, avg_response_time, last_tested)
+            (proxy_id, latency_ms, success_rate, failures_count, total_tests, successful_tests, avg_response_time, last_tested)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          proxyId,
-          latency_ms,
-          success_rate,
-          failures_count ?? 0,
-          total_tests ?? 0,
-          successful_tests ?? 0,
-          avg_response_time,
-          nowIso()
-        );
+        `).run(proxyId, latency_ms, success_rate, failures_count ?? 0, total_tests ?? 0, successful_tests ?? 0, avg_response_time, timestamp);
       }
-    }
+    });
     return { proxyId, status, metrics };
+  }
+
+  // Accumulates one test outcome so success rate and average latency reflect the proxy's history.
+  async recordProxyTest(proxyId, { success, latencyMs = null }) {
+    const timestamp = nowIso();
+    const latency = Number.isFinite(Number(latencyMs)) ? Number(latencyMs) : null;
+    return this.transaction(() => {
+      this.db.prepare("UPDATE proxies SET status = ?, updated_at = ? WHERE id = ?").run(success ? "active" : "failed", timestamp, proxyId);
+      const current = this.db.prepare("SELECT * FROM proxy_metrics WHERE proxy_id = ?").get(proxyId);
+      const total = Number(current?.total_tests || 0) + 1;
+      const successful = Number(current?.successful_tests || 0) + (success ? 1 : 0);
+      const failures = Number(current?.failures_count || 0) + (success ? 0 : 1);
+      const previousAvg = current?.avg_response_time;
+      const avg = latency === null ? previousAvg ?? null
+        : previousAvg === null || previousAvg === undefined ? latency
+          : Math.round((Number(previousAvg) * (total - 1) + latency) / total);
+      const values = [latency ?? current?.latency_ms ?? null, successful / total, failures, total, successful, avg, timestamp, proxyId];
+      if (current) {
+        this.db.prepare(`
+          UPDATE proxy_metrics SET latency_ms = ?, success_rate = ?, failures_count = ?, total_tests = ?,
+            successful_tests = ?, avg_response_time = ?, last_tested = ? WHERE proxy_id = ?
+        `).run(...values);
+      } else {
+        this.db.prepare(`
+          INSERT INTO proxy_metrics (latency_ms, success_rate, failures_count, total_tests, successful_tests, avg_response_time, last_tested, proxy_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(...values);
+      }
+      return { proxyId, successRate: successful / total, totalTests: total };
+    });
+  }
+
+  transaction(fn) {
+    if (this.db.isTransaction) return fn();
+    this.db.exec("BEGIN");
+    try {
+      const result = fn();
+      this.db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      if (this.db.isTransaction) this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   async getActiveProxies() {

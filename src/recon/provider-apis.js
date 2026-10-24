@@ -251,7 +251,8 @@ async function requestJson(url, options = {}) {
   const response = await fetch(url, {
     method: options.method || "GET",
     headers: { Accept: "application/json", "User-Agent": "AURA recon/0.1", ...(options.headers || {}) },
-    body: options.body
+    body: options.body,
+    signal: options.signal || AbortSignal.timeout(options.timeoutMs || 30000)
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`HTTP ${response.status}${text ? `: ${text.slice(0, 180)}` : ""}`);

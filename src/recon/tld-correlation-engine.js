@@ -4,7 +4,8 @@ const { normalizeDomain } = require("./domain-utils");
 
 function calculateTLDConfidence(tldCandidate, existingObservations = []) {
   const candidate = normalizeCandidate(tldCandidate);
-  const observations = Array.isArray(existingObservations) ? existingObservations : [];
+  const observations = (Array.isArray(existingObservations) ? existingObservations : [])
+    .filter((item) => !item.subject || normalizeDomain(item.subject) !== candidate.value);
   let confidenceScore = 0;
   const signals = [];
   const correlatedWith = new Set();
@@ -196,6 +197,7 @@ function buildExistingObservations({ rootDomains = [], domains = [], httpService
 
 function pushMetadataObservations(observations, domain, metadata, idPrefix) {
   const label = extractRegistrableLabel(domain);
+  const start = observations.length;
   for (const ip of [metadata.ip, metadata.aRecord, metadata.dnsRecords?.a_record, metadata.host_ip].flat().filter(Boolean)) {
     observations.push({ id: `${idPrefix}:ip:${ip}`, type: "ip_address", value: String(ip), registrable_label: label });
   }
@@ -205,10 +207,12 @@ function pushMetadataObservations(observations, domain, metadata, idPrefix) {
   if (metadata.faviconHash) observations.push({ id: `${idPrefix}:favicon`, type: "favicon_hash", value: String(metadata.faviconHash), registrable_label: label });
   const nameservers = metadata.nameservers || metadata.nameServers || [];
   if (nameservers.length) observations.push({ id: `${idPrefix}:ns`, type: "dns_record", record_type: "NS", value: normalizeList(nameservers), registrable_label: label });
-  const organization = metadata.organization || metadata.whoisOrganization || metadata.registrar || null;
+  const organization = metadata.organization || metadata.whoisOrganization || null;
   if (organization) observations.push({ id: `${idPrefix}:whois`, type: "whois_record", organization: String(organization), registrable_label: label });
   const rdapEntities = metadata.rdapEntities || metadata.entities || null;
   if (rdapEntities) observations.push({ id: `${idPrefix}:rdap`, type: "rdap_record", entities: rdapEntities, registrable_label: label });
+  // Remember which domain each observation describes so a candidate never corroborates itself.
+  for (let index = start; index < observations.length; index += 1) observations[index].subject = domain;
 }
 
 function normalizeCandidate(candidate = {}) {

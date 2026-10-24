@@ -22,7 +22,9 @@ const { parseBuiltWithTechnologies, parseRetireTechnologies, parseWpscanTechnolo
 const { calculateTLDConfidence, ipInCIDR, scopeEvaluateTldCandidate } = require("../src/recon/tld-correlation-engine");
 const { ALLOWED_TOOLS, normalizeProxyUrl, redactProxyUrl } = require("../src/recon/linux-tools");
 const { createDefaultTargetConfig, validateTargetConfig } = require("../src/core/target-config");
-const { buildRunDelta, buildTargetConfigFromRequest, extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/api-routes");
+const { buildRunDelta } = require("../src/web/services/run-delta");
+const { buildTargetConfigFromRequest } = require("../src/web/services/target-configs");
+const { extractBrandTerms, filterScopeDomains, generateAlternateTldLeads } = require("../src/web/services/scope-leads");
 const { hashWebUserPassword, parseCookies } = require("../src/web/auth");
 
 function tempDb(name) {

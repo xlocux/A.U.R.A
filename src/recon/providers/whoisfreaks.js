@@ -18,7 +18,8 @@ async function callWhoisFreaksHistorical({ apiKey, domainName, fetchImpl = fetch
   const domain = normalizeDomain(domainName);
   if (!domain) throw new Error("A valid domain is required");
   const response = await fetchImpl(buildWhoisFreaksUrl({ apiKey, domainName: domain, whois: "historical" }), {
-    headers: { Accept: "application/json", "User-Agent": "AURA recon/0.1" }
+    headers: { Accept: "application/json", "User-Agent": "AURA recon/0.1" },
+    signal: AbortSignal.timeout(30000)
   });
   const text = await response.text();
   let json = {};

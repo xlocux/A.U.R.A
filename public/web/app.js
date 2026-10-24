@@ -396,7 +396,7 @@ async function createTarget() {
     $("newInScope").value = "";
     $("newOutOfScope").value = "";
     await loadTargets();
-    $("target").value = data.targetName;
+    $("target").value = data.target?.target_name || data.config?.target_name || "";
     await loadTargetConfig();
     await refreshLeads();
   } catch (error) {
@@ -541,6 +541,7 @@ async function _refreshRun() {
   ]);
   const run = runData?.run;
   if (!run) return;
+  if (["completed", "failed", "cancelled"].includes(run.status) && poll) { clearInterval(poll); poll = null; }
   const counts = countsResp?.counts || {};
   $("runStatus").textContent = run.status;
   updateRunControlButtons(run.status);
@@ -572,11 +573,11 @@ async function _refreshRun() {
   window.AuraTopology?.update?.({
     domains: domainData.domains || [],
     services: serviceData.services || [],
-    urls: artifactData.artifacts || [],
+    urls: (artifactData.artifacts || []).map((a) => ({ ...a, url: a.value, host: a.extra_json?.host })),
     screenshots: screenshotData.screenshots || [],
     technologies: technologyData.technologies || []
   }, { preserveCamera: true });
-  window.AuraAiAgent.onRunUpdate?.({
+  window.AuraAiAgent.publishRunInsights?.({
     run,
     events: eventData.events,
     counts,
@@ -821,13 +822,14 @@ function renderHttpServices(services) {
   resultsData.services = services || [];
   $("serviceRowsHint").textContent = countBucket(resultsData.services.length, "service");
   $("serviceRows").innerHTML = renderGroupedRows(resultsData.services, $("serviceGroupBy").value, (service) => {
-    const tech = Array.isArray(service.tech) ? service.tech.join(", ") : service.tech || "";
+    const tech = Array.isArray(service.technologies) ? service.technologies.join(", ") : service.technologies || service.tech || "";
+    const statusCode = service.statusCode ?? service.status_code ?? "";
     let groupKey = "";
-    if ($("serviceGroupBy").value === "status") groupKey = String(service.status_code || "unknown status");
+    if ($("serviceGroupBy").value === "status") groupKey = String(statusCode || "unknown status");
     else if ($("serviceGroupBy").value === "tech") groupKey = tech || "unknown tech";
     else if ($("serviceGroupBy").value === "host") groupKey = hostnameOf(service.url) || "unknown host";
     else if ($("serviceGroupBy").value === "scheme") groupKey = service.url?.split(":")[0] || "unknown scheme";
-    return { groupKey, html: `<tr><td class="mono wrap"><a href="${esc(service.url)}" target="_blank" rel="noreferrer">${esc(service.url)}</a></td><td>${esc(service.status_code || "")}</td><td>${esc(service.title || "")}</td><td>${esc(tech)}</td></tr>` };
+    return { groupKey, html: `<tr><td class="mono wrap"><a href="${esc(service.url)}" target="_blank" rel="noreferrer">${esc(service.url)}</a></td><td>${esc(statusCode)}</td><td>${esc(service.title || "")}</td><td>${esc(tech)}</td></tr>` };
   });
 }
 
@@ -835,10 +837,12 @@ function renderTechnologies(technologies) {
   resultsData.technologies = technologies || [];
   $("technologyRowsHint").textContent = countBucket(resultsData.technologies.length, "tech");
   $("technologyRows").innerHTML = renderGroupedRows(resultsData.technologies, $("technologyGroupBy").value, (tech) => {
+    const count = tech.count ?? tech.service_count ?? 0;
+    const hostCount = tech.hostCount ?? tech.host_count ?? 0;
     let groupKey = tech.source || "unknown";
-    if ($("technologyGroupBy").value === "serviceCount") groupKey = bucketNumber(tech.service_count, "service");
-    if ($("technologyGroupBy").value === "hostCount") groupKey = bucketNumber(tech.host_count, "host");
-    return { groupKey, html: `<tr><td>${esc(tech.technology)}</td><td>${esc(tech.service_count || 0)}</td><td>${esc(tech.host_count || 0)}</td><td>${esc(tech.source || "")}</td></tr>` };
+    if ($("technologyGroupBy").value === "serviceCount") groupKey = bucketNumber(count, "service");
+    if ($("technologyGroupBy").value === "hostCount") groupKey = bucketNumber(hostCount, "host");
+    return { groupKey, html: `<tr><td>${esc(tech.name || tech.technology)}</td><td>${esc(count)}</td><td>${esc(hostCount)}</td><td>${esc(tech.source || "")}</td></tr>` };
   });
 }
 
@@ -848,12 +852,13 @@ function renderScreenshots(screenshots) {
   $("screenshotRows").innerHTML = renderGroupedRows(resultsData.screenshots, $("screenshotGroupBy").value, (shot) => {
     let groupKey = shot.tool_name || "unknown tool";
     if ($("screenshotGroupBy").value === "status") groupKey = shot.status || "unknown status";
-    const images = (shot.files || []).filter((file) => /\.(png|jpe?g|webp)$/i.test(file.name || file.path || ""));
+    const images = (shot.images || []).filter((file) => /\.(png|jpe?g|webp)$/i.test(file.name || file.relativePath || file.url || ""));
+    const count = shot.metadata?.screenshotCount ?? shot.screenshot_count ?? images.length ?? 0;
     const preview = images.length ? `<div class="screenshot-grid">${images.slice(0, 12).map((file) => {
-      const url = `/api/recon-runs/${encodeURIComponent(activeRunId)}/artifacts/file?path=${encodeURIComponent(file.path)}`;
-      return `<button type="button" class="screenshot-thumb" data-image-url="${esc(url)}" data-image-name="${esc(file.name || file.path)}"><img src="${esc(url)}" alt="${esc(file.name || "screenshot")}" loading="lazy"><span>${esc(file.name || "screenshot")}</span></button>`;
+      const url = file.url || `/api/recon-runs/${encodeURIComponent(activeRunId)}/artifacts/file?path=${encodeURIComponent(file.relativePath || file.path || "")}`;
+      return `<button type="button" class="screenshot-thumb" data-image-url="${esc(url)}" data-image-name="${esc(file.name || file.relativePath || "")}"><img src="${esc(url)}" alt="${esc(file.name || "screenshot")}" loading="lazy"><span>${esc(file.name || "screenshot")}</span></button>`;
     }).join("")}</div>` : "";
-    return { groupKey, html: `<tr><td>${statusBadgeHtml(shot.tool_name || "screenshot")}</td><td>${esc(shot.screenshot_count || images.length || 0)}${preview}</td><td>${artifactLinks(shot)}</td></tr>` };
+    return { groupKey, html: `<tr><td>${statusBadgeHtml(shot.tool_name || "screenshot")}</td><td>${esc(count)}${preview}</td><td>${artifactLinks(shot)}</td></tr>` };
   });
 }
 
@@ -878,17 +883,24 @@ function renderRunDelta(delta) {
     $("deltaRows").innerHTML = "";
     return;
   }
-  $("runDeltaSummary").textContent = delta.previousRunId ? `Compared with ${delta.previousRunId}` : "First run for this target.";
-  $("deltaNewDomains").textContent = delta.summary?.newDomains || 0;
-  $("deltaRemovedDomains").textContent = delta.summary?.removedDomains || 0;
-  $("deltaNewUrls").textContent = delta.summary?.newUrls || 0;
-  $("deltaNewServices").textContent = delta.summary?.newServices || 0;
+  $("runDeltaSummary").textContent = delta.comparedToRunId ? `Compared with run ${delta.comparedToRunId}` : "First run for this target.";
+  $("deltaNewDomains").textContent = delta.domains?.addedCount || 0;
+  $("deltaRemovedDomains").textContent = delta.domains?.removedCount || 0;
+  $("deltaNewUrls").textContent = delta.urls?.addedCount || 0;
+  $("deltaNewServices").textContent = delta.httpServices?.addedCount || 0;
   const rows = [];
-  for (const change of ["new", "removed"]) {
-    for (const domain of delta.domains?.[change] || []) rows.push(`<tr><td>${change}</td><td>domain</td><td>${esc(domain)}</td><td>-</td></tr>`);
-    for (const artifact of delta.artifacts?.[change] || []) rows.push(`<tr><td>${change}</td><td>${esc(artifact.artifact_type)}</td><td>${esc(artifact.value)}</td><td>${esc(artifact.source || "")}</td></tr>`);
+  // Each delta set exposes { added:[], removed:[] } arrays of observation rows.
+  const sets = [["domain", delta.domains], ["url", delta.urls], ["service", delta.httpServices]];
+  for (const [type, set] of sets) {
+    for (const item of set?.added || []) rows.push(`<tr><td>added</td><td>${type}</td><td class="mono wrap">${esc(item.domain || item.url || "")}</td><td>${esc(item.source || "")}</td></tr>`);
+    for (const item of set?.removed || []) rows.push(`<tr><td>removed</td><td>${type}</td><td class="mono wrap">${esc(item.domain || item.url || "")}</td><td>${esc(item.source || "")}</td></tr>`);
   }
-  $("deltaRows").innerHTML = rows.join("");
+  $("deltaRows").innerHTML = rows.join("") || `<tr><td colspan="4" class="muted">No changes versus the previous run.</td></tr>`;
+}
+
+function countBucket(count, noun) {
+  const n = Number(count) || 0;
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 function renderGroupedRows(items, groupBy, mapper) {
@@ -945,6 +957,92 @@ function bucketNumber(value, label) {
   return `20+ ${label}s`;
 }
 
+async function runSearch() {
+  const query = $("searchQuery").value.trim();
+  const rows = $("searchRows");
+  if (!query) {
+    rows.innerHTML = `<tr><td colspan="6" class="muted">Enter a query to search saved recon data.</td></tr>`;
+    return;
+  }
+  const params = new URLSearchParams({ q: query });
+  if ($("searchCurrentTarget")?.checked && $("target").value) params.set("target", $("target").value);
+  rows.innerHTML = `<tr><td colspan="6" class="muted">Searching…</td></tr>`;
+  try {
+    const data = await api(`/api/search?${params.toString()}`);
+    const results = data.results || [];
+    if (results.length === 0) {
+      rows.innerHTML = `<tr><td colspan="6" class="muted">No matches for "${esc(query)}".</td></tr>`;
+      return;
+    }
+    rows.innerHTML = results.map((item) => `<tr>
+      <td>${esc(item.result_type || "")}</td>
+      <td>${esc(item.target_name || "")}</td>
+      <td class="mono wrap">${esc(item.value || "")}</td>
+      <td>${esc(item.detail || "")}</td>
+      <td>${esc(item.source || "")}</td>
+      <td>${esc(item.seen_at || "")}</td>
+    </tr>`).join("");
+  } catch (error) {
+    rows.innerHTML = `<tr><td colspan="6" class="danger-text">Search failed: ${esc(error.message)}</td></tr>`;
+  }
+}
+
+// Shared lightweight viewer modal for screenshots and tool logs.
+function ensureViewerModal() {
+  let modal = document.getElementById("auraViewerModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "auraViewerModal";
+  modal.className = "aura-viewer-modal hidden";
+  modal.innerHTML = `
+    <div class="aura-viewer" role="dialog" aria-modal="true" aria-labelledby="auraViewerTitle">
+      <header class="aura-viewer-head">
+        <h3 id="auraViewerTitle"></h3>
+        <button type="button" id="auraViewerClose" class="aura-viewer-close" aria-label="Close">&times;</button>
+      </header>
+      <div class="aura-viewer-body" id="auraViewerBody"></div>
+    </div>`;
+  document.body.appendChild(modal);
+  const close = () => modal.classList.add("hidden");
+  modal.querySelector("#auraViewerClose").addEventListener("click", close);
+  modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+  return modal;
+}
+
+function ensureToolLogModal() {
+  return ensureViewerModal();
+}
+
+function openImageModal(url, name, gallery = []) {
+  const modal = ensureViewerModal();
+  modal.querySelector("#auraViewerTitle").textContent = name || "Screenshot";
+  const strip = gallery.length > 1
+    ? `<div class="aura-viewer-strip">${gallery.map((image) => `<img src="${esc(image.url)}" alt="${esc(image.name || "")}" data-url="${esc(image.url)}" data-name="${esc(image.name || "")}">`).join("")}</div>`
+    : "";
+  const body = modal.querySelector("#auraViewerBody");
+  body.innerHTML = `<img class="aura-viewer-image" src="${esc(url)}" alt="${esc(name || "screenshot")}">${strip}`;
+  body.querySelectorAll(".aura-viewer-strip img").forEach((thumb) => {
+    thumb.addEventListener("click", () => openImageModal(thumb.dataset.url, thumb.dataset.name, gallery));
+  });
+  modal.classList.remove("hidden");
+}
+
+async function openToolLogModal(toolResultId, stream) {
+  const modal = ensureViewerModal();
+  modal.querySelector("#auraViewerTitle").textContent = `Tool log (${stream})`;
+  const body = modal.querySelector("#auraViewerBody");
+  body.innerHTML = `<pre class="aura-viewer-log muted">Loading…</pre>`;
+  modal.classList.remove("hidden");
+  try {
+    const data = await api(`/api/recon-tool-results/${encodeURIComponent(toolResultId)}/log?stream=${encodeURIComponent(stream)}`);
+    modal.querySelector("#auraViewerTitle").textContent = `${data.toolName || "tool"} — ${stream}${data.truncated ? " (truncated)" : ""}`;
+    body.innerHTML = `<pre class="aura-viewer-log">${esc(data.content || "(empty)")}</pre>`;
+  } catch (error) {
+    body.innerHTML = `<pre class="aura-viewer-log danger-text">${esc(error.message)}</pre>`;
+  }
+}
+
 function statusBadgeHtml(status, options = {}) {
   if (window.AuraStatusBadges?.badge) return window.AuraStatusBadges.badge(status, options);
   return esc(status);
@@ -967,8 +1065,8 @@ async function checkEnvironment() {
   $("checkEnvironment").disabled = true;
   $("setupLog").textContent = "Checking environment...";
   try {
-    const data = await api("/api/environment/check", { method: "POST", body: JSON.stringify({ runtime: $("setupRuntime").value }) });
-    renderEnvironment(data);
+    const data = await api(`/api/environment/check?runtime=${encodeURIComponent($("setupRuntime").value || "linux")}`);
+    renderEnvironment(data.environment || data);
   } catch (error) {
     $("setupLog").textContent = error.message;
     $("status").textContent = error.message;
@@ -978,12 +1076,14 @@ async function checkEnvironment() {
 }
 
 function renderEnvironment(data) {
-  $("setupLog").textContent = data.log || "";
-  const rows = [];
-  for (const item of data.tools || []) {
-    rows.push(`<tr><td>${esc(item.tool)}</td><td>${statusBadgeHtml(item.status || (item.ok ? "ok" : "missing"))}</td><td>${esc(item.version || item.error || "")}</td></tr>`);
-  }
-  $("setupToolRows").innerHTML = rows.join("");
+  const env = data?.environment || data || {};
+  const lines = [];
+  if (env.aiSetupAssessment) lines.push(env.aiSetupAssessment);
+  if (env.terminal?.detail || env.terminal?.message) lines.push(env.terminal.detail || env.terminal.message);
+  if (env.agent) lines.push(`AI agent (${env.agent.tool_id || "opencode"}): ${env.agent.installed ? "installed" : "missing"}`);
+  $("setupLog").textContent = lines.filter(Boolean).join("\n");
+  const tools = [env.agent, ...(env.tools || [])].filter(Boolean);
+  $("setupToolRows").innerHTML = tools.map((item) => `<tr><td>${esc(item.tool_id || item.binary || "")}</td><td>${statusBadgeHtml(item.installed ? "completed" : item.status || "missing")}</td><td>${esc(item.version || item.error || "")}</td></tr>`).join("");
 }
 
 async function installEnvironment() {
@@ -991,7 +1091,7 @@ async function installEnvironment() {
   $("setupLog").textContent = "Installing/updating tools...";
   try {
     const data = await api("/api/environment/install", { method: "POST", body: JSON.stringify({ runtime: $("setupRuntime").value }) });
-    renderEnvironment(data);
+    renderEnvironment(data.environment || data);
   } catch (error) {
     $("setupLog").textContent = error.message;
     $("status").textContent = error.message;
@@ -1109,17 +1209,19 @@ function wordlistStatusBadge(status) {
 }
 
 async function openWordlistPreview(id) {
-  const modal = ensureToolLogModal();
-  $("toolLogModalTitle").textContent = "Loading wordlist...";
-  $("toolLogModalBody").textContent = "";
+  const modal = ensureViewerModal();
+  const title = modal.querySelector("#auraViewerTitle");
+  const body = modal.querySelector("#auraViewerBody");
+  title.textContent = "Loading wordlist…";
+  body.innerHTML = `<pre class="aura-viewer-log muted">Loading…</pre>`;
   modal.classList.remove("hidden");
   try {
     const data = await api(`/api/wordlists/${encodeURIComponent(id)}/preview`);
-    $("toolLogModalTitle").textContent = `${data.wordlist?.name || "wordlist"} (${data.sizeBytes || 0} bytes${data.truncated ? ", truncated" : ""})`;
-    $("toolLogModalBody").textContent = data.content || "(empty wordlist)";
+    title.textContent = `${data.wordlist?.name || "wordlist"} (${data.sizeBytes || 0} bytes${data.truncated ? ", truncated" : ""})`;
+    body.innerHTML = `<pre class="aura-viewer-log">${esc(data.content || "(empty wordlist)")}</pre>`;
   } catch (error) {
-    $("toolLogModalTitle").textContent = "Wordlist unavailable";
-    $("toolLogModalBody").textContent = error.message;
+    title.textContent = "Wordlist unavailable";
+    body.innerHTML = `<pre class="aura-viewer-log danger-text">${esc(error.message)}</pre>`;
   }
 }
 
@@ -1312,7 +1414,7 @@ async function suggestWhoisTerms() {
   if (!$("target").value) return;
   $("whoisSuggestionStatus").textContent = "Suggesting terms...";
   try {
-    const data = await api(`/api/targets/${encodeURIComponent($("target").value)}/whois-suggestions`, { method: "POST" });
+    const data = await api("/api/recon/whois-term-suggestions", { method: "POST", body: JSON.stringify({ targetName: $("target").value }) });
     $("whoisInclude").value = data.include.join("\n");
     $("whoisExclude").value = data.exclude.join("\n");
     $("whoisSuggestionStatus").textContent = "Suggestions loaded from public WHOIS/RDAP signals.";
@@ -1352,7 +1454,6 @@ function leadStatusBadge(status) {
 }
 
 $("target").addEventListener("change", () => {
-  fillDomains();
   loadTargetConfig().catch((error) => {
     $("status").textContent = error.message;
   });
@@ -1413,7 +1514,7 @@ document.addEventListener("click", (event) => {
 document.addEventListener("click", (event) => {
   const button = event.target.closest(".api-key-delete");
   if (!button) return;
-  deleteApiKey(button.datasetApiKeyId).catch((error) => {
+  deleteApiKey(button.dataset.apiKeyId).catch((error) => {
     setApiPreflightState("failed", "Delete failed", error.message);
   });
 });

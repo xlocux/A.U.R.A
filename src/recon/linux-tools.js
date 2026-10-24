@@ -1,8 +1,11 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
+const { TOOL_PATH_EXPORT, shellQuote } = require("../core/shell");
+const { getRunContext } = require("./run-context");
 
 const MAX_CAPTURE_BYTES = 5 * 1024 * 1024;
+const KILL_GRACE_MS = 2000;
 const TRUNCATION_NOTICE = "\n[A.U.R.A] Output capture truncated to keep the recon engine stable. Full tool output should be reduced with focused follow-up runs.\n";
 
 const ALLOWED_TOOLS = new Set([
@@ -13,6 +16,7 @@ const ALLOWED_TOOLS = new Set([
   "shuffle-dns",
   "gau",
   "httpx",
+  "nmap",
   "gowitness",
   "eyewitness",
   "retire",
@@ -20,91 +24,92 @@ const ALLOWED_TOOLS = new Set([
   "cmseek"
 ]);
 
-function runLinuxTool({
+// Runs an allowlisted tool through `sh -lc`. Inside a recon run the adaptive runner applies the
+// host profile (thread caps, httpx batching) and the run's cancel signal stops the process.
+function runLinuxTool(options = {}) {
+  const context = getRunContext();
+  if (context?.adaptiveProfile && !options.skipAdaptive) {
+    // Lazy require: the adaptive runner calls back into spawnLinuxTool.
+    const { runAdaptiveTool } = require("./adaptive-linux-tool-runner");
+    return runAdaptiveTool(spawnLinuxTool, options, context);
+  }
+  return spawnLinuxTool(options);
+}
+
+function spawnLinuxTool({
   toolName,
   args = [],
   timeoutMs = 180000,
   input = null,
   onStdout = null,
   onStderr = null,
-  proxyUrl = null
+  proxyUrl = null,
+  signal = getRunContext()?.cancelSignal || null
 }) {
   if (!ALLOWED_TOOLS.has(toolName)) {
     return Promise.reject(new Error(`Tool not allowed for local Linux execution: ${toolName}`));
   }
-
   const proxy = normalizeProxyUrl(proxyUrl);
   return new Promise((resolve) => {
     const startedAt = new Date().toISOString();
+    if (signal?.aborted) {
+      resolve(finalizeResult({ toolName, args, status: "cancelled", exitCode: null, startedAt, stdout: "", stderr: "", errorMessage: "Run cancelled before the tool started" }));
+      return;
+    }
     const command = [
-      "export PATH=\"$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH\"",
+      TOOL_PATH_EXPORT,
       proxy ? proxyExports(proxy) : "",
       [shellQuote(toolName), ...args.map(shellQuote)].join(" ")
     ].filter(Boolean).join(" && ");
     const child = spawn("sh", ["-lc", command], {
-      detached: true,
+      detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
-    const capture = createOutputCapture();
-    let timedOut = false;
-
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const capture = { stdout: "", stderr: "", stdoutTruncated: false, stderrTruncated: false };
+    let stopReason = null;
+    const stop = (reason) => {
+      if (stopReason) return;
+      stopReason = reason;
       killProcess(child);
-    }, timeoutMs);
+    };
+    const timer = setTimeout(() => stop("timeout"), timeoutMs);
+    const onAbort = () => stop("cancelled");
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    };
 
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString("utf8");
       capture.stdout = appendLimited(capture.stdout, text, capture, "stdout");
       if (onStdout) onStdout(text);
     });
-
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString("utf8");
       capture.stderr = appendLimited(capture.stderr, text, capture, "stderr");
       if (onStderr) onStderr(text);
     });
-
+    child.stdin.on("error", () => {
+      // The tool may exit before reading stdin; EPIPE is expected then.
+    });
     child.on("error", (error) => {
-      clearTimeout(timer);
-      resolve(finalizeResult({
-        toolName,
-        args,
-        status: "error",
-        exitCode: null,
-        startedAt,
-        stdout: capture.stdout,
-        stderr: capture.stderr,
-        errorMessage: error.message,
-        capture
-      }));
+      cleanup();
+      resolve(finalizeResult({ toolName, args, status: "error", exitCode: null, startedAt, stdout: capture.stdout, stderr: capture.stderr, errorMessage: error.message, capture }));
     });
-
     child.on("close", (exitCode) => {
-      clearTimeout(timer);
-      resolve(finalizeResult({
-        toolName,
-        args,
-        status: timedOut ? "timeout" : exitCode === 0 ? "completed" : "failed",
-        exitCode,
-        startedAt,
-        stdout: capture.stdout,
-        stderr: capture.stderr,
-        errorMessage: timedOut ? `Timed out after ${timeoutMs}ms` : null,
-        capture
-      }));
+      cleanup();
+      const status = stopReason || (exitCode === 0 ? "completed" : "failed");
+      const errorMessage = stopReason === "timeout"
+        ? `Timed out after ${timeoutMs}ms`
+        : stopReason === "cancelled" ? "Stopped because the run was cancelled" : null;
+      resolve(finalizeResult({ toolName, args, status, exitCode, startedAt, stdout: capture.stdout, stderr: capture.stderr, errorMessage, capture }));
     });
 
-    if (input) {
-      child.stdin.write(input);
-    }
+    if (input) child.stdin.write(input);
     child.stdin.end();
   });
-}
-
-function createOutputCapture() {
-  return { stdout: "", stderr: "", stdoutTruncated: false, stderrTruncated: false };
 }
 
 function appendLimited(current, next, capture, streamName) {
@@ -116,7 +121,6 @@ function appendLimited(current, next, capture, streamName) {
 }
 
 function finalizeResult(result) {
-  const finishedAt = new Date().toISOString();
   const truncated = Boolean(result.capture?.stdoutTruncated || result.capture?.stderrTruncated);
   const errorMessage = [result.errorMessage, truncated ? "Tool output was truncated to prevent parser or UI overload." : ""].filter(Boolean).join("; ") || null;
   return {
@@ -125,7 +129,7 @@ function finalizeResult(result) {
     status: result.status,
     exitCode: result.exitCode,
     startedAt: result.startedAt,
-    finishedAt,
+    finishedAt: new Date().toISOString(),
     stdout: result.stdout,
     stderr: result.stderr,
     errorMessage,
@@ -133,7 +137,14 @@ function finalizeResult(result) {
   };
 }
 
+// Kills the whole process tree: `sh` alone would leave the real tool running.
 function killProcess(child) {
+  if (!child.pid) return;
+  if (process.platform === "win32") {
+    const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    killer.on("error", () => child.kill());
+    return;
+  }
   try {
     process.kill(-child.pid, "SIGTERM");
     setTimeout(() => {
@@ -142,22 +153,23 @@ function killProcess(child) {
       } catch {
         // Process group already exited.
       }
-    }, 2000).unref();
+    }, KILL_GRACE_MS).unref();
   } catch {
     child.kill();
   }
 }
 
-function commandDisplay(_runtime, toolName, args) {
+function commandDisplay(_runtime, toolName, args = []) {
   return [toolName, ...args.map(redactCommandArg)].join(" ");
 }
 
 function redactCommandArg(value) {
   const text = String(value);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i.test(text)) return text;
   try {
     return redactProxyUrl(text) || text;
   } catch {
-    return text;
+    return text.replace(/\/\/[^/@\s]*@/, "//****:****@");
   }
 }
 
@@ -188,34 +200,22 @@ function redactProxyUrl(proxyUrl) {
 
 function proxyExports(proxyUrl) {
   const quoted = shellQuote(proxyUrl);
-  return [
-    `export HTTP_PROXY=${quoted}`,
-    `export HTTPS_PROXY=${quoted}`,
-    `export ALL_PROXY=${quoted}`,
-    `export http_proxy=${quoted}`,
-    `export https_proxy=${quoted}`,
-    `export all_proxy=${quoted}`
-  ].join(" && ");
+  return ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]
+    .map((name) => `export ${name}=${quoted}`)
+    .join(" && ");
 }
 
-function shellQuote(value) {
-  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
-}
-
-function createLinuxToolRunner(options = {}) {
-  const { runLinuxToolImpl = runLinuxTool } = options;
-  return {
-    runLinuxTool: function(opts) {
-      return runLinuxToolImpl(opts);
-    }
-  };
+function createLinuxToolRunner({ runLinuxToolImpl = runLinuxTool } = {}) {
+  return { runLinuxTool: (options) => runLinuxToolImpl(options) };
 }
 
 module.exports = {
   ALLOWED_TOOLS,
   commandDisplay,
+  killProcess,
+  createLinuxToolRunner,
   normalizeProxyUrl,
   redactProxyUrl,
   runLinuxTool,
-  createLinuxToolRunner
+  spawnLinuxTool
 };

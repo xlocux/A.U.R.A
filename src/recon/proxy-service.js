@@ -38,18 +38,7 @@ class ProxyService {
   }
 
   async storeProxyMetrics(proxyId, metrics) {
-    await this.store.updateProxyStatus(
-      proxyId,
-      metrics.success ? "active" : "failed",
-      {
-        latency_ms: metrics.latency,
-        success_rate: metrics.success ? 1 : 0,
-        failures_count: metrics.success ? 0 : 1,
-        total_tests: 1,
-        successful_tests: metrics.success ? 1 : 0,
-        avg_response_time: metrics.latency
-      }
-    );
+    return this.store.recordProxyTest(proxyId, { success: Boolean(metrics.success), latencyMs: metrics.latency });
   }
 
   getProxyEnvVars(proxy) {

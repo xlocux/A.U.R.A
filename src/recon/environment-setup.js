@@ -1,10 +1,12 @@
 "use strict";
 
+const { TOOL_PATH_EXPORT, shellQuote } = require("../core/shell");
+const { killProcess } = require("./linux-tools");
+
 const { spawn } = require("node:child_process");
 const { loadToolRegistry } = require("./tool-registry");
 
 const DEFAULT_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
-const TOOL_PATH_EXPORT = "export PATH=\"$HOME/go/bin:$HOME/.npm-global/bin:$HOME/.opencode/bin:$HOME/.local/bin:$PATH\"";
 const OPENCODE_TOOL = {
   tool_id: "opencode",
   binary: "opencode",
@@ -245,6 +247,7 @@ function runNativeShell({ command, timeoutMs }) {
 function runShellProcess({ command, args, timeoutMs }) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
+      detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -253,7 +256,7 @@ function runShellProcess({ command, args, timeoutMs }) {
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill();
+      killProcess(child);
     }, timeoutMs);
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString("utf8");
@@ -290,9 +293,6 @@ function buildAiSetupAssessment({ terminal, agent, tools }) {
   return messages.join(" ");
 }
 
-function shellQuote(value) {
-  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
-}
 
 function firstLine(value) {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean) || null;

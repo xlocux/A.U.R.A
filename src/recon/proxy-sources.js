@@ -1,14 +1,18 @@
 "use strict";
 
 const PROXIFLY_ALL_URL = "https://github.com/proxifly/free-proxy-list/blob/main/proxies/all/data.txt";
+const RAW_GITHUB_HOST = "raw.githubusercontent.com";
+const MAX_LIST_BYTES = 10 * 1024 * 1024;
+const FETCH_TIMEOUT_MS = 15000;
 
 class ProxySources {
   async fetchFromGitHub(rawUrl) {
     if (!rawUrl) throw new Error("GitHub raw URL is required");
     const url = normalizeGithubRawUrl(rawUrl);
-    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), redirect: "error" });
     if (!response.ok) throw new Error(`Failed to fetch proxy list: HTTP ${response.status}`);
-    return this.parseTxtFile(await response.text(), { source: rawUrl.includes("proxifly/free-proxy-list") ? "proxifly" : "github" });
+    const text = await readLimitedText(response, MAX_LIST_BYTES);
+    return this.parseTxtFile(text, { source: url.includes("/proxifly/free-proxy-list/") ? "proxifly" : "github" });
   }
 
   async fetchFromProxifly() {
@@ -136,15 +140,41 @@ function normalizeProxyType(value) {
   return ["http", "https", "socks4", "socks5"].includes(type) ? type : null;
 }
 
+// Only public GitHub raw files may be fetched; anything else (internal hosts, metadata endpoints,
+// other schemes) is rejected before a request is made.
 function normalizeGithubRawUrl(value) {
   const text = String(value || "").trim();
-  if (text.includes("raw.githubusercontent.com")) return text;
-  const match = text.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
-  if (match) {
-    const [, owner, repo, branch, filePath] = match;
-    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+  const blob = text.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
+  const candidate = blob ? `https://${RAW_GITHUB_HOST}/${blob[1]}/${blob[2]}/${blob[3]}/${blob[4]}` : text;
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    throw new Error("Proxy list URL must be a valid https://raw.githubusercontent.com URL");
   }
-  return text;
+  if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== RAW_GITHUB_HOST || parsed.username || parsed.password || parsed.port) {
+    throw new Error("Proxy list URL must be a https://raw.githubusercontent.com (or github.com/.../blob/...) URL");
+  }
+  return parsed.toString();
+}
+
+async function readLimitedText(response, maxBytes) {
+  const declared = Number(response.headers.get("content-length") || 0);
+  if (declared > maxBytes) throw new Error(`Proxy list is larger than ${maxBytes} bytes`);
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error(`Proxy list is larger than ${maxBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
 }
 
 function splitCsvLine(line) {

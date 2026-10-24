@@ -71,7 +71,8 @@ async function suggestReverseWhoisTerms({ domains, fetchImpl = fetch } = {}) {
 async function fetchRdapRecord({ domain, fetchImpl = fetch }) {
   try {
     const response = await fetchImpl(`${RDAP_BASE_URL}${encodeURIComponent(domain)}`, {
-      headers: { Accept: "application/rdap+json, application/json" }
+      headers: { Accept: "application/rdap+json, application/json" },
+      signal: AbortSignal.timeout(20000)
     });
     const data = await response.json().catch(() => ({}));
     return {

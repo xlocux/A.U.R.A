@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { commandDisplay, runLinuxTool } = require("./linux-tools");
+const { toToolPath } = require("./engine/tool-args");
 const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
 
 const MAX_DETECTOR_URLS = 50;
@@ -100,6 +101,8 @@ async function runRetireOnService({ store, runId, targetName, service, linuxRunt
 }
 
 async function prepareRetireInput({ service, artifactsDir, proxyUrl = null }) {
+  // Page/script downloads use Node fetch, which would bypass the configured proxy.
+  if (proxyUrl) return { skipped: true, reason: "page download would bypass the configured proxy" };
   const inputDir = path.join(artifactsDir, "retire-input", safeName(service.url));
   fs.mkdirSync(inputDir, { recursive: true });
   let html = "";
@@ -216,7 +219,7 @@ async function enrichWithBuiltWith({ store, runId, targetName, services, artifac
   for (const host of hosts) {
     try {
       const url = `https://api.builtwith.com/v21/api.json?KEY=${encodeURIComponent(key.api_key)}&LOOKUP=${encodeURIComponent(host)}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
       const text = await response.text();
       const artifactPath = path.join(artifactsDir, `builtwith-${safeName(host)}.json`);
       fs.writeFileSync(artifactPath, text, "utf8");
@@ -442,13 +445,6 @@ function firstUsefulLine(value) {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean)?.slice(0, 160) || "";
 }
 
-function toToolPath(value) {
-  if (String(value).startsWith("/")) return value;
-  const resolved = path.resolve(value);
-  const drive = resolved.slice(0, 1).toLowerCase();
-  const rest = resolved.slice(2).replaceAll("\\", "/");
-  return `/mnt/${drive}${rest}`;
-}
 
 module.exports = {
   parseBuiltWithTechnologies,

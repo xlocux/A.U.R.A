@@ -602,3 +602,40 @@ tbody tr:hover {
     animation: none !important;
   }
 }
+
+/* ── Header layout (authoritative: this sheet loads last) ─────────────────
+   The bare h1 rule above would let the full product name grow the brand
+   column and collide with the status bar and search. Bound and truncate it. */
+/* Flexbox is more predictable than the grid here, where auto-placed and runtime-injected
+   children were landing in the same cell and overlapping. */
+.headerbar {
+  display: flex !important;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+}
+.headerbar h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: clamp(160px, 22vw, 320px);
+  font-size: 15px !important;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.headerbar h1 .header-logo-img { flex: 0 0 28px; width: 28px; height: 28px; }
+/* The running-status pill takes the flexible middle space and never pushes its neighbours. */
+.headerbar #reconStatusBar {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 520px;
+  overflow: hidden;
+}
+.headerbar #status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.headerbar .top-command { flex: 0 0 auto; margin-left: auto; }
+@media (max-width: 920px) {
+  /* Collapse the product name to just the logo on narrow screens. */
+  .headerbar h1 { max-width: 40px; }
+}

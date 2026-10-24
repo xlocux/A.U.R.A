@@ -21,7 +21,7 @@ const ROTATION_ERROR_PATTERNS = [
 ];
 
 class ProxyRotationController {
-  constructor({ store, runId, preferredProxyUrl = null, maxRetries = DEFAULT_MAX_RETRIES, maxCandidates = DEFAULT_MAX_CANDIDATES, preflight = true, preflightTimeout = 3500, preflightConcurrency = 5 } = {}) {
+  constructor({ store, runId, preferredProxyUrl = null, usePool = false, proxyService = null, maxRetries = DEFAULT_MAX_RETRIES, maxCandidates = DEFAULT_MAX_CANDIDATES, preflight = true, preflightTimeout = 3500, preflightConcurrency = 5 } = {}) {
     this.store = store;
     this.runId = runId;
     this.preferredProxyUrl = preferredProxyUrl;
@@ -30,7 +30,10 @@ class ProxyRotationController {
     this.preflight = preflight !== false;
     this.preflightTimeout = Math.max(1000, Number.parseInt(preflightTimeout, 10) || 3500);
     this.preflightConcurrency = Math.max(1, Number.parseInt(preflightConcurrency, 10) || 5);
-    this.proxyService = new ProxyService();
+    // The shared proxy pool is opt-in: by default only the operator's own proxy URL is used.
+    this.usePool = Boolean(usePool);
+    this.ownsProxyService = !proxyService;
+    this.proxyService = proxyService || new ProxyService();
     this.proxyPreflight = new ProxyPreflight({ proxyService: this.proxyService });
     this.proxyDetection = new ProxyDetection();
     this.pool = [];
@@ -52,7 +55,8 @@ class ProxyRotationController {
       const results = await this.proxyPreflight.batchTest(candidates, { concurrency: this.preflightConcurrency, timeout: this.preflightTimeout, runId: `recon_${this.runId}_proxy_preflight` });
       usable = results
         .filter((result) => result.success)
-        .map((result) => ({ ...result.proxy, password: candidates.find((item) => sameProxy(item, result.proxy))?.password || null, status: "active", latency_ms: Number(result.latency || result.latencyMs || result.responseTime || Number.MAX_SAFE_INTEGER), success_rate: 1 }))
+        // result.proxy is redacted by preflight, so rebuild each pool entry from the original candidate.
+        .map((result) => ({ ...candidates.find((item) => sameProxy(item, result.proxy)), status: "active", latency_ms: Number(result.latency || result.latencyMs || result.responseTime || Number.MAX_SAFE_INTEGER), success_rate: 1 }))
         .sort(compareProxyQuality);
       const failed = results.length - usable.length;
       if (usable.length > 0) {
@@ -62,6 +66,12 @@ class ProxyRotationController {
       }
     } else {
       usable = usable.sort(compareProxyQuality);
+    }
+    const preferred = candidates.find((item) => item.preferred);
+    if (preferred && !usable.some((item) => sameProxy(item, preferred))) {
+      // Fail closed: never silently fall back to a direct connection when the operator asked for a proxy.
+      this.appendEvent({ phase: "proxy-preflight", severity: "warn", source: "proxy-preflight", message: `Configured proxy ${redactProxy(preferred)} failed preflight; it stays first in the pool so tools fail instead of bypassing it.` });
+      usable = [preferred, ...usable];
     }
     this.pool = usable.slice(0, this.maxCandidates);
     return this;
@@ -77,7 +87,7 @@ class ProxyRotationController {
         this.appendEvent({ phase: "proxy-preflight", severity: "warn", source: "proxy-preflight", message: `Configured proxy ignored: ${error.message}` });
       }
     }
-    const records = await this.proxyService.store.getProxies({ status: "all" });
+    const records = this.usePool ? await this.proxyService.store.getProxies({ status: "all" }) : [];
     for (const record of records.sort(compareProxyQuality)) {
       if (["inactive", "failed"].includes(record.status)) continue;
       const normalized = normalizeProxyRecord(record);
@@ -182,11 +192,15 @@ class ProxyRotationController {
     try {
       const proxyId = await this.proxyService.getOrCreateProxyId(proxy);
       const success = result.status === "completed" && !decision.rotate;
-      await this.proxyService.store.updateProxyStatus(proxyId, success ? "active" : "failed", { latency_ms: latencyMs, success_rate: success ? 1 : 0, failures_count: success ? 0 : 1, total_tests: 1, successful_tests: success ? 1 : 0, avg_response_time: latencyMs });
+      await this.proxyService.store.recordProxyTest(proxyId, { success, latencyMs });
       await this.proxyService.store.recordTestRun(String(this.runId || "recon"), proxyId, result.toolName || "linux-tool", success, latencyMs, success ? null : decision.reason, null);
     } catch (error) {
       this.appendEvent({ phase: "proxy-rotation", severity: "warn", source: "proxy-store", message: `Could not store proxy rotation metrics: ${error.message}` });
     }
+  }
+
+  close() {
+    if (this.ownsProxyService) this.proxyService.close();
   }
 
   appendEvent(event) {

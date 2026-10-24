@@ -1,6 +1,7 @@
 "use strict";
 
 const { LocalArtifactStore } = require("./artifact-store");
+const { commandDisplay: redactedCommandDisplay } = require("./linux-tools");
 const { loadToolRegistry } = require("./tool-registry");
 
 async function runOneJob({
@@ -26,9 +27,10 @@ async function runOneJob({
     }
 
     const tool = toolRegistry.require(job.tool_id);
-    const args = job.payload.args || [];
-    const input = job.payload.input || null;
-    const timeoutMs = job.timeout_ms || job.payload.timeoutMs || 180000;
+    const payload = job.payload || {};
+    const args = Array.isArray(payload.args) ? payload.args : [];
+    const input = payload.input || null;
+    const timeoutMs = job.timeout_ms || payload.timeoutMs || 180000;
     const result = await toolRunner.run({
       tool,
       args,
@@ -74,7 +76,7 @@ async function runOneJob({
 }
 
 function commandDisplay(binary, args = []) {
-  return [binary, ...args].join(" ");
+  return redactedCommandDisplay(null, binary, args);
 }
 
 class FunctionToolRunner {

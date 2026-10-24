@@ -4,7 +4,7 @@
   "private": true,
   "description": "A.U.R.A - Recon and discovery dashboard with persistent local storage.",
   "scripts": {
-    "test": "node --test tests/*.test.js",
+    "test": "node --test --test-concurrency=4 tests/*.test.js",
     "web": "node scripts/serve-web.js --port 31338 --open"
   },
   "engines": {

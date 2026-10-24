@@ -89,13 +89,15 @@ This prevents a full recon from looking successful when a required downstream st
 
 ## Current integration status
 
-The adaptive benchmark is wired into runtime execution through `src/recon/recon-engine-runtime-patch.js`, loaded by `scripts/serve-web.js` before the web server imports API routes. It wraps:
+The adaptive benchmark is wired into runtime execution through `src/recon/engine/adaptive-run.js`. Its `withAdaptiveRun` wrapper is applied in the `recon-engine.js` facade to each pipeline:
 
 - `runRecon`
 - `runHttpFollowup`
 - `runFocusedFollowup`
 
-It also patches Linux tool execution through `src/recon/adaptive-linux-tool-runner.js` so selected adaptive limits are applied to:
+For every run it benchmarks the host, records the adaptive preflight, and establishes an isolated per-run context (`src/recon/run-context.js`, backed by `AsyncLocalStorage`) carrying the store, run id, adaptive profile, and a cancel signal. This replaced the former global monkeypatch (`recon-engine-runtime-patch.js`), so concurrent runs no longer share a single mutable profile and a cancelled run kills its running tools instead of waiting out their timeout.
+
+Linux tool execution in `src/recon/linux-tools.js` reads that context and applies the adaptive limits through `src/recon/adaptive-linux-tool-runner.js` for:
 
 - `httpx`: adaptive batches, per-batch timeout, thread count cap, minimum retry (1), and rate-limit/timeout flags. Zero-output + proxy scenarios trigger a direct-only recovery action.
 - `dnsx`: capped thread count and retry minimum (1 — required by dnsx, zero is rejected as fatal)
@@ -111,20 +113,21 @@ When `httpx` completes through a proxy and returns zero parsed HTTP services, th
 
 The Web UI exposes diagnostics in `Runs & Logs` next to Current Activity as `Export Diagnostics JSON`. Use this when a run has missing tech stack, screenshots, HTTP services, or tool output. The export includes run events, tool results, preflight data, artifact previews, stdout/stderr snippets, observation counts, and AI diagnostic hints.
 
-## Modular stage extraction
+## Engine module layout
 
-The following modules are now available for gradual replacement of logic currently inside `src/recon/recon-engine.js`:
+`src/recon/recon-engine.js` is a thin facade that re-exports the public API and wraps the pipelines with `withAdaptiveRun`. The implementation lives under `src/recon/engine/`:
 
-- `src/recon/stages/http-probe-stage.js`
-  - owns HTTP probing input batching, stage contract creation, parsed service output, and warnings
-- `src/recon/stages/screenshot-stage.js`
-  - owns screenshot input preparation, screenshot tool args, report discovery, image counting, and stage contract output for maintained screenshot tooling
-- `src/recon/adaptive-linux-tool-runner.js`
-  - owns adaptive tool flag mutation, large `httpx` input splitting, per-batch logging, and partial service persistence
-- `src/recon/recon-engine-runtime-patch.js`
-  - owns runtime orchestration patching and active run-context propagation
+- `constants.js` — default tool/source lists, httpx port presets, recovery patterns, tool-ran statuses.
+- `run-control.js` — `waitForRunControl`, `completeRun` (never overwrites a cancel), `watchRunCancellation`, `RunControlError`.
+- `tool-args.js` — tool spec parsing, port resolution, `httpxArgsForInput`, `screenshotArgsForTool`, `toToolPath` (one shared `C:/…`-style path helper for Git Bash), `inferRoots`.
+- `tool-execution.js` — proxy controller creation, `runToolWithRecovery`, `runHttpxOnHosts` (shared httpx run/record/parse), artifact writing, `shouldRetryToolResult`.
+- `discovery.js` — passive sources, Linux discovery tools, one-shot tool availability check.
+- `web-collectors.js` — screenshots, trackers, favicons (direct-fetch collectors are skipped when a proxy is configured).
+- `recovery-pool.js` — recovery action build/run with real per-action retry attempts.
+- `pipelines.js` — `runRecon`, `runHttpFollowup`, `runFocusedFollowup`.
+- `adaptive-run.js` — the `withAdaptiveRun` wrapper and preflight recording.
 
-`recon-engine.js` should continue shrinking by delegating one phase at a time to these stage modules. Avoid moving unrelated phases in the same commit.
+`src/recon/adaptive-linux-tool-runner.js` owns adaptive flag mutation, large-`httpx` batching, per-batch logging, and partial service persistence. Keep each module focused and under a few hundred lines.
 
 ## Next refactor checkpoints
 

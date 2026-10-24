@@ -129,7 +129,8 @@ async function callSubdomainsLookupApi({ apiKey, domainName, fetchImpl = fetch }
 
 async function requestJsonFetch(url, { fetchImpl = fetch } = {}) {
   const response = await fetchImpl(url, {
-    headers: { Accept: "application/json", "User-Agent": "AURA recon/0.1" }
+    headers: { Accept: "application/json", "User-Agent": "AURA recon/0.1" },
+    signal: AbortSignal.timeout(30000)
   });
   const text = await response.text();
   let json = {};

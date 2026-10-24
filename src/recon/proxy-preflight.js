@@ -8,6 +8,7 @@ const DEFAULT_CONCURRENCY = 50;
 const MAX_CONCURRENCY = 100;
 const DEFAULT_TIMEOUT_MS = 3500;
 const DEFAULT_TCP_TIMEOUT_MS = 1200;
+const MAX_PROBE_RESPONSE_BYTES = 16 * 1024;
 
 class ProxyPreflight {
   constructor({ proxyService = new ProxyService() } = {}) {
@@ -112,6 +113,8 @@ function testTcp(host, port, timeout) {
       resolve({ latency: Date.now() - startedAt, ...payload });
     };
     socket.setTimeout(timeout);
+    // setTimeout above is an idle timeout; this hard deadline also catches proxies that trickle bytes.
+    setTimeout(() => finish({ success: false, error: "Proxy check exceeded its deadline" }), timeout + 250).unref();
     socket.once("connect", () => finish({ success: true }));
     socket.once("timeout", () => finish({ success: false, error: "TCP connection timed out" }));
     socket.once("error", (error) => finish({ success: false, error: error.message, code: error.code }));
@@ -155,10 +158,16 @@ function testHttpConnectProxy(proxy, { timeout, testHost, testPort, useTls }) {
       ].filter((line) => line !== null).join("\r\n"));
     };
     socket.setTimeout(timeout);
+    // setTimeout above is an idle timeout; this hard deadline also catches proxies that trickle bytes.
+    setTimeout(() => finish({ success: false, error: "Proxy check exceeded its deadline" }), timeout + 250).unref();
     socket.once("connect", () => { if (!useTls) writeConnect(); });
     socket.once("secureConnect", writeConnect);
     socket.on("data", (chunk) => {
       chunks.push(chunk);
+      if (chunks.reduce((total, item) => total + item.length, 0) > MAX_PROBE_RESPONSE_BYTES) {
+        finish({ success: false, error: "Proxy response exceeded the preflight size limit" });
+        return;
+      }
       const text = Buffer.concat(chunks).toString("utf8");
       if (!text.includes("\r\n\r\n")) return;
       const match = text.match(/^HTTP\/\d(?:\.\d)?\s+(\d{3})/i);
@@ -193,11 +202,17 @@ function testSocks5Proxy(proxy, { timeout, testHost, testPort }) {
       resolve({ latency: Date.now() - startedAt, protocol: "socks5-connect", ...payload });
     };
     socket.setTimeout(timeout);
+    // setTimeout above is an idle timeout; this hard deadline also catches proxies that trickle bytes.
+    setTimeout(() => finish({ success: false, error: "Proxy check exceeded its deadline" }), timeout + 250).unref();
     socket.once("connect", () => {
       socket.write(proxy.username && proxy.password ? Buffer.from([0x05, 0x02, 0x00, 0x02]) : Buffer.from([0x05, 0x01, 0x00]));
     });
     socket.on("data", (chunk) => {
       chunks.push(chunk);
+      if (chunks.reduce((total, item) => total + item.length, 0) > MAX_PROBE_RESPONSE_BYTES) {
+        finish({ success: false, error: "Proxy response exceeded the preflight size limit" });
+        return;
+      }
       const data = Buffer.concat(chunks);
       if (stage === "greeting") {
         if (data.length < 2) return;
@@ -264,9 +279,15 @@ function testSocks4Proxy(proxy, { timeout, testHost, testPort }) {
       resolve({ latency: Date.now() - startedAt, protocol: "socks4a-connect", ...payload });
     };
     socket.setTimeout(timeout);
+    // setTimeout above is an idle timeout; this hard deadline also catches proxies that trickle bytes.
+    setTimeout(() => finish({ success: false, error: "Proxy check exceeded its deadline" }), timeout + 250).unref();
     socket.once("connect", () => socket.write(socks4aConnectRequest(testHost, testPort, proxy.username || "aura")));
     socket.on("data", (chunk) => {
       chunks.push(chunk);
+      if (chunks.reduce((total, item) => total + item.length, 0) > MAX_PROBE_RESPONSE_BYTES) {
+        finish({ success: false, error: "Proxy response exceeded the preflight size limit" });
+        return;
+      }
       const data = Buffer.concat(chunks);
       if (data.length < 8) return;
       finish(data[1] === 0x5a ? { success: true } : { success: false, error: `SOCKS4 connect failed with code ${data[1]}` });

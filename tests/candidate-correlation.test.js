@@ -77,3 +77,15 @@ test("candidate correlation auto-promotes TLD candidates at 100 percent only", (
   assert.equal(result[0].metadata.correlationEngineResult.confidence_score, 100);
   assert.equal(savedDomains[0].domains[0].kind, "promoted_asset");
 });
+
+test("TLD candidates do not corroborate themselves from their own lead metadata", () => {
+  const { buildExistingObservations, buildTldCandidateFromLead, calculateTLDConfidence } = require("../src/recon/tld-correlation-engine");
+  const lead = {
+    value: "acme.io",
+    metadata: { sourceTools: ["crt_sh"], certificateSans: ["acme.io"], aRecord: "203.0.113.7", organization: "Third Party Ltd" }
+  };
+  const observations = buildExistingObservations({ rootDomains: ["acme.com"], assetLeads: [lead] });
+  const result = calculateTLDConfidence(buildTldCandidateFromLead(lead), observations);
+  assert.ok(result.confidence_score < 100, `self-referential evidence must not reach 100 (got ${result.confidence_score})`);
+  assert.notEqual(result.promotion_eligible, true);
+});

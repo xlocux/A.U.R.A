@@ -4,6 +4,8 @@ targets/*/logs/
 targets/*/intelligence/
 data/agenticaos-web.db*
 data/aura.db*
+data/proxies.db*
+data/preflight/
 data/recon-runs/
 data/wordlists/generated/
 

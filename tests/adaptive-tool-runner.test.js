@@ -109,3 +109,25 @@ test("adaptToolInvocation: non-adapted tools pass through unchanged", () => {
   const adapted = adaptToolInvocation(options, profile);
   assert.deepEqual(adapted.args, options.args);
 });
+
+test("runBatchedHttpx reports timed-out batches without throwing and redacts proxy credentials", async () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const { runBatchedHttpx } = require("../src/recon/adaptive-linux-tool-runner");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aura-batch-"));
+  const input = path.join(dir, "hosts.txt");
+  fs.writeFileSync(input, ["a.example.com", "b.example.com", "c.example.com"].join("\n"));
+  const recorded = [];
+  const store = { appendEvent() {}, saveHttpServices() {}, recordToolResult: (_runId, row) => recorded.push(row) };
+  const result = await runBatchedHttpx({
+    original: async (options) => ({ status: "timeout", exitCode: null, stdout: "", stderr: "", args: options.args }),
+    options: { toolName: "httpx", args: ["-l", input, "-proxy", "http://user:secret@127.0.0.1:8080"], timeoutMs: 60000 },
+    profile: { httpxBatchSize: 1, httpxBatchTimeoutMs: 60000 },
+    context: { store, runId: 1, targetName: "demo" }
+  });
+  assert.equal(result.status, "timeout");
+  assert.match(result.errorMessage, /timed out after \d+ms/);
+  assert.ok(recorded.length > 0);
+  for (const row of recorded) assert.doesNotMatch(row.commandDisplay, /secret/);
+});
