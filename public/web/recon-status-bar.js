@@ -33,10 +33,15 @@
       <span class="rsb-counts"></span>
     `;
     el.addEventListener("click", () => {
+      const runId = Number(document.getElementById("runId")?.textContent) || null;
+      if (runId && window.AuraReconFlow) {
+        window.AuraReconFlow.open(runId);
+        return;
+      }
       document.querySelector('[data-tab="results"]')?.click();
       document.querySelector('[data-results-view="activity"]')?.click();
     });
-    el.title = "Click to open Logs";
+    el.title = "Click to open the recon flow diagram";
     return el;
   }
 

@@ -106,7 +106,7 @@ function updateRunControl({ response, store, params }) {
   if (action === "pause") {
     if (run.status !== "running" && run.status !== "queued") throw new HttpError(409, `Run cannot be paused from ${run.status}`);
     const updated = store.updateRun(runId, { status: "paused", activePhase: run.active_phase || "paused" });
-    store.appendEvent(runId, { phase: "control", severity: "warn", source: "user", message: "Run pause requested." });
+    store.appendEvent(runId, { phase: "control", severity: "warn", source: "user", message: "Pause requested. The run pauses after the current tool finishes; use Cancel to stop immediately." });
     sendJson(response, { run: updated });
     return;
   }

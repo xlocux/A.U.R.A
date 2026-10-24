@@ -886,3 +886,96 @@ tr:hover .row-actions { opacity: 1; }
 #tab-wordlists thead th:hover { color: var(--ink, #fff); }
 thead th[aria-sort="ascending"]::after { content: " ▲"; font-size: 9px; opacity: .8; }
 thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opacity: .8; }
+
+/* ── Recon flow diagram ─────────────────────────────────────────────────────
+   Full pipeline as a vertical chain; colour + glow show each stage's state and
+   where the run currently is. */
+.recon-flow-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  padding: 24px;
+  background: rgba(3, 5, 9, .78);
+  backdrop-filter: blur(5px);
+}
+.recon-flow-modal.hidden { display: none; }
+.recon-flow-dialog {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 720px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg, #05070b);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .55);
+  overflow: hidden;
+}
+.recon-flow-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.recon-flow-head strong { font-size: 14px; }
+.recon-flow-head #reconFlowStatus { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.recon-flow-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px; }
+.recon-flow-counts { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; font-size: 12px; color: var(--muted); }
+.recon-flow-counts strong { color: var(--ink, #fff); }
+.recon-flow-chain { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+.recon-flow-arrow { align-self: center; color: var(--soft-line, var(--line)); font-size: 16px; line-height: 1; margin: 2px 0; }
+
+.recon-flow-stage {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.recon-flow-stage-head { display: flex; align-items: center; gap: 10px; }
+.recon-flow-stage-head strong { font-size: 13px; }
+.recon-flow-stage-head small { margin-left: auto; font-size: 11px; color: var(--muted); }
+.recon-flow-stage p { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); }
+.recon-flow-dot { width: 10px; height: 10px; border-radius: 999px; flex: 0 0 10px; background: var(--soft-line, #3a3a3a); }
+
+/* Pending = dim. Done = green. Running = accent with a pulsing glow. */
+.recon-flow-stage.pending { opacity: .62; }
+.recon-flow-stage.done { border-color: color-mix(in srgb, #52d391 55%, var(--line)); background: color-mix(in srgb, #52d391 10%, transparent); }
+.recon-flow-stage.done .recon-flow-dot { background: #52d391; box-shadow: 0 0 10px rgba(82, 211, 145, .7); }
+.recon-flow-stage.running {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 24px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.recon-flow-stage.running .recon-flow-dot { background: var(--accent); box-shadow: 0 0 14px var(--accent); animation: reconFlowPulse 1.1s ease-in-out infinite; }
+.recon-flow-stage.running .recon-flow-stage-head small { color: var(--accent); font-weight: 700; }
+
+.recon-flow-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.recon-flow-tool {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--soft-line, var(--line));
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+}
+.recon-flow-tool.completed { color: #d9ffe7; border-color: rgba(82, 211, 145, .6); background: rgba(40, 150, 95, .16); }
+.recon-flow-tool.failed, .recon-flow-tool.timeout { color: #ffd5d9; border-color: rgba(220, 80, 90, .55); background: rgba(150, 40, 50, .16); }
+.recon-flow-tool.running { color: #04151a; background: var(--accent); border-color: transparent; box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+@keyframes reconFlowPulse {
+  0%, 100% { box-shadow: 0 0 10px var(--accent); }
+  50% { box-shadow: 0 0 20px var(--accent), 0 0 30px color-mix(in srgb, var(--accent) 50%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recon-flow-stage.running .recon-flow-dot { animation: none; }
+}
+
+/* Keep modal close buttons compact (base button width:100% would stretch them) */
+.recon-flow-head #reconFlowClose,
+.results-fullscreen-head #resultsFullscreenClose,
+.results-fullscreen-close { flex: 0 0 auto !important; width: auto !important; }
+.recon-flow-head strong { flex: 0 0 auto; white-space: nowrap; }
