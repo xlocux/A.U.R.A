@@ -16,63 +16,23 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...getSettings(), ...next }));
   }
 
-  function ensureLightOption() {
-    const select = document.getElementById("themeSelect");
-    if (!select || select.querySelector('option[value="light"]')) return;
-    const option = document.createElement("option");
-    option.value = "light";
-    option.textContent = "Light Mode";
-    select.appendChild(option);
-  }
-
-  function applyLightTheme() {
-    const select = document.getElementById("themeSelect");
-    ensureLightOption();
-    document.documentElement.dataset.theme = "light";
-    if (select) select.value = "light";
-    localStorage.setItem(LIGHT_FLAG, "1");
-    saveSettings({ theme: "light" });
-    window.dispatchEvent(new CustomEvent("aura:appearance-change"));
-  }
-
-  function clearLightFlag() {
+  // The previous "Light Mode" option set data-theme="light" but no stylesheet defines a light
+  // theme, so it did nothing. Remove any leftover light option and migrate saved state back to the
+  // default accent theme so the Appearance controls only expose themes that actually render.
+  function removeLightArtifacts() {
     localStorage.removeItem(LIGHT_FLAG);
-  }
-
-  function bindLightTheme() {
     const select = document.getElementById("themeSelect");
-    if (!select || select.dataset.lightExtensionBound === "true") return;
-    select.dataset.lightExtensionBound = "true";
-    ensureLightOption();
-    select.addEventListener("change", (event) => {
-      if (select.value !== "light") {
-        clearLightFlag();
-        return;
-      }
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      applyLightTheme();
-    }, true);
-  }
-
-  function restoreLightThemeIfNeeded() {
-    ensureLightOption();
+    select?.querySelector('option[value="light"]')?.remove();
     const settings = getSettings();
-    if (settings.theme === "light" || localStorage.getItem(LIGHT_FLAG) === "1") {
-      applyLightTheme();
+    if (settings.theme === "light") {
+      saveSettings({ theme: "aura" });
+      if (document.documentElement.dataset.theme === "light") document.documentElement.dataset.theme = "";
+      if (select) select.value = "aura";
     }
   }
 
   function boot() {
-    bindLightTheme();
-    restoreLightThemeIfNeeded();
-    // Note: do NOT inject scripts already loaded by index.html (product-title, compact-density,
-    // api-key-actions, http-port-options, screenshot-alignment, guide-*.js).
-    // Double-loading causes duplicate event bindings that freeze the UI.
-    window.addEventListener("aura:appearance-change", () => {
-      ensureLightOption();
-      if (document.documentElement.dataset.theme !== "light") clearLightFlag();
-    });
+    removeLightArtifacts();
   }
 
   if (document.readyState === "loading") {
