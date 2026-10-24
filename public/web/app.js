@@ -1008,6 +1008,51 @@ function sortTableByColumn(table, columnIndex, direction) {
   for (const row of rows) tbody.appendChild(row);
 }
 
+// Moves the Settings sections into a sidebar submenu under the Settings nav item, instead of a
+// row of buttons taking space in the main panel. The submenu mirrors the live .settings-tab buttons.
+function buildSidebarSubmenus() {
+  const nav = document.getElementById("workspaceNav");
+  const settingsTab = nav?.querySelector('.tab[data-tab="settings"]');
+  const panelButtons = [...document.querySelectorAll("#tab-settings .settings-tab")];
+  if (!nav || !settingsTab || panelButtons.length === 0 || document.getElementById("settingsSubmenu")) return;
+
+  const submenu = document.createElement("div");
+  submenu.id = "settingsSubmenu";
+  submenu.className = "nav-submenu";
+  submenu.setAttribute("role", "group");
+  for (const button of panelButtons) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "nav-subitem";
+    item.dataset.settingsPanel = button.dataset.settingsPanel;
+    item.textContent = button.textContent.trim();
+    item.addEventListener("click", () => {
+      activateTab("settings");
+      activateSettingsPanel(button.dataset.settingsPanel);
+      syncSettingsSubmenu(button.dataset.settingsPanel);
+    });
+    submenu.appendChild(item);
+  }
+  settingsTab.insertAdjacentElement("afterend", submenu);
+  // The in-panel settings tab row is now redundant; hide it (the sidebar drives section selection).
+  document.querySelector("#tab-settings .settings-tabs")?.classList.add("hidden");
+
+  const syncVisibility = () => {
+    const active = settingsTab.classList.contains("active");
+    submenu.classList.toggle("open", active);
+    if (active) syncSettingsSubmenu(document.querySelector("#tab-settings .settings-tab.active")?.dataset.settingsPanel);
+  };
+  settingsTab.addEventListener("click", () => setTimeout(syncVisibility, 0));
+  nav.querySelectorAll('.tab:not([data-tab="settings"])').forEach((tab) => tab.addEventListener("click", () => setTimeout(syncVisibility, 0)));
+  syncVisibility();
+}
+
+function syncSettingsSubmenu(panel) {
+  document.querySelectorAll("#settingsSubmenu .nav-subitem").forEach((item) => {
+    item.classList.toggle("active", item.dataset.settingsPanel === panel);
+  });
+}
+
 function enableTableSorting() {
   document.addEventListener("click", (event) => {
     const th = event.target.closest("thead th");
@@ -1741,6 +1786,7 @@ document.querySelectorAll(".tab").forEach((button) => {
 });
 bindDashboardShellActions();
 enableTableSorting();
+buildSidebarSubmenus();
 
 loadTargets()
   .then(() => populateResultsProjectPicker().catch(() => {}))

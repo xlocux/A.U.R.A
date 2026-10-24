@@ -985,3 +985,34 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 .results-fullscreen-head #resultsFullscreenClose,
 .results-fullscreen-close { flex: 0 0 auto !important; width: auto !important; }
 .recon-flow-head strong { flex: 0 0 auto; white-space: nowrap; }
+
+/* ── Sidebar submenu (Settings sections) ──────────────────────────────────── */
+.nav-submenu {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 6px 0;
+  padding-left: 8px;
+}
+.nav-submenu.open { display: flex; }
+.nav-subitem {
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px 7px 30px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.nav-subitem:hover { color: var(--ink, #fff); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.nav-subitem.active {
+  color: var(--ink, #fff);
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* Collapsed sidebar hides submenu labels with the rest of the nav text. */
+body.sidebar-collapsed .nav-submenu { display: none !important; }
+.hidden { display: none !important; }
