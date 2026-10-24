@@ -849,6 +849,15 @@ function renderAllResultTables() {
   renderToolResults(resultsData.toolResults);
 }
 
+// Small copy + open-in-new-tab controls for a table cell. `href` is optional (domains get https://).
+function rowActions(value, href) {
+  const safeValue = esc(String(value ?? ""));
+  const open = href
+    ? `<a class="row-action" href="${esc(href)}" target="_blank" rel="noreferrer noopener" title="Open in new tab" aria-label="Open in new tab">↗</a>`
+    : "";
+  return `<span class="row-actions"><button type="button" class="row-action copy-value" data-copy="${safeValue}" title="Copy to clipboard" aria-label="Copy to clipboard">⧉</button>${open}</span>`;
+}
+
 function renderDomains(domains) {
   resultsData.domains = domains || [];
   const rows = [...resultsData.domains].sort((a, b) => String(a.domain).localeCompare(String(b.domain)));
@@ -856,7 +865,7 @@ function renderDomains(domains) {
   $("domainRows").innerHTML = renderGroupedRows(rows, $("domainGroupBy").value, (domain) => {
     const root = domain.root_domain || domain.domain?.split(".").slice(-2).join(".");
     const groupKey = $("domainGroupBy").value === "kind" ? domain.kind : $("domainGroupBy").value === "root" ? root : domain.source;
-    return { groupKey, html: `<tr><td>${esc(domain.domain)}</td><td>${esc(domain.kind || "")}</td><td>${esc(domain.source || "")}</td></tr>` };
+    return { groupKey, html: `<tr><td><span class="cell-value">${esc(domain.domain)}</span> ${rowActions(domain.domain, `https://${domain.domain}`)}</td><td>${esc(domain.kind || "")}</td><td>${esc(domain.source || "")}</td></tr>` };
   });
 }
 
@@ -868,7 +877,8 @@ function renderArtifacts(artifacts) {
     else if ($("urlGroupBy").value === "params") groupKey = artifact.extra_json?.params?.length ? "with params" : "without params";
     else if ($("urlGroupBy").value === "source") groupKey = artifact.source || "unknown source";
     else if ($("urlGroupBy").value === "path") groupKey = pathPrefixOf(artifact.value);
-    return { groupKey, html: `<tr><td>${esc(artifact.artifact_type)}</td><td class="mono wrap">${esc(artifact.value)}</td><td>${esc(JSON.stringify(artifact.extra_json || {}))}</td></tr>` };
+    const href = /^https?:\/\//i.test(artifact.value || "") ? artifact.value : "";
+    return { groupKey, html: `<tr><td>${esc(artifact.artifact_type)}</td><td class="mono wrap"><span class="cell-value">${esc(artifact.value)}</span> ${rowActions(artifact.value, href)}</td><td>${esc(JSON.stringify(artifact.extra_json || {}))}</td></tr>` };
   });
 }
 
@@ -883,7 +893,7 @@ function renderHttpServices(services) {
     else if ($("serviceGroupBy").value === "tech") groupKey = tech || "unknown tech";
     else if ($("serviceGroupBy").value === "host") groupKey = hostnameOf(service.url) || "unknown host";
     else if ($("serviceGroupBy").value === "scheme") groupKey = service.url?.split(":")[0] || "unknown scheme";
-    return { groupKey, html: `<tr><td class="mono wrap"><a href="${esc(service.url)}" target="_blank" rel="noreferrer">${esc(service.url)}</a></td><td>${esc(statusCode)}</td><td>${esc(service.title || "")}</td><td>${esc(tech)}</td></tr>` };
+    return { groupKey, html: `<tr><td class="mono wrap"><a href="${esc(service.url)}" target="_blank" rel="noreferrer noopener">${esc(service.url)}</a> ${rowActions(service.url, service.url)}</td><td>${esc(statusCode)}</td><td>${esc(service.title || "")}</td><td>${esc(tech)}</td></tr>` };
   });
 }
 
@@ -1551,6 +1561,28 @@ $("generateWordlist").addEventListener("click", generateWordlist);
 $("runSearch").addEventListener("click", runSearch);
 $("searchQuery").addEventListener("keydown", (event) => {
   if (event.key === "Enter") runSearch();
+});
+document.addEventListener("click", async (event) => {
+  const copyButton = event.target.closest(".copy-value");
+  if (!copyButton) return;
+  const value = copyButton.dataset.copy || "";
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(value);
+    else {
+      const area = document.createElement("textarea");
+      area.value = value;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
+    const original = copyButton.textContent;
+    copyButton.textContent = "✓";
+    copyButton.classList.add("copied");
+    setTimeout(() => { copyButton.textContent = original; copyButton.classList.remove("copied"); }, 1000);
+  } catch {
+    copyButton.title = "Copy failed";
+  }
 });
 document.addEventListener("click", (event) => {
   const thumb = event.target.closest(".screenshot-thumb");

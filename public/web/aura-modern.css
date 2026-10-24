@@ -793,3 +793,67 @@ body.results-view-expanded { overflow: hidden; }
   z-index: 1;
   background: var(--panel, #0d0e11);
 }
+
+/* ── AI Correlation Log & Activity: two-pane views must fill and scroll ──────
+   These views wrap a .split (two panes) as their only child; the generic
+   table-view grid cut them off. Let the split fill the height and each pane
+   scroll internally. ID selectors so it also applies inside the fullscreen modal. */
+#results-ai-log.result-view.active,
+#results-activity.result-view.active {
+  display: grid !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  min-height: 0;
+}
+#results-ai-log .split,
+#results-activity .split {
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  grid-template-columns: 1fr 1fr;
+}
+#results-ai-log .split > .pane,
+#results-activity .split > .pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+#results-ai-log .split .scroll,
+#results-activity .split .scroll,
+#results-ai-log .correlation-techniques {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+#results-ai-log .split .notice,
+#results-activity .split .notice { flex: 0 0 auto; }
+
+/* ── Inline row actions (copy / open in new tab) ───────────────────────────── */
+.row-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+tr:hover .row-actions { opacity: 1; }
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  border: 1px solid var(--soft-line, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+.row-action:hover { color: var(--ink, #fff); border-color: var(--accent); }
+.row-action.copied { color: #52d391; border-color: #52d391; }
+.cell-value { word-break: break-all; }
