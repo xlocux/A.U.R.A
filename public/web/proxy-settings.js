@@ -6,7 +6,6 @@
   const $ = (id) => document.getElementById(id);
 
   injectStylesheet("/proxy-dashboard.css", "aura-proxy-dashboard-css");
-  injectScript("/projects-view.js", "aura-projects-view-js");
   injectScript("/aura-modern.js", "aura-modern-js");
   injectScript("/proxifly-import.js", "aura-proxifly-import-js");
 

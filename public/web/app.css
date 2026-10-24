@@ -511,6 +511,27 @@ button:disabled { opacity: .55; cursor: wait; }
 .metric strong { display: block; font-size: 22px; }
 .run-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: stretch; }
 .run-controls button { min-height: 100%; }
+.result-project-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.result-project-bar label {
+  margin: 0;
+  white-space: nowrap;
+}
+.result-project-bar select {
+  min-width: 160px;
+}
+.result-project-bar #resultsProjectHint {
+  margin-left: auto;
+}
 .result-subtabs {
   display: flex;
   gap: 2px;
@@ -1376,6 +1397,12 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 
 #settings-credentials .api-key-table-wrap table {
   min-width: 860px;
+}
+
+#settings-credentials .api-key-table-wrap .scroll {
+  flex: 1 1 auto;
+  max-height: none;
+  height: 100%;
 }
 
 .api-key-table-header {

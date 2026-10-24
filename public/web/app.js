@@ -250,6 +250,7 @@ function activateTab(name) {
     panel.classList.toggle("active", panel.id === `tab-${name}`);
   });
   if (name === "topology") window.AuraTopology?.render?.();
+  if (name === "results") populateResultsProjectPicker().catch(() => {});
 }
 
 function bindDashboardShellActions() {
@@ -448,6 +449,54 @@ function clearRunView() {
   $("events").innerHTML = "";
   $("runActivity").textContent = "No active run loaded.";
   updateRunControlButtons("idle");
+}
+
+async function populateResultsProjectPicker() {
+  const select = $("resultsProjectSelect");
+  if (!select) return;
+  const previous = select.value;
+  select.innerHTML = targets.map((t) => `<option value="${esc(t.target_name)}">${esc(t.target_name)}</option>`).join("");
+  const next = targets.some((t) => t.target_name === previous) ? previous : ($("target")?.value || targets[0]?.target_name || "");
+  if (next) select.value = next;
+  await populateResultsRunPicker();
+}
+
+async function populateResultsRunPicker() {
+  const projectSelect = $("resultsProjectSelect");
+  const runSelect = $("resultsRunSelect");
+  if (!projectSelect || !runSelect) return;
+  const targetName = projectSelect.value;
+  if (!targetName) { runSelect.innerHTML = ""; return; }
+  try {
+    const data = await api(`/api/recon-runs?targetName=${encodeURIComponent(targetName)}&limit=50`);
+    const runs = data.runs || [];
+    runSelect.innerHTML = runs.length
+      ? runs.map((run) => `<option value="${esc(run.id)}">#${esc(run.id)} · ${esc(run.status)} · ${esc(run.run_type || run.mode || "run")} · ${esc(run.started_at || "")}</option>`).join("")
+      : `<option value="">No runs</option>`;
+    if (runs.some((run) => run.id === activeRunId)) runSelect.value = String(activeRunId);
+    $("resultsProjectHint").textContent = runs.length ? `${runs.length} run(s) for ${targetName}` : `No runs for ${targetName} yet`;
+  } catch (error) {
+    runSelect.innerHTML = "";
+    $("resultsProjectHint").textContent = error.message;
+  }
+}
+
+async function loadSelectedResultsRun() {
+  const runSelect = $("resultsRunSelect");
+  const runId = Number(runSelect?.value);
+  if (!runId) {
+    $("resultsProjectHint").textContent = "Select a run to load.";
+    return;
+  }
+  activeRunId = runId;
+  lastEventId = 0;
+  window.AuraAiAgent?.resetRunFeed?.(activeRunId);
+  $("runId").textContent = activeRunId;
+  $("events").innerHTML = "";
+  await refreshRun();
+  if (poll) clearInterval(poll);
+  const run = (await api(`/api/recon-runs/${activeRunId}`))?.run;
+  if (run && ["queued", "running", "paused"].includes(run.status)) poll = setInterval(refreshRun, 1500);
 }
 
 async function restoreLatestRunForSelectedTarget() {
@@ -1411,6 +1460,12 @@ document.querySelectorAll(".settings-tab").forEach((button) => {
 document.querySelectorAll(".result-subtab").forEach((button) => {
   button.addEventListener("click", () => activateResultsView(button.dataset.resultsView));
 });
+$("resultsProjectSelect")?.addEventListener("change", () => populateResultsRunPicker().catch(() => {}));
+$("resultsLoadRun")?.addEventListener("click", () => {
+  loadSelectedResultsRun().catch((error) => {
+    $("resultsProjectHint").textContent = error.message;
+  });
+});
 ["deltaGroupBy", "domainGroupBy", "serviceGroupBy", "urlGroupBy", "technologyGroupBy", "screenshotGroupBy"].forEach((id) => {
   $(id)?.addEventListener("change", renderAllResultTables);
 });
@@ -1422,9 +1477,11 @@ document.querySelectorAll(".tab").forEach((button) => {
 });
 bindDashboardShellActions();
 
-loadTargets().catch((error) => {
-  $("status").textContent = error.message;
-});
+loadTargets()
+  .then(() => populateResultsProjectPicker().catch(() => {}))
+  .catch((error) => {
+    $("status").textContent = error.message;
+  });
 loadAiSettings().catch((error) => {
   $("aiSettingsStatus").textContent = error.message;
   $("aiSettingsStatus").className = "notice error";
