@@ -12,7 +12,15 @@ const { discoverTargets } = require("./target-service");
 const STATIC_ROOT = path.resolve(__dirname, "..", "..", "public", "web");
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const PUBLIC_PATHS = new Set(["/login.html", "/login.css", "/login.js", "/tokens.css", "/wave-background.js", "/favicon.ico"]);
+// Assets the login page needs before authentication. These are static files with no scan data.
+const PUBLIC_PATHS = new Set([
+  "/login.html",
+  "/app.css",
+  "/login.css",
+  "/wave-background.js",
+  "/login-cookie.js",
+  "/favicon.ico"
+]);
 
 const apiRouter = createRouter([
   require("./routes/target-routes"),
