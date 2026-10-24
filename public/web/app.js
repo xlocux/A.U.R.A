@@ -1008,49 +1008,98 @@ function sortTableByColumn(table, columnIndex, direction) {
   for (const row of rows) tbody.appendChild(row);
 }
 
-// Moves the Settings sections into a sidebar submenu under the Settings nav item, instead of a
-// row of buttons taking space in the main panel. The submenu mirrors the live .settings-tab buttons.
+// Builds collapsible tree submenus in the sidebar for nav sections that otherwise show a row of
+// buttons in the main panel (Settings, Logs). The submenu mirrors the live in-panel section buttons.
 function buildSidebarSubmenus() {
+  buildSidebarSubmenu({
+    id: "settingsSubmenu",
+    tabName: "settings",
+    sourceSelector: "#tab-settings .settings-tab",
+    valueOf: (button) => button.dataset.settingsPanel,
+    hideSelector: "#tab-settings .settings-tabs",
+    onSelect: (value) => { activateTab("settings"); activateSettingsPanel(value); }
+  });
+  // The Logs tab/subtabs are injected at runtime; build its submenu once it appears.
   const nav = document.getElementById("workspaceNav");
-  const settingsTab = nav?.querySelector('.tab[data-tab="settings"]');
-  const panelButtons = [...document.querySelectorAll("#tab-settings .settings-tab")];
-  if (!nav || !settingsTab || panelButtons.length === 0 || document.getElementById("settingsSubmenu")) return;
+  const tryLogs = () => buildSidebarSubmenu({
+    id: "logsSubmenu",
+    tabName: "logs",
+    sourceSelector: "#tab-logs .logs-subtabs [data-log-subtab]",
+    valueOf: (button) => button.dataset.logSubtab,
+    hideSelector: null,
+    onSelect: (value) => {
+      nav?.querySelector('.tab[data-tab="logs"]')?.click();
+      document.querySelector(`#tab-logs [data-log-subtab="${value}"]`)?.click();
+    }
+  });
+  if (!tryLogs()) {
+    const observer = new MutationObserver(() => { if (buildSidebarSubmenu && tryLogs()) observer.disconnect(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+    setTimeout(() => observer.disconnect(), 15000);
+  }
+}
+
+// Creates one tree submenu under the given nav tab; returns true once built.
+function buildSidebarSubmenu({ id, tabName, sourceSelector, valueOf, hideSelector, onSelect }) {
+  const nav = document.getElementById("workspaceNav");
+  const navTab = nav?.querySelector(`.tab[data-tab="${tabName}"]`);
+  const sources = [...document.querySelectorAll(sourceSelector)];
+  if (!nav || !navTab || sources.length === 0) return false;
+  if (document.getElementById(id)) return true;
 
   const submenu = document.createElement("div");
-  submenu.id = "settingsSubmenu";
+  submenu.id = id;
   submenu.className = "nav-submenu";
   submenu.setAttribute("role", "group");
-  for (const button of panelButtons) {
+
+  let collapsed = !navTab.classList.contains("active");
+  let suppressToggle = false;
+  const activeValueOf = () => valueOf(document.querySelector(`${sourceSelector}.active`) || sources.find((s) => s.classList.contains("active")));
+  const apply = () => {
+    const open = submenu.querySelectorAll(".nav-subitem").length > 0 && !collapsed;
+    submenu.classList.toggle("open", open);
+    if (open) syncSidebarSubmenu(submenu, activeValueOf());
+  };
+
+  for (const source of sources) {
+    const value = valueOf(source);
+    if (!value) continue;
     const item = document.createElement("button");
     item.type = "button";
     item.className = "nav-subitem";
-    item.dataset.settingsPanel = button.dataset.settingsPanel;
-    item.textContent = button.textContent.trim();
+    item.dataset.submenuValue = value;
+    item.textContent = source.textContent.trim();
     item.addEventListener("click", () => {
-      activateTab("settings");
-      activateSettingsPanel(button.dataset.settingsPanel);
-      syncSettingsSubmenu(button.dataset.settingsPanel);
+      // A child selection must never collapse the tree, even if onSelect clicks the parent tab.
+      suppressToggle = true;
+      onSelect(value);
+      suppressToggle = false;
+      collapsed = false;
+      apply();
+      syncSidebarSubmenu(submenu, value);
     });
     submenu.appendChild(item);
   }
-  settingsTab.insertAdjacentElement("afterend", submenu);
-  // The in-panel settings tab row is now redundant; hide it (the sidebar drives section selection).
-  document.querySelector("#tab-settings .settings-tabs")?.classList.add("hidden");
+  navTab.insertAdjacentElement("afterend", submenu);
+  if (hideSelector) document.querySelector(hideSelector)?.classList.add("hidden");
 
-  const syncVisibility = () => {
-    const active = settingsTab.classList.contains("active");
-    submenu.classList.toggle("open", active);
-    if (active) syncSettingsSubmenu(document.querySelector("#tab-settings .settings-tab.active")?.dataset.settingsPanel);
-  };
-  settingsTab.addEventListener("click", () => setTimeout(syncVisibility, 0));
-  nav.querySelectorAll('.tab:not([data-tab="settings"])').forEach((tab) => tab.addEventListener("click", () => setTimeout(syncVisibility, 0)));
-  syncVisibility();
+  // Only a direct click on the parent toggles the tree; programmatic activation (from a child) does not.
+  navTab.addEventListener("click", () => {
+    if (suppressToggle) { setTimeout(apply, 0); return; }
+    collapsed = submenu.classList.contains("open"); // open -> collapse; closed -> expand
+    setTimeout(apply, 0);
+  });
+  // Switching to a different section collapses this submenu but resets it so it reopens next visit.
+  nav.querySelectorAll(`.tab:not([data-tab="${tabName}"])`).forEach((tab) => tab.addEventListener("click", () => {
+    collapsed = false;
+    submenu.classList.remove("open");
+  }));
+  apply();
+  return true;
 }
 
-function syncSettingsSubmenu(panel) {
-  document.querySelectorAll("#settingsSubmenu .nav-subitem").forEach((item) => {
-    item.classList.toggle("active", item.dataset.settingsPanel === panel);
-  });
+function syncSidebarSubmenu(submenu, value) {
+  submenu.querySelectorAll(".nav-subitem").forEach((item) => item.classList.toggle("active", item.dataset.submenuValue === value));
 }
 
 function enableTableSorting() {

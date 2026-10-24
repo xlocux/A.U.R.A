@@ -986,33 +986,67 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 .results-fullscreen-close { flex: 0 0 auto !important; width: auto !important; }
 .recon-flow-head strong { flex: 0 0 auto; white-space: nowrap; }
 
-/* ── Sidebar submenu (Settings sections) ──────────────────────────────────── */
-.nav-submenu {
+/* ── Sidebar submenu: a real tree under the Settings item ───────────────────
+   High specificity + !important so the global button styling can't turn the
+   sub-items back into full-width boxes. A guide line + branch ticks make the
+   nesting read as a tree. */
+#workspaceNav .nav-submenu {
   display: none;
   flex-direction: column;
-  gap: 2px;
-  margin: 2px 0 6px 0;
-  padding-left: 8px;
+  gap: 0 !important;
+  position: relative;
+  margin: 2px 0 8px 0 !important;
+  padding: 0 0 0 26px !important;
 }
-.nav-submenu.open { display: flex; }
-.nav-subitem {
-  width: 100%;
-  text-align: left;
-  padding: 7px 10px 7px 30px;
-  border: 0;
-  border-left: 2px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12.5px;
+#workspaceNav .nav-submenu.open { display: flex; }
+/* Vertical trunk of the tree. */
+#workspaceNav .nav-submenu::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 2px;
+  bottom: 12px;
+  width: 1px;
+  background: var(--soft-line, var(--line));
+}
+#workspaceNav .nav-submenu .nav-subitem {
+  position: relative;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 6px 8px 6px 14px !important;
+  text-align: left !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--muted) !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
   cursor: pointer;
 }
-.nav-subitem:hover { color: var(--ink, #fff); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.nav-subitem.active {
-  color: var(--ink, #fff);
-  border-left-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+/* Branch tick connecting each item to the trunk. */
+#workspaceNav .nav-submenu .nav-subitem::before {
+  content: "";
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  width: 11px;
+  height: 1px;
+  background: var(--soft-line, var(--line));
 }
+#workspaceNav .nav-submenu .nav-subitem:hover { color: var(--ink, #fff) !important; background: color-mix(in srgb, var(--accent) 8%, transparent) !important; }
+#workspaceNav .nav-submenu .nav-subitem.active {
+  color: var(--ink, #fff) !important;
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+#workspaceNav .nav-submenu .nav-subitem.active::before { background: var(--accent); }
 /* Collapsed sidebar hides submenu labels with the rest of the nav text. */
-body.sidebar-collapsed .nav-submenu { display: none !important; }
+body.sidebar-collapsed #workspaceNav .nav-submenu { display: none !important; }
 .hidden { display: none !important; }
+
+/* With the Logs sections in the sidebar tree, hide the in-panel subtab buttons (keep Clear logs). */
+#tab-logs .logs-subtabs [data-log-subtab] { display: none !important; }
+#tab-logs .logs-subtabs { border: 0 !important; background: transparent !important; padding: 0 0 6px !important; }
