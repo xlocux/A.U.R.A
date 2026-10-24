@@ -639,3 +639,97 @@ tbody tr:hover {
   /* Collapse the product name to just the logo on narrow screens. */
   .headerbar h1 { max-width: 40px; }
 }
+
+/* ── Compact Results header: give the table the vertical space ──────────────
+   The loader selects default to width:100%, which wrapped the project bar into
+   three stacked rows. Keep it to one compact row and shrink the metric tiles. */
+#tab-results .result-project-bar {
+  flex-wrap: nowrap;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+#tab-results .result-project-bar label {
+  font-size: 11px;
+  color: var(--muted);
+}
+#tab-results .result-project-bar select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 34px;
+}
+#tab-results .result-project-bar #resultsLoadRun {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 18px;
+}
+#tab-results .result-project-bar #resultsProjectHint { flex: 0 0 auto; }
+
+#tab-results .metrics {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+#tab-results .metric {
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+#tab-results .metric span { font-size: 10px; }
+#tab-results .metric strong { font-size: 16px; }
+#tab-results .run-controls button { min-height: 0; height: 100%; padding: 6px 10px; }
+
+/* ── Results fullscreen modal ──────────────────────────────────────────────
+   The sub-tab strip and every view are moved in here so tables can be switched,
+   grouped and sorted without leaving fullscreen. */
+.result-expand-toggle { margin-left: auto; }
+.results-fullscreen-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  padding: 20px;
+  background: rgba(3, 5, 9, .72);
+  backdrop-filter: blur(4px);
+}
+.results-fullscreen-modal.hidden { display: none; }
+.results-fullscreen-dialog {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg, #05070b);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5);
+  overflow: hidden;
+}
+.results-fullscreen-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  padding: 14px 18px 18px;
+  gap: 4px;
+}
+.results-fullscreen-body > .result-subtabs {
+  flex: 0 0 auto;
+  margin: 0 0 8px;
+}
+.results-fullscreen-body > .result-view.active {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+}
+.results-fullscreen-body > #results-explorer.result-view.active {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+.results-fullscreen-body .result-table-scroll,
+.results-fullscreen-body .delta-scroll,
+.results-fullscreen-body .tech-scroll {
+  height: 100% !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+body.results-view-expanded { overflow: hidden; }

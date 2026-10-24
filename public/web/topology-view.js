@@ -10,6 +10,7 @@
   let view = { zoom: 1, offsetX: 0, offsetY: 0 };
   let canvasSize = { width: 0, height: 0, scale: 0 };
   let drag = null;
+  let fitted = false;
   let selectedNodeId = null;
   let options = loadOptions();
 
@@ -24,7 +25,7 @@
     canvas?.addEventListener("pointermove", movePan);
     canvas?.addEventListener("pointerup", endPan);
     canvas?.addEventListener("pointerleave", endPan);
-    $("fitTopology")?.addEventListener("click", reset);
+    $("fitTopology")?.addEventListener("click", fit);
     $("zoomTopologyIn")?.addEventListener("click", () => zoom(0.15));
     $("zoomTopologyOut")?.addEventListener("click", () => zoom(-0.15));
     ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", handleLayerToggle));
@@ -37,6 +38,7 @@
     });
     syncControls();
     update();
+    window.addEventListener("resize", () => fit());
     if (!frame) animate();
   }
 
@@ -97,8 +99,13 @@
     if ($("topologyNodeCount")) $("topologyNodeCount").textContent = graph.nodes.length;
     if ($("topologyEdgeCount")) $("topologyEdgeCount").textContent = graph.edges.length;
     updateHint();
-    if (renderOptions.preserveCamera) view = camera;
-    render();
+    if (renderOptions.preserveCamera) {
+      view = camera;
+      render();
+    } else {
+      render();
+      fit();
+    }
   }
 
   function handleLayerToggle() {
@@ -225,9 +232,38 @@
     });
   }
 
+  // Fit the whole graph into the canvas: measure node bounds, then pick a zoom and offset
+  // that center everything with padding. Falls back to a plain reset when there is nothing to size.
+  function fit() {
+    const canvas = $("topologyCanvas");
+    if (!canvas || !graph.nodes.length) {
+      view = { zoom: 1, offsetX: 0, offsetY: 0 };
+      render();
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return; // Canvas not visible yet; a later render will fit.
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const node of graph.nodes) {
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x);
+      maxY = Math.max(maxY, node.y);
+    }
+    const padding = 90; // room for node radius + labels
+    const graphWidth = Math.max(1, maxX - minX);
+    const graphHeight = Math.max(1, maxY - minY);
+    const zoom = Math.max(0.12, Math.min(1.6,
+      Math.min((rect.width - padding * 2) / graphWidth, (rect.height - padding * 2) / graphHeight)));
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    view = { zoom, offsetX: -centerX * zoom, offsetY: -centerY * zoom };
+    render();
+  }
+
   function reset() {
-    view = { zoom: 1, offsetX: 0, offsetY: 0 };
     update();
+    fit();
   }
 
   function zoom(delta) {
@@ -262,10 +298,17 @@
     const scale = Math.min(2, window.devicePixelRatio || 1);
     const width = Math.max(1, Math.floor(rect.width * scale));
     const height = Math.max(1, Math.floor(rect.height * scale));
+    const wasHidden = canvasSize.width <= 2 || canvasSize.height <= 2;
     if (canvasSize.width !== width || canvasSize.height !== height || canvasSize.scale !== scale) {
       canvas.width = width;
       canvas.height = height;
       canvasSize = { width, height, scale };
+    }
+    // When the canvas first becomes visible (e.g. switching to the Topology tab), fit the graph once.
+    if (wasHidden && width > 2 && height > 2 && graph.nodes.length && !fitted) {
+      fitted = true;
+      fit();
+      return;
     }
     const ctx = canvas.getContext("2d");
     ctx.setTransform(scale, 0, 0, scale, 0, 0);

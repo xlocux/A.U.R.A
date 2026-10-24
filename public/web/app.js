@@ -249,6 +249,7 @@ function activateTab(name) {
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `tab-${name}`);
   });
+  if (document.body.classList.contains("results-view-expanded")) exitResultsFullscreen();
   if (name === "topology") window.AuraTopology?.render?.();
   if (name === "results") populateResultsProjectPicker().catch(() => {});
 }
@@ -330,6 +331,59 @@ function activateResultsView(name) {
   document.querySelectorAll(".result-view").forEach((panel) => {
     panel.classList.toggle("active", panel.id === `results-${name}`);
   });
+}
+
+// Opens the Results area in a fullscreen modal. The real sub-tab strip and every view node are
+// moved into the modal (and back on close), so switching tables, grouping and sorting all stay
+// live inside fullscreen without having to exit and reopen.
+let fullscreenReturn = null;
+
+function ensureResultsFullscreenModal() {
+  let modal = document.getElementById("resultsFullscreenModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "resultsFullscreenModal";
+  modal.className = "results-fullscreen-modal hidden";
+  modal.innerHTML = `<div class="results-fullscreen-dialog" role="dialog" aria-modal="true" aria-label="Results"><div class="results-fullscreen-body" id="resultsFullscreenBody"></div></div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", (event) => { if (event.target === modal) exitResultsFullscreen(); });
+  return modal;
+}
+
+function toggleResultsFullscreen() {
+  if (document.body.classList.contains("results-view-expanded")) {
+    exitResultsFullscreen();
+    return;
+  }
+  const strip = document.querySelector("#tab-results .result-subtabs");
+  const views = [...document.querySelectorAll("#tab-results .result-view")];
+  if (!strip || views.length === 0) return;
+  const modal = ensureResultsFullscreenModal();
+  const body = modal.querySelector("#resultsFullscreenBody");
+  // One placeholder marks where the block returns; move the strip and all views in original order.
+  const placeholder = document.createComment("results-fullscreen-placeholder");
+  strip.parentNode.insertBefore(placeholder, strip);
+  const moved = [strip, ...views];
+  for (const node of moved) body.appendChild(node);
+  fullscreenReturn = { placeholder, moved };
+  document.body.classList.add("results-view-expanded");
+  modal.classList.remove("hidden");
+  const toggle = document.getElementById("resultsExpandToggle");
+  if (toggle) toggle.textContent = "✕ Close";
+}
+
+function exitResultsFullscreen() {
+  const modal = document.getElementById("resultsFullscreenModal");
+  if (modal) modal.classList.add("hidden");
+  document.body.classList.remove("results-view-expanded");
+  if (fullscreenReturn) {
+    const { placeholder, moved } = fullscreenReturn;
+    for (const node of moved) placeholder.parentNode?.insertBefore(node, placeholder);
+    placeholder.remove();
+    fullscreenReturn = null;
+  }
+  const toggle = document.getElementById("resultsExpandToggle");
+  if (toggle) toggle.textContent = "⛶ Expand";
 }
 
 function activateRunActivityView() {
@@ -1560,6 +1614,22 @@ document.querySelectorAll(".settings-tab").forEach((button) => {
 });
 document.querySelectorAll(".result-subtab").forEach((button) => {
   button.addEventListener("click", () => activateResultsView(button.dataset.resultsView));
+});
+// Add an "Expand" control to the Results sub-tab strip that opens the active view fullscreen.
+(function addResultsExpandButton() {
+  const strip = document.querySelector("#tab-results .result-subtabs");
+  if (!strip || document.getElementById("resultsExpandToggle")) return;
+  const button = document.createElement("button");
+  button.id = "resultsExpandToggle";
+  button.type = "button";
+  button.className = "result-subtab result-expand-toggle";
+  button.title = "Open the current table fullscreen";
+  button.textContent = "⛶ Expand";
+  button.addEventListener("click", toggleResultsFullscreen);
+  strip.appendChild(button);
+})();
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.body.classList.contains("results-view-expanded")) exitResultsFullscreen();
 });
 $("resultsProjectSelect")?.addEventListener("change", () => populateResultsRunPicker().catch(() => {}));
 $("resultsLoadRun")?.addEventListener("click", () => {
