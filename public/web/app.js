@@ -669,8 +669,8 @@ function updateRunControlButtons(status) {
   $("resumeRun").disabled = !hasRun || status !== "paused";
   $("cancelRun").disabled = !hasRun || ["completed", "failed", "cancelled", "idle"].includes(status);
   $("runHttpFollowup").disabled = !canFollowUp;
-  ["runUrlFollowup", "runHttpOnlyFollowup", "runTechFollowup", "runScreenshotFollowup", "runTrackerFollowup", "runFaviconFollowup"].forEach((id) => {
-    $(id).disabled = !canFollowUp;
+  ["runUrlFollowup", "runHttpOnlyFollowup", "runTechFollowup", "runScreenshotFollowup", "runTrackerFollowup", "runFaviconFollowup", "runDirsFollowup", "runCloudFollowup"].forEach((id) => {
+    if ($(id)) $(id).disabled = !canFollowUp;
   });
 }
 
@@ -808,6 +808,8 @@ async function startRecon() {
         useLinuxRunner: $("useLinuxRunner").checked,
         linuxRuntime: $("linuxRuntime").value,
         linuxTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"]),
+        ffuf: $("useFfuf")?.checked || false,
+        cloudEnum: $("useCloudEnum")?.checked || false,
         timeoutMs: Number($("timeout").value || 180000),
         passiveSources: selectedValues(["crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan", "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye", "spyse", "intelx", "whoisxmlapi", "whoisfreaks"]),
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
@@ -1545,6 +1547,8 @@ $("runTechFollowup").addEventListener("click", () => runFocusedFollowup("tech", 
 $("runScreenshotFollowup").addEventListener("click", () => runFocusedFollowup("screenshots", "screenshot follow-up"));
 $("runTrackerFollowup").addEventListener("click", () => runFocusedFollowup("trackers", "analytics/pixel follow-up"));
 $("runFaviconFollowup").addEventListener("click", () => runFocusedFollowup("favicons", "favicon follow-up"));
+$("runDirsFollowup")?.addEventListener("click", () => runFocusedFollowup("dirs", "directory discovery (ffuf)"));
+$("runCloudFollowup")?.addEventListener("click", () => runFocusedFollowup("cloud", "cloud resource enumeration"));
 $("reverseWhois").addEventListener("click", runReverseWhois);
 $("suggestWhoisTerms").addEventListener("click", suggestWhoisTerms);
 $("saveApiKey").addEventListener("click", saveApiKey);

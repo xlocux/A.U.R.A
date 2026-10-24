@@ -1,0 +1,22 @@
+{
+  "tool_id": "ffuf",
+  "type": "cli",
+  "phase": "content_discovery",
+  "binary": "ffuf",
+  "version_check": { "command": "ffuf", "args": ["-V"] },
+  "input_type": "url_list",
+  "output_format": "json",
+  "output_path": "file",
+  "rate_limit_profile": "default_active",
+  "parser": "ffuf_json",
+  "tags": ["active", "content", "directories"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/ffuf/ffuf/v2@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "active"
+  }
+}

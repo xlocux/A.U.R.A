@@ -13,8 +13,8 @@ const DEFAULT_TIMEOUT_MS = 180000;
 const ALL_ROWS = 1000000;
 const RECON_MODES = new Set(["single", "list", "full"]);
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
-const FOCUSED_PHASES = new Set(["urls", "http-only", "tech", "screenshots", "trackers", "favicons"]);
-const SERVICE_PHASES = new Set(["tech", "screenshots", "trackers", "favicons"]);
+const FOCUSED_PHASES = new Set(["urls", "http-only", "tech", "screenshots", "trackers", "favicons", "dirs", "cloud"]);
+const SERVICE_PHASES = new Set(["tech", "screenshots", "trackers", "favicons", "dirs"]);
 
 function parseProxyOrThrow(value) {
   try {
@@ -91,6 +91,8 @@ async function createReconRun({ request, response, store }) {
         passiveSources: body.passiveSources || reconEngine.DEFAULT_PASSIVE_SOURCES,
         linuxTools: body.linuxTools || reconEngine.DEFAULT_LINUX_TOOLS,
         subdomainWordlistPath: body.subdomainWordlistPath || domainWordlist?.path || null,
+        runFfuf: body.ffuf === true,
+        runCloudEnum: body.cloudEnum === true,
         ...options
       });
     }
@@ -168,7 +170,7 @@ async function createFocusedFollowupRun({ request, response, store, params, phas
   const phase = requestedPhase === "http-only" ? "http" : requestedPhase;
   const domains = store.listDomains({ runId: sourceRunId, limit: ALL_ROWS });
   const services = store.listHttpServices({ runId: sourceRunId, limit: ALL_ROWS });
-  if ((phase === "urls" || phase === "http") && domains.length === 0) {
+  if ((phase === "urls" || phase === "http" || phase === "cloud") && domains.length === 0) {
     throw new HttpError(400, "The source run has no saved domains for this follow-up phase");
   }
   if (SERVICE_PHASES.has(phase) && services.length === 0) {

@@ -21,7 +21,9 @@ const ALLOWED_TOOLS = new Set([
   "eyewitness",
   "retire",
   "wpscan",
-  "cmseek"
+  "cmseek",
+  "ffuf",
+  "cloud_enum"
 ]);
 
 // Runs an allowlisted tool through `sh -lc`. Inside a recon run the adaptive runner applies the

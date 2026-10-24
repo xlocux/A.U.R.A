@@ -10,6 +10,7 @@ const { completeRun, waitForRunControl } = require("./run-control");
 const { inferRoots, normalizeHosts, parseToolSpec } = require("./tool-args");
 const { announceProxy, appendAiLog, createProxyController, runHttpxOnHosts, toolFailureDetail } = require("./tool-execution");
 const { collectFavicons, collectScreenshots, collectTrackers } = require("./web-collectors");
+const { runCloudEnum, runDirectoryDiscovery } = require("./cloud-dirs");
 
 const DEFAULT_TIMEOUT_MS = 180000;
 
@@ -46,7 +47,9 @@ async function runRecon({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   artifactsDir,
   proxyUrl = null,
-  useProxyPool = false
+  useProxyPool = false,
+  runFfuf = false,
+  runCloudEnum: cloudEnumEnabled = false
 }) {
   const roots = [...new Set((rootDomains || []).map(normalizeDomain).filter(Boolean))];
   if (roots.length === 0) throw new Error("Recon requires at least one valid root domain");
@@ -73,6 +76,16 @@ async function runRecon({
     await collectLinuxTools({ ...shared, roots, linuxTools, subdomainWordlistPath, discovered });
     await runWebEnrichment({ ...shared, services: context.httpServices, screenshotTools });
     await runRecoveryActionPool({ ...shared, roots, linuxTools, screenshotTools, discoveredDomains: discovered, subdomainWordlistPath });
+
+    if (useLinuxRunner && runFfuf) {
+      await waitForRunControl(store, runId);
+      const pathsWordlist = store.getActiveWordlist("paths");
+      await runDirectoryDiscovery({ ...shared, services: context.httpServices, wordlistPath: pathsWordlist?.path || null });
+    }
+    if (useLinuxRunner && cloudEnumEnabled) {
+      await waitForRunControl(store, runId);
+      await runCloudEnum({ ...shared, domains: [...discovered].map((domain) => ({ domain })), urls: context.urls.concat(context.httpServices) });
+    }
 
     store.saveDomains(runId, targetName, [...discovered].map((domain) => ({
       domain,
@@ -162,16 +175,16 @@ async function runFocusedFollowup({
   proxyUrl = null,
   useProxyPool = false
 }) {
-  const handlers = { urls: true, http: true, tech: true, screenshots: true, trackers: true, favicons: true };
+  const handlers = { urls: true, http: true, tech: true, screenshots: true, trackers: true, favicons: true, dirs: true, cloud: true };
   if (!handlers[phase]) throw new Error(`Unsupported focused follow-up phase: ${phase}`);
-  if ((phase === "urls" || phase === "http" || phase === "screenshots") && !useLinuxRunner) {
+  if ((phase === "urls" || phase === "http" || phase === "screenshots" || phase === "dirs" || phase === "cloud") && !useLinuxRunner) {
     throw new Error(`The ${phase} follow-up requires the Linux tool runner`);
   }
   fs.mkdirSync(artifactsDir, { recursive: true });
   store.updateRun(runId, { status: "running", activePhase: `follow-up-${phase}`, checkpoint: { phase, domainCount: domains.length, serviceCount: services.length } });
   store.appendEvent(runId, { phase: `follow-up-${phase}`, severity: "ok", source: "engine", message: `Focused ${phase} follow-up started` });
 
-  const needsNetwork = phase === "urls" || phase === "http" || phase === "screenshots";
+  const needsNetwork = phase === "urls" || phase === "http" || phase === "screenshots" || phase === "dirs";
   const { proxyController, selectedProxyUrl } = needsNetwork
     ? await setUpNetwork({ store, runId, phase: `follow-up-${phase}`, proxyUrl, useProxyPool, useLinuxRunner })
     : { proxyController: null, selectedProxyUrl: proxyUrl };
@@ -202,6 +215,13 @@ async function runFocusedFollowup({
       await collectTrackers({ ...shared, services });
     } else if (phase === "favicons") {
       await collectFavicons({ ...shared, services });
+    } else if (phase === "dirs") {
+      const wordlist = store.getActiveWordlist("paths");
+      const found = await runDirectoryDiscovery({ ...shared, services, wordlistPath: wordlist?.path || null });
+      checkpoint = { phase, discoveredUrls: found };
+    } else if (phase === "cloud") {
+      const found = await runCloudEnum({ ...shared, domains, urls: services });
+      checkpoint = { phase, cloudResources: found };
     }
     return await completeRun(store, runId, checkpoint);
   } finally {
