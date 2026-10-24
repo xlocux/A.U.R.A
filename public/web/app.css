@@ -534,13 +534,17 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .result-subtabs {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 2px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--line);
-  overflow-x: auto;
 }
 .result-subtab {
+  flex: 0 0 auto;
   width: auto;
+  height: auto;
+  align-self: center;
   margin: 0;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -1489,21 +1493,27 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   #settings-credentials .api-key-table-wrap { max-height: 62vh; }
 }
 
-/* Results viewport normalization: keep Results on one outer viewport and let only content panes scroll. */
+/* Results viewport normalization: keep Results on one outer viewport and let only content panes scroll.
+   Flexbox column so the fixed header sections (project bar, metrics, sub-tabs) always size to their
+   content and only the active view fills and scrolls — robust no matter how many sections precede it. */
 @media (min-width: 761px) {
   #tab-results.tab-panel.active {
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     overflow: hidden;
   }
 
+  #tab-results > .result-project-bar,
   #tab-results > .metrics,
+  #tab-results > .run-controls,
   #tab-results > .result-subtabs {
+    flex: 0 0 auto;
     min-height: 0;
   }
 
   #tab-results > .result-view.active {
+    flex: 1 1 auto;
     min-height: 0;
     margin-bottom: 0;
     overflow: hidden;
