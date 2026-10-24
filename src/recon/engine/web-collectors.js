@@ -4,13 +4,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { extractTrackersFromServices } = require("../tracker-extraction");
 const { extractFaviconsFromServices } = require("../web-fingerprints");
+const { createEnvironmentRunner } = require("../environment-setup");
+const { TOOL_PATH_EXPORT, shellQuote } = require("../../core/shell");
 const { DEFAULT_TOOL_RECOVERY_ATTEMPTS, SUPPORTED_SCREENSHOT_TOOLS } = require("./constants");
 const { waitForRunControl } = require("./run-control");
-const { screenshotArgsForTool, writeInputFile } = require("./tool-args");
+const { screenshotArgsForTool, toToolPath, writeInputFile } = require("./tool-args");
 const { recordToolRun, runLinuxToolWithProxy, runToolWithRecovery, toolFailureDetail, writeToolArtifact } = require("./tool-execution");
 
 const IMAGE_PATTERN = /\.(png|jpe?g|webp)$/i;
 const MAX_FETCH_TIMEOUT_MS = 15000;
+const MAX_FALLBACK_SHOTS = 40;
+const FALLBACK_SHOT_TIMEOUT_MS = 30000;
 
 function countScreenshotFiles(outputDir) {
   if (!fs.existsSync(outputDir)) return 0;
@@ -78,6 +82,56 @@ async function collectScreenshots({ store, runId, targetName, screenshotTools, l
       screenshotCount
     }, result);
   }
+
+  // Fallback: if the configured tools produced no images (gowitness/Chrome misconfigured on the
+  // host), capture with Chromium headless directly — it is already a system prerequisite.
+  const toolImages = screenshotTools.reduce((sum, toolName) => sum + countScreenshotFiles(path.join(artifactsDir, "screenshots", toolName)), 0);
+  if (toolImages === 0 && liveUrls.length > 0) {
+    await captureWithChromiumFallback({ store, runId, targetName, linuxRuntime, timeoutMs, artifactsDir, liveUrls, proxyUrl, proxyController });
+  }
+}
+
+// Direct Chromium headless capture, one PNG per URL. Resolves chromium/chromium-browser/chrome at
+// run time and reports clearly when no Chrome binary is present.
+async function captureWithChromiumFallback({ store, runId, targetName, artifactsDir, liveUrls, proxyUrl = null, proxyController = null }) {
+  const outputDir = path.join(artifactsDir, "screenshots", "chromium");
+  fs.mkdirSync(outputDir, { recursive: true });
+  const runner = createEnvironmentRunner();
+  const chromeCheck = await runner.run(`${TOOL_PATH_EXPORT} && (command -v chromium || command -v chromium-browser || command -v google-chrome || command -v google-chrome-stable || true)`, 15000);
+  const chromePath = String(chromeCheck.stdout || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  if (!chromePath) {
+    store.appendEvent(runId, {
+      phase: "recon",
+      severity: "warn",
+      source: "chromium",
+      message: "Screenshot fallback unavailable: no Chrome/Chromium binary found. Install it from Settings > Environment (chromium) so gowitness and the fallback can capture screenshots."
+    });
+    store.saveScreenshotRun(runId, targetName, { toolName: "chromium", outputDir, reportPath: null, metadata: { status: "failed", urlCount: liveUrls.length, screenshotCount: 0, error: "no chromium binary" } });
+    return;
+  }
+  const targets = liveUrls.slice(0, MAX_FALLBACK_SHOTS);
+  store.appendEvent(runId, { phase: "recon", severity: "ok", source: "chromium", message: `gowitness produced no images; capturing ${targets.length} screenshots with Chromium headless (${chromePath}).` });
+  const proxyFlag = proxyUrl ? ` --proxy-server=${shellQuote(proxyUrl)}` : "";
+  let captured = 0;
+  for (let index = 0; index < targets.length; index += 1) {
+    await waitForRunControl(store, runId);
+    const url = targets[index];
+    const outFile = path.join(outputDir, `shot-${String(index).padStart(3, "0")}.png`);
+    const command = [
+      TOOL_PATH_EXPORT,
+      `${shellQuote(chromePath)} --headless=new --disable-gpu --no-sandbox --hide-scrollbars --disable-dev-shm-usage --virtual-time-budget=8000 --window-size=1440,900${proxyFlag} --screenshot=${shellQuote(toToolPath(outFile))} ${shellQuote(url)}`
+    ].join(" && ");
+    const result = await runner.run(command, FALLBACK_SHOT_TIMEOUT_MS);
+    if (fs.existsSync(outFile) && fs.statSync(outFile).size > 0) captured += 1;
+    else store.appendEvent(runId, { phase: "recon", severity: "info", source: "chromium", message: `Chromium could not screenshot ${url}${result.errorMessage ? `: ${result.errorMessage}` : ""}` });
+  }
+  store.saveScreenshotRun(runId, targetName, { toolName: "chromium", outputDir, reportPath: null, metadata: { status: captured ? "completed" : "failed", urlCount: targets.length, screenshotCount: captured } });
+  store.appendEvent(runId, {
+    phase: "recon",
+    severity: captured ? "ok" : "warn",
+    source: "chromium",
+    message: `Chromium headless fallback captured ${captured}/${targets.length} screenshots.`
+  });
 }
 
 async function collectTrackers({ store, runId, targetName, services, timeoutMs, artifactsDir, proxyUrl = null }) {

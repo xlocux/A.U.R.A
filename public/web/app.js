@@ -912,6 +912,19 @@ function renderTechnologies(technologies) {
   });
 }
 
+// Group screenshots with identical content (same hash) so a page served by many hosts shows once.
+function groupScreenshotsByHash(images) {
+  const groups = new Map();
+  const ungrouped = [];
+  for (const image of images) {
+    if (!image.hash) { ungrouped.push({ representative: image, count: 1, images: [image] }); continue; }
+    const group = groups.get(image.hash);
+    if (group) { group.count += 1; group.images.push(image); }
+    else groups.set(image.hash, { representative: image, count: 1, images: [image] });
+  }
+  return [...groups.values(), ...ungrouped].sort((a, b) => b.count - a.count);
+}
+
 function renderScreenshots(screenshots) {
   resultsData.screenshots = screenshots || [];
   $("screenshotRowsHint").textContent = countBucket(resultsData.screenshots.length, "screenshot run");
@@ -920,11 +933,16 @@ function renderScreenshots(screenshots) {
     if ($("screenshotGroupBy").value === "status") groupKey = shot.status || "unknown status";
     const images = (shot.images || []).filter((file) => /\.(png|jpe?g|webp)$/i.test(file.name || file.relativePath || file.url || ""));
     const count = shot.metadata?.screenshotCount ?? shot.screenshot_count ?? images.length ?? 0;
-    const preview = images.length ? `<div class="screenshot-grid">${images.slice(0, 12).map((file) => {
+    const groups = groupScreenshotsByHash(images);
+    const preview = groups.length ? `<div class="screenshot-grid">${groups.slice(0, 24).map((group) => {
+      const file = group.representative;
       const url = file.url || `/api/recon-runs/${encodeURIComponent(activeRunId)}/artifacts/file?path=${encodeURIComponent(file.relativePath || file.path || "")}`;
-      return `<button type="button" class="screenshot-thumb" data-image-url="${esc(url)}" data-image-name="${esc(file.name || file.relativePath || "")}"><img src="${esc(url)}" alt="${esc(file.name || "screenshot")}" loading="lazy"><span>${esc(file.name || "screenshot")}</span></button>`;
+      const badge = group.count > 1 ? `<em class="screenshot-dup">×${group.count}</em>` : "";
+      const label = group.count > 1 ? `${group.count} identical` : (file.name || "screenshot");
+      return `<button type="button" class="screenshot-thumb" data-image-url="${esc(url)}" data-image-name="${esc(file.name || file.relativePath || "")}"><img src="${esc(url)}" alt="${esc(file.name || "screenshot")}" loading="lazy">${badge}<span>${esc(label)}</span></button>`;
     }).join("")}</div>` : "";
-    return { groupKey, html: `<tr><td>${statusBadgeHtml(shot.tool_name || "screenshot")}</td><td>${esc(count)}${preview}</td><td>${artifactLinks(shot)}</td></tr>` };
+    const uniqueNote = groups.length && groups.length !== images.length ? ` (${groups.length} unique)` : "";
+    return { groupKey, html: `<tr><td>${statusBadgeHtml(shot.tool_name || "screenshot")}</td><td>${esc(count)}${esc(uniqueNote)}${preview}</td><td>${artifactLinks(shot)}</td></tr>` };
   });
 }
 
@@ -967,6 +985,41 @@ function renderRunDelta(delta) {
 function countBucket(count, noun) {
   const n = Number(count) || 0;
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
+// Generic, data-agnostic column sorting for any rendered table. Clicking a header sorts the data
+// rows by that column (numeric-aware), toggling asc/desc; group separators are dropped while sorted.
+function sortTableByColumn(table, columnIndex, direction) {
+  const tbody = table.tBodies[0];
+  if (!tbody) return;
+  const rows = [...tbody.rows].filter((row) => !row.classList.contains("group-row") && row.cells.length > columnIndex);
+  const cellText = (row) => (row.cells[columnIndex]?.innerText || row.cells[columnIndex]?.textContent || "").trim();
+  const numeric = rows.every((row) => { const t = cellText(row).replace(/[,%]/g, ""); return t === "" || !Number.isNaN(Number(t)); });
+  rows.sort((a, b) => {
+    const x = cellText(a);
+    const y = cellText(b);
+    const cmp = numeric ? (Number(x.replace(/[,%]/g, "")) || 0) - (Number(y.replace(/[,%]/g, "")) || 0) : x.localeCompare(y, undefined, { numeric: true, sensitivity: "base" });
+    return direction === "desc" ? -cmp : cmp;
+  });
+  // Drop group separators so the sort is global, then re-append in order.
+  tbody.querySelectorAll(".group-row").forEach((row) => row.remove());
+  for (const row of rows) tbody.appendChild(row);
+}
+
+function enableTableSorting() {
+  document.addEventListener("click", (event) => {
+    const th = event.target.closest("thead th");
+    if (!th) return;
+    const table = th.closest("table");
+    const headRow = th.parentElement;
+    if (!table || !headRow || !table.tBodies[0]) return;
+    const columnIndex = [...headRow.children].indexOf(th);
+    if (columnIndex < 0) return;
+    const direction = th.getAttribute("aria-sort") === "ascending" ? "desc" : "asc";
+    for (const sibling of headRow.children) sibling.removeAttribute("aria-sort");
+    th.setAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
+    sortTableByColumn(table, columnIndex, direction);
+  });
 }
 
 function renderGroupedRows(items, groupBy, mapper) {
@@ -1683,6 +1736,7 @@ document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => activateTab(button.dataset.tab));
 });
 bindDashboardShellActions();
+enableTableSorting();
 
 loadTargets()
   .then(() => populateResultsProjectPicker().catch(() => {}))

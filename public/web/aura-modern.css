@@ -857,3 +857,32 @@ tr:hover .row-actions { opacity: 1; }
 .row-action:hover { color: var(--ink, #fff); border-color: var(--accent); }
 .row-action.copied { color: #52d391; border-color: #52d391; }
 .cell-value { word-break: break-all; }
+
+/* Duplicate-screenshot badge */
+.screenshot-thumb { position: relative; }
+.screenshot-dup {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 85%, black 15%);
+  color: #04151a;
+}
+
+/* Sortable table headers */
+#tab-results thead th,
+#tab-search thead th,
+#tab-wordlists thead th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+#tab-results thead th:hover,
+#tab-search thead th:hover,
+#tab-wordlists thead th:hover { color: var(--ink, #fff); }
+thead th[aria-sort="ascending"]::after { content: " ▲"; font-size: 9px; opacity: .8; }
+thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opacity: .8; }

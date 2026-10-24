@@ -1,11 +1,22 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { isExistingFile, isInsidePath } = require("../http-utils");
 
 const IMAGE_PATTERN = /\.(png|jpe?g|webp)$/i;
 const MAX_IMAGES_PER_RUN = 80;
+
+// Content hash lets the UI group visually-identical screenshots (e.g. the same default/error page
+// served by many hosts) under one thumbnail with a count.
+function hashImageFile(filePath) {
+  try {
+    return crypto.createHash("sha1").update(fs.readFileSync(filePath)).digest("hex").slice(0, 16);
+  } catch {
+    return null;
+  }
+}
 
 function screenshotOutputDir(screenshot) {
   const raw = String(screenshot?.output_dir || "").trim();
@@ -21,7 +32,7 @@ function collectScreenshotImages(outputDir, currentDir, images) {
       continue;
     }
     if (!entry.isFile() || !IMAGE_PATTERN.test(entry.name)) continue;
-    images.push({ name: entry.name, relativePath: path.relative(outputDir, fullPath) });
+    images.push({ name: entry.name, relativePath: path.relative(outputDir, fullPath), hash: hashImageFile(fullPath) });
   }
 }
 
