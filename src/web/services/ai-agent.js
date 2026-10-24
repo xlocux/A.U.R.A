@@ -2,12 +2,14 @@
 
 const { createEnvironmentRunner } = require("../../recon/environment-setup");
 const { TOOL_PATH_EXPORT, shellQuote } = require("../../core/shell");
+const { listOpenRouterFreeModels } = require("./ai-runtime");
 
 const SYSTEM_PROMPT = "You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity.";
 const CLI_CHECK_TIMEOUT_MS = 15000;
 const CLI_RUN_TIMEOUT_MS = 120000;
 const HTTP_TIMEOUT_MS = 120000;
 const MAX_CONVERSATION_MESSAGES = 12;
+const MAX_MODEL_ATTEMPTS = 6;
 
 const CLI_RUNTIMES = {
   claude: { name: "Claude Code", binary: "claude", command: (prompt) => `claude -p ${shellQuote(prompt)}` },
@@ -54,7 +56,10 @@ function buildAgentPromptWithContext({ prompt, body, store }) {
   ].join("\n");
 }
 
-async function callOpenAiCompatible({ url, apiKey, model, prompt, headers = {} }) {
+// One chat-completion request. Returns a structured result so callers can decide to fail over.
+// `retryable` is true for rate limits (429), server errors (5xx), timeouts and network errors —
+// the cases where trying a different free model is worthwhile.
+async function requestChatCompletion({ url, apiKey, model, prompt, headers = {} }) {
   let response;
   try {
     response = await fetch(url, {
@@ -65,43 +70,64 @@ async function callOpenAiCompatible({ url, apiKey, model, prompt, headers = {} }
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         ...headers
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: prompt }
-        ]
-      })
+      body: JSON.stringify({ model, messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }] })
     });
   } catch (error) {
-    return `AI provider request failed: ${error.name === "TimeoutError" ? "request timed out" : error.message}`;
+    const timedOut = error.name === "TimeoutError";
+    return { ok: false, retryable: true, error: timedOut ? "request timed out" : error.message };
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) return `AI provider request failed: ${data.error?.message || response.statusText}`;
-  return data.choices?.[0]?.message?.content || "The AI provider returned an empty response.";
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      retryable: response.status === 429 || response.status >= 500,
+      error: data.error?.message || response.statusText || `HTTP ${response.status}`
+    };
+  }
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) return { ok: false, retryable: true, error: "empty response" };
+  return { ok: true, content };
 }
 
+// OpenRouter free models are frequently rate-limited (429). Try the configured model first, then
+// walk the current free-model list, switching to the next whenever one is rate-limited or errors.
 async function callOpenRouterAgent({ prompt, settings, store }) {
   const apiKey = store.getActiveApiKey("openrouter");
   if (!apiKey?.api_key) {
     return "OpenRouter is selected, but no active OpenRouter API key is stored. Add it in Settings > API Keys with provider `openrouter`, then try again.";
   }
-  const result = await callOpenAiCompatible({
-    url: "https://openrouter.ai/api/v1/chat/completions",
-    apiKey: apiKey.api_key,
-    model: settings.executionModel || settings.planningModel || "qwen/qwen3-coder:free",
-    prompt,
-    headers: { "HTTP-Referer": "http://127.0.0.1:31338", "X-Title": "A.U.R.A Recon" }
-  });
+  const freeModels = (await listOpenRouterFreeModels()).map((model) => model.id);
+  const candidates = [...new Set([settings.executionModel, settings.planningModel, ...freeModels].filter(Boolean))].slice(0, MAX_MODEL_ATTEMPTS);
+  if (candidates.length === 0) candidates.push("qwen/qwen3-coder:free");
+
+  const attempts = [];
+  for (const model of candidates) {
+    const result = await requestChatCompletion({
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      apiKey: apiKey.api_key,
+      model,
+      prompt,
+      headers: { "HTTP-Referer": "http://127.0.0.1:31338", "X-Title": "A.U.R.A Recon" }
+    });
+    if (result.ok) {
+      store.markApiKeyUsed(apiKey.id);
+      const note = attempts.length ? `\n\n_(switched to ${model} after ${attempts.length} rate-limited/failed model${attempts.length === 1 ? "" : "s"})_` : "";
+      return `${result.content}${note}`;
+    }
+    attempts.push(`${model}: ${result.status === 429 ? "rate-limited (429)" : result.error}`);
+    if (!result.retryable) break; // auth/quota/bad-request won't improve by switching models
+  }
   store.markApiKeyUsed(apiKey.id);
-  return result;
+  return `All attempted OpenRouter models failed. Tried:\n- ${attempts.join("\n- ")}\n\nFree models are often rate-limited; wait a moment and retry, or set a specific model in Settings > AI Agent.`;
 }
 
 async function callLocalAgent({ prompt, settings }) {
   if (!settings.localEndpoint || !settings.localModel) {
     return "Local model is selected, but the endpoint or model is missing. Configure them in Settings > AI Agent.";
   }
-  return callOpenAiCompatible({ url: settings.localEndpoint, apiKey: null, model: settings.localModel, prompt });
+  const result = await requestChatCompletion({ url: settings.localEndpoint, apiKey: null, model: settings.localModel, prompt });
+  return result.ok ? result.content : `AI provider request failed: ${result.error}`;
 }
 
 function setupHelpMessage(prompt) {
