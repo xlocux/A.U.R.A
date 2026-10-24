@@ -38,7 +38,22 @@
 
   <main class="workspace">
     <div class="workspace-main">
-    <section id="tab-recon" class="tab-panel">
+    <section id="tab-recon" class="tab-panel quick-only">
+      <div class="pane" id="quickStartPane">
+        <h2>New Scan</h2>
+        <div class="form-body">
+          <label for="quickDomains">Domains to scan (one per line; wildcards allowed)</label>
+          <textarea id="quickDomains" placeholder="acme.com&#10;*.acme.com"></textarea>
+          <label for="quickOutOfScope">Out of scope (optional)</label>
+          <textarea id="quickOutOfScope" placeholder="dev.acme.com&#10;*.internal.acme.com"></textarea>
+          <label class="check"><input id="quickAuthorized" type="checkbox"> <span>I am authorized to scan this scope</span></label>
+          <div class="row">
+            <button id="quickStart" type="button">Create &amp; Start Recon</button>
+            <button id="quickAdvancedToggle" type="button" class="secondary-button">Advanced options ▸</button>
+          </div>
+          <div id="quickStatus" class="notice muted">Paste one or more authorized domains and start. A target is created automatically; existing projects with the same name are reused.</div>
+        </div>
+      </div>
       <div class="target-grid recon-target">
         <div class="pane">
           <h2>Create Target</h2>

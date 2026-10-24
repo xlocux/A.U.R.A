@@ -1050,3 +1050,15 @@ body.sidebar-collapsed #workspaceNav .nav-submenu { display: none !important; }
 /* With the Logs sections in the sidebar tree, hide the in-panel subtab buttons (keep Clear logs). */
 #tab-logs .logs-subtabs [data-log-subtab] { display: none !important; }
 #tab-logs .logs-subtabs { border: 0 !important; background: transparent !important; padding: 0 0 6px !important; }
+
+/* ── Quick start (New Scan) ─────────────────────────────────────────────────
+   Collapsed-by-default advanced view: quick-only hides everything but the New Scan pane. */
+#tab-recon.quick-only > *:not(#quickStartPane) { display: none !important; }
+#quickStartPane { max-width: 720px; }
+#quickStartPane textarea { min-height: 70px; }
+.secondary-button {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border: 1px solid var(--soft-line, var(--line)) !important;
+}
+.secondary-button:hover { color: var(--ink, #fff) !important; border-color: var(--accent) !important; }

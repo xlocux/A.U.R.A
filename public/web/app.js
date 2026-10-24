@@ -776,6 +776,58 @@ async function runFocusedFollowup(phase, label) {
   }
 }
 
+// Derives a short, filesystem-safe target name from a domain (brand label), e.g. *.acme.co.uk -> acme.
+function deriveTargetName(domain) {
+  const host = String(domain || "").trim().replace(/^\*+\./, "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+  const labels = host.split(".").filter(Boolean);
+  const secondLevel = new Set(["co", "com", "org", "net", "ac", "gov", "edu"]);
+  let brand = labels.length >= 2 ? labels[labels.length - 2] : labels[0] || "";
+  if (labels.length >= 3 && secondLevel.has(labels[labels.length - 2])) brand = labels[labels.length - 3];
+  return (brand || host).replace(/[^a-z0-9._-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) || "target";
+}
+
+// One-field quick start: create (or reuse) a target from the pasted domains, then start recon with
+// the current tool defaults. Reuses the existing createTarget/startRecon flow for full compatibility.
+async function quickStart() {
+  const domains = textLines("quickDomains");
+  const status = $("quickStatus");
+  const fail = (message) => { status.textContent = message; status.className = "notice error"; };
+  if (domains.length === 0) return fail("Enter at least one domain to scan.");
+  if (!$("quickAuthorized").checked) return fail("Confirm you are authorized to scan this scope before starting.");
+  const outOfScope = textLines("quickOutOfScope");
+  const name = deriveTargetName(domains[0]);
+  $("quickStart").disabled = true;
+  status.className = "notice muted";
+  status.textContent = `Preparing scan for ${name}...`;
+  try {
+    const exists = (targets || []).some((t) => t.target_name === name);
+    if (!exists) {
+      $("newTargetName").value = name;
+      $("newProgramUrl").value = "";
+      $("newInScope").value = domains.join("\n");
+      $("newOutOfScope").value = outOfScope.join("\n");
+      await createTarget();
+      if (!(targets || []).some((t) => t.target_name === name)) throw new Error("Could not create the target.");
+    } else {
+      $("target").value = name;
+      await loadTargetConfig();
+    }
+    // Drive the existing recon flow with the quick-start scope.
+    $("domains").value = domains.join("\n");
+    $("reconMode").value = domains.length === 1 ? "single" : "list";
+    updateReconModeUi();
+    if ($("intelPreflight")) $("intelPreflight").checked = true;
+    await startRecon();
+    activateTab("results");
+    status.className = "notice";
+    status.textContent = `Scan started for ${name}. Follow it in Results or the flow diagram.`;
+  } catch (error) {
+    fail(error.message);
+  } finally {
+    $("quickStart").disabled = false;
+  }
+}
+
 async function startRecon() {
   if (!$("target").value) {
     $("status").textContent = "Create a target before starting recon.";
@@ -1836,6 +1888,15 @@ document.querySelectorAll(".tab").forEach((button) => {
 bindDashboardShellActions();
 enableTableSorting();
 buildSidebarSubmenus();
+$("quickStart")?.addEventListener("click", quickStart);
+$("quickAdvancedToggle")?.addEventListener("click", () => {
+  const recon = document.getElementById("tab-recon");
+  const collapsed = recon.classList.toggle("quick-only");
+  $("quickAdvancedToggle").textContent = collapsed ? "Advanced options ▸" : "Advanced options ▾";
+});
+$("quickDomains")?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) quickStart();
+});
 
 loadTargets()
   .then(() => populateResultsProjectPicker().catch(() => {}))
