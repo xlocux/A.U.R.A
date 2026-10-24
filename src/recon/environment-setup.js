@@ -73,7 +73,7 @@ async function checkTerminalPath({ runner }) {
   const command = [
     TOOL_PATH_EXPORT,
     "printf 'PATH=%s\\n' \"$PATH\"",
-    "for binary in sh bash node npm go git curl jq; do command -v \"$binary\" >/dev/null 2>&1 && printf '%s=%s\\n' \"$binary\" \"$(command -v \"$binary\")\" || printf '%s=missing\\n' \"$binary\"; done"
+    "for binary in sh bash node npm go git curl jq python3 uv chromium chromium-browser; do command -v \"$binary\" >/dev/null 2>&1 && printf '%s=%s\\n' \"$binary\" \"$(command -v \"$binary\")\" || printf '%s=missing\\n' \"$binary\"; done"
   ].join(" && ");
   const result = await runner.run(command, 60000);
   return {
