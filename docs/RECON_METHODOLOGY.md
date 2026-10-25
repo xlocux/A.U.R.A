@@ -2196,3 +2196,44 @@ including ideas from:
 - Censys.
 - Instant Domain Search.
 - OpenCode.
+
+## Scan Tiers (Light / Normal / Full)
+
+The New Scan pane exposes a **Scan depth** selector. A tier expands to a set of
+optional tools; ticking a tool in the advanced Recon options adds it on top of the
+chosen tier (an explicit toggle overrides the tier default).
+
+- **Light** — fast, passive-leaning. Core discovery (passive sources, subfinder,
+  dnsx, httpx) plus `tlsx` certificate-SAN harvesting. Lowest noise; good for a
+  quick scope map.
+- **Normal** (default) — balanced active. Adds `katana` (active crawl of live
+  services), `subzy` (subdomain-takeover checks), and `getJS` (JavaScript URL
+  discovery).
+- **Full** — deep and noisier; authorized scope only. Adds `ffuf` (directory
+  discovery), `cloud_enum` (public cloud resources), `gobypass403` (401/403
+  bypass), `waymore` and `paramspider` (wider archived URL/parameter mining).
+
+The backend mapping lives in `SCAN_TIER_TOOLS` in
+`src/web/routes/recon-run-routes.js`; the engine flags are consumed by `runRecon`
+in `src/recon/engine/pipelines.js`.
+
+## Added Recon Tools
+
+| Tool | Phase | Output | Notes |
+| --- | --- | --- | --- |
+| `tlsx` | TLS/cert grab | cert SAN hostnames → domains | best-effort proxy (raw TLS) |
+| `subzy` | subdomain takeover | asset leads (`subdomain-takeover`) | runs on discovered hosts |
+| `katana` | active crawl | URLs (source `katana`) | depth 2, live services |
+| `waymore` | url mining | URLs (source `waymore`) | Wayback/CC/OTX/URLScan/VT/IntelX |
+| `paramspider` | param mining | URLs (source `paramspider`) | archived parameterized URLs |
+
+Each tool is allowlisted in `src/recon/linux-tools.js`, has a manifest under
+`src/recon/tools/builtin/`, and is runnable individually as a focused follow-up
+(`POST /api/recon-runs/:id/follow-up/{crawl|tls|takeover|params}`).
+
+## Proxy Routing
+
+When an upstream proxy is configured, `spawnLinuxTool` prepends
+`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` exports to every allowlisted tool, so all
+CLI recon traffic is routed through it (tlsx opens raw TLS sockets, so proxying is
+best-effort there).

@@ -11,6 +11,7 @@ const { inferRoots, normalizeHosts, parseToolSpec } = require("./tool-args");
 const { announceProxy, appendAiLog, createProxyController, runHttpxOnHosts, toolFailureDetail } = require("./tool-execution");
 const { collectFavicons, collectScreenshots, collectTrackers } = require("./web-collectors");
 const { runBypass403, runCloudEnum, runDirectoryDiscovery, runJsDiscovery } = require("./cloud-dirs");
+const { runKatanaCrawl, runTlsxGrab, runSubzyTakeover, runWaymore, runParamSpider } = require("./recon-extra-tools");
 
 const DEFAULT_TIMEOUT_MS = 180000;
 
@@ -51,7 +52,12 @@ async function runRecon({
   runFfuf = false,
   runCloudEnum: cloudEnumEnabled = false,
   runBypass403: bypass403Enabled = false,
-  runGetJs = false
+  runGetJs = false,
+  runKatana = false,
+  runTlsx = false,
+  runSubzy = false,
+  runWaymore = false,
+  runParamSpider = false
 }) {
   const roots = [...new Set((rootDomains || []).map(normalizeDomain).filter(Boolean))];
   if (roots.length === 0) throw new Error("Recon requires at least one valid root domain");
@@ -95,6 +101,28 @@ async function runRecon({
     if (useLinuxRunner && runGetJs) {
       await waitForRunControl(store, runId);
       await runJsDiscovery({ ...shared, services: context.httpServices });
+    }
+    if (useLinuxRunner && runTlsx) {
+      await waitForRunControl(store, runId);
+      const tlsDomains = await runTlsxGrab({ ...shared, hosts: [...discovered], rootDomains: roots });
+      // Cert-derived hostnames feed the discovered set so summary/later phases include them.
+      if (tlsDomains) for (const row of store.listDomains({ runId, limit: 100000 })) if (row.source === "tlsx" && row.domain) discovered.add(row.domain);
+    }
+    if (useLinuxRunner && runKatana) {
+      await waitForRunControl(store, runId);
+      await runKatanaCrawl({ ...shared, services: context.httpServices });
+    }
+    if (useLinuxRunner && runSubzy) {
+      await waitForRunControl(store, runId);
+      await runSubzyTakeover({ ...shared, hosts: [...discovered] });
+    }
+    if (useLinuxRunner && runWaymore) {
+      await waitForRunControl(store, runId);
+      await runWaymore({ ...shared, domains: roots });
+    }
+    if (useLinuxRunner && runParamSpider) {
+      await waitForRunControl(store, runId);
+      await runParamSpider({ ...shared, domains: roots });
     }
 
     store.saveDomains(runId, targetName, [...discovered].map((domain) => ({
@@ -185,16 +213,16 @@ async function runFocusedFollowup({
   proxyUrl = null,
   useProxyPool = false
 }) {
-  const handlers = { urls: true, http: true, tech: true, screenshots: true, trackers: true, favicons: true, dirs: true, cloud: true, bypass403: true, js: true };
+  const handlers = { urls: true, http: true, tech: true, screenshots: true, trackers: true, favicons: true, dirs: true, cloud: true, bypass403: true, js: true, crawl: true, tls: true, takeover: true, params: true };
   if (!handlers[phase]) throw new Error(`Unsupported focused follow-up phase: ${phase}`);
-  if (["urls", "http", "screenshots", "dirs", "cloud", "bypass403", "js"].includes(phase) && !useLinuxRunner) {
+  if (["urls", "http", "screenshots", "dirs", "cloud", "bypass403", "js", "crawl", "tls", "takeover", "params"].includes(phase) && !useLinuxRunner) {
     throw new Error(`The ${phase} follow-up requires the Linux tool runner`);
   }
   fs.mkdirSync(artifactsDir, { recursive: true });
   store.updateRun(runId, { status: "running", activePhase: `follow-up-${phase}`, checkpoint: { phase, domainCount: domains.length, serviceCount: services.length } });
   store.appendEvent(runId, { phase: `follow-up-${phase}`, severity: "ok", source: "engine", message: `Focused ${phase} follow-up started` });
 
-  const needsNetwork = ["urls", "http", "screenshots", "dirs", "bypass403", "js"].includes(phase);
+  const needsNetwork = ["urls", "http", "screenshots", "dirs", "bypass403", "js", "crawl", "tls", "takeover", "params"].includes(phase);
   const { proxyController, selectedProxyUrl } = needsNetwork
     ? await setUpNetwork({ store, runId, phase: `follow-up-${phase}`, proxyUrl, useProxyPool, useLinuxRunner })
     : { proxyController: null, selectedProxyUrl: proxyUrl };
@@ -238,6 +266,22 @@ async function runFocusedFollowup({
     } else if (phase === "js") {
       const found = await runJsDiscovery({ ...shared, services });
       checkpoint = { phase, jsUrls: found };
+    } else if (phase === "crawl") {
+      const found = await runKatanaCrawl({ ...shared, services });
+      checkpoint = { phase, crawledUrls: found };
+    } else if (phase === "tls") {
+      const hosts = normalizeHosts(domains.length ? domains : services);
+      const found = await runTlsxGrab({ ...shared, hosts, rootDomains: rootDomains.length ? rootDomains : inferRoots(domains) });
+      checkpoint = { phase, certDomains: found };
+    } else if (phase === "takeover") {
+      const hosts = normalizeHosts(domains.length ? domains : services);
+      const found = await runSubzyTakeover({ ...shared, hosts });
+      checkpoint = { phase, takeovers: found };
+    } else if (phase === "params") {
+      const roots = rootDomains.length ? rootDomains : inferRoots(domains);
+      const way = await runWaymore({ ...shared, domains: roots });
+      const params = await runParamSpider({ ...shared, domains: roots });
+      checkpoint = { phase, archivedUrls: way + params };
     }
     return await completeRun(store, runId, checkpoint);
   } finally {

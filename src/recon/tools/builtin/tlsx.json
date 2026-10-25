@@ -1,0 +1,22 @@
+{
+  "tool_id": "tlsx",
+  "type": "cli",
+  "phase": "tls_grab",
+  "binary": "tlsx",
+  "version_check": { "command": "tlsx", "args": ["-version"] },
+  "input_type": "host_list",
+  "output_format": "jsonl",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "tlsx_jsonl",
+  "tags": ["active", "tls", "certificates", "subdomains"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/projectdiscovery/tlsx/cmd/tlsx@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "active"
+  }
+}

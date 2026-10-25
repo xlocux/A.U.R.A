@@ -1,0 +1,22 @@
+{
+  "tool_id": "subzy",
+  "type": "cli",
+  "phase": "subdomain_takeover",
+  "binary": "subzy",
+  "version_check": { "command": "subzy", "args": ["version"] },
+  "input_type": "host_list",
+  "output_format": "text",
+  "output_path": "stdout",
+  "rate_limit_profile": "default_active_light",
+  "parser": "subzy_text",
+  "tags": ["active", "subdomains", "takeover"],
+  "install": {
+    "method": "go_install",
+    "source": "github.com/PentestPad/subzy@latest"
+  },
+  "safety": {
+    "requires_authorization": true,
+    "active_network": true,
+    "default_profile": "active"
+  }
+}

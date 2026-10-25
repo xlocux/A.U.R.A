@@ -426,7 +426,9 @@ button:disabled { opacity: .55; cursor: wait; }
   font-style: normal;
   font-size: 10px;
 }
-.topology-shell { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; height: calc(100vh - 128px); min-height: 480px; }
+.topology-shell { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; height: 100%; min-height: 0; }
+#tab-topology.tab-panel { overflow: hidden; }
+.topology-side { overflow-y: auto; }
 .topology-main { display: grid; grid-template-rows: auto 1fr; }
 .topology-head {
   display: flex;

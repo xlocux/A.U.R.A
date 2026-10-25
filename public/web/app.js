@@ -29,6 +29,7 @@ const $ = (id) => document.getElementById(id);
 const UI_SETTINGS_STORAGE_KEY = "aura.uiSettings";
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "aura.sidebarCollapsed";
 const ACTIVE_TARGET_STORAGE_KEY = "aura.activeTarget";
+const ACTIVE_TAB_STORAGE_KEY = "aura.activeTab";
 const API_KEY_PROVIDER_HINTS = {
   openrouter: {
     label: "free-models",
@@ -251,7 +252,18 @@ function activateTab(name) {
   });
   if (document.body.classList.contains("results-view-expanded")) exitResultsFullscreen();
   if (name === "topology") window.AuraTopology?.render?.();
-  if (name === "results") populateResultsProjectPicker().catch(() => {});
+  if (name === "results" || name === "recon") populateResultsProjectPicker().catch(() => {});
+  if (name === "tools") window.AuraTools?.renderTiles?.();
+  if (name === "flow") window.AuraReconFlow?.activate?.(activeRunId || Number($("runId")?.textContent) || null);
+  else window.AuraReconFlow?.deactivate?.();
+  if (name) localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, name);
+}
+
+// Restore the last-viewed tab on load (page refresh should stay put, not jump to Settings).
+function restoreActiveTab() {
+  const saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+  const valid = saved && document.getElementById(`tab-${saved}`);
+  activateTab(valid ? saved : "recon");
 }
 
 function bindDashboardShellActions() {
@@ -322,6 +334,65 @@ function activateSettingsPanel(name) {
     panel.classList.toggle("active", panel.id === `settings-${name}`);
   });
   if (name === "credentials") refreshApiKeys().catch(() => {});
+  if (name === "storage") loadStorageUsage().catch(() => {});
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = value / 1024;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
+  return `${size.toFixed(size >= 100 ? 0 : 1)} ${units[unit]}`;
+}
+
+const STORAGE_CATEGORY_COLORS = {
+  database: "#52d391",
+  artifacts: "var(--accent)",
+  proxies: "#c792ea",
+  wordlists: "#ffcb6b",
+  targets: "#82aaff"
+};
+
+async function loadStorageUsage() {
+  const host = document.getElementById("storageUsage");
+  if (!host) return;
+  host.innerHTML = `<div class="notice muted">Measuring local storage…</div>`;
+  try {
+    const { storage } = await api("/api/storage/usage");
+    const total = storage.totalBytes || 0;
+    const bar = storage.categories
+      .filter((cat) => cat.bytes > 0)
+      .map((cat) => `<span style="width:${total ? (cat.bytes / total) * 100 : 0}%;background:${STORAGE_CATEGORY_COLORS[cat.key] || "var(--accent)"}" title="${esc(cat.label)}: ${esc(formatBytes(cat.bytes))}"></span>`)
+      .join("") || `<span style="width:100%;background:var(--soft-line)"></span>`;
+    const cards = storage.categories.map((cat) => `
+      <div class="storage-card">
+        <span class="storage-card-dot" style="background:${STORAGE_CATEGORY_COLORS[cat.key] || "var(--accent)"}"></span>
+        <div class="storage-card-body">
+          <strong>${esc(formatBytes(cat.bytes))}</strong>
+          <span>${esc(cat.label)}${cat.files != null ? ` · ${esc(cat.files)} file` : ""}</span>
+          <code>${esc(cat.path)}</code>
+        </div>
+      </div>`).join("");
+    const disk = storage.disk
+      ? `<div class="storage-disk">
+           <div class="storage-disk-head"><span>Disk (data drive)</span><span>${esc(formatBytes(storage.disk.used))} / ${esc(formatBytes(storage.disk.total))} used · ${esc(formatBytes(storage.disk.free))} free</span></div>
+           <div class="storage-bar"><span style="width:${storage.disk.total ? (storage.disk.used / storage.disk.total) * 100 : 0}%;background:linear-gradient(90deg,var(--accent),#52d391)"></span></div>
+         </div>`
+      : "";
+    host.innerHTML = `
+      <div class="storage-summary">
+        <div class="storage-total"><strong>${esc(formatBytes(total))}</strong><span>A.U.R.A local footprint · ${esc(storage.counts.runs)} run(s) · ${esc(storage.counts.targets)} target(s)</span></div>
+        <div class="storage-bar storage-bar-stacked">${bar}</div>
+      </div>
+      <div class="storage-cards">${cards}</div>
+      ${disk}
+      <button type="button" id="storageRefresh" class="secondary-button">Refresh</button>`;
+    document.getElementById("storageRefresh")?.addEventListener("click", () => loadStorageUsage().catch(() => {}));
+  } catch (error) {
+    host.innerHTML = `<div class="notice error">${esc(error.message)}</div>`;
+  }
 }
 
 function activateResultsView(name) {
@@ -405,6 +476,7 @@ async function loadTargets() {
     $("target").innerHTML = "";
     localStorage.removeItem(ACTIVE_TARGET_STORAGE_KEY);
     clearRunView();
+    rebuildReconSubmenu();
     return;
   }
 
@@ -414,6 +486,7 @@ async function loadTargets() {
   await loadTargetConfig();
   await refreshLeads();
   await restoreLatestRunForSelectedTarget();
+  rebuildReconSubmenu();
 }
 
 async function loadTargetConfig() {
@@ -551,6 +624,8 @@ async function loadSelectedResultsRun() {
   if (poll) clearInterval(poll);
   const run = (await api(`/api/recon-runs/${activeRunId}`))?.run;
   if (run && ["queued", "running", "paused"].includes(run.status)) poll = setInterval(refreshRun, 1500);
+  // The loader lives in Recon; jump to Results to show the loaded run.
+  activateTab("results");
 }
 
 async function restoreLatestRunForSelectedTarget() {
@@ -828,6 +903,14 @@ async function quickStart() {
   }
 }
 
+// Only include a tool flag when its checkbox is ticked, so an unticked box lets the scan tier decide.
+function reconToolFlags() {
+  const map = { ffuf: "useFfuf", cloudEnum: "useCloudEnum", bypass403: "useBypass403", getjs: "useGetJs", katana: "useKatana", tlsx: "useTlsx", subzy: "useSubzy", waymore: "useWaymore", paramspider: "useParamSpider" };
+  const flags = {};
+  for (const [key, id] of Object.entries(map)) if ($(id)?.checked) flags[key] = true;
+  return flags;
+}
+
 async function startRecon() {
   if (!$("target").value) {
     $("status").textContent = "Create a target before starting recon.";
@@ -860,10 +943,9 @@ async function startRecon() {
         useLinuxRunner: $("useLinuxRunner").checked,
         linuxRuntime: $("linuxRuntime").value,
         linuxTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"]),
-        ffuf: $("useFfuf")?.checked || false,
-        cloudEnum: $("useCloudEnum")?.checked || false,
-        bypass403: $("useBypass403")?.checked || false,
-        getjs: $("useGetJs")?.checked || false,
+        // Scan tier drives which optional tools run; a ticked checkbox adds that tool on top of the tier.
+        scanTier: $("scanTier")?.value || "normal",
+        ...reconToolFlags(),
         timeoutMs: Number($("timeout").value || 180000),
         passiveSources: selectedValues(["crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan", "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye", "spyse", "intelx", "whoisxmlapi", "whoisfreaks"]),
         screenshotTools: selectedValues(["gowitness", "aquatone", "eyewitness"]),
@@ -1152,6 +1234,113 @@ function buildSidebarSubmenu({ id, tabName, sourceSelector, valueOf, hideSelecto
 
 function syncSidebarSubmenu(submenu, value) {
   submenu.querySelectorAll(".nav-subitem").forEach((item) => item.classList.toggle("active", item.dataset.submenuValue === value));
+}
+
+// Moves the utility tabs (Logs, Settings, Guide) and their submenus to the bottom of the sidebar,
+// just above the collapse toggle. Idempotent: it does nothing once the order is already correct, so
+// it can be driven by a MutationObserver (Guide/Logs tabs and the Logs submenu are injected late)
+// without churn.
+function reorderNav() {
+  const nav = document.getElementById("workspaceNav");
+  const toggle = document.getElementById("sidebarToggle");
+  if (!nav || !toggle) return;
+  const order = ["logs", "settings", "guide"];
+  const desired = [];
+  for (const name of order) {
+    const tab = nav.querySelector(`.tab[data-tab="${name}"]`);
+    if (!tab) continue;
+    desired.push(tab);
+    const submenu = document.getElementById(`${name}Submenu`);
+    if (submenu && submenu.parentElement === nav) desired.push(submenu);
+  }
+  // Just order the items (utilities last) as one continuous list — no separate bottom zone.
+  const sequence = [...desired, toggle];
+  const tail = [...nav.children].slice(-sequence.length);
+  const inPlace = tail.length === sequence.length && tail.every((el, index) => el === sequence[index]);
+  if (!inPlace) {
+    for (const el of sequence) if (el !== toggle) nav.insertBefore(el, toggle);
+  }
+}
+
+// Recon sidebar submenu: a quick loader for saved / suspended projects, living under the Recon tab.
+// Rebuilt whenever the targets list changes. The parent-toggle wiring is attached only once.
+function applyReconSubmenu(submenu) {
+  const open = submenu.querySelectorAll(".nav-subitem").length > 0 && !submenu._collapsed;
+  submenu.classList.toggle("open", open);
+}
+function rebuildReconSubmenu() {
+  const nav = document.getElementById("workspaceNav");
+  const reconTab = nav?.querySelector('.tab[data-tab="recon"]');
+  if (!nav || !reconTab) return;
+  let submenu = document.getElementById("reconSubmenu");
+  if (!submenu) {
+    submenu = document.createElement("div");
+    submenu.id = "reconSubmenu";
+    submenu.className = "nav-submenu";
+    submenu.setAttribute("role", "group");
+    reconTab.insertAdjacentElement("afterend", submenu);
+    submenu._collapsed = !reconTab.classList.contains("active");
+    // Parent toggles the tree (programmatic activation from a child does not — see _suppressToggle).
+    reconTab.addEventListener("click", () => {
+      if (submenu._suppressToggle) { setTimeout(() => applyReconSubmenu(submenu), 0); return; }
+      submenu._collapsed = submenu.classList.contains("open");
+      setTimeout(() => applyReconSubmenu(submenu), 0);
+    });
+    // Navigating to any other top-level tab collapses the tree (delegated so late-injected tabs count).
+    nav.addEventListener("click", (event) => {
+      const tab = event.target.closest(".tab");
+      if (!tab || tab.dataset.tab === "recon" || event.target.closest(".nav-submenu")) return;
+      submenu._collapsed = true;
+      submenu.classList.remove("open");
+    });
+  }
+
+  const current = document.getElementById("target")?.value || "";
+  submenu.innerHTML = "";
+  const addItem = (label, value, handler, { active = false, isNew = false } = {}) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "nav-subitem" + (isNew ? " nav-subitem-new" : "");
+    item.dataset.submenuValue = value;
+    item.textContent = label;
+    item.classList.toggle("active", active);
+    item.addEventListener("click", () => {
+      submenu._suppressToggle = true;
+      handler();
+      submenu._suppressToggle = false;
+      submenu._collapsed = false;
+      applyReconSubmenu(submenu);
+      submenu.querySelectorAll(".nav-subitem").forEach((el) => el.classList.toggle("active", el === item));
+    });
+    submenu.appendChild(item);
+  };
+
+  // "New scan" returns to the one-field quick start.
+  addItem("+ New scan", "__new__", () => {
+    activateTab("recon");
+    document.getElementById("tab-recon")?.classList.add("quick-only");
+    const toggle = document.getElementById("quickAdvancedToggle");
+    if (toggle) toggle.textContent = "Advanced options ▸";
+  }, { isNew: true });
+
+  // One entry per saved project: loads its config, leads, and restores its latest (possibly paused) run.
+  for (const target of (targets || [])) {
+    const name = target.target_name;
+    if (!name) continue;
+    addItem(name, name, () => {
+      activateTab("recon");
+      document.getElementById("tab-recon")?.classList.remove("quick-only"); // reveal target + run controls
+      const toggle = document.getElementById("quickAdvancedToggle");
+      if (toggle) toggle.textContent = "Advanced options ▾";
+      const select = document.getElementById("target");
+      if (select) {
+        select.value = name;
+        select.dispatchEvent(new Event("change")); // loads config + leads + restores the latest run
+      }
+    }, { active: name === current });
+  }
+
+  applyReconSubmenu(submenu);
 }
 
 function enableTableSorting() {
@@ -1730,6 +1919,9 @@ $("target").addEventListener("change", () => {
   restoreLatestRunForSelectedTarget().catch((error) => {
     $("status").textContent = error.message;
   });
+  // Keep the Recon sidebar project list in sync with the dropdown selection.
+  const value = $("target").value;
+  document.querySelectorAll("#reconSubmenu .nav-subitem").forEach((el) => el.classList.toggle("active", el.dataset.submenuValue === value));
 });
 function updateReconModeUi() {
   const mode = $("reconMode")?.value;
@@ -1883,11 +2075,30 @@ $("fontScale").addEventListener("input", () => applyFontScale($("fontScale").val
 $("themeSelect").addEventListener("change", () => applyTheme($("themeSelect").value));
 $("backgroundEffect").addEventListener("change", () => applyBackgroundEffect($("backgroundEffect").value));
 document.querySelectorAll(".tab").forEach((button) => {
+  if (button.dataset.navAction) return; // action buttons (e.g. Flow) handle their own click
   button.addEventListener("click", () => activateTab(button.dataset.tab));
 });
+// "Flow" is now a regular workspace tab (data-tab="flow"); activateTab renders its panel.
 bindDashboardShellActions();
 enableTableSorting();
+// Restore the saved tab BEFORE building submenus so each tree's collapsed state matches the active tab
+// (otherwise the Settings submenu builds open because Settings is the default-active tab in the markup).
+restoreActiveTab();
 buildSidebarSubmenus();
+rebuildReconSubmenu();
+reorderNav();
+// Guide/Logs tabs and the Logs submenu are injected after boot; keep the bottom cluster ordered.
+(function observeNavOrder() {
+  const nav = document.getElementById("workspaceNav");
+  if (!nav) return;
+  const observer = new MutationObserver(() => reorderNav());
+  observer.observe(nav, { childList: true });
+  setTimeout(() => observer.disconnect(), 20000);
+})();
+// Guide/Logs panels are injected after boot; retry the restore once if the saved tab was one of them.
+if (localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) && !document.getElementById(`tab-${localStorage.getItem(ACTIVE_TAB_STORAGE_KEY)}`)) {
+  setTimeout(restoreActiveTab, 600);
+}
 $("quickStart")?.addEventListener("click", quickStart);
 $("quickAdvancedToggle")?.addEventListener("click", () => {
   const recon = document.getElementById("tab-recon");

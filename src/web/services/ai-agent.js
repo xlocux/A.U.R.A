@@ -9,15 +9,20 @@ const { listOpenRouterFreeModels } = require("./ai-runtime");
 const CAPABILITIES = [
   "A.U.R.A recon pipeline (in order): intel preflight (WHOIS/RDAP + alternate-TLD correlation);",
   "passive sources (crt.sh, Wayback, RapidDNS and optional provider APIs); subdomain & DNS",
-  "(subfinder, amass, dnsx, puredns, shuffle-dns); URL mining (gau); HTTP probing (httpx);",
-  "technology enrichment (retire.js, wpscan, cmseek); JavaScript discovery (getJS); screenshots",
-  "(gowitness, with a Chromium-headless fallback); trackers & favicons; directory discovery (ffuf);",
-  "public cloud resources (cloud_enum, keywords derived from domains/URLs); 403/401 access-control",
-  "bypass (gobypass403); and an AI recovery pool that retries incomplete phases. Each enumeration",
-  "step is opt-in from the Recon tools or runnable as a focused follow-up on a completed run.",
+  "(subfinder, amass, dnsx, puredns, shuffle-dns); TLS/certificate SAN harvesting (tlsx); subdomain",
+  "takeover checks (subzy); URL mining (gau); active crawling (katana); wider archived URL and",
+  "parameter mining (waymore, paramspider); HTTP probing (httpx); technology enrichment (retire.js,",
+  "wpscan, cmseek); JavaScript discovery (getJS); screenshots (gowitness, with a Chromium-headless",
+  "fallback); trackers & favicons; directory discovery (ffuf); public cloud resources (cloud_enum,",
+  "keywords derived from domains/URLs); 403/401 access-control bypass (gobypass403); and an AI",
+  "recovery pool that retries incomplete phases. Scans run in tiers — Light (fast, passive-leaning),",
+  "Normal (balanced active: adds katana, tlsx, subzy, getJS), and Full (adds ffuf, cloud_enum,",
+  "gobypass403, waymore, paramspider). Each enumeration step is opt-in from the Recon tools or",
+  "runnable individually as a focused follow-up on a completed run. All tools route through the",
+  "configured upstream proxy when one is set.",
   "Runs can be paused (after the current tool finishes), resumed, or cancelled (stops the running tool).",
   "Results appear under Results (Domains, Services, URLs, Tech, Screenshots, Tool Logs, Activity,",
-  "AI Log, Delta, Export), the Topology graph, and a live recon flow diagram opened from the status bar."
+  "AI Log, Delta, Export), the Topology graph, and a Flow panel with a live recon pipeline diagram."
 ].join(" ");
 
 const SYSTEM_PROMPT = `You are A.U.R.A's local assistant. Answer in English. Be concise, evidence-driven, and safe. Do not suggest evasion, exploitation, or out-of-scope activity. Only recommend actions inside authorized scope.\n\nProduct capabilities you can explain and recommend:\n${CAPABILITIES}`;

@@ -329,7 +329,11 @@
       saveWindowState();
     });
     $("aiPrompt").addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) sendPrompt();
+      // Enter sends; Shift+Enter (or Ctrl/Cmd+Enter) inserts a newline.
+      if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault();
+        sendPrompt();
+      }
     });
     applyWindowState();
   }

@@ -66,19 +66,7 @@
     `;
     const storagePanel = document.getElementById("settings-storage");
     settingsLayout.insertBefore(panel, storagePanel || null);
-    if (storagePanel && !storagePanel.dataset.storageEnhanced) {
-      storagePanel.dataset.storageEnhanced = "true";
-      storagePanel.innerHTML = `
-        <h2>Storage</h2>
-        <div class="storage-overview">
-          <div><span>SQLite DB</span><strong>data/aura.db</strong></div>
-          <div><span>Run artifacts</span><strong>data/recon-runs/</strong></div>
-          <div><span>Generated wordlists</span><strong>data/wordlists/generated/</strong></div>
-          <div><span>Target configs</span><strong>targets/</strong></div>
-        </div>
-        <div class="notice muted compact-notice">This section should contain DB size, artifact size, run counts, backup/export, cleanup old runs, orphan artifact cleanup, and SQLite vacuum. Login changes are in Settings > Security.</div>
-      `;
-    }
+    // The Storage panel renders live usage metrics from #storageUsage (see loadStorageUsage); leave it alone.
   }
 
   function ensureHeaderProfile() {

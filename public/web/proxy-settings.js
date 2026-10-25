@@ -86,23 +86,21 @@
 
     removeLegacyImportControls(form);
 
+    // Compact layout: a single action bar + metric row + the pool table up top; the connection
+    // form (URL/mode/purpose) sits below. Explanatory hero/step cards were removed as superfluous.
     form.insertAdjacentHTML("afterbegin", `
-      <div class="proxy-hero">
-        <div>
-          <span class="eyebrow">Authorized proxy flow</span>
-          <strong>Import authorized proxies into the pool, run protocol preflight, then keep only healthy low-latency routes.</strong>
-          <p>Use only proxies you are authorized to operate. The top <code>Import to Pool</code> action opens a modal for one proxy per line; failed and high-latency entries are removed after preflight.</p>
+      <div class="proxy-topbar">
+        <div class="proxy-topbar-head">
+          <strong>Proxy pool</strong>
+          <span>Authorized interception / lab egress only — routing changes transport, not recon scope.</span>
         </div>
-        <div class="proxy-hero-actions">
+        <div class="proxy-topbar-actions">
           <button id="proxyImportServer" type="button">Import to Pool</button>
-          <button id="proxyRefresh" type="button">Refresh</button>
+          <button id="proxyStepPreflight" type="button">Preflight + clean</button>
+          <button id="proxyStepBest" type="button">Use Best</button>
+          <button id="proxyStepEnable" type="button">Enable for Runs</button>
+          <button id="proxyRefresh" type="button" class="secondary-button">Refresh</button>
         </div>
-      </div>
-      <div class="proxy-steps" aria-label="Proxy setup workflow">
-        <div class="proxy-step"><span>1</span><strong>Import</strong><small>Use the top Import to Pool button to paste authorized proxies into the server-side pool.</small></div>
-        <div class="proxy-step"><span>2</span><strong>Preflight + clean</strong><small>Protocol-aware checks remove failed routes and entries above the latency ceiling.</small><button id="proxyStepPreflight" type="button">Run Cleanup Preflight</button></div>
-        <div class="proxy-step"><span>3</span><strong>Pick</strong><small>Select the fastest healthy authorized proxy from the cleaned preflight results.</small><button id="proxyStepBest" type="button">Use Best</button></div>
-        <div class="proxy-step"><span>4</span><strong>Enable</strong><small>Save the selected proxy for recon tools without changing target scope.</small><button id="proxyStepEnable" type="button">Enable for Runs</button></div>
       </div>
       <div id="proxyDashboard" class="proxy-dashboard">
         <div class="proxy-card"><span>Total</span><strong id="proxyMetricTotal">0</strong></div>
@@ -112,26 +110,10 @@
       </div>
       <div id="proxyActivity" class="proxy-activity idle">
         <div class="proxy-activity-rail"><span></span></div>
-        <strong id="proxyActivityTitle">Proxy workflow idle</strong>
-        <small id="proxyActivityDetail">Import authorized proxies from the top action, preflight and clean the pool, then pick the best active route.</small>
+        <strong id="proxyActivityTitle">Idle</strong>
+        <small id="proxyActivityDetail">Import, preflight, then pick the best route.</small>
       </div>
-    `);
-
-    const oldNotice = form.querySelector(".compact-notice");
-    if (oldNotice) {
-      oldNotice.textContent = "Use this only for authorized interception or lab egress. Proxy routing changes transport only; it does not expand authorized recon scope.";
-    }
-
-    const statusNode = $("proxySettingsStatus");
-    const poolSection = `
       <section id="proxyPoolSection" class="proxy-pool-section" aria-label="Proxy pool and preflight results">
-        <div class="proxy-pool-header">
-          <div>
-            <span class="eyebrow">Pool results</span>
-            <strong>Imported proxy pool and preflight status</strong>
-            <p>Review the cleaned server-side pool. Use Best reads this table and writes the selected route back to Proxy URL above.</p>
-          </div>
-        </div>
         <div class="proxy-toolbar">
           <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
           <select id="proxyStatusFilter"><option value="all">All</option><option value="active">Active</option><option value="unknown">Unknown</option><option value="failed">Failed</option></select>
@@ -144,9 +126,11 @@
           </table>
         </div>
       </section>
-    `;
-    if (statusNode) statusNode.insertAdjacentHTML("afterend", poolSection);
-    else form.insertAdjacentHTML("beforeend", poolSection);
+      <div class="proxy-connection-label">Connection</div>
+    `);
+
+    // The verbose authorization notice is folded into the topbar subtitle above.
+    form.querySelector(".compact-notice")?.remove();
   }
 
   function removeLegacyImportControls(form) {
