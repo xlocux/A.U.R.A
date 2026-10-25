@@ -65,7 +65,13 @@ async function getPowHeader(headers, targetPath = COMPLETION_PATH) {
   const biz = await postJson("/chat/create_pow_challenge", { target_path: targetPath }, headers);
   const challenge = biz?.challenge;
   if (!challenge) throw new Error("DeepSeek: no PoW challenge returned.");
-  return powResponseHeader(challenge);
+  try {
+    return powResponseHeader(challenge);
+  } catch (error) {
+    // No solution / unsupported algorithm → DeepSeek likely rotated the hash/wasm. Re-running Login
+    // refreshes the cached wasm from the live (bot-protected) page.
+    throw new Error(`DeepSeek PoW failed (${error.message}). DeepSeek may have updated its challenge — re-run Login to DeepSeek to refresh the solver.`);
+  }
 }
 
 // Upload a file (as the browser does: PoW for the upload path + multipart "file" field).

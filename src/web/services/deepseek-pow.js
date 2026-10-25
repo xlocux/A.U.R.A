@@ -11,9 +11,18 @@ const path = require("node:path");
 
 let wasm = null; // { hash(str) }
 
+// Prefer an auto-updated copy under data/ (refreshed at login); fall back to the bundled wasm.
+function wasmPath() {
+  const cached = path.resolve("data", "deepseek_sha3.wasm");
+  try { if (fs.statSync(cached).size > 1000) return cached; } catch { /* use bundled */ }
+  return path.join(__dirname, "deepseek_sha3.wasm");
+}
+
+function reloadWasm() { wasm = null; }
+
 function loadWasm() {
   if (wasm) return wasm;
-  const bytes = fs.readFileSync(path.join(__dirname, "deepseek_sha3.wasm"));
+  const bytes = fs.readFileSync(wasmPath());
   const ex = new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports;
   const malloc = ex.__wbindgen_export_0;
   const addsp = ex.__wbindgen_add_to_stack_pointer;
@@ -62,4 +71,4 @@ function powResponseHeader(challenge) {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
 }
 
-module.exports = { solveChallenge, powResponseHeader };
+module.exports = { solveChallenge, powResponseHeader, reloadWasm, wasmPath };

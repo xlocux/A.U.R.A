@@ -9,10 +9,21 @@ const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
+const { reloadWasm } = require("./deepseek-pow");
 
 const LOGIN_URL = "https://chat.deepseek.com/";
 const POLL_MS = 2000;
 const TIMEOUT_MS = 5 * 60 * 1000;
+
+const STATIC_BASE = "https://fe-static.deepseek.com/chat/static/";
+const WASM_OUT = path.resolve("data", "deepseek_sha3.wasm");
+// Ground-truth vector from a captured challenge: proves a freshly downloaded wasm is still compatible.
+const WASM_VECTOR = {
+  salt: "735d40e5adb8d0d03a1c",
+  expire_at: 1792917239407,
+  answer: 47450,
+  challenge: "957f078efa8c32b4675cb75e4f80e8b9a5aecbedc0ff07cf5637c6e75f819e48"
+};
 
 // One capture at a time; the frontend polls `state`.
 let state = { status: "idle", message: "", startedAt: 0 };
@@ -70,6 +81,52 @@ function cleanup() {
   child = null;
 }
 
+// Runs the downloaded wasm against the known vector to confirm the hash algorithm is unchanged.
+function wasmMatchesVector(buffer) {
+  try {
+    const ex = new WebAssembly.Instance(new WebAssembly.Module(buffer), {}).exports;
+    const ret = ex.__wbindgen_add_to_stack_pointer(-16);
+    const b = new TextEncoder().encode(`${WASM_VECTOR.salt}_${WASM_VECTOR.expire_at}_${WASM_VECTOR.answer}`);
+    const p = ex.__wbindgen_export_0(b.length, 1);
+    new Uint8Array(ex.memory.buffer).set(b, p);
+    ex.wasm_deepseek_hash_v1(ret, p, b.length);
+    const view = new DataView(ex.memory.buffer);
+    const hex = Buffer.from(new Uint8Array(ex.memory.buffer, view.getInt32(ret, true), view.getInt32(ret + 4, true))).toString("ascii");
+    ex.__wbindgen_add_to_stack_pointer(16);
+    return hex === WASM_VECTOR.challenge;
+  } catch { return false; }
+}
+
+// Best-effort: while the real (bot-protected) page is open, read its script URLs over CDP, find the
+// current sha3_wasm_bg.<hash>.wasm, download it from the CDN, validate it, and cache it under data/.
+// Never throws — a failed refresh must not break the token capture.
+async function refreshWasm(client) {
+  try {
+    const res = await client.send("Runtime.evaluate", {
+      expression: "JSON.stringify(Array.from(document.scripts).map(s=>s.src).filter(Boolean))",
+      returnByValue: true
+    });
+    const scripts = JSON.parse(String(res?.result?.result?.value || "[]"));
+    const ordered = scripts.sort((a, b) => (b.includes("main") ? 1 : 0) - (a.includes("main") ? 1 : 0));
+    let wasmUrl = null;
+    for (const url of ordered.slice(0, 20)) {
+      try {
+        const js = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } }).then((r) => (r.ok ? r.text() : ""));
+        const m = js.match(/sha3_wasm_bg\.[a-f0-9]+\.wasm/);
+        if (m) { wasmUrl = STATIC_BASE + m[0]; break; }
+      } catch { /* try next chunk */ }
+    }
+    if (!wasmUrl) return;
+    const dl = await fetch(wasmUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!dl.ok) return;
+    const buffer = Buffer.from(await dl.arrayBuffer());
+    if (!wasmMatchesVector(buffer)) return; // algorithm changed — keep the bundled wasm, don't ship a mismatch
+    fs.mkdirSync(path.dirname(WASM_OUT), { recursive: true });
+    fs.writeFileSync(WASM_OUT, buffer);
+    reloadWasm();
+  } catch { /* best-effort refresh */ }
+}
+
 async function runCapture(store) {
   const browser = findBrowser();
   if (!browser) {
@@ -107,6 +164,7 @@ async function runCapture(store) {
       if (token) {
         store.saveAiSettings({ ...store.getAiSettings(), deepseekToken: token, provider: "deepseek-web" });
         state = { status: "captured", message: "DeepSeek session token captured and saved.", startedAt: state.startedAt };
+        await refreshWasm(client); // opportunistically refresh the PoW wasm while the real page is open
         client.ws.close();
         cleanup();
         return;
