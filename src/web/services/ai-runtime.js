@@ -13,7 +13,7 @@ const OPENCODE_CONFIG_PATHS = [
   "$HOME/.config/opencode/opencode.toml",
   "$HOME/.config/opencode/config.toml"
 ];
-const AI_PROVIDERS = ["opencode", "openrouter", "codex", "claude", "local"];
+const AI_PROVIDERS = ["opencode", "openrouter", "codex", "claude", "local", "deepseek-web"];
 
 let cachedModels = null;
 
@@ -32,8 +32,8 @@ function defaultAiModels() {
 }
 
 // Free OpenRouter models, cached so opening Settings does not block on the network every time.
-async function listOpenRouterFreeModels() {
-  if (cachedModels && Date.now() - cachedModels.fetchedAt < MODEL_CACHE_TTL_MS) return cachedModels.models;
+async function listOpenRouterFreeModels(force = false) {
+  if (!force && cachedModels && Date.now() - cachedModels.fetchedAt < MODEL_CACHE_TTL_MS) return cachedModels.models;
   let models = defaultAiModels();
   try {
     const response = await fetch("https://openrouter.ai/api/v1/models", { signal: AbortSignal.timeout(MODEL_LIST_TIMEOUT_MS) });

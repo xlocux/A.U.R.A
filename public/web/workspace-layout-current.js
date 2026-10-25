@@ -108,7 +108,7 @@
     if (!topology || !shell || !main) return;
 
     if (!document.getElementById("topologyFullscreen")) {
-      topology.querySelector(".topology-actions")?.insertAdjacentHTML("beforeend", `<button id="topologyFullscreen" type="button">Fullscreen</button>`);
+      topology.querySelector(".topology-actions")?.insertAdjacentHTML("beforeend", `<button id="topologyFullscreen" class="icon-btn" type="button" title="Fullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg></button>`);
       main.insertAdjacentHTML("beforeend", `<button id="topologyFullscreenClose" type="button" class="topology-fullscreen-close">Close</button>`);
       document.getElementById("topologyFullscreen")?.addEventListener("click", openTopologyFullscreen);
       document.getElementById("topologyFullscreenClose")?.addEventListener("click", closeTopologyFullscreen);

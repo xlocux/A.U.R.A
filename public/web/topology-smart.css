@@ -18,29 +18,57 @@
   white-space: nowrap;
 }
 
+/* Dashboard / Sources / Technologies views: a tidy grid of chart panes that fills and scrolls,
+   so results no longer wrap or get clipped. */
+#topologyDashboard {
+  height: 100%;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  align-content: start;
+  padding-bottom: 8px;
+}
+#topologyDashboard > .pane:first-child { grid-column: 1 / -1; }
+.topology-chart { padding: 10px 12px 12px; display: flex; flex-direction: column; }
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 130px) 1fr 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.chart-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.chart-row b { display: block; height: 9px; min-width: 3px; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2, var(--accent))); }
+.chart-row em { font-style: normal; text-align: right; color: var(--ink, #fff); font-variant-numeric: tabular-nums; }
+.topology-chart .scroll { max-height: 320px; }
+
 .topology-legend {
   display: grid;
-  gap: 7px;
-  padding: 10px 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 14px;
+  padding: 8px 10px;
   border-top: 1px solid var(--line);
 }
 
 .topology-legend-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
+/* The descriptor (root/asset/…) is dropped in the compact two-column legend to save space. */
+.topology-legend-item em { display: none; }
 
 .topology-dot {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 7px;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  flex: 0 0 9px;
   border-radius: 50%;
-  box-shadow: 0 0 12px currentColor;
 }
 
 .topology-dot.target { color: #43c59e; background: #43c59e; }

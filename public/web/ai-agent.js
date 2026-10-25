@@ -38,10 +38,47 @@
         runtime: context.linuxRuntime || "linux",
         guideContext,
         conversation: getConversationContext(),
-        test: options.test === true
+        test: options.test === true,
+        deepseekFileIds: options.fileIds || []
       })
     });
     return data.message;
+  }
+
+  // Attachments pending for the next message (DeepSeek web provider).
+  let pendingFiles = [];
+  function renderAttachments() {
+    const host = document.getElementById("aiAttachments");
+    if (!host) return;
+    host.classList.toggle("hidden", pendingFiles.length === 0);
+    host.innerHTML = pendingFiles.map((file, index) => `<span class="ai-attachment">${file.name}<button type="button" data-remove="${index}" aria-label="Remove">x</button></span>`).join("");
+    host.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => {
+      pendingFiles.splice(Number(button.dataset.remove), 1);
+      renderAttachments();
+    }));
+  }
+  async function uploadFile(file) {
+    if (!file) return;
+    const base = document.getElementById("aiAttach");
+    if (base) base.disabled = true;
+    try {
+      const dataBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file);
+      });
+      const result = await window.auraApi("/api/ai/deepseek/upload", {
+        method: "POST",
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, dataBase64 })
+      });
+      pendingFiles.push({ id: result.id, name: result.fileName || file.name });
+      renderAttachments();
+    } catch (error) {
+      appendMessage("assistant", `Attachment failed: ${error.message}`);
+    } finally {
+      if (base) base.disabled = false;
+    }
   }
 
   function getConversationContext(limit = 12) {
@@ -186,10 +223,15 @@
     const prompt = $("aiPrompt").value.trim();
     if (!prompt) return;
     $("sendAiPrompt").disabled = true;
-    appendMessage("user", prompt);
+    const fileIds = pendingFiles.map((file) => file.id);
+    const label = pendingFiles.length ? `${prompt}\n\n(${pendingFiles.length} attachment${pendingFiles.length === 1 ? "" : "s"})` : prompt;
+    appendMessage("user", label);
     $("aiPrompt").value = "";
     try {
-      appendMessage("assistant", await postAgentPrompt(prompt));
+      const message = await postAgentPrompt(prompt, { fileIds });
+      pendingFiles = [];
+      renderAttachments();
+      appendMessage("assistant", message);
     } catch (error) {
       appendMessage("assistant", error.message);
     } finally {
@@ -317,6 +359,12 @@
 
   function bind() {
     $("sendAiPrompt").addEventListener("click", sendPrompt);
+    $("aiAttach")?.addEventListener("click", () => $("aiFileInput")?.click());
+    $("aiFileInput")?.addEventListener("change", (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (file) uploadFile(file);
+    });
     $("aiMinimize").addEventListener("click", minimizePanel);
     $("aiRestore").addEventListener("click", restorePanel);
     $("aiDragHandle").addEventListener("pointerdown", startDrag);

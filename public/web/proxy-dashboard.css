@@ -216,42 +216,37 @@
   height: 36px;
 }
 
-/* Compact top action bar (replaces the old hero + 4 step cards). */
-.proxy-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px 16px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(10, 12, 16, .5);
+/* Two-column top layer: upstream/local proxy (left) + auto-managed pool (right). */
+.proxy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
 }
-.proxy-topbar-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.proxy-topbar-head strong { font-size: 14px; }
-.proxy-topbar-head span { font-size: 11px; color: var(--muted); }
-.proxy-topbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.proxy-topbar-actions button { width: auto; min-width: 0; margin: 0; white-space: nowrap; }
+@media (max-width: 900px) { .proxy-grid { grid-template-columns: 1fr; } }
+.proxy-grid > .pane { margin: 0; display: flex; flex-direction: column; }
+.proxy-connection .form-body { padding: 10px 0 0; }
+.proxy-pool-actions { display: flex; gap: 8px; margin: 2px 0 10px; }
+.proxy-pool-actions button { width: auto !important; min-width: 0 !important; margin: 0 !important; }
 
-/* "Connection" divider label before the URL/mode/purpose form. */
-.proxy-connection-label {
-  margin-top: 4px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
+/* Smaller proxy buttons throughout. */
+.proxy-console button { padding: 7px 12px; font-size: 12px; }
+.proxy-connection-form button { width: 100%; }
+
+/* Minimal pool table with an expand toggle. */
+.proxy-pool-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.proxy-pool-bar strong { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); flex: 0 0 auto; }
+.proxy-pool-bar input { flex: 1 1 auto; min-width: 0; }
+.proxy-pool-bar select, .proxy-pool-bar button { flex: 0 0 auto; width: auto !important; margin: 0 !important; }
 
 .proxy-table-wrap {
-  max-height: min(520px, calc(100vh - 360px));
+  max-height: 220px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(8, 10, 14, .35);
 }
+.proxy-pool-section.expanded .proxy-table-wrap { max-height: 70vh; }
 
 .proxy-table th {
   position: sticky;

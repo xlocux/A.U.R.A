@@ -9,7 +9,9 @@ function defaultAiSettings() {
     executionModel: "qwen/qwen3-coder:free",
     localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
     localModel: "llama3.1",
-    autonomyLevel: 3
+    autonomyLevel: 3,
+    deepseekToken: "",
+    deepseekDeviceId: ""
   };
 }
 

@@ -3,6 +3,7 @@
 const { createEnvironmentRunner } = require("../../recon/environment-setup");
 const { TOOL_PATH_EXPORT, shellQuote } = require("../../core/shell");
 const { listOpenRouterFreeModels } = require("./ai-runtime");
+const { deepSeekChat, ensureDeviceId } = require("./deepseek-web");
 
 // Keep this capability summary in sync with the recon pipeline so the assistant can explain and
 // recommend the actual steps/tools the product runs.
@@ -148,6 +149,29 @@ async function callOpenRouterAgent({ prompt, settings, store, test = false }) {
   return `All attempted OpenRouter models failed. Tried:\n- ${attempts.join("\n- ")}\n\nFree models are often rate-limited; wait a moment and retry, or set a specific model in Settings > AI Agent.`;
 }
 
+// Experimental: drive the user's authenticated chat.deepseek.com web session with a pasted token.
+// It must behave like a single human user — exactly one request per chat message, serialized, with
+// back-off — so A.U.R.A never floods DeepSeek. The precise endpoints/headers/PoW are finalized from
+// the user's DevTools capture; until wired, it reports clearly rather than guessing.
+let deepSeekChain = Promise.resolve();
+async function callDeepSeekWebAgent({ prompt, settings, store, fileIds = [] }) {
+  const token = String(settings.deepseekToken || "").trim();
+  if (!token) {
+    return "DeepSeek (web) is selected but no session token is set. Use \"Login to DeepSeek\" in Settings > AI Agent (or paste the token).";
+  }
+  const deviceId = ensureDeviceId(store);
+  // Serialize: never send concurrent requests to DeepSeek (behave like one user).
+  const run = deepSeekChain.then(async () => {
+    try {
+      return await deepSeekChat({ prompt, token, deviceId, fileIds });
+    } catch (error) {
+      return `DeepSeek chat failed: ${error.message}`;
+    }
+  });
+  deepSeekChain = run.catch(() => {});
+  return run;
+}
+
 async function callLocalAgent({ prompt, settings }) {
   if (!settings.localEndpoint || !settings.localModel) {
     return "Local model is selected, but the endpoint or model is missing. Configure them in Settings > AI Agent.";
@@ -191,6 +215,7 @@ async function answerAgentChat({ body, store }) {
   const settings = store.getAiSettings();
   const test = body.test === true;
   if (settings.provider === "openrouter") return callOpenRouterAgent({ prompt: contextualPrompt, settings, store, test });
+  if (settings.provider === "deepseek-web") return callDeepSeekWebAgent({ prompt: contextualPrompt, settings, store, fileIds: Array.isArray(body.deepseekFileIds) ? body.deepseekFileIds : [] });
   if (settings.provider === "local") return callLocalAgent({ prompt: contextualPrompt, settings });
   const provider = settings.provider === "codex" || settings.provider === "claude" ? settings.provider : "opencode";
   return callCliAgent({ prompt: contextualPrompt, provider, runtimeName: body.runtime || body.linuxRuntime || "linux" });

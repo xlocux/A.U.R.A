@@ -127,6 +127,7 @@ async function loadAiSettings() {
   aiSettings = data.settings;
   aiModels = data.models || [];
   renderAiSettings();
+  renderAiModelCards();
   await loadAiRuntimeStatus();
 }
 
@@ -185,8 +186,15 @@ function readAiSettingsForm() {
     executionModel: $("aiExecutionModel").value,
     localEndpoint: $("aiLocalEndpoint").value.trim(),
     localModel: $("aiLocalModel").value.trim(),
-    autonomyLevel: Number($("aiAutonomyLevel").value || 1)
+    autonomyLevel: Number($("aiAutonomyLevel").value || 1),
+    deepseekToken: $("deepseekToken")?.value.trim() || ""
   };
+}
+
+// Show the DeepSeek session-token field only when the experimental DeepSeek web provider is selected.
+function toggleDeepSeekRow() {
+  const row = $("deepseekWebRow");
+  if (row) row.classList.toggle("hidden", $("aiProvider")?.value !== "deepseek-web" || $("useLocalModel")?.checked);
 }
 
 function renderAiSettings() {
@@ -202,6 +210,8 @@ function renderAiSettings() {
   $("aiLocalEndpoint").disabled = !useLocalModel;
   $("aiLocalModel").disabled = !useLocalModel;
   $("aiAutonomyLevel").value = settings.autonomyLevel || 1;
+  if ($("deepseekToken")) $("deepseekToken").value = settings.deepseekToken || "";
+  toggleDeepSeekRow();
   updateAiAutonomyLabel();
   $("aiProviderMetric").textContent = useLocalModel ? "Local" : $("aiProvider").value;
   $("aiPlanningMetric").textContent = $("aiPlanningModel").value || "-";
@@ -213,6 +223,43 @@ function fillModelSelect(id, selected) {
   const models = aiModels.length ? aiModels : [{ id: selected || "", name: selected || "default" }];
   select.innerHTML = models.map((model) => `<option value="${esc(model.id)}">${esc(model.name || model.id)}</option>`).join("");
   if (selected && [...select.options].some((option) => option.value === selected)) select.value = selected;
+}
+
+// Render the free-model list; clicking a card sets it as the execution model.
+function renderAiModelCards() {
+  const host = $("aiModelCards");
+  if (!host) return;
+  if (!aiModels.length) { host.innerHTML = `<div class="notice muted compact-notice">No free models loaded. Click Refresh.</div>`; return; }
+  host.innerHTML = aiModels.map((model) => `
+    <button type="button" class="model-card" data-model-id="${esc(model.id)}" title="Use as execution model">
+      <strong>${esc(model.label || model.name || model.id)}</strong>
+      <span>${esc(model.id)}</span>
+      ${(model.tags || []).map((tag) => `<em>${esc(tag)}</em>`).join("")}
+    </button>`).join("");
+  host.querySelectorAll(".model-card").forEach((card) => card.addEventListener("click", () => {
+    const id = card.dataset.modelId;
+    if ($("aiExecutionModel")) { if (![...$("aiExecutionModel").options].some((o) => o.value === id)) $("aiExecutionModel").add(new Option(id, id)); $("aiExecutionModel").value = id; }
+    $("aiExecutionMetric").textContent = id;
+  }));
+}
+
+async function refreshAiModels() {
+  const button = $("refreshAiModels");
+  if (button) { button.disabled = true; button.textContent = "Refreshing..."; }
+  try {
+    const data = await api("/api/ai-models?refresh=true");
+    aiModels = data.models || [];
+    fillModelSelect("aiPlanningModel", aiSettings?.planningModel);
+    fillModelSelect("aiExecutionModel", aiSettings?.executionModel);
+    renderAiModelCards();
+    $("aiSettingsStatus").textContent = `Loaded ${aiModels.length} free model(s).`;
+    $("aiSettingsStatus").className = "notice ok";
+  } catch (error) {
+    $("aiSettingsStatus").textContent = `Model refresh failed: ${error.message}`;
+    $("aiSettingsStatus").className = "notice error";
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Refresh"; }
+  }
 }
 
 function renderAiRuntimeStatus() {
@@ -913,6 +960,39 @@ async function quickStart() {
   }
 }
 
+// Experimental DeepSeek web login: open a browser, poll until the session token is captured.
+let deepseekLoginPoll = null;
+async function startDeepSeekLogin() {
+  const status = $("deepseekLoginStatus");
+  const button = $("deepseekLogin");
+  if (deepseekLoginPoll) { clearInterval(deepseekLoginPoll); deepseekLoginPoll = null; }
+  button.disabled = true;
+  status.className = "notice muted compact-notice";
+  status.textContent = "Opening the browser — log in to DeepSeek...";
+  try {
+    await api("/api/ai/deepseek/login", { method: "POST" });
+    deepseekLoginPoll = setInterval(async () => {
+      try {
+        const state = await api("/api/ai/deepseek/login/status");
+        if (state.status === "waiting") { status.textContent = state.message || "Waiting for login..."; return; }
+        clearInterval(deepseekLoginPoll); deepseekLoginPoll = null; button.disabled = false;
+        if (state.status === "captured") {
+          await loadAiSettings();
+          status.className = "notice ok"; status.textContent = "Token captured and saved. DeepSeek chat is ready.";
+        } else {
+          status.className = "notice error"; status.textContent = state.message || "Login capture failed.";
+        }
+      } catch (error) {
+        clearInterval(deepseekLoginPoll); deepseekLoginPoll = null; button.disabled = false;
+        status.className = "notice error"; status.textContent = error.message;
+      }
+    }, 2000);
+  } catch (error) {
+    button.disabled = false;
+    status.className = "notice error"; status.textContent = error.message;
+  }
+}
+
 // Only include a tool flag when its checkbox is ticked, so an unticked box lets the scan tier decide.
 function reconToolFlags() {
   const map = { ffuf: "useFfuf", cloudEnum: "useCloudEnum", bypass403: "useBypass403", getjs: "useGetJs", katana: "useKatana", tlsx: "useTlsx", subzy: "useSubzy", waymore: "useWaymore", paramspider: "useParamSpider" };
@@ -1176,10 +1256,27 @@ function buildSidebarSubmenus() {
       document.querySelector(`#tab-logs [data-log-subtab="${value}"]`)?.click();
     }
   });
-  if (!tryLogs()) {
-    const observer = new MutationObserver(() => { if (buildSidebarSubmenu && tryLogs()) observer.disconnect(); });
+  // Topology view tabs (Graph/Dashboard/Sources/Technologies) are injected at runtime too.
+  const tryTopology = () => buildSidebarSubmenu({
+    id: "topologySubmenu",
+    tabName: "topology",
+    sourceSelector: "#tab-topology .topology-view-tabs [data-topology-view]",
+    valueOf: (button) => button.dataset.topologyView,
+    hideSelector: "#tab-topology .topology-view-tabs",
+    onSelect: (value) => {
+      nav?.querySelector('.tab[data-tab="topology"]')?.click();
+      document.querySelector(`#tab-topology .topology-view-tabs [data-topology-view="${value}"]`)?.click();
+    }
+  });
+  const logsReady = tryLogs();
+  const topoReady = tryTopology();
+  if (!logsReady || !topoReady) {
+    const observer = new MutationObserver(() => {
+      const done = tryLogs() && tryTopology();
+      if (done) observer.disconnect();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => observer.disconnect(), 15000);
+    setTimeout(() => observer.disconnect(), 60000);
   }
 }
 
@@ -2033,10 +2130,17 @@ $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);
 $("checkEnvironment").addEventListener("click", checkEnvironment);
 $("installEnvironment").addEventListener("click", installEnvironment);
+$("setupLogExpand")?.addEventListener("click", () => {
+  const log = $("setupLog");
+  const expanded = log.classList.toggle("expanded");
+  $("setupLogExpand").textContent = expanded ? "Collapse" : "Expand";
+});
 $("saveAiSettings").addEventListener("click", saveAiSettings);
 $("testAiSettings").addEventListener("click", testAiSettings);
 $("aiProvider").addEventListener("change", updateAiSettingsPreview);
 $("useLocalModel").addEventListener("change", updateAiSettingsPreview);
+$("refreshAiModels")?.addEventListener("click", refreshAiModels);
+$("deepseekLogin")?.addEventListener("click", startDeepSeekLogin);
 $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
 $("aiExecutionModel").addEventListener("change", updateAiSettingsPreview);
 $("aiLocalEndpoint").addEventListener("input", updateAiSettingsPreview);

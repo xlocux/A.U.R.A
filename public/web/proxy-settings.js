@@ -45,15 +45,16 @@
     if (!$("proxyEnabled")) return;
     upgradeLayout();
     bindAction("saveProxySettings", saveSettings);
-    bindAction("proxyRefresh", refreshDashboard);
     bindAction("proxyUseBest", useBestServerProxy);
     bindAction("proxyImportServer", openProxyImportModal);
-    bindAction("proxyStepPreflight", preflightServerProxies);
-    bindAction("proxyStepBest", useBestServerProxy);
-    bindAction("proxyStepEnable", enableSelectedProxy);
     $("proxySavedList")?.addEventListener("change", selectSavedProxy);
     $("proxyFilter")?.addEventListener("input", refreshDashboard);
     $("proxyStatusFilter")?.addEventListener("change", refreshDashboard);
+    $("proxyPoolExpand")?.addEventListener("click", () => {
+      const section = $("proxyPoolSection");
+      const expanded = section.classList.toggle("expanded");
+      $("proxyPoolExpand").textContent = expanded ? "Collapse" : "Expand";
+    });
     render();
     refreshDashboard().catch(() => {});
   }
@@ -79,58 +80,54 @@
     const panel = $("settings-proxy");
     if (!panel || $("proxyDashboard")) return;
     panel.classList.add("proxy-console");
-    const h2 = panel.querySelector("h2");
-    if (h2) h2.textContent = "Proxy Control";
+    panel.querySelector("h2")?.remove(); // drop the redundant panel title (sidebar already labels it)
     const form = panel.querySelector(".form-body");
     if (!form) return;
 
     removeLegacyImportControls(form);
+    form.querySelector(".compact-notice")?.remove();
+    $("proxyImportServer")?.remove(); // the in-form import button; Import lives in the pool column now
+    form.classList.add("proxy-connection-form");
 
-    // Compact layout: a single action bar + metric row + the pool table up top; the connection
-    // form (URL/mode/purpose) sits below. Explanatory hero/step cards were removed as superfluous.
-    form.insertAdjacentHTML("afterbegin", `
-      <div class="proxy-topbar">
-        <div class="proxy-topbar-head">
-          <strong>Proxy pool</strong>
-          <span>Authorized interception / lab egress only — routing changes transport, not recon scope.</span>
+    // Two-column top layer: the local/upstream proxy (e.g. Burp) on the left — always visible without
+    // scrolling — and the auto-managed pool (just Import + live metrics) on the right. A minimal,
+    // expandable results table sits below.
+    panel.insertAdjacentHTML("afterbegin", `
+      <div class="proxy-grid">
+        <div class="pane proxy-connection"><h2>Upstream proxy</h2></div>
+        <div class="pane proxy-pool-controls">
+          <h2>Proxy pool</h2>
+          <p class="notice muted compact-notice">Import authorized proxies — preflight, cleanup and best-route selection run automatically.</p>
+          <div class="proxy-pool-actions">
+            <button id="proxyImportServer" type="button">Import to Pool</button>
+            <button id="proxyUseBest" type="button" class="secondary-button">Use Best</button>
+          </div>
+          <div id="proxyDashboard" class="proxy-dashboard">
+            <div class="proxy-card"><span>Total</span><strong id="proxyMetricTotal">0</strong></div>
+            <div class="proxy-card"><span>Active</span><strong id="proxyMetricActive">0</strong></div>
+            <div class="proxy-card"><span>Avg latency</span><strong id="proxyMetricLatency">-</strong></div>
+            <div class="proxy-card"><span>Success</span><strong id="proxyMetricSuccess">-</strong></div>
+          </div>
+          <div id="proxyActivity" class="proxy-activity idle"><div class="proxy-activity-rail"><span></span></div><small id="proxyActivityDetail">Idle.</small><strong id="proxyActivityTitle" hidden></strong></div>
         </div>
-        <div class="proxy-topbar-actions">
-          <button id="proxyImportServer" type="button">Import to Pool</button>
-          <button id="proxyStepPreflight" type="button">Preflight + clean</button>
-          <button id="proxyStepBest" type="button">Use Best</button>
-          <button id="proxyStepEnable" type="button">Enable for Runs</button>
-          <button id="proxyRefresh" type="button" class="secondary-button">Refresh</button>
-        </div>
       </div>
-      <div id="proxyDashboard" class="proxy-dashboard">
-        <div class="proxy-card"><span>Total</span><strong id="proxyMetricTotal">0</strong></div>
-        <div class="proxy-card"><span>Active</span><strong id="proxyMetricActive">0</strong></div>
-        <div class="proxy-card"><span>Avg latency</span><strong id="proxyMetricLatency">-</strong></div>
-        <div class="proxy-card"><span>Success</span><strong id="proxyMetricSuccess">-</strong></div>
-      </div>
-      <div id="proxyActivity" class="proxy-activity idle">
-        <div class="proxy-activity-rail"><span></span></div>
-        <strong id="proxyActivityTitle">Idle</strong>
-        <small id="proxyActivityDetail">Import, preflight, then pick the best route.</small>
-      </div>
-      <section id="proxyPoolSection" class="proxy-pool-section" aria-label="Proxy pool and preflight results">
-        <div class="proxy-toolbar">
+      <section id="proxyPoolSection" class="proxy-pool-section" aria-label="Proxy pool">
+        <div class="proxy-pool-bar">
+          <strong>Pool</strong>
           <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
           <select id="proxyStatusFilter"><option value="all">All</option><option value="active">Active</option><option value="unknown">Unknown</option><option value="failed">Failed</option></select>
-          <button id="proxyUseBest" type="button">Use Best</button>
+          <button id="proxyPoolExpand" type="button" class="secondary-button">Expand</button>
         </div>
         <div class="proxy-table-wrap scroll">
           <table class="proxy-table">
             <thead><tr><th>Proxy</th><th>Type</th><th>Region</th><th>Status</th><th>Latency</th><th>Success</th></tr></thead>
-            <tbody id="proxyRows"><tr><td colspan="6" class="muted">Import authorized proxies from the top action to start preflight.</td></tr></tbody>
+            <tbody id="proxyRows"><tr><td colspan="6" class="muted">Import authorized proxies to populate the pool.</td></tr></tbody>
           </table>
         </div>
       </section>
-      <div class="proxy-connection-label">Connection</div>
     `);
-
-    // The verbose authorization notice is folded into the topbar subtitle above.
-    form.querySelector(".compact-notice")?.remove();
+    // Move the connection form (route toggle, URL, mode, purpose, save) into the left column.
+    panel.querySelector(".proxy-connection").appendChild(form);
   }
 
   function removeLegacyImportControls(form) {

@@ -1252,6 +1252,33 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 /* Collapsed sidebar hides submenu labels with the rest of the nav text. */
 body.sidebar-collapsed #workspaceNav .nav-submenu { display: none !important; }
 
+/* ── Settings › Environment (compact actions, prominent tool list, expandable log) ── */
+.env-topbar { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.env-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.env-actions button { width: auto !important; margin: 0 !important; }
+.env-topbar #agentStatus { margin: 0 !important; flex: 1 1 240px; min-width: 0; }
+#settings-environment .tool-status-window { margin-bottom: 12px; }
+#settings-environment .tool-status-window .scroll { max-height: calc(100vh - 400px); min-height: 240px; }
+.output-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#setupLogExpand { width: auto !important; margin: 0 !important; padding: 4px 10px !important; }
+#setupLog { max-height: 150px; overflow: auto; }
+#setupLog.expanded { max-height: 60vh; }
+
+/* ── Settings › AI (free-model cards + refresh) ── */
+.ai-side-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#refreshAiModels { width: auto !important; margin: 0 !important; padding: 5px 11px !important; }
+.model-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.model-card {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  width: 100%; margin: 0; padding: 9px 11px; text-align: left;
+  border: 1px solid var(--soft-line, var(--line)); border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 55%, transparent); cursor: pointer;
+}
+.model-card:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.model-card strong { font-size: 12.5px; }
+.model-card span { font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.model-card em { font-style: normal; font-size: 10px; color: var(--accent); margin-right: 8px; }
+
 /* ── Settings › Appearance (two-column layout + live accent preview) ── */
 .appearance-grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 16px 22px; max-width: 920px; margin-top: 12px; align-items: start; }
 .appearance-field { display: flex; flex-direction: column; gap: 6px; }
@@ -1276,6 +1303,27 @@ body.sidebar-collapsed #workspaceNav .nav-submenu { display: none !important; }
 .appearance-preview-bars span:nth-child(2) { height: 85%; }
 .appearance-preview-bars span:nth-child(3) { height: 60%; }
 .appearance-preview small { color: var(--muted); font-size: 11px; margin-left: auto; }
+
+/* ── Compact icon buttons (topology controls, etc.) ── */
+.icon-btn {
+  width: 30px !important;
+  height: 30px;
+  min-width: 0 !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.icon-btn svg { width: 15px; height: 15px; }
+.topology-icon-actions { gap: 6px; }
+
+/* ── Compact topology rail so Layers + Legend always fit ── */
+.topology-side .pane h2 { min-height: 26px; padding-top: 5px !important; padding-bottom: 5px !important; }
+.topology-side .form-body { padding: 8px 10px !important; gap: 6px !important; }
+.topology-side .metrics.compact { padding: 8px 10px !important; margin: 0 !important; }
+.topology-side .metrics.compact .metric { padding: 7px 9px; }
+.topology-side .metrics.compact .metric strong { font-size: 17px; }
 
 /* ── Themed tooltips (replace the OS-native title bubble) ── */
 .aura-tooltip {
