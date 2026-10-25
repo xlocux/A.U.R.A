@@ -172,13 +172,13 @@
       .storage-overview span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
       .storage-overview strong { display: block; margin-top: 3px; overflow-wrap: anywhere; }
       #securityStatus.error { border-color: rgba(255, 99, 132, .6); color: #ffb3c1; }
-      .header-profile { display: flex; align-items: center; gap: 8px; min-width: 0; }
-      .profile-button { display: flex; align-items: center; gap: 8px; width: auto !important; min-width: 0 !important; min-height: 38px !important; margin: 0 !important; padding: 0 10px !important; border-radius: 8px !important; border: 1px solid var(--line) !important; background: rgba(255,255,255,.035) !important; color: var(--ink) !important; }
-      .profile-avatar { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 6px; background: linear-gradient(135deg, var(--aura-cyan, #6ff4ee), var(--aura-gold, #e8cf74)); color: #050505; font-size: 12px; font-weight: 900; }
-      .profile-copy { display: grid; gap: 1px; text-align: left; line-height: 1.1; }
-      .profile-copy strong { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-      .profile-copy small { color: var(--muted); font-size: 10px; }
-      .profile-logout { width: auto !important; min-width: 74px !important; min-height: 38px !important; margin: 0 !important; padding: 0 12px !important; border-radius: 8px !important; border-color: rgba(239,68,68,.45) !important; background: rgba(239,68,68,.08) !important; color: #fecaca !important; }
+      .header-profile { display: flex; align-items: center; gap: 6px; min-width: 0; }
+      .profile-button { display: flex; align-items: center; gap: 7px; width: auto !important; min-width: 0 !important; min-height: 30px !important; margin: 0 !important; padding: 0 8px !important; border-radius: 7px !important; border: 1px solid var(--line) !important; background: rgba(255,255,255,.035) !important; color: var(--ink) !important; }
+      .profile-avatar { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 5px; background: linear-gradient(135deg, var(--aura-cyan, #6ff4ee), var(--aura-gold, #e8cf74)); color: #050505; font-size: 10px; font-weight: 900; }
+      .profile-copy { display: grid; gap: 0; text-align: left; line-height: 1.1; }
+      .profile-copy strong { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+      .profile-copy small { display: none; }
+      .profile-logout { width: auto !important; min-width: 62px !important; min-height: 30px !important; margin: 0 !important; padding: 0 10px !important; border-radius: 7px !important; font-size: 12px !important; border-color: rgba(239,68,68,.45) !important; background: rgba(239,68,68,.08) !important; color: #fecaca !important; }
       .profile-logout:hover { background: rgba(239,68,68,.16) !important; }
       @media (max-width: 1000px) { .security-grid { grid-template-columns: 1fr; } }
       @media (max-width: 900px) { .profile-copy { display: none; } .profile-logout { min-width: 64px !important; } }

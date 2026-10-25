@@ -81,6 +81,55 @@ function cleanup() {
   child = null;
 }
 
+// --- Token extraction -------------------------------------------------------
+// DeepSeek has stored the session token under different shapes over time: a plain string in
+// localStorage.userToken, a JSON wrapper like {"value":"…"} (redux-persist), or inside another key.
+// We dump the whole localStorage (+ cookies) and look for it broadly instead of one fixed key.
+
+function looksLikeJwt(s) { return /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(s); }
+
+function firstJwt(s) {
+  if (typeof s !== "string") return "";
+  const m = s.match(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+  return m ? m[0] : "";
+}
+
+// Pull a token out of a single stored value: the raw string, or a JSON wrapper's value/token field.
+function tokenFromValue(value, keyedAsToken) {
+  if (typeof value !== "string" || !value) return "";
+  const s = value.trim();
+  if (looksLikeJwt(s)) return s;
+  if (s.startsWith("{") || s.startsWith("[")) {
+    try {
+      const o = JSON.parse(s);
+      const cand = o?.value ?? o?.token ?? o?.access_token ?? o?.value?.token ?? o?.data?.token;
+      if (typeof cand === "string" && (looksLikeJwt(cand) || (keyedAsToken && cand.length > 20))) return cand.trim();
+    } catch { /* not JSON */ }
+  }
+  // For a key that already says "token", accept a long opaque string (DeepSeek's token isn't a JWT).
+  if (keyedAsToken && s.length > 20 && !/\s/.test(s)) return s;
+  return firstJwt(s);
+}
+
+function extractToken(localStore, cookie) {
+  const entries = Object.entries(localStore || {});
+  // 1. Prefer the historical exact key.
+  if (localStore.userToken) { const t = tokenFromValue(localStore.userToken, true); if (t) return t; }
+  // 2. Any key that mentions token.
+  for (const [k, v] of entries) {
+    if (/token/i.test(k)) { const t = tokenFromValue(v, true); if (t) return t; }
+  }
+  // 3. Any JWT-looking value anywhere in localStorage.
+  for (const [, v] of entries) { const t = tokenFromValue(v, false); if (t) return t; }
+  // 4. Cookies (userToken=… or any eyJ… value).
+  if (typeof cookie === "string" && cookie) {
+    const m = cookie.match(/(?:userToken|token)=([^;]+)/i);
+    if (m) { const t = tokenFromValue(decodeURIComponent(m[1]), true); if (t) return t; }
+    const j = firstJwt(cookie); if (j) return j;
+  }
+  return "";
+}
+
 // Runs the downloaded wasm against the known vector to confirm the hash algorithm is unchanged.
 function wasmMatchesVector(buffer) {
   try {
@@ -139,8 +188,26 @@ async function runCapture(store) {
   const userDir = path.resolve("data", "deepseek-profile");
   fs.mkdirSync(userDir, { recursive: true });
   const port = 9412 + Math.floor(Math.random() * 400);
-  child = spawn(browser, [`--remote-debugging-port=${port}`, `--user-data-dir=${userDir}`, "--new-window", LOGIN_URL], { stdio: "ignore", detached: false });
-  child.on("error", () => { state = { status: "failed", message: "Could not launch the browser.", startedAt: Date.now() }; });
+  const args = [
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${userDir}`,
+    "--remote-allow-origins=*",      // Chrome 111+ rejects CDP websockets without this
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-session-crashed-bubble",
+    "--hide-crash-restore-bubble",
+    "--new-window",
+    LOGIN_URL
+  ];
+  child = spawn(browser, args, { stdio: "ignore", detached: false });
+  child.on("error", () => { state = { status: "failed", message: "Could not launch the browser. Close any window using the A.U.R.A DeepSeek profile and retry.", startedAt: Date.now() }; });
+  child.on("exit", (code) => {
+    // If the window closed before we captured anything, say so instead of hanging until timeout.
+    // (A successful/cancelled run has already moved state away from "waiting", so this won't clobber it.)
+    if (state.status === "waiting") {
+      state = { status: "failed", message: `The browser closed before the token was captured (exit ${code}). If a window flashed open and shut, another Chrome/Edge is holding this profile — close it and try again.`, startedAt: state.startedAt };
+    }
+  });
 
   let client;
   try {
@@ -157,10 +224,12 @@ async function runCapture(store) {
     while (Date.now() < deadline) {
       if (state.status !== "waiting") break; // cancelled
       const result = await client.send("Runtime.evaluate", {
-        expression: "(function(){try{return localStorage.getItem('userToken')||''}catch(e){return ''}})()",
+        expression: "(function(){try{var ls={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);ls[k]=localStorage.getItem(k);}return JSON.stringify({ls:ls,cookie:document.cookie});}catch(e){return JSON.stringify({ls:{},cookie:''});}})()",
         returnByValue: true
       });
-      const token = String(result?.result?.result?.value || "").trim();
+      let dump = { ls: {}, cookie: "" };
+      try { dump = JSON.parse(String(result?.result?.result?.value || "{}")); } catch { /* keep default */ }
+      const token = extractToken(dump.ls, dump.cookie);
       if (token) {
         store.saveAiSettings({ ...store.getAiSettings(), deepseekToken: token, provider: "deepseek-web" });
         state = { status: "captured", message: "DeepSeek session token captured and saved.", startedAt: state.startedAt };

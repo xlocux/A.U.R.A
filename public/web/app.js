@@ -216,6 +216,25 @@ function renderAiSettings() {
   $("aiProviderMetric").textContent = useLocalModel ? "Local" : $("aiProvider").value;
   $("aiPlanningMetric").textContent = $("aiPlanningModel").value || "-";
   $("aiExecutionMetric").textContent = $("aiExecutionModel").value || "-";
+  updateAiModelBadges();
+}
+
+// Short, human label of the model actually answering (provider-aware), shown in the header + chat.
+function activeAiModelLabel() {
+  const s = aiSettings || {};
+  if (s.provider === "local") return s.localModel || "Local model";
+  if (s.provider === "deepseek-web") return "DeepSeek chat";
+  if (s.provider === "opencode") return s.executionModel || "OpenCode (auto)";
+  return s.executionModel || s.provider || "—";
+}
+
+// Reflect the active model both in the top header badge and in the floating chat panel header.
+function updateAiModelBadges() {
+  const label = activeAiModelLabel();
+  const badge = $("aiModelBadgeText");
+  if (badge) badge.textContent = `AI: ${label}`;
+  const panel = $("aiPanelModel");
+  if (panel) { panel.textContent = label; panel.title = `Active AI model: ${label}`; }
 }
 
 function fillModelSelect(id, selected) {
@@ -240,6 +259,8 @@ function renderAiModelCards() {
     const id = card.dataset.modelId;
     if ($("aiExecutionModel")) { if (![...$("aiExecutionModel").options].some((o) => o.value === id)) $("aiExecutionModel").add(new Option(id, id)); $("aiExecutionModel").value = id; }
     $("aiExecutionMetric").textContent = id;
+    if (aiSettings) aiSettings.executionModel = id;
+    updateAiModelBadges();
   }));
 }
 
@@ -2141,6 +2162,16 @@ $("aiProvider").addEventListener("change", updateAiSettingsPreview);
 $("useLocalModel").addEventListener("change", updateAiSettingsPreview);
 $("refreshAiModels")?.addEventListener("click", refreshAiModels);
 $("deepseekLogin")?.addEventListener("click", startDeepSeekLogin);
+$("deepseekTokenToggle")?.addEventListener("click", () => {
+  const input = $("deepseekToken");
+  const toggle = $("deepseekTokenToggle");
+  if (!input) return;
+  const show = input.type === "password";
+  input.type = show ? "text" : "password";
+  toggle.setAttribute("aria-pressed", String(show));
+  toggle.setAttribute("aria-label", show ? "Hide token" : "Show token");
+  toggle.classList.toggle("active", show);
+});
 $("aiPlanningModel").addEventListener("change", updateAiSettingsPreview);
 $("aiExecutionModel").addEventListener("change", updateAiSettingsPreview);
 $("aiLocalEndpoint").addEventListener("input", updateAiSettingsPreview);

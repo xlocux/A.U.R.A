@@ -1318,13 +1318,14 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   flex-direction: column;
   gap: 6px;
 }
-.ai-input-row { display: flex; gap: 8px; align-items: flex-end; }
+.ai-input-row { display: flex; gap: 8px; align-items: flex-end; min-width: 0; }
 
 .ai-input textarea {
   min-height: 54px;
   max-height: 96px;
   resize: none;
   flex: 1 1 auto;
+  min-width: 0; /* let the textarea shrink so the Send button stays inside the panel */
   margin: 0;
 }
 
@@ -1334,6 +1335,19 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
 .ai-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
 .ai-attachment { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 2px 4px 2px 9px; border-radius: 999px; border: 1px solid var(--soft-line, var(--line)); color: var(--muted); }
 .ai-attachment button { width: auto !important; min-width: 0 !important; margin: 0 !important; padding: 0 6px !important; background: transparent !important; border: 0 !important; color: var(--muted) !important; }
+
+/* Active-model badge in the top header */
+.ai-model-badge { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 0 9px; min-height: 30px; border-radius: 7px; border: 1px solid var(--line); background: rgba(255,255,255,.035); color: var(--muted); font-size: 11px; white-space: nowrap; }
+.ai-model-badge .dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: linear-gradient(135deg, var(--aura-cyan, #6ff4ee), var(--aura-gold, #e8cf74)); box-shadow: 0 0 6px rgba(111,244,238,.6); }
+.ai-model-badge #aiModelBadgeText { overflow: hidden; text-overflow: ellipsis; }
+
+/* Password field with an inline reveal (eye) toggle */
+.input-reveal { position: relative; display: flex; align-items: center; }
+.input-reveal input { flex: 1 1 auto; min-width: 0; padding-right: 38px; }
+.reveal-btn { position: absolute; right: 6px; width: 26px !important; height: 26px; min-width: 0 !important; margin: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; background: transparent !important; border: 0 !important; color: var(--muted) !important; cursor: pointer; }
+.reveal-btn svg { width: 16px; height: 16px; }
+.reveal-btn:hover { color: var(--ink) !important; }
+.reveal-btn.active { color: var(--aura-cyan, #6ff4ee) !important; }
 
 @media (max-width: 900px) {
   body {
