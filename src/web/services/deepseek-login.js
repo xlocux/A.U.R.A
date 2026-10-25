@@ -10,6 +10,7 @@ const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
 const { reloadWasm } = require("./deepseek-pow");
+const { ensureDeviceId, deepSeekValidateToken } = require("./deepseek-web");
 
 const LOGIN_URL = "https://chat.deepseek.com/";
 const POLL_MS = 2000;
@@ -99,12 +100,15 @@ function tokenFromValue(value, keyedAsToken) {
   if (typeof value !== "string" || !value) return "";
   const s = value.trim();
   if (looksLikeJwt(s)) return s;
+  // A JSON wrapper (redux-persist stores userToken as {"value":<token|null>,"__version":…}) is NEVER
+  // itself the token: return only its inner value, or "" when logged out (value:null).
   if (s.startsWith("{") || s.startsWith("[")) {
     try {
       const o = JSON.parse(s);
       const cand = o?.value ?? o?.token ?? o?.access_token ?? o?.value?.token ?? o?.data?.token;
-      if (typeof cand === "string" && (looksLikeJwt(cand) || (keyedAsToken && cand.length > 20))) return cand.trim();
+      if (typeof cand === "string" && cand.trim() && (looksLikeJwt(cand) || (keyedAsToken && cand.trim().length > 20))) return cand.trim();
     } catch { /* not JSON */ }
+    return "";
   }
   // For a key that already says "token", accept a long opaque string (DeepSeek's token isn't a JWT).
   if (keyedAsToken && s.length > 20 && !/\s/.test(s)) return s;
@@ -182,6 +186,8 @@ async function runCapture(store) {
     state = { status: "failed", message: "No Chrome/Edge/Brave browser found to open the DeepSeek login.", startedAt: Date.now() };
     return;
   }
+  const deviceId = ensureDeviceId(store); // stable id reused for the validation call + later chat
+
   // Persistent dedicated profile: log in once, then the session is remembered on later captures
   // (kept under data/, which is git-ignored). We cannot reuse the user's main running browser —
   // Chrome locks the default profile and same-origin rules block reading the DeepSeek tab's storage.
@@ -231,8 +237,23 @@ async function runCapture(store) {
       try { dump = JSON.parse(String(result?.result?.result?.value || "{}")); } catch { /* keep default */ }
       const token = extractToken(dump.ls, dump.cookie);
       if (token) {
+        // Verify it's a REAL, usable token (not a logged-out placeholder) before saving.
+        let verdict;
+        try { verdict = await deepSeekValidateToken({ token, deviceId }); }
+        catch { verdict = { ok: false, networkError: true }; }
+        if (verdict.authFailed) {
+          // Token present but rejected (e.g. stale value in storage) — keep waiting for a real login.
+          await new Promise((r) => setTimeout(r, POLL_MS));
+          continue;
+        }
         store.saveAiSettings({ ...store.getAiSettings(), deepseekToken: token, provider: "deepseek-web" });
-        state = { status: "captured", message: "DeepSeek session token captured and saved.", startedAt: state.startedAt };
+        state = {
+          status: "captured",
+          message: verdict.ok
+            ? "DeepSeek token captured and verified — chat is ready."
+            : "DeepSeek token captured and saved (could not verify live right now).",
+          startedAt: state.startedAt
+        };
         await refreshWasm(client); // opportunistically refresh the PoW wasm while the real page is open
         client.ws.close();
         cleanup();

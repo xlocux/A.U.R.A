@@ -280,8 +280,8 @@
     const panel = $("aiPanel");
     if (panel.classList.contains("minimized")) return;
     const margin = 16;
-    const minWidth = 280;
-    const minHeight = 240;
+    const minWidth = 360;
+    const minHeight = 260;
     const maxWidth = Math.max(minWidth, window.innerWidth - margin * 2);
     const maxHeight = Math.max(minHeight, window.innerHeight - margin * 2);
     const rect = panel.getBoundingClientRect();

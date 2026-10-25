@@ -150,7 +150,26 @@ async function deepSeekChat({ prompt, token, deviceId, fileIds = [] }) {
 
 function resetDeepSeekSession() { session = { token: null, id: null, parentId: null }; }
 
-module.exports = { deepSeekChat, deepSeekUpload, resetDeepSeekSession, ensureDeviceId };
+// Confirm a captured token is a REAL, usable session token (not a logged-out placeholder or garbage)
+// by doing the exact first step of the chat flow — POST /chat_session/create — which requires auth
+// and no PoW. Returns { ok } on success (and primes the session for reuse); { ok:false, authFailed }
+// when the server rejects the token; throws on a network error so the caller can tell "can't verify".
+async function deepSeekValidateToken({ token, deviceId }) {
+  const headers = browserHeaders(token, deviceId);
+  const res = await fetch(`${BASE}/chat_session/create`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: "{}",
+    signal: AbortSignal.timeout(HTTP_TIMEOUT_MS)
+  });
+  if (res.status === 401 || res.status === 403) return { ok: false, authFailed: true };
+  const data = await res.json().catch(() => ({}));
+  const id = data?.data?.biz_data?.chat_session?.id;
+  if (data.code === 0 && id) { session = { token, id, parentId: null }; return { ok: true }; }
+  return { ok: false, authFailed: false };
+}
+
+module.exports = { deepSeekChat, deepSeekUpload, resetDeepSeekSession, ensureDeviceId, deepSeekValidateToken };
 
 // A stable device id per install, persisted in AI settings (a real browser keeps one).
 function ensureDeviceId(store) {
