@@ -136,8 +136,8 @@ async function loadAiRuntimeStatus() {
     const data = await api(`/api/ai-runtime/status?${params.toString()}`);
     aiRuntimeStatus = data;
     renderAiRuntimeStatus();
-  } catch (error) {
-    $("aiRuntimeStatus").textContent = `Runtime status unavailable: ${error.message}`;
+  } catch {
+    // Runtime status is best-effort background context for the agent; no UI surface now.
   }
 }
 
@@ -166,7 +166,7 @@ async function testAiSettings() {
   $("aiSettingsStatus").textContent = "Testing AI provider...";
   try {
     await saveAiSettings();
-    const message = await window.AuraAiAgent.ask("Reply with one short sentence confirming that the A.U.R.A AI provider is connected.");
+    const message = await window.AuraAiAgent.ask("Reply with one short sentence confirming that the A.U.R.A AI provider is connected.", { test: true });
     $("aiSettingsStatus").textContent = message;
     $("aiSettingsStatus").className = "notice ok";
   } catch (error) {
@@ -216,7 +216,9 @@ function fillModelSelect(id, selected) {
 }
 
 function renderAiRuntimeStatus() {
-  $("aiRuntimeStatus").textContent = JSON.stringify(aiRuntimeStatus || {}, null, 2);
+  // The raw JSON runtime panel was removed; keep the data in memory for the AI agent context only.
+  const node = $("aiRuntimeStatus");
+  if (node) node.textContent = JSON.stringify(aiRuntimeStatus || {}, null, 2);
 }
 
 function updateAiAutonomyLabel() {
@@ -582,8 +584,16 @@ async function populateResultsProjectPicker() {
   const select = $("resultsProjectSelect");
   if (!select) return;
   const previous = select.value;
-  select.innerHTML = targets.map((t) => `<option value="${esc(t.target_name)}">${esc(t.target_name)}</option>`).join("");
-  const next = targets.some((t) => t.target_name === previous) ? previous : ($("target")?.value || targets[0]?.target_name || "");
+  const names = new Set((targets || []).map((t) => t.target_name).filter(Boolean));
+  // Also surface projects that exist only as runs in the DB — e.g. a restored data/ dir whose
+  // targets/ configs were not copied. This makes old scans loadable immediately, before any new run.
+  try {
+    const data = await api("/api/recon-runs?limit=500");
+    for (const run of data.runs || []) if (run.target_name) names.add(run.target_name);
+  } catch { /* fall back to targets-only list */ }
+  const list = [...names].sort((a, b) => a.localeCompare(b));
+  select.innerHTML = list.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("");
+  const next = list.includes(previous) ? previous : ($("target")?.value || list[0] || "");
   if (next) select.value = next;
   await populateResultsRunPicker();
 }

@@ -87,13 +87,18 @@ async function checkTerminalPath({ runner }) {
 
 async function checkTool({ runner, tool }) {
   const binary = shellQuote(tool.binary);
+  // "Installed" is decided by the binary resolving on PATH; the version/capability commands are
+  // captured (stderr included) for the identity signature but must not fail the check — many tools
+  // print help on stderr and/or exit non-zero for -h, which previously marked them "not installed".
+  const versionCmd = versionCommand(tool);
+  const capabilityCmd = capabilityCommand(tool);
   const command = [
     TOOL_PATH_EXPORT,
     `resolved=\"$(command -v ${binary} 2>/dev/null || true)\"`,
     "test -n \"$resolved\"",
     "printf 'path=%s\\n' \"$resolved\"",
-    versionCommand(tool),
-    capabilityCommand(tool)
+    versionCmd ? `{ ${versionCmd}; } 2>&1 || true` : "",
+    capabilityCmd ? `{ ${capabilityCmd}; } 2>&1 || true` : ""
   ].filter(Boolean).join(" && ");
   const result = await runner.run(command, 60000);
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n");

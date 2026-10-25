@@ -322,10 +322,7 @@ tbody tr:hover {
 .projects-metric strong,
 .proxy-card strong,
 .mini-metric strong {
-  background: linear-gradient(135deg, var(--ink), var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--ink, #fff);
 }
 
 .metrics,
@@ -943,12 +940,11 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 70%, transparent), transparent);
 }
 .recon-flow-head strong {
-  font-size: 15px;
-  letter-spacing: .3px;
-  background: linear-gradient(90deg, var(--ink, #fff), color-mix(in srgb, var(--accent) 80%, #fff));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink, #fff);
 }
 .recon-flow-head #reconFlowStatus { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .recon-flow-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 24px 28px; display: flex; flex-direction: column; }
@@ -968,7 +964,7 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   flex-wrap: wrap;
   align-items: stretch;
   align-content: flex-start;
-  gap: 14px 0;
+  gap: 10px 0;
   flex: 1 1 auto;
 }
 .recon-flow-arrow {
@@ -984,12 +980,12 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 1 1 190px;
-  min-width: 180px;
-  max-width: 260px;
+  flex: 1 1 180px;
+  min-width: 168px;
+  max-width: 250px;
   border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
-  border-radius: 12px;
-  padding: 13px 14px 14px;
+  border-radius: 11px;
+  padding: 9px 12px 10px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--panel) 80%, transparent), color-mix(in srgb, var(--panel-2) 46%, transparent));
   /* Notched top-right corner for a futuristic HUD panel look. */
@@ -1017,8 +1013,8 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   color: color-mix(in srgb, var(--accent) 70%, var(--muted));
 }
 .recon-flow-stage-top small { margin-left: auto; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); padding: 2px 7px; border-radius: 999px; border: 1px solid var(--soft-line, var(--line)); }
-.recon-flow-stage-name { display: block; margin: 10px 0 0; font-size: 13.5px; line-height: 1.25; }
-.recon-flow-stage p { margin: 6px 0 0; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+.recon-flow-stage-name { display: block; margin: 7px 0 0; font-size: 12.5px; line-height: 1.2; }
+.recon-flow-stage p { margin: 4px 0 0; font-size: 11px; line-height: 1.32; color: var(--muted); }
 .recon-flow-dot { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 9px; background: var(--soft-line, #3a3a3a); }
 
 /* Idle (no run) = neutral, no "Pending". Pending = dim. Done = green. Running = accent with pulsing glow. */
@@ -1041,7 +1037,7 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 .recon-flow-stage.running .recon-flow-corner { border-color: var(--accent); opacity: 1; }
 .recon-flow-stage.running .recon-flow-stage-top small { color: #04151a; background: var(--accent); border-color: transparent; font-weight: 800; }
 
-.recon-flow-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 12px; }
+.recon-flow-tools { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; padding-top: 8px; }
 .recon-flow-tool {
   font-size: 10.5px;
   padding: 2px 9px;
@@ -1092,10 +1088,10 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 18px;
-  padding: 11px 16px;
+  margin-bottom: 12px;
+  padding: 8px 14px;
   border: 1px solid var(--soft-line, var(--line));
-  border-radius: 12px;
+  border-radius: 10px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%), color-mix(in srgb, var(--panel) 55%, transparent);
   flex: 0 0 auto;
 }
@@ -1107,7 +1103,7 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 .recon-flow-phase.idle .recon-flow-phase-pulse { background: #52d391; box-shadow: 0 0 10px rgba(82,211,145,.6); }
 .recon-flow-phase-label { font-size: 13px; font-weight: 600; letter-spacing: .3px; text-transform: capitalize; white-space: nowrap; }
 .recon-flow-phase-progress { flex: 1 1 auto; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--panel-2) 80%, transparent); overflow: hidden; position: relative; }
-.recon-flow-phase-progress > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #52d391, var(--accent)); transition: width .4s ease; }
+.recon-flow-phase-progress > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #52d391, var(--accent)); }
 .recon-flow-phase.live .recon-flow-phase-progress::after {
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent);
@@ -1180,8 +1176,8 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
     radial-gradient(900px 360px at 10% -10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
     transparent;
 }
-.recon-flow-console .recon-flow-head { padding: 14px 20px; border-bottom: 1px solid var(--line); }
-.recon-flow-console .recon-flow-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 18px 20px; display: flex; flex-direction: column; }
+.recon-flow-console .recon-flow-head { padding: 8px 18px; border-bottom: 1px solid var(--line); gap: 10px; }
+.recon-flow-console .recon-flow-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 18px 16px; display: flex; flex-direction: column; }
 
 /* Short "draw" reveal of the pipeline when the Flow panel is opened (staggered by stage index). */
 .recon-flow-chain--draw .recon-flow-stage {

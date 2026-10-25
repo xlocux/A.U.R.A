@@ -113,7 +113,7 @@ async function requestChatCompletion({ url, apiKey, model, prompt, headers = {} 
 
 // OpenRouter free models are frequently rate-limited (429). Try the configured model first, then
 // walk the current free-model list, switching to the next whenever one is rate-limited or errors.
-async function callOpenRouterAgent({ prompt, settings, store }) {
+async function callOpenRouterAgent({ prompt, settings, store, test = false }) {
   const apiKey = store.getActiveApiKey("openrouter");
   if (!apiKey?.api_key) {
     return "OpenRouter is selected, but no active OpenRouter API key is stored. Add it in Settings > API Keys with provider `openrouter`, then try again.";
@@ -133,7 +133,12 @@ async function callOpenRouterAgent({ prompt, settings, store }) {
     });
     if (result.ok) {
       store.markApiKeyUsed(apiKey.id);
-      const note = attempts.length ? `\n\n_(switched to ${model} after ${attempts.length} rate-limited/failed model${attempts.length === 1 ? "" : "s"})_` : "";
+      // In Test mode always report which model answered and which were cycled; in chat only note switches.
+      let note = attempts.length ? `\n\n_(switched to ${model} after ${attempts.length} rate-limited/failed model${attempts.length === 1 ? "" : "s"})_` : "";
+      if (test) {
+        const tried = attempts.length ? ` Cycled past: ${attempts.map((a) => a.split(":")[0]).join(", ")}.` : "";
+        note = `\n\n_Answered by ${model} (attempt ${attempts.length + 1}/${candidates.length}).${tried}_`;
+      }
       return `${result.content}${note}`;
     }
     attempts.push(`${model}: ${result.status === 429 ? "rate-limited (429)" : result.error}`);
@@ -184,7 +189,8 @@ async function answerAgentChat({ body, store }) {
   if (!prompt) return "Ask me what you want to do next.";
   const contextualPrompt = buildAgentPromptWithContext({ prompt, body, store });
   const settings = store.getAiSettings();
-  if (settings.provider === "openrouter") return callOpenRouterAgent({ prompt: contextualPrompt, settings, store });
+  const test = body.test === true;
+  if (settings.provider === "openrouter") return callOpenRouterAgent({ prompt: contextualPrompt, settings, store, test });
   if (settings.provider === "local") return callLocalAgent({ prompt: contextualPrompt, settings });
   const provider = settings.provider === "codex" || settings.provider === "claude" ? settings.provider : "opencode";
   return callCliAgent({ prompt: contextualPrompt, provider, runtimeName: body.runtime || body.linuxRuntime || "linux" });

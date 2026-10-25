@@ -1,13 +1,8 @@
-# Local target data and generated recon output
-targets/*/findings/
-targets/*/logs/
-targets/*/intelligence/
-data/agenticaos-web.db*
-data/aura.db*
-data/proxies.db*
-data/preflight/
-data/recon-runs/
-data/wordlists/generated/
+# Local target data, databases, and generated recon output.
+# The whole data/ and targets/ trees are user state: never tracked, so `git pull` never
+# overwrites your scans or project configs. Restore a backup by copying data/ back in place.
+/data/
+/targets/
 
 # Credentials
 .env

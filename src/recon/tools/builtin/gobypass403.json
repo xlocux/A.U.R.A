@@ -4,7 +4,7 @@
   "phase": "access_control_bypass",
   "binary": "gobypass403",
   "version_check": { "command": "gobypass403", "args": ["-h"] },
-  "capability_check": { "command": "gobypass403", "args": ["-h"], "expected_output": "url|bypass|target" },
+  "capability_check": { "command": "gobypass403", "args": ["-h"], "expected_output": "url|bypass|target|usage|module" },
   "input_type": "url_list",
   "output_format": "sqlite",
   "output_path": "artifact_dir",
@@ -12,8 +12,8 @@
   "parser": "gobypass403_sqlite",
   "tags": ["active", "access-control", "403-bypass"],
   "install": {
-    "method": "go_install",
-    "source": "github.com/slicingmelon/gobypass403/cmd/gobypass403@latest"
+    "method": "shell",
+    "source": "command -v go >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y golang-go git); BIN=\"$(go env GOPATH)/bin\"; mkdir -p \"$BIN\"; TMP=\"$(mktemp -d)\"; git clone --depth 1 https://github.com/slicingmelon/gobypass403.git \"$TMP\" && (cd \"$TMP\" && go build -o \"$BIN/gobypass403\" ./cmd/gobypass403/); rm -rf \"$TMP\""
   },
   "safety": {
     "requires_authorization": true,

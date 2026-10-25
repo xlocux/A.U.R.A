@@ -19,7 +19,7 @@
     };
   }
 
-  async function postAgentPrompt(prompt) {
+  async function postAgentPrompt(prompt, options = {}) {
     const context = window.getAuraAgentContext ? window.getAuraAgentContext() : {};
     const guideContext = window.AuraGuide?.agentContext ? window.AuraGuide.agentContext() : "";
     const enrichedPrompt = guideContext ? [
@@ -37,7 +37,8 @@
         runId: context.runId || null,
         runtime: context.linuxRuntime || "linux",
         guideContext,
-        conversation: getConversationContext()
+        conversation: getConversationContext(),
+        test: options.test === true
       })
     });
     return data.message;

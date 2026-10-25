@@ -3,7 +3,7 @@
   "type": "cli",
   "phase": "subdomain_takeover",
   "binary": "subzy",
-  "version_check": { "command": "subzy", "args": ["version"] },
+  "capability_check": { "command": "subzy", "args": ["-h"], "expected_output": "subzy|target|takeover|run" },
   "input_type": "host_list",
   "output_format": "text",
   "output_path": "stdout",
