@@ -376,3 +376,46 @@ body.sidebar-collapsed #workspaceNav .sidebar-toggle { align-self: center; width
 .recon-flow-zoom .flow-ctl:hover::before { opacity: 0; }
 .recon-flow-zoom .flow-ctl:active { transform: translateY(1px); }
 .recon-flow-zoom .flow-ctl:focus-visible { outline: 1px solid var(--accent-2); outline-offset: 2px; }
+
+/* ── Cyberpunk tile decoration: the outline changes with the phase state ── */
+.flow-deco { position: absolute; left: 50%; top: 50%; width: 150%; aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; overflow: visible; }
+.fx-seg { fill: none; stroke: var(--zone); stroke-width: 1.3; stroke-dasharray: 11 4; stroke-linejoin: round; opacity: .5; transition: opacity .25s ease; }
+.fx-brk { fill: none; stroke: var(--zone); stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; opacity: .55; }
+.fx-ring { fill: none; stroke: var(--zone); stroke-width: .7; stroke-dasharray: 1.5 5; opacity: .22; }
+.fx-arc { fill: none; stroke: var(--zone); stroke-width: 2; stroke-dasharray: 12 38; stroke-linecap: round; opacity: 0; }
+.fx-tr { fill: none; stroke: var(--zone); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; opacity: .38; }
+.fx-pad { fill: var(--zone); opacity: .5; }
+.flow-hex:hover .fx-seg, .flow-hex:hover .fx-brk { opacity: 1; }
+
+/* Not started: broken, dim contour. */
+.flow-hex.pending .fx-seg { stroke-dasharray: 4 9; opacity: .32; }
+.flow-hex.pending .fx-tr, .flow-hex.pending .fx-pad { opacity: .18; }
+
+/* Scanning: contour segments run around the hex, brackets pulse, arcs spin, traces carry pulses. */
+.flow-hex.running .fx-seg { stroke: color-mix(in srgb, var(--zone) 65%, #fff); stroke-width: 2; opacity: 1; animation: fxRun .8s linear infinite; filter: drop-shadow(0 0 3px var(--zone)); }
+.flow-hex.running .fx-brk { stroke: color-mix(in srgb, var(--zone) 40%, #fff); opacity: 1; animation: flowPulse 1s ease-in-out infinite; filter: drop-shadow(0 0 4px var(--zone)); }
+.flow-hex.running .fx-ring { opacity: .75; animation: fxSpin 12s linear infinite; }
+.flow-hex.running .fx-arc { opacity: 1; animation: fxSpinR 3.4s linear infinite; filter: drop-shadow(0 0 4px var(--zone)); }
+.flow-hex.running .fx-tr { opacity: 1; stroke-dasharray: 4 4; animation: fxTrace .55s linear infinite; filter: drop-shadow(0 0 3px var(--zone)); }
+.flow-hex.running .fx-pad { opacity: 1; animation: flowPulse .9s ease-in-out infinite; }
+.flow-hex.running .flow-hex-name { animation: fxGlitch 3.6s steps(1, end) infinite; }
+
+/* Done: the contour closes into a solid green line; the rest settles. */
+.flow-hex.done .fx-seg { stroke: #52d391; stroke-dasharray: none; stroke-width: 1.6; opacity: .85; }
+.flow-hex.done .fx-brk { stroke: #52d391; opacity: .85; }
+.flow-hex.done .fx-ring { opacity: .1; }
+.flow-hex.done .fx-tr, .flow-hex.done .fx-pad { opacity: .22; }
+
+@keyframes fxRun { to { stroke-dashoffset: -15; } }
+@keyframes fxTrace { to { stroke-dashoffset: -8; } }
+@keyframes fxSpin { to { transform: rotate(360deg); } }
+@keyframes fxSpinR { to { transform: rotate(-360deg); } }
+@keyframes fxGlitch {
+  0%, 90%, 100% { text-shadow: 0 0 10px var(--zone), 0 0 2px #fff; transform: none; }
+  92% { text-shadow: 2px 0 rgba(255, 40, 90, .8), -2px 0 rgba(0, 229, 255, .8); transform: translateX(1px); }
+  95% { text-shadow: -2px 0 rgba(255, 40, 90, .8), 2px 0 rgba(0, 229, 255, .8); transform: translateX(-1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-hex.running .fx-seg, .flow-hex.running .fx-brk, .flow-hex.running .fx-ring, .flow-hex.running .fx-arc,
+  .flow-hex.running .fx-tr, .flow-hex.running .fx-pad, .flow-hex.running .flow-hex-name { animation: none; }
+}

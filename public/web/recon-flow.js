@@ -135,6 +135,39 @@
     return panel;
   }
 
+  // Per-tile decoration, drawn in a 200x200 box centred on the tile (hex radius ~67 units).
+  // Layers: segmented contour, corner brackets, HUD ring + arcs, and circuit traces with pads.
+  // All geometry is deterministic per tile index so every tile looks related but not identical.
+  function decoSvg(index) {
+    const vertex = (r, k) => [r * Math.cos((k * Math.PI) / 3), r * Math.sin((k * Math.PI) / 3)];
+    const fmt = (p) => p[0].toFixed(1) + "," + p[1].toFixed(1);
+    const contour = [0, 1, 2, 3, 4, 5].map((k) => fmt(vertex(74, k))).join(" ");
+    let brackets = "";
+    for (let k = 0; k < 6; k += 1) {
+      const v = vertex(78, k);
+      const prev = vertex(78, (k + 5) % 6);
+      const next = vertex(78, (k + 1) % 6);
+      const toward = (q) => [v[0] + (q[0] - v[0]) * 0.24, v[1] + (q[1] - v[1]) * 0.24];
+      brackets += '<polyline class="fx-brk" points="' + fmt(toward(prev)) + " " + fmt(v) + " " + fmt(toward(next)) + '"/>';
+    }
+    // Two opposite sides carry circuit traces (chip-pin look), chosen per tile.
+    let traces = "";
+    for (const side of [(index * 5) % 6, ((index * 5) % 6 + 3) % 6]) {
+      const angle = ((side + 0.5) * Math.PI) / 3;
+      const u = [Math.cos(angle), Math.sin(angle)];
+      const p = [-u[1], u[0]];
+      for (const j of [-1, 0, 1]) {
+        const start = [u[0] * 66 + p[0] * j * 9, u[1] * 66 + p[1] * j * 9];
+        const bend = [start[0] + u[0] * (j === 0 ? 14 : 8), start[1] + u[1] * (j === 0 ? 14 : 8)];
+        const end = [bend[0] + (u[0] * 0.7 + p[0] * j * 0.7) * 10, bend[1] + (u[1] * 0.7 + p[1] * j * 0.7) * 10];
+        traces += '<polyline class="fx-tr" points="' + fmt(start) + " " + fmt(bend) + " " + fmt(end) + '"/><circle class="fx-pad" cx="' + end[0].toFixed(1) + '" cy="' + end[1].toFixed(1) + '" r="1.9"/>';
+      }
+    }
+    return '<svg class="flow-deco" viewBox="-100 -100 200 200" aria-hidden="true">' +
+      '<circle class="fx-ring" r="90"/><circle class="fx-arc" r="95" pathLength="100"/>' +
+      '<polygon class="fx-seg" pathLength="100" points="' + contour + '"/>' + brackets + traces + "</svg>";
+  }
+
   // Builds the hex tiles + the SVG link layer once; later refreshes only update classes/attributes
   // so the floating animation never restarts.
   function buildField() {
@@ -148,7 +181,7 @@
       const delay = -((index * 3) % 7);
       const vertices = ["v1", "v2", "v3", "v4", "v5", "v6"].map((v) => `<i class="flow-vtx ${v}"></i>`).join("");
       return `<div class="flow-hex idle" data-stage-id="${esc(stage.id)}" data-zone="${esc(stage.zone)}" data-cat="${esc(stage.cat)}" tabindex="0" role="button" style="left:${x}%;top:${y}%;--i:${index};--fx:${index % 2 ? fx : -fx}px;--fy:${index % 3 ? -fy : fy}px;--dur:${dur}s;--delay:${delay}s">
-        <div class="flow-hex-float">${vertices}<div class="flow-hex-shape"><span class="flow-hex-ring"></span><span class="flow-hex-core"></span><span class="flow-hex-name">${esc(stage.label)}</span></div></div>
+        <div class="flow-hex-float">${decoSvg(index)}${vertices}<div class="flow-hex-shape"><span class="flow-hex-ring"></span><span class="flow-hex-core"></span><span class="flow-hex-name">${esc(stage.label)}</span></div></div>
       </div>`;
     }).join("");
     const links = STAGES.slice(0, -1).map((_, index) => `<g class="flow-link off" data-link="${index}"><path class="flow-link-base"/><path class="flow-link-glow"/><path class="flow-link-flow"/><path class="flow-link-glint" pathLength="100"/></g>`).join("");
