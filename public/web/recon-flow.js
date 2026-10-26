@@ -1,61 +1,86 @@
 "use strict";
 
-// Recon flow diagram: a block view of the full recon pipeline with per-stage and per-tool status,
-// derived from the run's events and tool results. Opens from the run status pill / Status tile.
+// Recon flow: a floating "molecular" field of small hexagonal stage tiles joined by live neon links.
+// Tiles show only the phase name; hover = tooltip, click = detail modal (command, progress, tools,
+// recent events, Ask-AI). Links light up and flow ONLY between stages that are running; idle stages
+// stay dark and ignite when they start. Derived from the run's events and tool results.
 (function initAuraReconFlow() {
   const $ = (id) => document.getElementById(id);
   const api = (path) => window.auraApi(path);
   const REFRESH_MS = 2500;
+  const ZOOM_MIN = 0.7;
+  const ZOOM_MAX = 2;
+
   let currentRunId = null;
   let timer = null;
   let selectedStageId = null;
   let lastStages = [];
-  let animateNext = false; // play the short "draw" reveal only on the first render after activate
+  let lastEvents = [];
+  let lastToolResults = [];
+  let lastRun = null;
+  let animateNext = false; // play the short reveal only on the first render after activate
+  let zoom = 1;
+  let linkRaf = null;
 
   // Ordered pipeline. `phases` match event.phase values; `tools` are the CLI tools the stage runs.
   const STAGES = [
     { id: "intel", label: "Intel preflight", phases: ["whois-rdap", "provider-discovery", "domain_intelligence", "bootstrap"], tools: [], hint: "WHOIS/RDAP + alternate-TLD correlation" },
     { id: "passive", label: "Passive sources", phases: ["recon"], sources: ["crtsh", "wayback", "rapiddns", "rapid7", "certspotter", "securitytrails", "shodan", "virustotal", "censys", "binaryedge", "urlscan", "hunterio", "passivetotal", "zoomeye", "spyse", "intelx"], tools: [], hint: "CT logs, archives, passive DNS, provider APIs" },
     { id: "subdomains", label: "Subdomain & DNS", phases: ["recon"], tools: ["subfinder", "amass", "dnsx", "puredns", "shuffle-dns"], hint: "Enumerate and resolve hosts" },
-    { id: "tls", label: "TLS & certificates", phases: ["follow-up-tls"], tools: ["tlsx"], hint: "Harvest SAN hostnames from certificates" },
-    { id: "takeover", label: "Subdomain takeover", phases: ["follow-up-takeover"], tools: ["subzy"], hint: "Check dangling hosts for takeover" },
+    { id: "tls", label: "TLS & certs", phases: ["follow-up-tls"], tools: ["tlsx"], hint: "Harvest SAN hostnames from certificates" },
+    { id: "takeover", label: "Takeover", phases: ["follow-up-takeover"], tools: ["subzy"], hint: "Check dangling hosts for subdomain takeover" },
     { id: "urls", label: "URL mining", phases: ["recon"], tools: ["gau"], hint: "Archived URLs and parameters" },
     { id: "crawl", label: "Active crawl", phases: ["follow-up-crawl"], tools: ["katana"], hint: "Crawl live services for endpoints" },
-    { id: "params", label: "Param & archive mining", phases: ["follow-up-params"], tools: ["waymore", "paramspider"], hint: "Wider archived URLs and parameters" },
+    { id: "params", label: "Param mining", phases: ["follow-up-params"], tools: ["waymore", "paramspider"], hint: "Wider archived URLs and parameters" },
     { id: "http", label: "HTTP probing", phases: ["recon", "http-tech-followup", "follow-up-http"], tools: ["httpx"], hint: "Live services, status, titles, tech" },
-    { id: "tech", label: "Technology enrichment", phases: ["technology-enrichment"], tools: ["retire", "wpscan", "cmseek"], hint: "Per-service tech detectors" },
-    { id: "js", label: "JavaScript discovery", phases: ["follow-up-js"], tools: ["getJS"], hint: "Extract script URLs from live services" },
+    { id: "tech", label: "Tech enrichment", phases: ["technology-enrichment"], tools: ["retire", "wpscan", "cmseek"], hint: "Per-service technology detectors" },
+    { id: "js", label: "JS discovery", phases: ["follow-up-js"], tools: ["getJS"], hint: "Extract script URLs from live services" },
     { id: "screenshots", label: "Screenshots", phases: ["recon"], tools: ["gowitness", "eyewitness", "chromium"], hint: "Visual triage of live services" },
     { id: "fingerprint", label: "Trackers & favicons", phases: ["tracker-extraction", "favicon-fingerprint"], tools: [], hint: "Analytics IDs and favicon hashes" },
-    { id: "dirs", label: "Directory discovery", phases: ["follow-up-dirs"], tools: ["ffuf"], hint: "Content discovery on live services" },
+    { id: "dirs", label: "Directories", phases: ["follow-up-dirs"], tools: ["ffuf"], hint: "Content discovery on live services" },
     { id: "cloud", label: "Cloud resources", phases: ["follow-up-cloud"], tools: ["cloud_enum"], hint: "Public cloud buckets/blobs by keyword" },
-    { id: "bypass403", label: "403/401 bypass", phases: ["follow-up-bypass403"], tools: ["gobypass403"], hint: "Attempt access-control bypasses on forbidden endpoints" },
-    { id: "recovery", label: "AI recovery pool", phases: ["ai-action-pool", "ai-tool-recovery"], tools: [], hint: "Retries incomplete phases" }
+    { id: "bypass403", label: "403/401 bypass", phases: ["follow-up-bypass403"], tools: ["gobypass403"], hint: "Access-control bypass attempts on forbidden endpoints" },
+    { id: "vuln", label: "Vuln check", phases: ["follow-up-vuln"], tools: ["nuclei"], hint: "nuclei templates + NVD CVE correlation of detected versions" },
+    { id: "recovery", label: "AI recovery", phases: ["ai-action-pool", "ai-tool-recovery"], tools: [], hint: "AI retries incomplete phases" }
   ];
 
-  // Per-stage line icons (24x24, stroke=currentColor) for the cyberpunk block header.
-  const svg = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-  const ICONS = {
-    intel: svg(`<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>`),
-    passive: svg(`<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>`),
-    subdomains: svg(`<rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-2h12v2"/>`),
-    urls: svg(`<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>`),
-    http: svg(`<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`),
-    tech: svg(`<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M9 3v2M15 3v2M9 19v2M15 19v2M3 9h2M3 15h2M19 9h2M19 15h2"/>`),
-    js: svg(`<path d="M8 6l-5 6 5 6M16 6l5 6-5 6M13 4l-2 16"/>`),
-    screenshots: svg(`<rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8 6l1.5-2h5L16 6"/>`),
-    fingerprint: svg(`<path d="M6 11a6 6 0 0 1 12 0M8.5 12.5a3.5 3.5 0 0 1 7 0v1M12 13v4M9 17v1M15 15v3"/>`),
-    dirs: svg(`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 14h8"/>`),
-    cloud: svg(`<path d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1A3.5 3.5 0 0 1 18 18z"/>`),
-    bypass403: svg(`<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7-2.6M12 15v2"/>`),
-    recovery: svg(`<path d="M21 12a9 9 0 1 1-3-6.7M21 4v4h-4"/>`),
-    tls: svg(`<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="15.5" r="1.2"/>`),
-    takeover: svg(`<path d="M12 3l8 4v5c0 4.5-3.2 7.5-8 9-4.8-1.5-8-4.5-8-9V7z"/><path d="m9.5 12 2 2 3.5-3.5"/>`),
-    crawl: svg(`<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="19" cy="5" r="1.5"/><circle cx="5" cy="19" r="1.5"/>`),
-    params: svg(`<path d="M7 4H5a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h2M17 4h2a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-2"/>`)
+  // Organic "molecular" layout (percent of the field), a loose serpentine so consecutive stages are
+  // neighbours: top row left→right, middle row right→left, bottom row left→right.
+  const POSITIONS = [
+    [7, 14], [22, 24], [37, 12], [52, 24], [67, 12], [82, 22],
+    [90, 46], [76, 54], [61, 44], [46, 56], [31, 44], [16, 54],
+    [8, 80], [24, 88], [40, 78], [56, 88], [72, 78], [88, 86]
+  ];
+
+  // Representative command each tool runs (shown in the stage modal).
+  const TOOL_CMD = {
+    subfinder: "subfinder -d <domain> -silent -all", amass: "amass enum -passive -d <domain>",
+    dnsx: "dnsx -l hosts.txt -silent -a -aaaa -cname", puredns: "puredns resolve hosts.txt --write -",
+    "shuffle-dns": "shuffledns -d <domain> -w wordlist.txt -silent", gau: "gau <domain>",
+    httpx: "httpx -l hosts.txt -ports <ports> -json -silent -status-code -title -tech-detect",
+    tlsx: "tlsx -l hosts.txt -san -cn -silent", subzy: "subzy run --targets hosts.txt",
+    katana: "katana -list hosts.txt -jc -silent", waymore: "waymore -i <domain> -mode U",
+    paramspider: "paramspider -d <domain>", getJS: "getJS --input hosts.txt --complete",
+    gowitness: "gowitness scan file -f hosts.txt --screenshot-path shots/",
+    eyewitness: "eyewitness --web -f hosts.txt -d out --no-prompt", chromium: "chromium --headless --screenshot <url>",
+    ffuf: "ffuf -u <url>/FUZZ -w paths.txt -mc 200,204,301,302,307,401,403,405",
+    cloud_enum: "cloud_enum -k <keyword> --quickscan", gobypass403: "gobypass403 -u <url>",
+    nuclei: "nuclei -l services.txt -jsonl -severity low,medium,high,critical -rate-limit 50",
+    retire: "retire --jspath <js>", wpscan: "wpscan --url <url> --no-banner", cmseek: "cmseek -u <url> --batch"
   };
 
-  // The flow lives inline as a workspace panel (#tab-flow), like every other menu — not a modal.
+  const svgIcon = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  const ZOOM_ICON_FULL = svgIcon(`<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M16 21h3a2 2 0 0 0 2-2v-3M8 21H5a2 2 0 0 1-2-2v-3"/>`);
+
+  function esc(value) {
+    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  }
+
+  function statusLabel(status) {
+    return { done: "Completed", running: "Running", pending: "Pending", idle: "" }[status] ?? status;
+  }
+
+  // ── Panel scaffolding (built once) ─────────────────────────────────────────
   function ensurePanel() {
     const panel = $("tab-flow");
     if (!panel) return null;
@@ -63,45 +88,132 @@
     panel.dataset.flowReady = "true";
     panel.innerHTML = `
       <div class="recon-flow-console">
-        <header class="recon-flow-head">
-          <strong id="reconFlowTitle">Recon flow</strong>
+        <header class="recon-flow-head recon-flow-head--min">
           <span id="reconFlowStatus" class="muted"></span>
+          <span id="reconFlowBanner" class="recon-flow-banner"></span>
+          <div class="recon-flow-zoom" role="group" aria-label="Flow view controls">
+            <button type="button" data-flow-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+            <button type="button" data-flow-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" data-flow-zoom="fit" title="Fit to view" aria-label="Fit to view">Fit</button>
+            <button type="button" data-flow-zoom="full" title="Fullscreen" aria-label="Fullscreen">${ZOOM_ICON_FULL}</button>
+          </div>
         </header>
         <div class="recon-flow-body" id="reconFlowBody"></div>
       </div>`;
-    // Clicking a stage block toggles its detail panel; clicking it again clears the selection.
+    buildField();
     panel.addEventListener("click", (event) => {
-      const card = event.target.closest(".recon-flow-stage");
-      if (card && card.dataset.stageId) {
-        selectedStageId = selectedStageId === card.dataset.stageId ? null : card.dataset.stageId;
-        highlightSelected();
-        renderDetail();
-      }
+      const zoomBtn = event.target.closest("[data-flow-zoom]");
+      if (zoomBtn) { applyZoom(zoomBtn.dataset.flowZoom); return; }
+      const hex = event.target.closest(".flow-hex");
+      if (hex?.dataset.stageId) openStageModal(hex.dataset.stageId);
     });
     return panel;
   }
 
-  function esc(value) {
-    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  // Builds the hex tiles + the SVG link layer once; later refreshes only update classes/attributes
+  // so the floating animation never restarts.
+  function buildField() {
+    const body = $("reconFlowBody");
+    const hexes = STAGES.map((stage, index) => {
+      const [x, y] = POSITIONS[index] || [50, 50];
+      // Deterministic pseudo-random drift so each tile floats on its own rhythm.
+      const fx = ((index * 7) % 5) + 3;
+      const fy = ((index * 11) % 6) + 3;
+      const dur = 6 + ((index * 5) % 6);
+      const delay = -((index * 3) % 7);
+      return `<div class="flow-hex idle" data-stage-id="${esc(stage.id)}" tabindex="0" role="button" style="left:${x}%;top:${y}%;--i:${index};--fx:${index % 2 ? fx : -fx}px;--fy:${index % 3 ? -fy : fy}px;--dur:${dur}s;--delay:${delay}s">
+        <div class="flow-hex-float"><div class="flow-hex-shape"><span class="flow-hex-name">${esc(stage.label)}</span></div></div>
+      </div>`;
+    }).join("");
+    const links = STAGES.slice(0, -1).map((_, index) => `<g class="flow-link off" data-link="${index}"><path class="flow-link-base"/><path class="flow-link-glow"/><path class="flow-link-flow"/></g>`).join("");
+    body.innerHTML = `<div class="flow-field" id="flowField"><div class="flow-stage" id="flowStage"><svg class="flow-links" id="flowLinks" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${links}</svg>${hexes}</div></div>`;
+    applyZoom("set");
   }
 
+  // ── Zoom / fullscreen ──────────────────────────────────────────────────────
+  function applyZoom(mode) {
+    if (mode === "in") zoom = Math.min(ZOOM_MAX, +(zoom + 0.2).toFixed(2));
+    else if (mode === "out") zoom = Math.max(ZOOM_MIN, +(zoom - 0.2).toFixed(2));
+    else if (mode === "fit") zoom = 1;
+    else if (mode === "full") { toggleFullscreen(); return; }
+    const stage = $("flowStage");
+    if (stage) stage.style.setProperty("--zoom", String(zoom));
+  }
+
+  function toggleFullscreen() {
+    const panel = $("tab-flow");
+    if (!panel) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else panel.requestFullscreen?.().catch(() => {});
+  }
+
+  // ── Live link drawing ──────────────────────────────────────────────────────
+  // Re-measured every frame so the neon curves follow the floating tiles. Links are cheap (17 paths).
+  function drawLinks() {
+    const stage = $("flowStage");
+    const svg = $("flowLinks");
+    if (!stage || !svg) return;
+    const stageRect = stage.getBoundingClientRect();
+    if (!stageRect.width) return;
+    const centers = STAGES.map((s) => {
+      const shape = stage.querySelector(`.flow-hex[data-stage-id="${s.id}"] .flow-hex-shape`);
+      if (!shape) return null;
+      const r = shape.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - stageRect.left, y: r.top + r.height / 2 - stageRect.top };
+    });
+    svg.setAttribute("viewBox", `0 0 ${stageRect.width} ${stageRect.height}`);
+    svg.querySelectorAll(".flow-link").forEach((group) => {
+      const index = Number(group.dataset.link);
+      const a = centers[index];
+      const b = centers[index + 1];
+      if (!a || !b) return;
+      const d = curvePath(a, b);
+      group.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
+    });
+  }
+
+  // Soft organic cubic curve: leave/enter horizontally for side-by-side tiles, vertically for row jumps.
+  function curvePath(a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      const mx = a.x + dx / 2;
+      return `M${a.x.toFixed(1)},${a.y.toFixed(1)} C${mx.toFixed(1)},${a.y.toFixed(1)} ${mx.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+    }
+    const my = a.y + dy / 2;
+    return `M${a.x.toFixed(1)},${a.y.toFixed(1)} C${a.x.toFixed(1)},${my.toFixed(1)} ${b.x.toFixed(1)},${my.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+  }
+
+  function startLinkLoop() {
+    if (linkRaf) return;
+    const tick = () => {
+      drawLinks();
+      linkRaf = requestAnimationFrame(tick);
+    };
+    linkRaf = requestAnimationFrame(tick);
+  }
+
+  function stopLinkLoop() {
+    if (linkRaf) cancelAnimationFrame(linkRaf);
+    linkRaf = null;
+  }
+
+  // ── Status derivation ──────────────────────────────────────────────────────
   function deriveStageStatus({ run, events, toolResults }) {
     const phasesSeen = new Set(events.map((event) => event.phase).filter(Boolean));
     const activePhase = run?.active_phase || "";
     const running = run?.status === "running";
-    // With no run loaded, show the pipeline map in a neutral "idle" state (no misleading "Pending").
-    const idle = !run;
+    const idle = !run; // no run loaded: neutral map, no misleading "Pending"
     const toolStatus = new Map();
     for (const tool of toolResults) {
       const name = String(tool.tool_name || "").replace(/-batch$|-recovery$/, "");
       const prev = toolStatus.get(name);
-      // Prefer a completed status over a failed/earlier one.
       if (!prev || tool.status === "completed") toolStatus.set(name, tool.status);
     }
-    return STAGES.map((stage, index) => {
+    return STAGES.map((stage) => {
       const sawPhase = (stage.phases || []).some((phase) => phasesSeen.has(phase));
       const sawSource = (stage.sources || []).some((source) => events.some((event) => event.source === source));
-      const isActive = running && (stage.phases || []).includes(activePhase) && index >= 0;
+      const isActive = running && (stage.phases || []).includes(activePhase);
       let status = idle ? "idle" : "pending";
       if (!idle && (sawPhase || sawSource || (stage.tools || []).some((tool) => toolStatus.has(tool)))) status = "done";
       if (isActive) status = "running";
@@ -110,88 +222,158 @@
     });
   }
 
+  function tooltipFor(stage) {
+    const state = statusLabel(stage.status);
+    const tools = stage.tools.length ? ` · ${stage.tools.map((t) => t.name).join(", ")}` : "";
+    return `${stage.label}${state ? ` — ${state}` : ""}\n${stage.hint}${tools}\nClick for details`;
+  }
+
+  // ── Render (updates the existing field in place) ───────────────────────────
   function render({ run, events, counts, toolResults }) {
-    const body = $("reconFlowBody");
-    const stages = deriveStageStatus({ run, events, toolResults });
+    ensurePanel();
+    lastEvents = events || [];
+    lastToolResults = toolResults || [];
+    const stages = deriveStageStatus({ run, events: lastEvents, toolResults: lastToolResults });
     lastStages = stages;
-    const statusEl = $("reconFlowStatus");
-    if (statusEl) statusEl.textContent = run ? `Run ${run.id} · ${run.status} · phase ${run.active_phase || "-"}` : "No run";
+
+    const field = $("flowField");
+    if (field && animateNext) {
+      field.classList.add("flow-field--reveal");
+      setTimeout(() => field.classList.remove("flow-field--reveal"), 1400);
+    }
+    animateNext = false;
+
+    stages.forEach((stage) => {
+      const hex = document.querySelector(`.flow-hex[data-stage-id="${stage.id}"]`);
+      if (!hex) return;
+      hex.className = `flow-hex ${stage.status}${stage.id === selectedStageId ? " selected" : ""}`;
+      hex.dataset.tooltip = tooltipFor(stage);
+    });
+    // A link is lit (and flowing) only while one of its endpoints is actually running; fully done
+    // links keep a faint steady trace; everything else stays dark until a stage ignites it.
+    document.querySelectorAll(".flow-link").forEach((group) => {
+      const i = Number(group.dataset.link);
+      const a = stages[i];
+      const b = stages[i + 1];
+      const lit = a.status === "running" || b.status === "running";
+      const trace = a.status === "done" && b.status === "done";
+      group.setAttribute("class", `flow-link ${lit ? "on" : trace ? "done" : "off"}`);
+    });
+
     const running = stages.find((stage) => stage.status === "running");
     const doneCount = stages.filter((stage) => stage.status === "done").length;
     const progress = Math.round((doneCount / stages.length) * 100);
-    const phaseBanner = `
-      <div class="recon-flow-phase ${running ? "live" : (run ? "idle" : "static")}">
-        <span class="recon-flow-phase-pulse"></span>
-        <span class="recon-flow-phase-label">${running ? `Running · ${esc(running.label)}` : (run ? `${esc((run.status || "idle"))}` : "Full recon pipeline")}</span>
-        <span class="recon-flow-phase-progress"><span style="width:${progress}%"></span></span>
-        <span class="recon-flow-phase-pct">${progress}%</span>
-      </div>`;
-    const summary = counts
-      ? `<div class="recon-flow-counts">${["domains", "urls", "httpServices", "technologies", "screenshots"].map((key) => `<span>${esc(labelFor(key))}: <strong>${esc(counts[key] ?? 0)}</strong></span>`).join("")}</div>`
-      : "";
-    const drawClass = animateNext ? " recon-flow-chain--draw" : "";
-    animateNext = false;
-    body.innerHTML = `${phaseBanner}${summary}<div class="recon-flow-chain${drawClass}">${stages.map((stage, index) => `
-      <div class="recon-flow-stage ${esc(stage.status)}" data-stage-id="${esc(stage.id)}" style="--i:${index}" tabindex="0" role="button" title="${esc(stage.label)} — ${esc(stage.hint)} (click for details)">
-        <span class="recon-flow-corner"></span>
-        <div class="recon-flow-stage-top">
-          <span class="recon-flow-icon">${ICONS[stage.id] || ""}</span>
-          <span class="recon-flow-step">${String(index + 1).padStart(2, "0")}</span>
-          ${statusLabel(stage.status) ? `<small>${esc(statusLabel(stage.status))}</small>` : ""}
-        </div>
-        <strong class="recon-flow-stage-name">${esc(stage.label)}</strong>
-        <p>${esc(stage.hint)}</p>
-        ${stage.tools.length ? `<div class="recon-flow-tools">${stage.tools.map((tool) => `<span class="recon-flow-tool ${esc(tool.status)}">${esc(tool.name)}</span>`).join("")}</div>` : ""}
-      </div>${index < stages.length - 1 ? `<div class="recon-flow-arrow ${stage.status === "done" ? "flowed" : stage.status === "running" ? "flowing" : ""}" aria-hidden="true"></div>` : ""}`).join("")}</div>
-      <div class="recon-flow-detail" id="reconFlowDetail"></div>`;
-    highlightSelected();
-    renderDetail();
-  }
-
-  function highlightSelected() {
-    document.querySelectorAll(".recon-flow-stage").forEach((card) => card.classList.toggle("selected", card.dataset.stageId === selectedStageId));
-  }
-
-  function renderDetail() {
-    const el = $("reconFlowDetail");
-    if (!el) return;
-    const stage = lastStages.find((item) => item.id === selectedStageId);
-    if (!stage) {
-      el.classList.remove("open");
-      el.innerHTML = `<p class="recon-flow-detail-hint">Click any stage block above for its phases, tools, and live status.</p>`;
-      return;
+    const statusEl = $("reconFlowStatus");
+    if (statusEl) {
+      statusEl.textContent = run
+        ? `Run ${run.id} · ${run.status}${counts ? ` · ${counts.domains ?? 0} domains · ${counts.urls ?? 0} URLs · ${counts.httpServices ?? 0} services · ${counts.technologies ?? 0} tech` : ""}`
+        : "No run loaded — showing the full pipeline";
     }
-    el.classList.add("open");
-    const chips = (items, mapper) => items.length ? items.map(mapper).join("") : `<span class="recon-flow-chip muted">—</span>`;
-    const toolChips = chips(stage.tools, (tool) => `<span class="recon-flow-tool ${esc(tool.status)}">${esc(tool.name)} · ${esc(statusLabel(tool.status))}</span>`);
-    const phaseChips = chips(stage.phases || [], (phase) => `<span class="recon-flow-chip">${esc(phase)}</span>`);
-    const sourceChips = (stage.sources || []).length
-      ? `<div class="recon-flow-detail-col"><h4>Passive sources</h4><div class="recon-flow-chips">${(stage.sources || []).map((source) => `<span class="recon-flow-chip">${esc(source)}</span>`).join("")}</div></div>`
-      : "";
-    el.innerHTML = `
-      <div class="recon-flow-detail-head">
-        <span class="recon-flow-dot ${esc(stage.status)}"></span>
-        <strong>${esc(stage.label)}</strong>
-        <span class="recon-flow-badge ${esc(stage.status)}">${esc(statusLabel(stage.status))}</span>
-        <button type="button" class="recon-flow-detail-close" aria-label="Close details">✕</button>
+    const banner = $("reconFlowBanner");
+    if (banner) {
+      banner.className = `recon-flow-banner ${running ? "live" : run ? "idle" : "static"}`;
+      banner.innerHTML = run
+        ? `<span class="recon-flow-pulse"></span><span>${running ? `Running · ${esc(running.label)}` : esc(run.status || "idle")}</span><span class="recon-flow-bar"><span style="width:${progress}%"></span></span><strong>${progress}%</strong>`
+        : "";
+    }
+    if (document.getElementById("flowStageModal")?.classList.contains("open")) renderStageModal();
+  }
+
+  // ── Stage detail modal ─────────────────────────────────────────────────────
+  function ensureModal() {
+    let modal = $("flowStageModal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "flowStageModal";
+    modal.className = "flow-modal";
+    modal.innerHTML = `<div class="flow-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="flowModalTitle"><div id="flowModalBody"></div></div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal || event.target.closest("[data-flow-close]")) closeModal();
+      const ask = event.target.closest("[data-flow-ask]");
+      if (ask) askAi(ask.dataset.flowAsk);
+    });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeModal(); });
+    return modal;
+  }
+
+  function openStageModal(stageId) {
+    selectedStageId = stageId;
+    ensureModal().classList.add("open");
+    renderStageModal();
+    document.querySelectorAll(".flow-hex").forEach((hex) => hex.classList.toggle("selected", hex.dataset.stageId === stageId));
+  }
+
+  function closeModal() {
+    $("flowStageModal")?.classList.remove("open");
+    selectedStageId = null;
+    document.querySelectorAll(".flow-hex.selected").forEach((hex) => hex.classList.remove("selected"));
+  }
+
+  // A completed stage is 100%; while running, show tool completion (min 10% so it never looks stuck).
+  function stageProgress(stage) {
+    if (stage.status === "done") return 100;
+    if (stage.tools.length) {
+      const done = stage.tools.filter((t) => t.status === "completed").length;
+      const pct = Math.round((done / stage.tools.length) * 100);
+      return stage.status === "running" ? Math.max(10, pct) : pct;
+    }
+    return { running: 50, pending: 0, idle: 0 }[stage.status] ?? 0;
+  }
+
+  function latestToolResult(name) {
+    const matches = lastToolResults.filter((r) => String(r.tool_name || "").replace(/-batch$|-recovery$/, "") === name);
+    return matches[matches.length - 1] || null;
+  }
+
+  function renderStageModal() {
+    const stage = lastStages.find((s) => s.id === selectedStageId);
+    const body = $("flowModalBody");
+    if (!stage || !body) return;
+    const progress = stageProgress(stage);
+    const stageEvents = lastEvents
+      .filter((e) => (stage.phases || []).includes(e.phase) || (stage.sources || []).includes(e.source))
+      .slice(-6).reverse();
+    const toolRows = stage.tools.length
+      ? stage.tools.map((tool) => {
+          const result = latestToolResult(tool.name);
+          const cmd = result?.command_display || TOOL_CMD[tool.name] || tool.name;
+          return `<div class="flow-modal-tool"><div class="flow-modal-tool-head"><span class="recon-flow-tool ${esc(tool.status)}">${esc(tool.name)}</span><small>${esc(statusLabel(tool.status) || "ready")}${result?.exit_code != null ? ` · exit ${esc(result.exit_code)}` : ""}</small></div><code>${esc(cmd)}</code></div>`;
+        }).join("")
+      : `<p class="muted">Internal collectors — no external CLI is launched for this stage.</p>`;
+    const eventRows = stageEvents.length
+      ? stageEvents.map((e) => `<div class="flow-modal-event ${esc(e.severity || "info")}"><span>${esc(e.source || "-")}</span>${esc(e.message || "")}</div>`).join("")
+      : `<p class="muted">No events recorded for this stage yet.</p>`;
+    const aiPrompt = `Explain the "${stage.label}" stage of the recon pipeline for the current run (status: ${statusLabel(stage.status) || "not started"}). What has it found or what failed, and what should I run next to go deeper?`;
+    body.innerHTML = `
+      <div class="flow-modal-head">
+        <span class="flow-modal-dot ${esc(stage.status)}"></span>
+        <h3 id="flowModalTitle">${esc(stage.label)}</h3>
+        <span class="recon-flow-badge ${esc(stage.status)}">${esc(statusLabel(stage.status) || "Ready")}</span>
+        <button type="button" class="flow-modal-close" data-flow-close aria-label="Close">×</button>
       </div>
-      <p class="recon-flow-detail-hint">${esc(stage.hint)}</p>
-      <div class="recon-flow-detail-cols">
-        <div class="recon-flow-detail-col"><h4>Pipeline phases</h4><div class="recon-flow-chips">${phaseChips}</div></div>
-        <div class="recon-flow-detail-col"><h4>Tools</h4><div class="recon-flow-chips">${stage.tools.length ? toolChips : `<span class="recon-flow-chip muted">Internal collectors (no external CLI)</span>`}</div></div>
-        ${sourceChips}
-      </div>`;
-    el.querySelector(".recon-flow-detail-close")?.addEventListener("click", () => { selectedStageId = null; highlightSelected(); renderDetail(); });
+      <p class="flow-modal-hint">${esc(stage.hint)}</p>
+      <div class="flow-modal-progress"><span style="width:${progress}%"></span><strong>${progress}%</strong></div>
+      <h4>Commands</h4>
+      ${toolRows}
+      <h4>Pipeline phases</h4>
+      <div class="recon-flow-chips">${(stage.phases || []).map((p) => `<span class="recon-flow-chip">${esc(p)}</span>`).join("") || `<span class="recon-flow-chip muted">—</span>`}</div>
+      ${(stage.sources || []).length ? `<h4>Passive sources</h4><div class="recon-flow-chips">${stage.sources.map((s) => `<span class="recon-flow-chip">${esc(s)}</span>`).join("")}</div>` : ""}
+      <h4>Recent events</h4>
+      <div class="flow-modal-events">${eventRows}</div>
+      <div class="flow-modal-actions"><button type="button" data-flow-ask="${esc(aiPrompt)}">Ask AI about this stage</button></div>`;
   }
 
-  function labelFor(key) {
-    return { domains: "Domains", urls: "URLs", httpServices: "Services", technologies: "Tech", screenshots: "Screens" }[key] || key;
-  }
-  function statusLabel(status) {
-    // "idle" (no run loaded) renders no label, so the static map doesn't read as "Pending" everywhere.
-    return { done: "Completed", running: "Running", pending: "Pending", idle: "" }[status] ?? status;
+  // Hand off to the AI chat: open it and prefill the question (the operator decides whether to send).
+  function askAi(text) {
+    const restore = $("aiRestore");
+    if (restore?.classList.contains("active")) restore.click();
+    const prompt = $("aiPrompt");
+    if (prompt) { prompt.value = text; prompt.focus(); }
+    closeModal();
   }
 
+  // ── Data refresh / lifecycle ───────────────────────────────────────────────
   async function refresh() {
     if (!currentRunId) return;
     try {
@@ -201,11 +383,13 @@
         api(`/api/recon-runs/${currentRunId}/counts`),
         api(`/api/recon-runs/${currentRunId}/tool-results`)
       ]);
+      lastRun = runData.run;
       render({ run: runData.run, events: eventData.events || [], counts: countsData.counts, toolResults: toolData.toolResults || [] });
       const terminal = ["completed", "failed", "cancelled"].includes(runData.run?.status);
       if (terminal && timer) { clearInterval(timer); timer = null; }
     } catch (error) {
-      $("reconFlowBody").innerHTML = `<p class="danger-text">${esc(error.message)}</p>`;
+      const status = $("reconFlowStatus");
+      if (status) status.textContent = error.message;
     }
   }
 
@@ -213,7 +397,6 @@
     return Number(document.getElementById("runId")?.textContent) || null;
   }
 
-  // Render the flow into its panel. Called when the Flow tab is activated.
   function activate(runId) {
     const panel = ensurePanel();
     if (!panel) return;
@@ -221,10 +404,9 @@
     selectedStageId = null;
     animateNext = true;
     if (timer) { clearInterval(timer); timer = null; }
+    startLinkLoop();
     if (!currentRunId) {
-      // No run loaded: show the static pipeline map (idle, no "Pending") so the full flow is still visible.
       render({ run: null, events: [], counts: null, toolResults: [] });
-      $("reconFlowStatus").textContent = "No run loaded — showing the full recon pipeline.";
       return;
     }
     refresh();
@@ -233,6 +415,8 @@
 
   function deactivate() {
     if (timer) { clearInterval(timer); timer = null; }
+    stopLinkLoop();
+    closeModal();
   }
 
   // Backward-compatible entry point (status pill): switch to the Flow tab, then render the run.
