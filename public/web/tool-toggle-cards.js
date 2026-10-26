@@ -52,6 +52,30 @@
     sourceRdap: ["Provider source", "RDAP / WHOIS enrichment"]
   };
 
+  // Representative command each tool runs, shown as a themed tooltip on hover. Placeholders
+  // (<domain>, hosts.txt, <ports>, <url>) stand in for the live per-run inputs.
+  const TOOL_COMMAND = {
+    subfinder: "subfinder -d <domain> -silent -all",
+    amass: "amass enum -passive -d <domain>",
+    dnsx: "dnsx -l hosts.txt -silent -a -aaaa -cname",
+    puredns: "puredns resolve hosts.txt --write -",
+    shuffleDns: "shuffledns -d <domain> -w wordlist.txt -silent",
+    gau: "gau <domain>",
+    httpx: "httpx -l hosts.txt -ports <ports> -json -silent -status-code -title -tech-detect",
+    useFfuf: "ffuf -u <url>/FUZZ -w paths.txt -mc 200,204,301,302,307,401,403,405",
+    useCloudEnum: "cloud_enum -k <keyword> --quickscan",
+    useBypass403: "gobypass403 -u <url>",
+    useGetJs: "getJS --input hosts.txt --complete",
+    useKatana: "katana -list hosts.txt -jc -silent",
+    useTlsx: "tlsx -l hosts.txt -san -cn -silent",
+    useSubzy: "subzy run --targets hosts.txt",
+    useWaymore: "waymore -i <domain> -mode U",
+    useParamSpider: "paramspider -d <domain>",
+    useNmap: "nmap -iL hosts.txt -p <ports> -sV --open -T3",
+    gowitness: "gowitness scan file -f hosts.txt --screenshot-path shots/",
+    eyewitness: "eyewitness --web -f hosts.txt -d out --no-prompt"
+  };
+
   const TOOL_RECOMMENDED = new Set([
     "crtsh", "wayback", "rapiddns", "certspotter", "securitytrails", "shodan", "virustotal",
     "urlscan", "useLinuxRunner", "subfinder", "dnsx", "gau", "httpx", "gowitness"
@@ -76,6 +100,7 @@
 
     control.dataset.auraToggleReady = "true";
     control.dataset.auraToggleVariant = variant;
+    if (TOOL_COMMAND[input.id]) control.dataset.tooltip = `Runs: ${TOOL_COMMAND[input.id]}`;
     control.classList.add("aura-toggle-control");
     control.tabIndex = 0;
     control.setAttribute("role", "switch");

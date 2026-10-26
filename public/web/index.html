@@ -44,6 +44,13 @@
       <div class="pane" id="quickStartPane">
         <h2>New Scan</h2>
         <div class="form-body">
+          <div class="scan-target-row">
+            <div class="scan-target-pick">
+              <label for="target">Existing target <span class="muted">(optional)</span></label>
+              <select id="target"></select>
+            </div>
+            <button id="deleteTarget" class="danger-button" type="button">Delete</button>
+          </div>
           <label for="quickDomains">Domains to scan (one per line; wildcards allowed)</label>
           <textarea id="quickDomains" placeholder="acme.com&#10;*.acme.com"></textarea>
           <label for="quickOutOfScope">Out of scope (optional)</label>
@@ -60,6 +67,19 @@
             <button id="quickAdvancedToggle" type="button" class="secondary-button">Advanced options ▸</button>
           </div>
           <div id="quickStatus" class="notice muted">Paste one or more authorized domains and start. A target is created automatically; existing projects with the same name are reused.</div>
+          <div id="targetValidation" class="notice muted compact-notice">Select an existing target to load its saved scope, or just paste domains above.</div>
+          <details class="manual-target-details">
+            <summary>Create / edit a target manually</summary>
+            <label for="newTargetName">Target name</label>
+            <input id="newTargetName" type="text" placeholder="acme">
+            <label for="newProgramUrl">Program URL</label>
+            <input id="newProgramUrl" type="text" placeholder="https://example.com/security">
+            <label for="newInScope">In-scope domains and URLs</label>
+            <textarea id="newInScope" placeholder="example.com&#10;*.example.com&#10;https://app.example.com/login"></textarea>
+            <label for="newOutOfScope">Out-of-scope domains and URLs</label>
+            <textarea id="newOutOfScope" placeholder="dev.example.com&#10;*.internal.example.com"></textarea>
+            <button id="createTarget">Create Target</button>
+          </details>
         </div>
       </div>
       <div class="pane" id="loadProjectPane" aria-label="Load an existing project and run">
@@ -73,31 +93,6 @@
           <div id="resultsProjectHint" class="notice muted">Pick a saved project and one of its runs to open it in Results.</div>
         </div>
       </div>
-      </div>
-      <div class="target-grid recon-target">
-        <div class="pane">
-          <h2>Create Target</h2>
-          <div class="form-body">
-            <label for="newTargetName">Target name</label>
-            <input id="newTargetName" type="text" placeholder="acme">
-            <label for="newProgramUrl">Program URL</label>
-            <input id="newProgramUrl" type="text" placeholder="https://example.com/security">
-            <label for="newInScope">In-scope domains and URLs</label>
-            <textarea id="newInScope" placeholder="example.com&#10;*.example.com&#10;https://app.example.com/login"></textarea>
-            <label for="newOutOfScope">Out-of-scope domains and URLs</label>
-            <textarea id="newOutOfScope" placeholder="dev.example.com&#10;*.internal.example.com"></textarea>
-            <button id="createTarget">Create Target</button>
-          </div>
-        </div>
-        <div class="pane">
-          <h2>Active Target</h2>
-          <div class="form-body">
-            <label for="target">Target</label>
-            <select id="target"></select>
-            <button id="deleteTarget" class="danger-button" type="button">Delete Target</button>
-          </div>
-          <div id="targetValidation" class="notice muted">Select a target to load its config.</div>
-        </div>
       </div>
 
       <div class="split">

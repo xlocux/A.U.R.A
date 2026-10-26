@@ -1410,6 +1410,18 @@ body.sidebar-collapsed #workspaceNav .nav-submenu { display: none !important; }
 @media (max-width: 900px) { #quickStartRow { grid-template-columns: 1fr; } }
 #quickStartPane { max-width: 720px; }
 #quickStartPane textarea { min-height: 70px; }
+/* Consolidated target management inside the New Scan card. */
+.scan-target-row { display: flex; gap: 8px; align-items: flex-end; }
+.scan-target-row .scan-target-pick { flex: 1 1 auto; min-width: 0; }
+.scan-target-row .scan-target-pick select { width: 100%; }
+.scan-target-row #deleteTarget { flex: 0 0 auto; width: auto; margin: 0; }
+.manual-target-details { margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.manual-target-details > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 2px 0; }
+.manual-target-details[open] > summary { margin-bottom: 6px; }
+/* Keep the quick path clean: target management only shows in Advanced. */
+#tab-recon.quick-only .scan-target-row,
+#tab-recon.quick-only #targetValidation,
+#tab-recon.quick-only .manual-target-details { display: none !important; }
 .secondary-button {
   background: transparent !important;
   color: var(--muted) !important;
