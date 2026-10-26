@@ -1714,6 +1714,75 @@ async function exportRun(format) {
   window.location.href = `/api/recon-runs/${encodeURIComponent(activeRunId)}/export/${format}`;
 }
 
+// ── Export the collected surface for Burp Suite / Caido ──────────────────────
+function downloadText(filename, text, type = "text/plain") {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportBaseName() {
+  return `aura-${($("target")?.value || "run")}${activeRunId ? `-run${activeRunId}` : ""}`;
+}
+
+function collectAllUrls() {
+  const urls = new Set();
+  for (const item of resultsData.urls || []) { const v = item.value || item.url; if (/^https?:\/\//i.test(v || "")) urls.add(v); }
+  for (const svc of resultsData.services || []) { if (/^https?:\/\//i.test(svc.url || "")) urls.add(svc.url); }
+  return [...urls].sort();
+}
+
+function collectHosts() {
+  const hosts = new Set();
+  for (const d of resultsData.domains || []) { if (d.domain) hosts.add(String(d.domain).toLowerCase()); }
+  for (const svc of resultsData.services || []) { const h = hostnameOf(svc.url); if (h) hosts.add(h.toLowerCase()); }
+  for (const u of resultsData.urls || []) { const h = hostnameOf(u.value || u.url); if (h) hosts.add(h.toLowerCase()); }
+  return [...hosts].filter(Boolean).sort();
+}
+
+function exportUrlList() {
+  const urls = collectAllUrls();
+  if (!urls.length) { $("status").textContent = "No URLs to export yet."; return; }
+  downloadText(`${exportBaseName()}-urls.txt`, urls.join("\n"));
+}
+
+function exportLiveServices() {
+  const urls = [...new Set((resultsData.services || []).map((s) => s.url).filter((u) => /^https?:\/\//i.test(u || "")))].sort();
+  if (!urls.length) { $("status").textContent = "No live services to export yet."; return; }
+  downloadText(`${exportBaseName()}-live-services.txt`, urls.join("\n"));
+}
+
+function exportBurpScope() {
+  const hosts = collectHosts();
+  if (!hosts.length) { $("status").textContent = "No hosts to build a scope from yet."; return; }
+  const include = hosts.map((host) => ({
+    enabled: true,
+    host: `^${host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+    protocol: "any"
+  }));
+  const scope = { target: { scope: { advanced_mode: true, include, exclude: [] } } };
+  downloadText(`${exportBaseName()}-burp-scope.json`, JSON.stringify(scope, null, 2), "application/json");
+}
+
+function exportCaidoScope() {
+  // Caido in-scope uses host globs; export both the exact host and a wildcard for its registrable root.
+  const hosts = collectHosts();
+  if (!hosts.length) { $("status").textContent = "No hosts to build a scope from yet."; return; }
+  const globs = new Set();
+  for (const host of hosts) {
+    globs.add(host);
+    const root = host.split(".").slice(-2).join(".");
+    if (root && root !== host) globs.add(`*.${root}`);
+  }
+  downloadText(`${exportBaseName()}-caido-scope.txt`, [...globs].sort().join("\n"));
+}
+
 async function checkEnvironment() {
   $("checkEnvironment").disabled = true;
   $("setupLog").textContent = "Checking environment...";
@@ -2254,6 +2323,10 @@ window.AuraAiAgent?.bind?.();
 $("exportJson").addEventListener("click", () => exportRun("json"));
 $("exportCsv").addEventListener("click", () => exportRun("csv"));
 $("exportMarkdown").addEventListener("click", () => exportRun("markdown"));
+$("exportUrlList")?.addEventListener("click", exportUrlList);
+$("exportLiveServices")?.addEventListener("click", exportLiveServices);
+$("exportBurpScope")?.addEventListener("click", exportBurpScope);
+$("exportCaidoScope")?.addEventListener("click", exportCaidoScope);
 document.querySelectorAll(".settings-tab").forEach((button) => {
   button.addEventListener("click", () => activateSettingsPanel(button.dataset.settingsPanel));
 });
@@ -2271,6 +2344,13 @@ document.addEventListener("click", (event) => {
   }
   const chip = event.target.closest(".risk-chip");
   if (chip) { riskUrlFilter = chip.dataset.risk || "all"; renderRiskUrls(); }
+});
+$("exportRiskUrls")?.addEventListener("click", () => {
+  const all = classifyRiskUrls(resultsData.urls);
+  const shown = riskUrlFilter === "all" ? all : all.filter((m) => m.cls === riskUrlFilter);
+  const urls = [...new Set(shown.map((m) => m.url))].sort();
+  if (!urls.length) { $("status").textContent = "No risk URLs to export."; return; }
+  downloadText(`${exportBaseName()}-risk-${riskUrlFilter}.txt`, urls.join("\n"));
 });
 // Add an "Expand" control to the Results sub-tab strip that opens the active view fullscreen.
 (function addResultsExpandButton() {
