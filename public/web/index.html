@@ -55,7 +55,6 @@
             <option value="full">Full — deep &amp; noisier (+ ffuf, cloud_enum, gobypass403, waymore, paramspider)</option>
           </select>
           <div id="scanTierHint" class="notice muted compact-notice">Normal is a good default. Full is more thorough but slower and noisier — use only on authorized scope.</div>
-          <label class="check"><input id="quickAuthorized" type="checkbox"> <span>I am authorized to scan this scope</span></label>
           <div class="row">
             <button id="quickStart" type="button">Create &amp; Start Recon</button>
             <button id="quickAdvancedToggle" type="button" class="secondary-button">Advanced options ▸</button>
@@ -186,10 +185,29 @@
             <div class="check"><input id="shuffleDns" type="checkbox"> <span>shuffle-dns bruteforce</span></div>
             <div class="check"><input id="gau" type="checkbox" checked> <span>gau URL mining</span></div>
             <div class="check"><input id="httpx" type="checkbox" checked> <span>httpx status/tech</span></div>
+            <div class="check"><input id="useKatana" type="checkbox"> <span>katana crawl (live endpoints)</span></div>
+            <div class="check"><input id="useTlsx" type="checkbox"> <span>tlsx (certificate SAN hosts)</span></div>
+            <div class="check"><input id="useSubzy" type="checkbox"> <span>subzy (subdomain takeover)</span></div>
+            <div class="check"><input id="useGetJs" type="checkbox"> <span>getJS (JavaScript URLs)</span></div>
+            <div class="check"><input id="useWaymore" type="checkbox"> <span>waymore (archived URLs)</span></div>
+            <div class="check"><input id="useParamSpider" type="checkbox"> <span>ParamSpider (URL parameters)</span></div>
             <div class="check"><input id="useFfuf" type="checkbox"> <span>ffuf directory discovery</span></div>
             <div class="check"><input id="useCloudEnum" type="checkbox"> <span>cloud_enum public cloud resources</span></div>
             <div class="check"><input id="useBypass403" type="checkbox"> <span>gobypass403 (403/401 bypass)</span></div>
-            <div class="check"><input id="useGetJs" type="checkbox"> <span>getJS (JavaScript URLs)</span></div>
+
+            <label>Port scan (nmap)</label>
+            <div class="check"><input id="useNmap" type="checkbox"> <span>nmap service/version scan</span></div>
+            <div class="nmap-port-controls">
+              <select id="nmapPreset" aria-label="nmap port preset">
+                <option value="common" selected>Common services (web, rdp, vnc, grafana, db…)</option>
+                <option value="web">Web only (80/443/8080/8081/8443/8000/8888/3000)</option>
+                <option value="top1000">Top 1000 ports (nmap default)</option>
+                <option value="full">All 65535 ports (slow — authorized scope only)</option>
+                <option value="custom">Custom ports…</option>
+              </select>
+              <input id="nmapPorts" type="text" placeholder="e.g. 3000,3389,5900,8443" class="hidden">
+            </div>
+            <div class="notice muted compact-notice">nmap runs <code>-sV</code> service/version detection on the chosen ports and feeds the end-of-recon vulnerability check.</div>
 
             <label>Screenshots</label>
             <div class="check"><input id="gowitness" type="checkbox" checked> <span>gowitness</span></div>

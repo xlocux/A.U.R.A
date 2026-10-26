@@ -946,7 +946,6 @@ async function quickStart() {
   const status = $("quickStatus");
   const fail = (message) => { status.textContent = message; status.className = "notice error"; };
   if (domains.length === 0) return fail("Enter at least one domain to scan.");
-  if (!$("quickAuthorized").checked) return fail("Confirm you are authorized to scan this scope before starting.");
   const outOfScope = textLines("quickOutOfScope");
   const name = deriveTargetName(domains[0]);
   $("quickStart").disabled = true;
@@ -1022,6 +1021,19 @@ function reconToolFlags() {
   return flags;
 }
 
+// Builds the linuxTools list; appends an nmap spec (with its own port preset/custom ports) when enabled.
+function buildLinuxToolSpecs() {
+  const tools = selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"]);
+  if ($("useNmap")?.checked) {
+    const preset = $("nmapPreset")?.value || "common";
+    const spec = { name: "nmap" };
+    if (preset === "custom") spec.nmapPorts = $("nmapPorts")?.value || "";
+    else spec.nmapPreset = preset;
+    tools.push(spec);
+  }
+  return tools;
+}
+
 async function startRecon() {
   if (!$("target").value) {
     $("status").textContent = "Create a target before starting recon.";
@@ -1053,7 +1065,7 @@ async function startRecon() {
         intelPreflight: $("intelPreflight").checked,
         useLinuxRunner: $("useLinuxRunner").checked,
         linuxRuntime: $("linuxRuntime").value,
-        linuxTools: selectedValues(["subfinder", "amass", "dnsx", "puredns", "shuffleDns", "gau", "httpx"]),
+        linuxTools: buildLinuxToolSpecs(),
         // Scan tier drives which optional tools run; a ticked checkbox adds that tool on top of the tier.
         scanTier: $("scanTier")?.value || "normal",
         ...reconToolFlags(),
@@ -2244,6 +2256,9 @@ reorderNav();
 if (localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) && !document.getElementById(`tab-${localStorage.getItem(ACTIVE_TAB_STORAGE_KEY)}`)) {
   setTimeout(restoreActiveTab, 600);
 }
+$("nmapPreset")?.addEventListener("change", () => {
+  $("nmapPorts")?.classList.toggle("hidden", $("nmapPreset").value !== "custom");
+});
 $("quickStart")?.addEventListener("click", quickStart);
 $("quickAdvancedToggle")?.addEventListener("click", () => {
   const recon = document.getElementById("tab-recon");

@@ -1395,6 +1395,14 @@ body.sidebar-collapsed #workspaceNav .nav-submenu { display: none !important; }
 /* ── Quick start (New Scan) ─────────────────────────────────────────────────
    Collapsed-by-default advanced view: quick-only hides everything but the New Scan pane. */
 #tab-recon.quick-only > *:not(#quickStartRow) { display: none !important; }
+/* In advanced view the full target flow (Active Target) already owns project selection, so hide the
+   quick "Load Project" pane to avoid showing the project/target twice. The New Scan pane stays (it
+   carries the Advanced toggle). */
+#tab-recon:not(.quick-only) #loadProjectPane { display: none !important; }
+#tab-recon:not(.quick-only) #quickStartRow { grid-template-columns: 1fr; }
+.nmap-port-controls { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
+.nmap-port-controls select, .nmap-port-controls input { width: 100%; }
+.nmap-port-controls input.hidden { display: none; }
 /* New Scan + Load Project as two equal columns. */
 #quickStartRow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin-bottom: 12px; }
 #quickStartRow > .pane { margin: 0; }
