@@ -227,13 +227,16 @@
     const label = pendingFiles.length ? `${prompt}\n\n(${pendingFiles.length} attachment${pendingFiles.length === 1 ? "" : "s"})` : prompt;
     appendMessage("user", label);
     $("aiPrompt").value = "";
+    window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "thinking" } }));
     try {
       const message = await postAgentPrompt(prompt, { fileIds });
       pendingFiles = [];
       renderAttachments();
       appendMessage("assistant", message);
+      window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "reply" } }));
     } catch (error) {
       appendMessage("assistant", error.message);
+      window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "error", text: "Hmm, that request failed." } }));
     } finally {
       $("sendAiPrompt").disabled = false;
       $("aiPrompt").focus();

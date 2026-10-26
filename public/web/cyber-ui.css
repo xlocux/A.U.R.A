@@ -1,0 +1,82 @@
+/* Cyber UI layer: one look for every modal + the tooltip. Everything derives from the active THEME
+   tokens (--accent, --accent-2, --bad, --panel, --bg, --ink, --muted, --line), so it recolors with the theme.
+   Loaded last. Modals get .fx-modal / .fx-dialog from cyber-modals.js (no per-modal markup changes). */
+
+/* ── Modals: frame, backdrop, type, controls ── */
+.fx-modal {
+  background: color-mix(in srgb, var(--bg) 74%, transparent) !important;
+  backdrop-filter: blur(6px) saturate(1.2) !important;
+}
+.fx-dialog {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, var(--line)) !important;
+  border-radius: 0 !important;
+  background:
+    repeating-linear-gradient(180deg, color-mix(in srgb, var(--ink) 3%, transparent) 0 1px, transparent 1px 3px),
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 10%, var(--panel)), color-mix(in srgb, var(--bg) 90%, #000) 62%) !important;
+  box-shadow: 0 0 34px color-mix(in srgb, var(--accent) 24%, transparent), inset 0 0 46px color-mix(in srgb, var(--accent) 8%, transparent) !important;
+  color: var(--ink);
+}
+.fx-dialog h1, .fx-dialog h2, .fx-dialog h3, .fx-dialog .aura-dialog-title, .fx-dialog .tools-modal-head strong {
+  font-family: 'Rajdhani', 'Segoe UI', sans-serif; letter-spacing: .12em; text-transform: uppercase;
+}
+.fx-dialog button {
+  border-radius: 0 !important;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  font-family: 'Rajdhani', 'Segoe UI', sans-serif; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
+.fx-dialog .aura-dialog-primary, .fx-dialog button.primary { background: var(--accent) !important; color: color-mix(in srgb, var(--bg) 90%, #000) !important; border-color: transparent !important; box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent); }
+.fx-dialog input, .fx-dialog textarea, .fx-dialog select {
+  border-radius: 0 !important; border-color: color-mix(in srgb, var(--accent) 34%, var(--line)) !important;
+  background: color-mix(in srgb, var(--bg) 64%, transparent) !important;
+}
+.fx-dialog input:focus, .fx-dialog textarea:focus, .fx-dialog select:focus { outline: 1px solid var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent); }
+.fx-dialog pre, .fx-dialog code { font-family: 'Share Tech Mono', ui-monospace, Consolas, monospace; }
+
+/* HUD corner brackets + interference/static layers (injected by cyber-modals.js). */
+.fx-corner { position: absolute; z-index: 4; width: 14px; height: 14px; border: 0 solid var(--accent); filter: drop-shadow(0 0 4px var(--accent)); pointer-events: none; }
+.fx-corner.tl { left: 5px; top: 5px; border-width: 2px 0 0 2px; }
+.fx-corner.tr { right: 5px; top: 5px; border-width: 2px 2px 0 0; }
+.fx-corner.bl { left: 5px; bottom: 5px; border-width: 0 0 2px 2px; }
+.fx-corner.br { right: 5px; bottom: 5px; border-width: 0 2px 2px 0; }
+.fx-noise { position: absolute; inset: 0; z-index: 5; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.5 -.25'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+.fx-lost { position: absolute; inset: 0; z-index: 6; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 4px; pointer-events: none; text-align: center; }
+.fx-lost b { font: 700 28px/1 'Rajdhani', sans-serif; letter-spacing: .5em; padding-left: .5em; color: var(--bad); text-shadow: 0 0 14px var(--bad), 2px 0 var(--accent-2), -2px 0 var(--bad); }
+.fx-lost small { font: 400 11px 'Share Tech Mono', monospace; letter-spacing: .3em; color: color-mix(in srgb, var(--bad) 70%, #fff); text-transform: uppercase; }
+
+/* OPEN: signal interference (jitter, RGB split, static). CLOSE: signal lost (tear, collapse, static). */
+.fx-modal.fx-booting { animation: fmBackdropIn .75s ease-out; }
+.fx-modal.fx-booting .fx-dialog { animation: fmBoot .75s steps(1, end) both, fmSplit .75s linear !important; }
+.fx-modal.fx-booting .fx-noise { animation: fmNoiseIn .75s steps(8, end) forwards; }
+.fx-modal.fx-closing { animation: fmBackdropOut .7s ease-in forwards; }
+.fx-modal.fx-closing .fx-dialog { animation: fmLost .7s cubic-bezier(.5, 0, .8, .4) forwards !important; }
+.fx-modal.fx-closing .fx-noise { animation: fmNoiseOut .7s steps(10, end) forwards; }
+.fx-modal.fx-closing .fx-lost { display: flex; animation: fmLostText .7s steps(1, end) forwards; }
+.fx-modal.fx-closing .fx-dialog > :not(.fx-noise):not(.fx-lost):not(.fx-corner) { animation: fmBodyOut .7s linear forwards; }
+@media (prefers-reduced-motion: reduce) { .fx-modal.fx-booting, .fx-modal.fx-booting *, .fx-modal.fx-closing, .fx-modal.fx-closing * { animation: none !important; } }
+
+/* ── Tooltip: HUD readout (chamfered, accent bar, decode sweep). Multi-line = title + detail + command. ── */
+.aura-tooltip {
+  max-width: 360px; padding: 8px 13px 8px 15px; border: 0 !important; border-left: 2px solid var(--accent) !important; border-radius: 0 !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 17%, color-mix(in srgb, var(--bg) 93%, #000)), color-mix(in srgb, var(--bg) 95%, #000) 70%) !important;
+  color: var(--ink) !important;
+  font: 600 12.5px/1.35 'Rajdhani', 'Segoe UI', sans-serif; letter-spacing: .04em;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+  box-shadow: none !important; overflow: hidden;
+}
+.aura-tooltip::before { content: ""; position: absolute; right: 0; top: 0; width: 9px; height: 9px; background: linear-gradient(225deg, var(--accent) 0 1.5px, transparent 1.5px); }
+.aura-tooltip::after, .aura-tooltip.below::after {
+  content: ""; position: absolute; inset: 0; width: auto; height: auto; bottom: auto; left: 0; top: 0; transform: translateX(-110%); border: 0 !important;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 38%, transparent), transparent) !important; opacity: 0;
+}
+.aura-tooltip.reveal { animation: ttIn .24s steps(7, end); }
+.aura-tooltip.reveal::after { animation: ttSweep .5s ease-out forwards; }
+.aura-tooltip .aura-tip-title { display: block; margin-bottom: 3px; font: 700 11px 'Rajdhani', sans-serif; letter-spacing: .22em; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+.aura-tooltip .aura-tip-line { display: block; font: 400 11.5px 'Share Tech Mono', ui-monospace, monospace; color: var(--muted); letter-spacing: .02em; }
+.aura-tooltip .aura-tip-cmd { display: block; margin-top: 5px; padding: 4px 8px; border-left: 2px solid var(--accent-2); background: color-mix(in srgb, var(--accent) 9%, rgba(0, 0, 0, .45)); font: 400 11.5px 'Share Tech Mono', ui-monospace, monospace; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.aura-tooltip .aura-tip-cmd::before { content: "$ "; color: var(--accent); }
+
+@keyframes ttIn { 0% { opacity: 0; transform: translateY(4px) scaleX(.96); filter: brightness(2.4); } 40% { opacity: 1; filter: brightness(1.6); } 55% { opacity: .55; } 100% { opacity: 1; transform: none; filter: none; } }
+@keyframes ttSweep { 0% { transform: translateX(-110%); opacity: 1; } 100% { transform: translateX(110%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .aura-tooltip.reveal, .aura-tooltip.reveal::after { animation: none; } }

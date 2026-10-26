@@ -101,7 +101,7 @@
 
     control.dataset.auraToggleReady = "true";
     control.dataset.auraToggleVariant = variant;
-    if (TOOL_COMMAND[input.id]) control.dataset.tooltip = `Runs: ${TOOL_COMMAND[input.id]}`;
+    if (TOOL_COMMAND[input.id]) control.dataset.tooltip = `${labelText}\nRuns: ${TOOL_COMMAND[input.id]}`;
     control.classList.add("aura-toggle-control");
     control.tabIndex = 0;
     control.setAttribute("role", "switch");

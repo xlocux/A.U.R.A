@@ -21,6 +21,9 @@
   let animateNext = false; // play the short reveal only on the first render after activate
   let zoom = 1;
   let linkRaf = null;
+  const announcedEvents = new Set(); // event ids already handled by announceNew
+  const announcedTools = new Set(); // tool names whose failure was already announced
+  let prevStatus = null; // stage id -> last status, to detect a stage finishing
 
   // Ordered pipeline. `phases` match event.phase values; `tools` are the CLI tools the stage runs.
   const STAGES = [
@@ -47,6 +50,18 @@
     { id: "vnuclei", zone: "vuln", strict: true, label: "Template scan", phases: ["follow-up-vuln"], sources: ["nuclei"], tools: ["nuclei"], hint: "nuclei templates against live services (CVE / misconfig / exposure)" }
   ];
   STAGES.forEach((stage) => { stage.zone = stage.zone || "recon"; });
+
+  // Categories drive the tile colour (theme-aware, see flow-hex.css). vuln uses the theme's "bad" colour.
+  const CATEGORY_OF = {
+    intel: "osint", passive: "osint",
+    subdomains: "enum", tls: "enum", takeover: "enum",
+    urls: "content", crawl: "content", params: "content", js: "content", dirs: "content",
+    http: "analysis", tech: "analysis", screenshots: "analysis", fingerprint: "analysis",
+    cloud: "exposure", bypass403: "exposure", recovery: "ai",
+    vport: "vuln", vversion: "vuln", vnuclei: "vuln"
+  };
+  const CATEGORY_LABEL = { osint: "Intel", enum: "Enumeration", content: "Content", analysis: "Analysis", exposure: "Exposure", ai: "AI", vuln: "Vulnerability" };
+  STAGES.forEach((stage) => { stage.cat = CATEGORY_OF[stage.id] || "osint"; });
 
   // Organic "molecular" layout (percent of the field). Recon (left ~75%) is a loose 3-row serpentine;
   // the vulnerability phase sits in its own zone on the right, entered through the handoff divider.
@@ -105,12 +120,8 @@
         <header class="recon-flow-head recon-flow-head--min">
           <span id="reconFlowStatus" class="muted"></span>
           <span id="reconFlowBanner" class="recon-flow-banner"></span>
-          <div class="recon-flow-zoom" role="group" aria-label="Flow view controls">
-            <button type="button" data-flow-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
-            <button type="button" data-flow-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
-            <button type="button" data-flow-zoom="fit" title="Fit to view" aria-label="Fit to view">Fit</button>
-            <button type="button" data-flow-zoom="full" title="Fullscreen" aria-label="Fullscreen">${ZOOM_ICON_FULL}</button>
-          </div>
+          <span class="flow-legend" aria-label="Category colours">${Object.entries(CATEGORY_LABEL).map(([key, label]) => `<i data-cat="${key}"><b></b><em>${label}</em></i>`).join("")}</span>
+          <div class="recon-flow-zoom" role="group" aria-label="Flow view controls"><button type="button" class="flow-ctl" data-flow-zoom="out" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button><button type="button" class="flow-ctl" data-flow-zoom="in" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><button type="button" class="flow-ctl" data-flow-zoom="fit" title="Fit to view" aria-label="Fit to view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V6a2 2 0 0 1 2-2h3M20 9V6a2 2 0 0 0-2-2h-3M4 15v3a2 2 0 0 0 2 2h3M20 15v3a2 2 0 0 1-2 2h-3"/><circle cx="12" cy="12" r="2.2"/></svg></button><button type="button" class="flow-ctl" data-flow-zoom="full" title="Fullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/></svg></button></div>
         </header>
         <div class="recon-flow-body" id="reconFlowBody"></div>
       </div>`;
@@ -136,17 +147,16 @@
       const dur = 6 + ((index * 5) % 6);
       const delay = -((index * 3) % 7);
       const vertices = ["v1", "v2", "v3", "v4", "v5", "v6"].map((v) => `<i class="flow-vtx ${v}"></i>`).join("");
-      return `<div class="flow-hex idle" data-stage-id="${esc(stage.id)}" data-zone="${esc(stage.zone)}" tabindex="0" role="button" style="left:${x}%;top:${y}%;--i:${index};--fx:${index % 2 ? fx : -fx}px;--fy:${index % 3 ? -fy : fy}px;--dur:${dur}s;--delay:${delay}s">
+      return `<div class="flow-hex idle" data-stage-id="${esc(stage.id)}" data-zone="${esc(stage.zone)}" data-cat="${esc(stage.cat)}" tabindex="0" role="button" style="left:${x}%;top:${y}%;--i:${index};--fx:${index % 2 ? fx : -fx}px;--fy:${index % 3 ? -fy : fy}px;--dur:${dur}s;--delay:${delay}s">
         <div class="flow-hex-float">${vertices}<div class="flow-hex-shape"><span class="flow-hex-ring"></span><span class="flow-hex-core"></span><span class="flow-hex-name">${esc(stage.label)}</span></div></div>
       </div>`;
     }).join("");
-    const links = STAGES.slice(0, -1).map((_, index) => `<g class="flow-link off" data-link="${index}"><path class="flow-link-base"/><path class="flow-link-glow"/><path class="flow-link-flow"/></g>`).join("");
+    const links = STAGES.slice(0, -1).map((_, index) => `<g class="flow-link off" data-link="${index}"><path class="flow-link-base"/><path class="flow-link-glow"/><path class="flow-link-flow"/><path class="flow-link-glint" pathLength="100"/></g>`).join("");
     // Two glowing "data packets" ride each link while it is active (positioned via CSS offset-path).
     const packets = STAGES.slice(0, -1).map((_, index) => `<i class="flow-packet" data-packet="${index}" style="--pd:0s"></i><i class="flow-packet" data-packet="${index}" style="--pd:-0.75s"></i>`).join("");
     const synapses = SYNAPSES.map((_, k) => `<g class="flow-syn off" data-syn="${k}"><path class="syn-base"/><path class="syn-pulse" pathLength="100"/></g>`).join("");
     const zones = `<div class="flow-zone-label recon" style="left:1.5%">RECON<small>discovery &amp; enumeration</small></div>
-      <div class="flow-zone-label vuln" style="left:${DIVIDER_X + 2.5}%">VULNERABILITY<small>exposure &amp; CVE</small></div>
-      <div class="flow-divider" style="left:${DIVIDER_X}%"><span>HANDOFF</span></div>`;
+      <div class="flow-zone-label vuln" style="left:${DIVIDER_X + 2.5}%">VULNERABILITY<small>exposure &amp; CVE</small></div>`;
     body.innerHTML = `<div class="flow-field" id="flowField"><div class="flow-stage" id="flowStage">${zones}<svg class="flow-links" id="flowLinks" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g class="flow-synapses">${synapses}</g>${links}</svg>${packets}${hexes}</div></div>`;
     applyZoom("set");
   }
@@ -285,6 +295,31 @@
     return hot;
   }
 
+  // Tell the avatar about notable things: new vulnerability findings and failing tools. The first
+  // render of a run only records what already happened, so reopening a finished run stays quiet.
+  function announceNew(firstRender) {
+    let vulnCount = 0;
+    let vulnStage = "vnuclei";
+    for (const event of lastEvents) {
+      if (announcedEvents.has(event.id)) continue;
+      announcedEvents.add(event.id);
+      if (firstRender || event.phase !== "follow-up-vuln") continue;
+      const match = String(event.message || "").match(/(\d+)\s+(?:template finding|CVE)/i);
+      const n = match ? Number(match[1]) : 0;
+      if (n > 0) { vulnCount += n; vulnStage = event.source === "nvd" ? "vversion" : "vnuclei"; }
+    }
+    if (vulnCount > 0) window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "vuln", count: vulnCount, stageId: vulnStage } }));
+    for (const result of lastToolResults) {
+      const name = String(result.tool_name || "").replace(/-batch$|-recovery$|-\d+$/, "");
+      if (!name || announcedTools.has(name)) continue;
+      if (!/^(failed|timeout|error)$/i.test(String(result.status || ""))) continue;
+      announcedTools.add(name);
+      if (firstRender) continue;
+      const word = /timeout/i.test(result.status) ? "timed out" : "failed";
+      window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "tool-fail", text: name + " " + word + " - I'll keep an eye on it." } }));
+    }
+  }
+
   function tooltipFor(stage) {
     const state = statusLabel(stage.status);
     const tools = stage.tools.length ? ` · ${stage.tools.map((t) => t.name).join(", ")}` : "";
@@ -298,6 +333,17 @@
     lastToolResults = toolResults || [];
     const stages = deriveStageStatus({ run, events: lastEvents, toolResults: lastToolResults });
     lastStages = stages;
+
+    // A stage that just finished (was pending/running, now done): let the AI avatar react to it.
+    // Only one announcement per refresh, preferring the vulnerability zone; never on the first render.
+    const firstRender = !prevStatus;
+    if (prevStatus) {
+      const finished = stages.filter((s) => s.status === "done" && (prevStatus[s.id] === "running" || prevStatus[s.id] === "pending"));
+      const pick = finished.find((s) => s.zone === "vuln") || finished[0];
+      if (pick) window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "stage", stageId: pick.id, label: pick.label, zone: pick.zone } }));
+    }
+    prevStatus = Object.fromEntries(stages.map((s) => [s.id, s.status]));
+    announceNew(firstRender);
 
     const field = $("flowField");
     if (field && animateNext) {
@@ -320,11 +366,13 @@
       const b = stages[i + 1];
       const lit = a.status === "running" || b.status === "running";
       const trace = a.status === "done" && b.status === "done";
+      group.dataset.cat = b.cat;
       const zone = b.zone === "vuln" ? " zone-vuln" : "";
       const gate = a.zone !== b.zone ? " gate" : "";
       group.setAttribute("class", `flow-link ${lit ? "on" : trace ? "done" : "off"}${zone}${gate}`);
       document.querySelectorAll(`.flow-packet[data-packet="${i}"]`).forEach((packet) => {
         packet.classList.toggle("live", lit);
+        packet.dataset.cat = b.cat;
         packet.classList.toggle("zone-vuln", b.zone === "vuln");
       });
     });
@@ -368,7 +416,7 @@
     modal = document.createElement("div");
     modal.id = "flowStageModal";
     modal.className = "flow-modal";
-    modal.innerHTML = `<div class="flow-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="flowModalTitle"><div id="flowModalBody"></div></div>`;
+    modal.innerHTML = `<div class="flow-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="flowModalTitle"><span class="fm-corner tl"></span><span class="fm-corner tr"></span><span class="fm-corner bl"></span><span class="fm-corner br"></span><div class="flow-modal-noise"></div><div class="flow-modal-lost"><b>SIGNAL LOST</b><small>link terminated</small></div><div id="flowModalBody"></div></div>`;
     document.body.appendChild(modal);
     modal.addEventListener("click", (event) => {
       if (event.target === modal || event.target.closest("[data-flow-close]")) closeModal();
@@ -379,15 +427,28 @@
     return modal;
   }
 
+  let closeTimer = null;
+
   function openStageModal(stageId) {
     selectedStageId = stageId;
-    ensureModal().classList.add("open");
+    const modal = ensureModal();
+    clearTimeout(closeTimer);
+    modal.classList.remove("closing");
+    modal.classList.add("open", "booting");
+    setTimeout(() => modal.classList.remove("booting"), 750);
     renderStageModal();
     document.querySelectorAll(".flow-hex").forEach((hex) => hex.classList.toggle("selected", hex.dataset.stageId === stageId));
   }
 
   function closeModal() {
-    $("flowStageModal")?.classList.remove("open");
+    const modal = $("flowStageModal");
+    if (modal?.classList.contains("open") && !modal.classList.contains("closing")) {
+      // "Signal lost": the panel tears/collapses to a line over static, then disappears.
+      modal.classList.remove("booting");
+      modal.classList.add("closing");
+      clearTimeout(closeTimer);
+      closeTimer = setTimeout(() => modal.classList.remove("open", "closing"), 700);
+    }
     selectedStageId = null;
     document.querySelectorAll(".flow-hex.selected").forEach((hex) => hex.classList.remove("selected"));
   }
@@ -427,20 +488,26 @@
       ? stageEvents.map((e) => `<div class="flow-modal-event ${esc(e.severity || "info")}"><span>${esc(e.source || "-")}</span>${esc(e.message || "")}</div>`).join("")
       : `<p class="muted">No events recorded for this stage yet.</p>`;
     const aiPrompt = `Explain the "${stage.label}" stage of the recon pipeline for the current run (status: ${statusLabel(stage.status) || "not started"}). What has it found or what failed, and what should I run next to go deeper?`;
+    const index = STAGES.findIndex((s) => s.id === stage.id);
+    const segs = 20;
+    const lit = Math.round((progress / 100) * segs);
+    const segBar = Array.from({ length: segs }, (_, i) => `<i class="${i < lit ? "on" : ""}"></i>`).join("");
+    $("flowStageModal")?.setAttribute("data-zone", stage.zone || "recon");
+    $("flowStageModal")?.setAttribute("data-cat", stage.cat);
     body.innerHTML = `
       <div class="flow-modal-head">
-        <span class="flow-modal-dot ${esc(stage.status)}"></span>
-        <h3 id="flowModalTitle">${esc(stage.label)}</h3>
+        <span class="flow-modal-tag">STAGE // ${String(index + 1).padStart(2, "0")} · ${esc((CATEGORY_LABEL[stage.cat] || stage.zone).toUpperCase())}</span>
         <span class="recon-flow-badge ${esc(stage.status)}">${esc(statusLabel(stage.status) || "Ready")}</span>
         <button type="button" class="flow-modal-close" data-flow-close aria-label="Close">×</button>
       </div>
+      <h3 id="flowModalTitle" class="flow-modal-title"><span class="flow-modal-dot ${esc(stage.status)}"></span><span data-text="${esc(stage.label)}">${esc(stage.label)}</span></h3>
       <p class="flow-modal-hint">${esc(stage.hint)}</p>
-      <div class="flow-modal-progress"><span style="width:${progress}%"></span><strong>${progress}%</strong></div>
+      <div class="flow-modal-progress"><div class="seg">${segBar}</div><strong>${progress}%</strong></div>
       <h4>Commands</h4>
       ${toolRows}
       <h4>Pipeline phases</h4>
       <div class="recon-flow-chips">${(stage.phases || []).map((p) => `<span class="recon-flow-chip">${esc(p)}</span>`).join("") || `<span class="recon-flow-chip muted">—</span>`}</div>
-      ${(stage.sources || []).length ? `<h4>Passive sources</h4><div class="recon-flow-chips">${stage.sources.map((s) => `<span class="recon-flow-chip">${esc(s)}</span>`).join("")}</div>` : ""}
+      ${(stage.sources || []).length ? `<h4>Sources</h4><div class="recon-flow-chips">${stage.sources.map((s) => `<span class="recon-flow-chip">${esc(s)}</span>`).join("")}</div>` : ""}
       <h4>Recent events</h4>
       <div class="flow-modal-events">${eventRows}</div>
       <div class="flow-modal-actions"><button type="button" data-flow-ask="${esc(aiPrompt)}">Ask AI about this stage</button></div>`;
@@ -484,6 +551,9 @@
     if (!panel) return;
     currentRunId = (runId === undefined ? deriveRunId() : (runId || null));
     selectedStageId = null;
+    prevStatus = null;
+    announcedEvents.clear();
+    announcedTools.clear();
     animateNext = true;
     if (timer) { clearInterval(timer); timer = null; }
     startLinkLoop();

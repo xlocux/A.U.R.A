@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="/vercel-dashboard.css">
   <link rel="stylesheet" href="/fonts/fonts.css">
   <link rel="stylesheet" href="/flow-hex.css">
+  <link rel="stylesheet" href="/ai-avatar.css">
+  <link rel="stylesheet" href="/cyber-ui.css">
 </head>
 <body>
   <canvas id="backgroundScope" class="background-scope" aria-hidden="true"></canvas>
@@ -551,7 +553,7 @@
   </main>
 
   <aside id="aiPanel" class="ai-panel floating" aria-label="AI agent chat">
-      <div id="aiDragHandle" class="ai-header"><div><h2>AI Agent</h2><p class="muted">Contextual run assistant</p></div><div class="ai-actions"><span id="aiPanelModel" class="ai-status" title="Active AI model">Local</span><button id="aiMinimize" class="icon-button" type="button" title="Minimize AI panel">Hide</button></div></div>
+      <div id="aiDragHandle" class="ai-header"><div class="ai-title"><span data-ai-avatar></span><div><h2>AI Agent</h2><p class="muted">Contextual run assistant</p></div></div><div class="ai-actions"><span id="aiPanelModel" class="ai-status" title="Active AI model">Local</span><button id="aiMinimize" class="icon-button" type="button" title="Minimize AI panel">Hide</button></div></div>
       <div id="aiMessages" class="ai-messages"><div class="ai-message assistant">I can help with target setup, scope review, recon planning, run status, tool failures, and result triage. During scans I will post useful milestones here.</div></div>
       <div class="ai-input">
         <div id="aiAttachments" class="ai-attachments hidden"></div>
@@ -564,11 +566,12 @@
       </div>
       <span class="ai-resize-handle nw" data-resize="nw" aria-hidden="true"></span><span class="ai-resize-handle ne" data-resize="ne" aria-hidden="true"></span><span class="ai-resize-handle sw" data-resize="sw" aria-hidden="true"></span><span class="ai-resize-handle se" data-resize="se" aria-hidden="true"></span>
     </aside>
-    <button id="aiRestore" class="ai-restore" type="button">AI Agent</button>
+    <button id="aiRestore" class="ai-restore" type="button"><span data-ai-avatar class="av-mini"></span>AI Agent</button>
 
   <script src="/wave-background.js"></script>
   <script src="/status-badges.js"></script>
   <script src="/ai-agent.js"></script>
+  <script src="/ai-avatar.js"></script>
   <script src="/ai-log.js"></script>
   <script src="/results-explorer.js"></script>
   <script src="/proxy-settings.js"></script>
@@ -590,5 +593,7 @@
   <script src="/guide-details.js"></script>
   <script src="/wordlist-metadata.js"></script>
   <script src="/themed-tooltips.js"></script>
+  <script src="/tooltip-catalog.js"></script>
+  <script src="/cyber-modals.js"></script>
 </body>
 </html>

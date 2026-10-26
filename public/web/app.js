@@ -6,6 +6,7 @@ let lastEventId = 0;
 let poll = null;
 let refreshRunInFlight = false;
 let latestRunActivity = "";
+let lastRunStatusForAvatar = null;
 let resultsTargetName = null; // target of the currently loaded run (for per-target lookups like cloud leads)
 let cloudLeadsCache = [];
 let aiSettings = null;
@@ -529,9 +530,11 @@ function exitResultsFullscreen() {
   if (toggle) toggle.textContent = "⛶ Expand";
 }
 
+// Starting (or following up) a scan lands on the Flow: it is the live control room for the run.
+// The run id is already in #runId, so the Flow tab picks the run up and starts refreshing it.
 function activateRunActivityView() {
-  activateTab("results");
-  activateResultsView("activity");
+  activateTab("flow");
+  window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "start" } }));
 }
 
 async function loadTargets() {
@@ -751,6 +754,14 @@ async function _refreshRun() {
   const run = runData?.run;
   if (!run) return;
   resultsTargetName = run.target_name || resultsTargetName;
+  // Let the avatar celebrate once when a watched run finishes.
+  if (run.status !== lastRunStatusForAvatar) {
+    if (lastRunStatusForAvatar && ["queued", "running", "paused"].includes(lastRunStatusForAvatar)) {
+      if (run.status === "completed") window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "done", text: `Recon complete for ${run.target_name || "the target"}!` } }));
+      else if (run.status === "failed") window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "error", text: "The run failed — check Logs." } }));
+    }
+    lastRunStatusForAvatar = run.status;
+  }
   if (["completed", "failed", "cancelled"].includes(run.status) && poll) { clearInterval(poll); poll = null; }
   const counts = countsResp?.counts || {};
   $("runStatus").textContent = run.status;

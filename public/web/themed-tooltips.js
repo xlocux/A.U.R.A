@@ -46,9 +46,30 @@
     if (!text) return;
     activeEl = el;
     const node = ensureTip();
-    node.textContent = text;
-    node.classList.remove("hidden");
+    renderTip(node, text);
+    // Restart the "decode" reveal each time a tooltip opens.
+    node.classList.remove("hidden", "reveal");
+    void node.offsetWidth;
+    node.classList.add("reveal");
     position(el);
+  }
+
+  // Multi-line text: first line is the title; "Runs: <cmd>" lines render as a command readout.
+  function renderTip(node, text) {
+    node.textContent = "";
+    const lines = String(text).split("\n").map((line) => line.trim()).filter(Boolean);
+    if (lines.length < 2) { node.textContent = lines[0] || ""; node.classList.remove("rich"); return; }
+    node.classList.add("rich");
+    const title = document.createElement("b");
+    title.className = "aura-tip-title";
+    title.textContent = lines[0];
+    node.appendChild(title);
+    for (const line of lines.slice(1)) {
+      const row = document.createElement("span");
+      row.className = /^runs:/i.test(line) ? "aura-tip-cmd" : "aura-tip-line";
+      row.textContent = line.replace(/^runs:\s*/i, "");
+      node.appendChild(row);
+    }
   }
 
   function hide() {
