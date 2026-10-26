@@ -165,3 +165,22 @@ button.hud-btn { letter-spacing: .07em; }
 /* Icon-only expand toggle in the Results strip: keep it visible at the end of the row. */
 #resultsExpandToggle { margin-left: auto; min-width: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0 8px; }
 #resultsExpandToggle svg { width: 15px; height: 15px; flex: 0 0 15px; display: block; }
+
+/* ── Delicate buttons: small text (follows the Font scale setting), tight padding, low height. ── */
+button.hud-btn {
+  font-size: calc(10.5px * var(--font-scale, 1)) !important;
+  line-height: 1.15 !important;
+  letter-spacing: .06em !important;
+  padding: calc(4px * var(--font-scale, 1)) calc(11px * var(--font-scale, 1)) !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+button.hud-btn.hud-sm {
+  font-size: calc(9.5px * var(--font-scale, 1)) !important;
+  padding: calc(3px * var(--font-scale, 1)) calc(8px * var(--font-scale, 1)) !important;
+}
+button.hud-btn svg { width: 1.15em; height: 1.15em; }
+#resultsExpandToggle svg, .flow-ctl svg { width: 14px; height: 14px; }
+select, input[type="text"], input[type="search"], input[type="number"], input[type="password"], textarea { font-size: calc(11.5px * var(--font-scale, 1)) !important; }
+/* Run control buttons (Pause/Resume/Cancel): same small size as the rest, vertically centred in the stat strip. */
+#pauseRun, #resumeRun, #cancelRun { align-self: center; min-width: 0 !important; width: auto !important; padding-left: calc(14px * var(--font-scale, 1)) !important; padding-right: calc(14px * var(--font-scale, 1)) !important; }
