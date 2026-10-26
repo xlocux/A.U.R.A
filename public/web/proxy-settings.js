@@ -53,7 +53,8 @@
     $("proxyPoolExpand")?.addEventListener("click", () => {
       const section = $("proxyPoolSection");
       const expanded = section.classList.toggle("expanded");
-      $("proxyPoolExpand").textContent = expanded ? "Collapse" : "Expand";
+      $("proxyPoolExpand").innerHTML = expanded ? window.AuraIcons.collapse : window.AuraIcons.expand;
+      $("proxyPoolExpand").title = expanded ? "Collapse table" : "Expand table";
     });
     render();
     refreshDashboard().catch(() => {});
@@ -116,7 +117,7 @@
           <strong>Pool</strong>
           <input id="proxyFilter" type="search" placeholder="Filter by host, type, region">
           <select id="proxyStatusFilter"><option value="all">All</option><option value="active">Active</option><option value="unknown">Unknown</option><option value="failed">Failed</option></select>
-          <button id="proxyPoolExpand" type="button" class="secondary-button">Expand</button>
+          <button id="proxyPoolExpand" type="button" class="secondary-button" aria-label="Expand table" title="Expand table">${window.AuraIcons ? window.AuraIcons.expand : ""}</button>
         </div>
         <div class="proxy-table-wrap scroll">
           <table class="proxy-table">

@@ -25,7 +25,6 @@
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
   font-family: var(--font-display, 'Rajdhani'), 'Segoe UI', sans-serif; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
 }
-.fx-dialog .aura-dialog-primary, .fx-dialog button.primary { background: var(--accent) !important; color: color-mix(in srgb, var(--bg) 90%, #000) !important; border-color: transparent !important; box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent); }
 .fx-dialog input, .fx-dialog textarea, .fx-dialog select {
   border-radius: 0 !important; border-color: color-mix(in srgb, var(--accent) 34%, var(--line)) !important;
   background: color-mix(in srgb, var(--bg) 64%, transparent) !important;
@@ -80,3 +79,65 @@
 @keyframes ttIn { 0% { opacity: 0; transform: translateY(4px) scaleX(.96); filter: brightness(2.4); } 40% { opacity: 1; filter: brightness(1.6); } 55% { opacity: .55; } 100% { opacity: 1; transform: none; filter: none; } }
 @keyframes ttSweep { 0% { transform: translateX(-110%); opacity: 1; } 100% { transform: translateX(110%); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .aura-tooltip.reveal, .aura-tooltip.reveal::after { animation: none; } }
+
+/* ── HUD frame buttons: translucent body, thin outline, corner brackets, centre bars, diagonal cut corners. ── */
+button.hud-btn {
+  --hb: var(--accent);
+  --bar: 34%;
+  position: relative;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: color-mix(in srgb, var(--hb) 30%, var(--ink)) !important;
+  font-family: var(--font-display, 'Rajdhani'), 'Segoe UI', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  background:
+    linear-gradient(var(--hb), var(--hb)) left top / 12px 2px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) left top / 2px 12px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) right bottom / 12px 2px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) right bottom / 2px 12px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) center top / var(--bar) 2px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) center bottom / var(--bar) 2px no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--hb) 20%, transparent), color-mix(in srgb, var(--hb) 7%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--hb) 8%, transparent) 0 1px, transparent 1px 3px) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 52%, transparent), 0 0 10px color-mix(in srgb, var(--hb) 10%, transparent) !important;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+  transition: background-size .2s ease, box-shadow .2s ease, color .2s ease, filter .2s ease;
+}
+button.hud-btn:hover:not(:disabled) {
+  --bar: 64%;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 70%, transparent), inset 0 0 18px color-mix(in srgb, var(--hb) 28%, transparent) !important;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--hb) 55%, transparent));
+}
+button.hud-btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(1.25); }
+button.hud-btn:focus-visible { outline: 1px solid color-mix(in srgb, var(--hb) 80%, #fff); outline-offset: 2px; }
+button.hud-btn:disabled { opacity: .4; filter: none; cursor: not-allowed; --bar: 18%; }
+
+/* Primary actions: stronger fill. Secondary: quieter frame. Danger: the theme's "bad" colour. */
+button.hud-btn.primary, button.hud-btn#quickStart, button.hud-btn#start, button.hud-btn.aura-dialog-primary {
+  color: #fff !important;
+  background:
+    linear-gradient(var(--hb), var(--hb)) left top / 12px 2px no-repeat, linear-gradient(var(--hb), var(--hb)) left top / 2px 12px no-repeat, linear-gradient(var(--hb), var(--hb)) right bottom / 12px 2px no-repeat, linear-gradient(var(--hb), var(--hb)) right bottom / 2px 12px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) center top / var(--bar) 2px no-repeat, linear-gradient(var(--hb), var(--hb)) center bottom / var(--bar) 2px no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--hb) 38%, transparent), color-mix(in srgb, var(--hb) 16%, transparent)),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--hb) 9%, transparent) 0 1px, transparent 1px 3px) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 62%, transparent), 0 0 14px color-mix(in srgb, var(--hb) 20%, transparent) !important;
+}
+button.hud-btn.secondary-button, button.hud-btn.aura-dialog-secondary { opacity: .88; --hb: color-mix(in srgb, var(--accent) 55%, var(--muted)); }
+button.hud-btn.danger-button, button.hud-btn.danger, button.hud-btn.api-key-delete { --hb: var(--bad); }
+button.hud-btn.hud-sm { letter-spacing: .06em; clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 5px 100%, 0 calc(100% - 5px)); }
+button.hud-btn.hud-sm:hover:not(:disabled) { --bar: 56%; }
+/* Selected tabs / pressed toggles read as filled. */
+button.hud-btn.active, button.hud-btn[aria-pressed="true"], button.hud-btn[aria-selected="true"] { color: #fff !important; --bar: 70%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 70%, transparent), inset 0 0 16px color-mix(in srgb, var(--hb) 30%, transparent) !important; }
+@media (prefers-reduced-motion: reduce) { button.hud-btn { transition: none; } }
+
+/* Fullscreen views that aren't modals (see AuraFx in cyber-modals.js). */
+.fx-target.fx-in { animation: fmBoot .75s steps(1, end) both, fmSplit .75s linear; }
+.fx-target.fx-in > .fx-noise { animation: fmNoiseIn .75s steps(8, end) forwards; }
+.fx-target.fx-out { animation: fmLost .7s cubic-bezier(.5, 0, .8, .4) forwards !important; }
+.fx-target.fx-out > .fx-noise { animation: fmNoiseOut .7s steps(10, end) forwards; }
+.fx-target.fx-out > .fx-lost { display: flex; animation: fmLostText .7s steps(1, end) forwards; }
+.fx-target.fx-out > :not(.fx-noise):not(.fx-lost) { animation: fmBodyOut .7s linear forwards; }
+@media (prefers-reduced-motion: reduce) { .fx-target, .fx-target > * { animation: none !important; } }

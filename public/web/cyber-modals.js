@@ -94,6 +94,32 @@
     new MutationObserver(queueScan).observe(document.body, { childList: true, subtree: true });
   }
 
+  // Same interference / signal-lost effects for fullscreen views that are not modals (topology, flow...).
+  // enter(el): play the interference burst. exit(el, done): play "signal lost", then call done().
+  function prepFx(el) {
+    if (el._fxPrepared) return;
+    el._fxPrepared = true;
+    el.classList.add("fx-target");
+    if (getComputedStyle(el).position === "static") el.style.position = "relative";
+    el.insertAdjacentHTML("beforeend", '<div class="fx-noise"></div><div class="fx-lost"><b>SIGNAL LOST</b><small>link terminated</small></div>');
+  }
+  window.AuraFx = {
+    enter(el) {
+      if (!el || reduced()) return;
+      prepFx(el);
+      el.classList.remove("fx-out");
+      el.classList.add("fx-in");
+      setTimeout(() => el.classList.remove("fx-in"), BOOT_MS);
+    },
+    exit(el, done) {
+      if (!el || reduced()) { if (done) done(); return; }
+      prepFx(el);
+      el.classList.remove("fx-in");
+      el.classList.add("fx-out");
+      setTimeout(() => { el.classList.remove("fx-out"); if (done) done(); }, CLOSE_MS);
+    }
+  };
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot0, { once: true });
   else boot0();
 })();

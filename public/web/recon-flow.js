@@ -632,5 +632,8 @@
     activate(runId);
   }
 
+  // The browser's own fullscreen can't be delayed on exit, so the interference burst plays on both transitions.
+  document.addEventListener("fullscreenchange", () => window.AuraFx?.enter($("tab-flow")));
+
   window.AuraReconFlow = { activate, deactivate, open, close: deactivate };
 })();

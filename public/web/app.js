@@ -489,6 +489,16 @@ function activateResultsView(name) {
 // moved into the modal (and back on close), so switching tables, grouping and sorting all stay
 // live inside fullscreen without having to exit and reopen.
 let fullscreenReturn = null;
+let fullscreenExiting = false;
+
+// Icon-only expand/collapse control for the Results fullscreen (no text label).
+function setResultsToggleIcon(expanded) {
+  const toggle = document.getElementById("resultsExpandToggle");
+  if (!toggle || !window.AuraIcons) return;
+  toggle.innerHTML = expanded ? window.AuraIcons.collapse : window.AuraIcons.expand;
+  toggle.title = expanded ? "Exit fullscreen" : "Fullscreen";
+  toggle.setAttribute("aria-label", toggle.title);
+}
 
 function ensureResultsFullscreenModal() {
   let modal = document.getElementById("resultsFullscreenModal");
@@ -503,6 +513,7 @@ function ensureResultsFullscreenModal() {
 }
 
 function toggleResultsFullscreen() {
+  if (fullscreenExiting) return;
   if (document.body.classList.contains("results-view-expanded")) {
     exitResultsFullscreen();
     return;
@@ -520,8 +531,7 @@ function toggleResultsFullscreen() {
   fullscreenReturn = { placeholder, moved };
   document.body.classList.add("results-view-expanded");
   modal.classList.remove("hidden");
-  const toggle = document.getElementById("resultsExpandToggle");
-  if (toggle) toggle.textContent = "✕ Close";
+  setResultsToggleIcon(true);
 }
 
 function exitResultsFullscreen() {
@@ -530,12 +540,15 @@ function exitResultsFullscreen() {
   document.body.classList.remove("results-view-expanded");
   if (fullscreenReturn) {
     const { placeholder, moved } = fullscreenReturn;
-    for (const node of moved) placeholder.parentNode?.insertBefore(node, placeholder);
-    placeholder.remove();
-    fullscreenReturn = null;
+    fullscreenExiting = true;
+    setTimeout(() => {
+      for (const node of moved) placeholder.parentNode?.insertBefore(node, placeholder);
+      placeholder.remove();
+      fullscreenReturn = null;
+      fullscreenExiting = false;
+    }, 740);
   }
-  const toggle = document.getElementById("resultsExpandToggle");
-  if (toggle) toggle.textContent = "⛶ Expand";
+  setResultsToggleIcon(false);
 }
 
 // Starting (or following up) a scan lands on the Flow: it is the live control room for the run.
@@ -2376,10 +2389,12 @@ $("createTarget").addEventListener("click", createTarget);
 $("deleteTarget").addEventListener("click", deleteTarget);
 $("checkEnvironment").addEventListener("click", checkEnvironment);
 $("installEnvironment").addEventListener("click", installEnvironment);
+if ($("setupLogExpand") && window.AuraIcons) $("setupLogExpand").innerHTML = window.AuraIcons.expand;
 $("setupLogExpand")?.addEventListener("click", () => {
   const log = $("setupLog");
   const expanded = log.classList.toggle("expanded");
-  $("setupLogExpand").textContent = expanded ? "Collapse" : "Expand";
+  $("setupLogExpand").innerHTML = expanded ? window.AuraIcons.collapse : window.AuraIcons.expand;
+  $("setupLogExpand").title = expanded ? "Collapse output" : "Expand output";
 });
 $("saveAiSettings").addEventListener("click", saveAiSettings);
 $("testAiSettings").addEventListener("click", testAiSettings);
@@ -2460,8 +2475,9 @@ $("exportRiskUrls")?.addEventListener("click", () => {
   button.id = "resultsExpandToggle";
   button.type = "button";
   button.className = "result-subtab result-expand-toggle";
-  button.title = "Open the current table fullscreen";
-  button.textContent = "⛶ Expand";
+  button.title = "Fullscreen";
+  button.setAttribute("aria-label", "Fullscreen");
+  button.innerHTML = window.AuraIcons ? window.AuraIcons.expand : "";
   button.addEventListener("click", toggleResultsFullscreen);
   strip.appendChild(button);
 })();
