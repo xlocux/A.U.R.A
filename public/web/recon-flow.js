@@ -68,8 +68,8 @@
   const POSITIONS = [
     [7, 21], [19.3, 31], [31.6, 19], [43.9, 31], [56.2, 19], [68.5, 29],
     [66, 51], [53.7, 59], [41.4, 49], [29.1, 61], [16.8, 49],
-    [8, 83], [20, 91], [32, 81], [44, 91], [56, 81], [68, 89],
-    [88, 77], [90, 53], [88, 28]
+    [8, 80], [20, 87], [32, 78], [44, 87], [56, 78], [68, 85],
+    [88, 75], [90, 51], [88, 27]
   ];
   const DIVIDER_X = 77; // percent
 
@@ -202,6 +202,9 @@
     else if (mode === "full") { toggleFullscreen(); return; }
     const stage = $("flowStage");
     if (stage) stage.style.setProperty("--zoom", String(zoom));
+    // No scrollbar at the default fit; only scroll while zoomed in.
+    const field = $("flowField");
+    if (field) field.style.overflow = zoom > 1 ? "auto" : "hidden";
   }
 
   function toggleFullscreen() {
@@ -225,13 +228,15 @@
       const r = shape.getBoundingClientRect();
       return { x: r.left + r.width / 2 - stageRect.left, y: r.top + r.height / 2 - stageRect.top };
     });
+    const firstShape = stage.querySelector(".flow-hex-shape");
+    const hexW = firstShape ? firstShape.getBoundingClientRect().width : 110;
     svg.setAttribute("viewBox", `0 0 ${stageRect.width} ${stageRect.height}`);
     svg.querySelectorAll(".flow-link").forEach((group) => {
       const index = Number(group.dataset.link);
       const a = centers[index];
       const b = centers[index + 1];
       if (!a || !b) return;
-      const d = curvePath(a, b);
+      const d = curvePath(a, b, hexW);
       group.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
       if (group.classList.contains("on")) {
         stage.querySelectorAll(`.flow-packet[data-packet="${index}"]`).forEach((packet) => { packet.style.offsetPath = `path("${d}")`; });
@@ -243,13 +248,19 @@
       const a = centers[idIndex.get(fromId)];
       const b = centers[idIndex.get(toId)];
       if (!a || !b) return;
-      const d = synapsePath(a, b, Number(group.dataset.syn) % 2 ? 1 : -1);
+      const d = synapsePath(a, b, Number(group.dataset.syn) % 2 ? 1 : -1, hexW);
       group.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
     });
   }
 
-  // Dendrite-like arc: a quadratic curve bowed perpendicular to the straight line between two tiles.
-  function synapsePath(a, b, side) {
+  // Dendrite-like arc: a quadratic curve bowed perpendicular to the line between two tiles, trimmed at the tile edge.
+  function synapsePath(a0, b0, side, hexW = 110) {
+    const dx0 = b0.x - a0.x;
+    const dy0 = b0.y - a0.y;
+    const len0 = Math.hypot(dx0, dy0) || 1;
+    const trim = hexW * 0.5 + 3;
+    const a = { x: a0.x + (dx0 / len0) * trim, y: a0.y + (dy0 / len0) * trim };
+    const b = { x: b0.x - (dx0 / len0) * trim, y: b0.y - (dy0 / len0) * trim };
     const mx = (a.x + b.x) / 2;
     const my = (a.y + b.y) / 2;
     const dx = b.x - a.x;
@@ -258,19 +269,30 @@
     const bow = Math.min(70, len * 0.22) * side;
     const cx = mx + (-dy / len) * bow;
     const cy = my + (dx / len) * bow;
-    return `M${a.x.toFixed(1)},${a.y.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+    return "M" + a.x.toFixed(1) + "," + a.y.toFixed(1) + " Q" + cx.toFixed(1) + "," + cy.toFixed(1) + " " + b.x.toFixed(1) + "," + b.y.toFixed(1);
   }
 
-  // Soft organic cubic curve: leave/enter horizontally for side-by-side tiles, vertically for row jumps.
-  function curvePath(a, b) {
+  // Soft organic cubic curve between two tiles, trimmed so it starts/ends at the tile edge: it leaves through
+  // the left/right vertex for side-by-side tiles and through the top/bottom edge for row jumps.
+  function curvePath(a, b, hexW = 110) {
+    const gap = 3;
+    const rx = hexW / 2 + gap;
+    const ry = hexW * 0.433 + gap;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
+    const f = (n) => n.toFixed(1);
     if (Math.abs(dx) >= Math.abs(dy)) {
-      const mx = a.x + dx / 2;
-      return `M${a.x.toFixed(1)},${a.y.toFixed(1)} C${mx.toFixed(1)},${a.y.toFixed(1)} ${mx.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+      const sx = Math.sign(dx) || 1;
+      const x1 = a.x + sx * rx;
+      const x2 = b.x - sx * rx;
+      const mx = (x1 + x2) / 2;
+      return "M" + f(x1) + "," + f(a.y) + " C" + f(mx) + "," + f(a.y) + " " + f(mx) + "," + f(b.y) + " " + f(x2) + "," + f(b.y);
     }
-    const my = a.y + dy / 2;
-    return `M${a.x.toFixed(1)},${a.y.toFixed(1)} C${a.x.toFixed(1)},${my.toFixed(1)} ${b.x.toFixed(1)},${my.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+    const sy = Math.sign(dy) || 1;
+    const y1 = a.y + sy * ry;
+    const y2 = b.y - sy * ry;
+    const my = (y1 + y2) / 2;
+    return "M" + f(a.x) + "," + f(y1) + " C" + f(a.x) + "," + f(my) + " " + f(b.x) + "," + f(my) + " " + f(b.x) + "," + f(y2);
   }
 
   function startLinkLoop() {

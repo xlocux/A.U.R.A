@@ -2,3 +2,7 @@
 @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/rajdhani-600.woff2') format('woff2'); }
 @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/rajdhani-700.woff2') format('woff2'); }
 @font-face { font-family: 'Share Tech Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/share-tech-mono-400.woff2') format('woff2'); }
+/* Display fonts for the Flow (Pixel / Wave / Angular styles). */
+@font-face { font-family: 'Pixelify Sans'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('/fonts/pixelify-sans.woff2') format('woff2'); }
+@font-face { font-family: 'Audiowide'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/audiowide.woff2') format('woff2'); }
+@font-face { font-family: 'Tektur'; font-style: normal; font-weight: 400 900; font-display: swap; src: url('/fonts/tektur.woff2') format('woff2'); }

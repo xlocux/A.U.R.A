@@ -18,12 +18,12 @@
   color: var(--ink);
 }
 .fx-dialog h1, .fx-dialog h2, .fx-dialog h3, .fx-dialog .aura-dialog-title, .fx-dialog .tools-modal-head strong {
-  font-family: 'Rajdhani', 'Segoe UI', sans-serif; letter-spacing: .12em; text-transform: uppercase;
+  font-family: var(--font-display, 'Rajdhani'), 'Segoe UI', sans-serif; letter-spacing: .1em; text-transform: uppercase;
 }
 .fx-dialog button {
   border-radius: 0 !important;
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-  font-family: 'Rajdhani', 'Segoe UI', sans-serif; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--font-display, 'Rajdhani'), 'Segoe UI', sans-serif; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
 }
 .fx-dialog .aura-dialog-primary, .fx-dialog button.primary { background: var(--accent) !important; color: color-mix(in srgb, var(--bg) 90%, #000) !important; border-color: transparent !important; box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent); }
 .fx-dialog input, .fx-dialog textarea, .fx-dialog select {
@@ -72,7 +72,7 @@
 }
 .aura-tooltip.reveal { animation: ttIn .24s steps(7, end); }
 .aura-tooltip.reveal::after { animation: ttSweep .5s ease-out forwards; }
-.aura-tooltip .aura-tip-title { display: block; margin-bottom: 3px; font: 700 11px 'Rajdhani', sans-serif; letter-spacing: .22em; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+.aura-tooltip .aura-tip-title { display: block; margin-bottom: 3px; font: 700 10.5px var(--font-display, 'Rajdhani'); letter-spacing: .18em; text-transform: uppercase; color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
 .aura-tooltip .aura-tip-line { display: block; font: 400 11.5px 'Share Tech Mono', ui-monospace, monospace; color: var(--muted); letter-spacing: .02em; }
 .aura-tooltip .aura-tip-cmd { display: block; margin-top: 5px; padding: 4px 8px; border-left: 2px solid var(--accent-2); background: color-mix(in srgb, var(--accent) 9%, rgba(0, 0, 0, .45)); font: 400 11.5px 'Share Tech Mono', ui-monospace, monospace; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .aura-tooltip .aura-tip-cmd::before { content: "$ "; color: var(--accent); }

@@ -5,7 +5,7 @@
 #tab-flow.tab-panel.active { display: flex; flex-direction: column; }
 #tab-flow:fullscreen { background: var(--bg, #05070b); }
 
-.recon-flow-console { --flow-font: 'Rajdhani', 'Segoe UI', sans-serif; --flow-mono: 'Share Tech Mono', ui-monospace, Consolas, monospace; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; }
+.recon-flow-console { --flow-font: var(--font-display); --flow-mono: 'Share Tech Mono', ui-monospace, Consolas, monospace; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; }
 .recon-flow-head--min { background: transparent; backdrop-filter: blur(6px); display: flex; align-items: center; gap: 14px; padding: 5px 14px; border-bottom: 1px solid var(--line); font-family: var(--flow-mono); font-size: 12px; letter-spacing: .04em; }
 .recon-flow-head--min #reconFlowStatus { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recon-flow-banner { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
@@ -26,12 +26,12 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   background: transparent;
 }
 .flow-stage {
   --zoom: 1;
-  --hexw: clamp(72px, min(8.4vw, 19vh), 128px);
+  --hexw: clamp(54px, min(5.9vw, 12.2vh), 90px);
   position: relative;
   width: calc(100% * var(--zoom));
   height: calc(100% * var(--zoom));
@@ -85,21 +85,24 @@
 
 /* Layered hex: edge, dark body, inner ring line, inner core (double-line HUD frame). */
 .flow-hex-shape {
-  --edge: color-mix(in srgb, var(--zone) 38%, #1a2230);
+  --edge: color-mix(in srgb, var(--zone) 48%, transparent);
   --ring: color-mix(in srgb, var(--zone) 26%, transparent);
-  --core: color-mix(in srgb, color-mix(in srgb, var(--zone) 7%, color-mix(in srgb, var(--bg) 94%, #000)) 70%, transparent);
+  --core: color-mix(in srgb, var(--zone) 2.5%, transparent);
   position: relative;
   display: flex; align-items: center; justify-content: center;
-  width: 100%; aspect-ratio: 1 / 0.866; padding: 0 15%;
-  background: var(--edge);
+  width: 100%; aspect-ratio: 1 / 0.866; padding: 0 8%;
   clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
-  transition: background .25s ease, transform .25s ease;
+  transition: transform .25s ease;
+  /* Ring-shaped polygon: outer hexagon, then the inner hexagon traced backwards (a hole), --t thick. */
+  --t: 1.1px;
+  --ring-clip: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0, calc(25% + var(--t)) var(--t), calc(var(--t) * 1.6) 50%, calc(25% + var(--t)) calc(100% - var(--t)), calc(75% - var(--t)) calc(100% - var(--t)), calc(100% - var(--t) * 1.6) 50%, calc(75% - var(--t)) var(--t), calc(25% + var(--t)) var(--t));
 }
-.flow-hex-shape::before { content: ""; position: absolute; inset: 2px; background: color-mix(in srgb, var(--bg) 62%, transparent); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
-.flow-hex-ring { position: absolute; inset: 6px; background: var(--ring); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); transition: background .25s ease; }
+.flow-hex-shape::after { content: ""; position: absolute; inset: 0; background: var(--edge); clip-path: var(--ring-clip); transition: background .25s ease; }
+.flow-hex-shape::before { content: ""; position: absolute; inset: 1px; background: color-mix(in srgb, var(--bg) 9%, transparent); clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); }
+.flow-hex-ring { --t: .9px; position: absolute; inset: 6px; background: var(--ring); clip-path: var(--ring-clip); transition: background .25s ease; }
 .flow-hex-core {
   position: absolute; inset: 7.5px; overflow: hidden;
-  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--zone) 18%, transparent), transparent 60%), var(--core);
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--zone) 5%, transparent), transparent 60%), var(--core);
   clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
 }
 .flow-hex-core::after { content: ""; position: absolute; left: -30%; top: 0; width: 30%; height: 100%; background: linear-gradient(100deg, transparent, color-mix(in srgb, var(--zone) 55%, transparent), transparent); opacity: 0; transform: skewX(-18deg); }
@@ -114,7 +117,7 @@
 }
 
 /* Vertex "circuit nodes" at the six corners (outside the clip so they pop). */
-.flow-vtx { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: color-mix(in srgb, var(--bg) 85%, transparent); border: 1px solid color-mix(in srgb, var(--zone) 55%, #3a4458); transition: background .25s ease, box-shadow .25s ease, border-color .25s ease; z-index: 2; }
+.flow-vtx { position: absolute; width: 3.4px; height: 3.4px; margin: -1.7px 0 0 -1.7px; opacity: .5; border-radius: 50%; background: color-mix(in srgb, var(--bg) 85%, transparent); border: 1px solid color-mix(in srgb, var(--zone) 55%, #3a4458); transition: background .25s ease, box-shadow .25s ease, border-color .25s ease; z-index: 2; }
 .flow-vtx.v1 { left: 25%; top: 0; } .flow-vtx.v2 { left: 75%; top: 0; } .flow-vtx.v3 { left: 100%; top: 50%; }
 .flow-vtx.v4 { left: 75%; top: 100%; } .flow-vtx.v5 { left: 25%; top: 100%; } .flow-vtx.v6 { left: 0; top: 50%; }
 
@@ -126,11 +129,11 @@
 /* States: idle (neutral), pending (dim), done (steady green), running (neon + sweep). */
 .flow-hex.idle .flow-hex-name { color: color-mix(in srgb, var(--zone) 40%, var(--ink)); }
 .flow-hex.pending { opacity: .5; }
-.flow-hex.done .flow-hex-shape { --edge: color-mix(in srgb, #52d391 65%, #112233); --ring: rgba(82, 211, 145, .30); --core: color-mix(in srgb, #1d6b49 30%, color-mix(in srgb, var(--bg) 94%, #000)); }
+.flow-hex.done .flow-hex-shape { --edge: color-mix(in srgb, #52d391 65%, #112233); --ring: rgba(82, 211, 145, .34); --core: color-mix(in srgb, #52d391 7%, transparent); }
 .flow-hex.done .flow-hex-name { color: color-mix(in srgb, #52d391 30%, var(--ink)); }
 .flow-hex.done .flow-vtx { border-color: #52d391; background: #0d2a1d; }
 .flow-hex.running .flow-hex-float { filter: drop-shadow(0 0 10px var(--zone)) drop-shadow(0 0 22px color-mix(in srgb, var(--zone) 45%, transparent)); }
-.flow-hex.running .flow-hex-shape { --edge: var(--zone); --ring: color-mix(in srgb, var(--zone) 60%, transparent); --core: color-mix(in srgb, var(--zone) 20%, color-mix(in srgb, var(--bg) 94%, #000)); animation: flowTilePulse 1.6s ease-in-out infinite; }
+.flow-hex.running .flow-hex-shape { --edge: var(--zone); --ring: color-mix(in srgb, var(--zone) 75%, transparent); --core: color-mix(in srgb, var(--zone) 13%, transparent); animation: flowTilePulse 1.6s ease-in-out infinite; }
 .flow-hex.running .flow-hex-name { color: #fff; text-shadow: 0 0 10px var(--zone), 0 0 2px #fff; }
 .flow-hex.running .flow-hex-core::after { opacity: 1; animation: flowSweep 2.2s ease-in-out infinite; }
 .flow-hex.running .flow-vtx { background: var(--zone); border-color: #fff; box-shadow: 0 0 9px var(--zone); animation: flowPulse 1.1s ease-in-out infinite; }
@@ -151,7 +154,7 @@
   .flow-hex[data-cat="exposure"], .flow-modal[data-cat="exposure"], .flow-link[data-cat="exposure"], .flow-packet[data-cat="exposure"], .flow-legend i[data-cat="exposure"] { --zone: oklch(from var(--accent) .76 .15 calc(h + 285)); }
 }
 /* A finished tile keeps its green edge (status) but the inner ring/vertices keep the category colour. */
-.flow-hex.done .flow-hex-ring { background: color-mix(in srgb, var(--zone) 42%, transparent); }
+.flow-hex.done .flow-hex-ring { background: color-mix(in srgb, var(--zone) 38%, transparent); }
 .flow-hex.done .flow-vtx { border-color: color-mix(in srgb, var(--zone) 70%, #52d391); }
 /* Links + packets take the colour of the stage they flow into. */
 .flow-link[data-cat].on .flow-link-glow { stroke: var(--zone); }
@@ -256,7 +259,7 @@
 .flow-modal-tag { font: 400 11px 'Share Tech Mono', monospace; letter-spacing: .22em; color: var(--zone); text-shadow: 0 0 8px color-mix(in srgb, var(--zone) 70%, transparent); }
 .flow-modal-close { margin-left: auto; width: 28px !important; height: 28px; margin-top: 0 !important; margin-bottom: 0 !important; padding: 0 !important; font-size: 18px; line-height: 1; border-radius: 0; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); background: color-mix(in srgb, var(--zone) 14%, transparent) !important; border: 0 !important; color: var(--zone) !important; }
 .flow-modal-close:hover { background: var(--zone) !important; color: color-mix(in srgb, var(--bg) 92%, #000) !important; }
-.flow-modal-title { position: relative; margin: 8px 0 2px; display: flex; align-items: center; gap: 10px; font: 700 28px/1.05 'Rajdhani', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; text-shadow: 0 0 16px color-mix(in srgb, var(--zone) 55%, transparent); }
+.flow-modal-title { position: relative; margin: 8px 0 2px; display: flex; align-items: center; gap: 10px; font: 700 26px/1.05 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: #fff; text-shadow: 0 0 16px color-mix(in srgb, var(--zone) 55%, transparent); }
 .flow-modal-title > span[data-text] { position: relative; }
 .flow-modal.booting .flow-modal-title > span[data-text]::before, .flow-modal.booting .flow-modal-title > span[data-text]::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; overflow: hidden; }
 .flow-modal.booting .flow-modal-title > span[data-text]::before { color: #00e5ff; animation: fmGlitchA .75s steps(2, end); clip-path: inset(0 0 55% 0); }
@@ -271,7 +274,7 @@
 .flow-modal-progress .seg i.on { background: var(--zone); box-shadow: 0 0 8px var(--zone); }
 .flow-modal-progress strong { font: 400 13px 'Share Tech Mono', monospace; color: var(--zone); min-width: 38px; text-align: right; }
 
-.flow-modal-dialog h4 { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; font: 700 12px 'Rajdhani', sans-serif; letter-spacing: .3em; text-transform: uppercase; color: var(--zone); }
+.flow-modal-dialog h4 { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; font: 700 11px var(--font-display); letter-spacing: .3em; text-transform: uppercase; color: var(--zone); }
 .flow-modal-dialog h4::before { content: "//"; opacity: .6; font-family: 'Share Tech Mono', monospace; letter-spacing: 0; }
 .flow-modal-dialog h4::after { content: ""; flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, color-mix(in srgb, var(--zone) 45%, transparent), transparent); }
 .flow-modal-tool { margin-bottom: 8px; }
@@ -284,7 +287,7 @@
 .flow-modal-event.warn { border-left-color: #f2b84b; }
 .flow-modal-event.error { border-left-color: #ff6384; }
 .flow-modal-actions { margin-top: 18px; display: flex; justify-content: flex-end; }
-.flow-modal-actions button { width: auto !important; margin: 0 !important; border-radius: 0; padding: 8px 16px; font: 700 13px 'Rajdhani', sans-serif; letter-spacing: .18em; text-transform: uppercase; color: color-mix(in srgb, var(--bg) 92%, #000); background: var(--zone); border: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); box-shadow: 0 0 18px color-mix(in srgb, var(--zone) 50%, transparent); }
+.flow-modal-actions button { width: auto !important; margin: 0 !important; border-radius: 0; padding: 8px 16px; font: 700 12px var(--font-display); letter-spacing: .18em; text-transform: uppercase; color: color-mix(in srgb, var(--bg) 92%, #000); background: var(--zone); border: 0; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); box-shadow: 0 0 18px color-mix(in srgb, var(--zone) 50%, transparent); }
 .flow-modal-actions button:hover { filter: brightness(1.2); }
 
 @keyframes fmBackdropIn { 0% { background: rgba(255, 255, 255, .18); } 20% { background: color-mix(in srgb, var(--bg) 74%, transparent); } 35% { background: rgba(255, 255, 255, .08); } 100% { background: color-mix(in srgb, var(--bg) 74%, transparent); } }
@@ -379,12 +382,12 @@ body.sidebar-collapsed #workspaceNav .sidebar-toggle { align-self: center; width
 
 /* ── Cyberpunk tile decoration: the outline changes with the phase state ── */
 .flow-deco { position: absolute; left: 50%; top: 50%; width: 150%; aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; overflow: visible; }
-.fx-seg { fill: none; stroke: var(--zone); stroke-width: 1.3; stroke-dasharray: 11 4; stroke-linejoin: round; opacity: .5; transition: opacity .25s ease; }
-.fx-brk { fill: none; stroke: var(--zone); stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; opacity: .55; }
-.fx-ring { fill: none; stroke: var(--zone); stroke-width: .7; stroke-dasharray: 1.5 5; opacity: .22; }
-.fx-arc { fill: none; stroke: var(--zone); stroke-width: 2; stroke-dasharray: 12 38; stroke-linecap: round; opacity: 0; }
-.fx-tr { fill: none; stroke: var(--zone); stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; opacity: .38; }
-.fx-pad { fill: var(--zone); opacity: .5; }
+.fx-seg { fill: none; stroke: var(--zone); stroke-width: .75; stroke-dasharray: 11 4; stroke-linejoin: round; opacity: .24; transition: opacity .25s ease; }
+.fx-brk { fill: none; stroke: var(--zone); stroke-width: 1.2; stroke-linecap: square; stroke-linejoin: miter; opacity: .28; }
+.fx-ring { fill: none; stroke: var(--zone); stroke-width: .5; stroke-dasharray: 1.5 5; opacity: .12; }
+.fx-arc { fill: none; stroke: var(--zone); stroke-width: 1.3; stroke-dasharray: 12 38; stroke-linecap: round; opacity: 0; }
+.fx-tr { fill: none; stroke: var(--zone); stroke-width: .7; stroke-linecap: round; stroke-linejoin: round; opacity: .2; }
+.fx-pad { fill: var(--zone); opacity: .28; }
 .flow-hex:hover .fx-seg, .flow-hex:hover .fx-brk { opacity: 1; }
 
 /* Not started: broken, dim contour. */
@@ -392,7 +395,7 @@ body.sidebar-collapsed #workspaceNav .sidebar-toggle { align-self: center; width
 .flow-hex.pending .fx-tr, .flow-hex.pending .fx-pad { opacity: .18; }
 
 /* Scanning: contour segments run around the hex, brackets pulse, arcs spin, traces carry pulses. */
-.flow-hex.running .fx-seg { stroke: color-mix(in srgb, var(--zone) 65%, #fff); stroke-width: 2; opacity: 1; animation: fxRun .8s linear infinite; filter: drop-shadow(0 0 3px var(--zone)); }
+.flow-hex.running .fx-seg { stroke: color-mix(in srgb, var(--zone) 65%, #fff); stroke-width: 1.3; opacity: 1; animation: fxRun .8s linear infinite; filter: drop-shadow(0 0 3px var(--zone)); }
 .flow-hex.running .fx-brk { stroke: color-mix(in srgb, var(--zone) 40%, #fff); opacity: 1; animation: flowPulse 1s ease-in-out infinite; filter: drop-shadow(0 0 4px var(--zone)); }
 .flow-hex.running .fx-ring { opacity: .75; animation: fxSpin 12s linear infinite; }
 .flow-hex.running .fx-arc { opacity: 1; animation: fxSpinR 3.4s linear infinite; filter: drop-shadow(0 0 4px var(--zone)); }
@@ -401,10 +404,10 @@ body.sidebar-collapsed #workspaceNav .sidebar-toggle { align-self: center; width
 .flow-hex.running .flow-hex-name { animation: fxGlitch 3.6s steps(1, end) infinite; }
 
 /* Done: the contour closes into a solid green line; the rest settles. */
-.flow-hex.done .fx-seg { stroke: #52d391; stroke-dasharray: none; stroke-width: 1.6; opacity: .85; }
-.flow-hex.done .fx-brk { stroke: #52d391; opacity: .85; }
+.flow-hex.done .fx-seg { stroke: #52d391; stroke-dasharray: none; stroke-width: .9; opacity: .5; }
+.flow-hex.done .fx-brk { stroke: #52d391; opacity: .5; }
 .flow-hex.done .fx-ring { opacity: .1; }
-.flow-hex.done .fx-tr, .flow-hex.done .fx-pad { opacity: .22; }
+.flow-hex.done .fx-tr, .flow-hex.done .fx-pad { opacity: .14; }
 
 @keyframes fxRun { to { stroke-dashoffset: -15; } }
 @keyframes fxTrace { to { stroke-dashoffset: -8; } }
@@ -419,3 +422,15 @@ body.sidebar-collapsed #workspaceNav .sidebar-toggle { align-self: center; width
   .flow-hex.running .fx-seg, .flow-hex.running .fx-brk, .flow-hex.running .fx-ring, .flow-hex.running .fx-arc,
   .flow-hex.running .fx-tr, .flow-hex.running .fx-pad, .flow-hex.running .flow-hex-name { animation: none; }
 }
+
+.flow-hex.running .flow-vtx, .flow-hex:hover .flow-vtx { opacity: 1; }
+
+/* ── Display font styles (Settings > Appearance > Flow font). Free OFL fonts in the spirit of the references. ── */
+:root { --font-display: 'Pixelify Sans', 'Rajdhani', 'Segoe UI', sans-serif; }
+:root[data-flow-font="wave"] { --font-display: 'Audiowide', 'Rajdhani', 'Segoe UI', sans-serif; }
+:root[data-flow-font="angular"] { --font-display: 'Tektur', 'Rajdhani', 'Segoe UI', sans-serif; }
+/* Sizes tuned per style (pixel fonts like a little more room; the wide wave font needs less). */
+.flow-hex-name { font-size: clamp(9px, calc(var(--hexw) * 0.122), 13px); letter-spacing: .03em; line-height: 1.12; }
+:root[data-flow-font="wave"] .flow-hex-name { font-size: clamp(7.5px, calc(var(--hexw) * 0.082), 10.5px); letter-spacing: .03em; }
+:root[data-flow-font="angular"] .flow-hex-name { font-size: clamp(8.5px, calc(var(--hexw) * 0.104), 12.5px); letter-spacing: .05em; }
+.flow-zone-label { letter-spacing: .24em; }

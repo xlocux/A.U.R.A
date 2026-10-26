@@ -384,6 +384,13 @@ function applyTheme(value) {
   window.dispatchEvent(new CustomEvent("aura:appearance-change"));
 }
 
+function applyFlowFont(value) {
+  const style = ["pixel", "wave", "angular"].includes(value) ? value : "pixel";
+  document.documentElement.dataset.flowFont = style;
+  if ($("flowFont")) $("flowFont").value = style;
+  saveUiSettings({ flowFont: style });
+}
+
 function applyBackgroundEffect(value) {
   // "nebula" was retired (hard-edged blobs clashed with the cyber look): migrate saved choices to random.
   const effect = !value || value === "nebula" ? "random" : value;
@@ -2473,6 +2480,7 @@ $("resultsLoadRun")?.addEventListener("click", () => {
 $("fontScale").addEventListener("input", () => applyFontScale($("fontScale").value));
 $("themeSelect").addEventListener("change", () => applyTheme($("themeSelect").value));
 $("backgroundEffect").addEventListener("change", () => applyBackgroundEffect($("backgroundEffect").value));
+$("flowFont")?.addEventListener("change", () => applyFlowFont($("flowFont").value));
 document.querySelectorAll(".tab").forEach((button) => {
   if (button.dataset.navAction) return; // action buttons (e.g. Flow) handle their own click
   button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -2527,4 +2535,5 @@ updateReconModeUi();
 updateApiKeyProviderHints();
 applyTheme(getUiSettings().theme || "aura");
 applyBackgroundEffect(getUiSettings().backgroundEffect || "random");
+applyFlowFont(getUiSettings().flowFont || "pixel");
 applyFontScale(getUiSettings().fontScale || 100);
