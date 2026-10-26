@@ -275,25 +275,8 @@
     const node = document.getElementById("logsContent");
     if (!node || !mount) return;
 
-    if (mode === "activity") {
-      // Transplant #tab-runs children into the activity mount so live updates keep working.
-      const runsPanel = document.getElementById("tab-runs");
-      if (runsPanel && mount.dataset.runsAttached !== "true") {
-        while (runsPanel.firstChild) mount.appendChild(runsPanel.firstChild);
-        mount.dataset.runsAttached = "true";
-        mount.dataset.runsSource = "tab-runs";
-      }
-      mount.style.display = "";
-      node.style.display = "none";
-      return;
-    }
-
-    // Restore #tab-runs children if they were transplanted.
-    if (mount.dataset.runsAttached === "true") {
-      const runsPanel = document.getElementById("tab-runs");
-      if (runsPanel) while (mount.firstChild) runsPanel.appendChild(mount.firstChild);
-      mount.dataset.runsAttached = "";
-    }
+    // Everything renders into logsContent. (The old "activity" branch transplanted #tab-runs, an
+    // element that doesn't exist in this layout, so the Activity subtab always showed up empty.)
     mount.style.display = "none";
     node.style.display = "";
 
@@ -305,6 +288,7 @@
       (item) => item.time || item.Started
     );
     const views = {
+      activity: activityHtml(events, tools, aiRows),
       timeline: timelineHtml(events, tools, aiRows),
       events: tablePane("Run Events", ["Time", "Phase", "Severity", "Source", "Message"], events.map((event) => [event.time, event.phase, event.severity, event.source, event.message])),
       tools: tablePane("Tool Results", ["Tool", "Status", "Exit", "Started", "Logs"], tools.map((tool) => [tool.Tool, tool.Status, tool.Exit, tool.Started, tool.Logs])),
@@ -355,6 +339,20 @@
     const sorted = sortNewestFirst(items, (item) => item.time);
     if (!sorted.length) return emptyPane("Timeline", "No loaded run logs yet. Start or load a run to populate this view.");
     return `<div class="pane"><h2>Timeline</h2><div class="aura-timeline">${sorted.map((item) => `<div class="aura-timeline-item ${esc(item.type)}"><strong>${esc(item.title)}</strong><span>${esc(item.time || "-")}</span><p>${esc(item.meta || "")}</p></div>`).join("")}</div></div>`;
+  }
+
+  function activityHtml(events, tools, aiRows) {
+    const feed = sortNewestFirst(
+      [
+        ...events.map((e) => ({ time: e.time, severity: e.severity, source: e.source, message: e.message })),
+        ...tools.map((t) => ({ time: t.Started, severity: /fail|error/i.test(t.Status || "") ? "error" : "info", source: t.Tool, message: `${t.Status}${t.Exit && t.Exit !== "-" ? ` (exit ${t.Exit})` : ""}` })),
+        ...aiRows.map((r) => ({ time: r.Time, severity: "ai", source: r.Source, message: r.Action }))
+      ],
+      (item) => item.time
+    ).slice(0, 120);
+    if (!feed.length) return emptyPane("Activity", "No activity yet. Start or load a run to see its live feed here.");
+    const rows = feed.map((item) => `<div class="aura-activity-item sev-${esc(String(item.severity || "info").toLowerCase())}"><span class="aura-activity-dot" aria-hidden="true"></span><span class="aura-activity-when">${esc(item.time || "-")}</span><span class="aura-activity-source">${esc(item.source || "-")}</span><span class="aura-activity-text">${esc(item.message || "")}</span></div>`).join("");
+    return `<div class="pane"><h2>Activity</h2><div class="aura-activity-feed">${rows}</div></div>`;
   }
 
   function correlationHtml(data) {
@@ -484,6 +482,17 @@
       #tab-logs .aura-log-content { min-height: 0; overflow: hidden; }
       #tab-logs .aura-log-content > .pane { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; overflow: hidden !important; }
       #tab-logs .aura-log-content .scroll, #tab-logs .aura-log-content .aura-timeline { height: 100%; max-height: none !important; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+      .aura-activity-feed { display: grid; gap: 4px; align-content: start; }
+      .aura-activity-item { display: grid; grid-template-columns: 10px 150px 120px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(10,14,20,.36); font-size: 12px; }
+      .aura-activity-item .aura-activity-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); align-self: center; }
+      .aura-activity-item .aura-activity-when { color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .aura-activity-item .aura-activity-source { color: var(--accent-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .aura-activity-item .aura-activity-text { overflow-wrap: anywhere; }
+      .aura-activity-item.sev-warn .aura-activity-dot { background: #f2b84b; }
+      .aura-activity-item.sev-error .aura-activity-dot, .aura-activity-item.sev-fail .aura-activity-dot { background: #ff6384; }
+      .aura-activity-item.sev-ok .aura-activity-dot { background: #43c59e; }
+      .aura-activity-item.sev-ai .aura-activity-dot { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+      @media (max-width: 760px) { .aura-activity-item { grid-template-columns: 10px 1fr; } .aura-activity-item .aura-activity-when, .aura-activity-item .aura-activity-source { display: none; } }
       .aura-timeline { display: grid; gap: 7px; align-content: start; }
       .aura-timeline-item { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: rgba(10,14,20,.36); }
       .aura-timeline-item strong { display: block; margin-bottom: 3px; }

@@ -811,6 +811,66 @@ button:disabled { opacity: .55; cursor: wait; }
   aspect-ratio: 16 / 10;
   object-fit: cover;
 }
+/* Shared viewer modal (screenshots + tool logs). Was missing CSS, so the image
+   rendered loose on top of the page with no backdrop or visible close button. */
+.aura-viewer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(5, 6, 12, .82);
+  backdrop-filter: blur(12px);
+}
+.aura-viewer-modal.hidden { display: none; }
+.aura-viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(1200px, 94vw);
+  max-height: 92vh;
+  background: rgba(18, 16, 28, .97);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .56);
+  overflow: hidden;
+}
+.aura-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.aura-viewer-head h3 { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aura-viewer-close {
+  flex: 0 0 auto;
+  width: 34px !important;
+  height: 34px;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 10, 14, .74);
+  color: var(--ink);
+  cursor: pointer;
+}
+.aura-viewer-close:hover { border-color: var(--accent); color: var(--accent-2); }
+.aura-viewer-body { padding: 12px; overflow: auto; min-height: 0; }
+.aura-viewer-image { display: block; max-width: 100%; max-height: 72vh; margin: 0 auto; border-radius: 6px; object-fit: contain; }
+.aura-viewer-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.aura-viewer-strip img { width: 84px; height: 56px; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); cursor: pointer; }
+.aura-viewer-strip img:hover { border-color: var(--accent-2); }
+.aura-viewer-log { margin: 0; max-height: 72vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+
 .image-modal {
   align-items: center;
   background: rgba(5, 6, 12, .82);
