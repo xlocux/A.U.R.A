@@ -385,7 +385,8 @@ function applyTheme(value) {
 }
 
 function applyBackgroundEffect(value) {
-  const effect = value || "random";
+  // "nebula" was retired (hard-edged blobs clashed with the cyber look): migrate saved choices to random.
+  const effect = !value || value === "nebula" ? "random" : value;
   $("backgroundEffect").value = effect;
   saveUiSettings({ backgroundEffect: effect });
   window.dispatchEvent(new CustomEvent("aura:background-effect", { detail: { effect } }));

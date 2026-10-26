@@ -81,7 +81,7 @@
     c.fillRect(0, 0, w, h);
 
     for (let y = 0; y < h; y += 18) {
-      const intensity = 0.018 + ((Math.sin((y + phase) * 0.025) + 1) * 0.018);
+      const intensity = 0.006 + ((Math.sin((y + phase) * 0.025) + 1) * 0.007);
       c.fillStyle = rgba(p.accent, intensity);
       c.fillRect(0, y, w, 1);
     }
@@ -95,8 +95,9 @@
           + Math.sin((x - phase) * 0.031) * 8;
         x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
       }
-      c.strokeStyle = band % 2 ? rgba(p.accent2, 0.16) : rgba(p.accent, 0.18);
-      c.lineWidth = 1.4;
+      // Kept faint on purpose: strong wave lines compete with the Flow links and tiles.
+      c.strokeStyle = band % 2 ? rgba(p.accent2, 0.055) : rgba(p.accent, 0.065);
+      c.lineWidth = 1;
       c.stroke();
     }
   }
@@ -331,47 +332,6 @@
       c.fill();
     }
   }
-
-  // ════════════════════════════════════════════════════════════════════════
-  // EFFECT 5 — nebula blobs
-  // ════════════════════════════════════════════════════════════════════════
-  const BLOBS = Array.from({ length: 6 }, (_, i) => ({
-    x: Math.random(), y: Math.random(),
-    rx: 0.18 + Math.random() * 0.22,
-    ry: 0.12 + Math.random() * 0.18,
-    speed: 0.00008 + Math.random() * 0.00012,
-    angle: Math.random() * Math.PI * 2,
-    which: i % 2
-  }));
-
-  function drawNebula(c, p) {
-    const w = window.innerWidth, h = window.innerHeight;
-    c.clearRect(0, 0, w, h);
-    c.fillStyle = rgba(p.bg, 0.6);
-    c.fillRect(0, 0, w, h);
-
-    for (const b of BLOBS) {
-      b.angle += b.speed;
-      const cx = (b.x + Math.cos(b.angle) * 0.08) * w;
-      const cy = (b.y + Math.sin(b.angle * 1.3) * 0.06) * h;
-      const color = b.which ? p.accent2 : p.accent;
-      const grad = c.createRadialGradient(cx, cy, 0, cx, cy, b.rx * w);
-      grad.addColorStop(0,   rgba(color, 0.18));
-      grad.addColorStop(0.5, rgba(color, 0.07));
-      grad.addColorStop(1,   rgba(color, 0));
-      c.fillStyle = grad;
-      c.beginPath();
-      c.ellipse(cx, cy, b.rx * w, b.ry * h, b.angle * 0.3, 0, Math.PI * 2);
-      c.fill();
-    }
-
-    // scanlines overlay
-    for (let y = 0; y < h; y += 4) {
-      c.fillStyle = rgba(p.bg, 0.06);
-      c.fillRect(0, y, w, 1);
-    }
-  }
-
 
   // ════════════════════════════════════════════════════════════════════════
   // EFFECT 10 — Aurora Veil (soft luminous ribbons)
@@ -737,7 +697,6 @@
   const EFFECT_MAP = {
     waves:     drawWaves,
     particles: drawParticles,
-    nebula:    drawNebula,
     neural:    drawNeuralPulse,
     grid:      drawCyberGrid,
     flow:      drawTechFlow,
