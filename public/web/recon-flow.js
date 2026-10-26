@@ -142,7 +142,7 @@
         <strong class="recon-flow-stage-name">${esc(stage.label)}</strong>
         <p>${esc(stage.hint)}</p>
         ${stage.tools.length ? `<div class="recon-flow-tools">${stage.tools.map((tool) => `<span class="recon-flow-tool ${esc(tool.status)}">${esc(tool.name)}</span>`).join("")}</div>` : ""}
-      </div>${index < stages.length - 1 ? `<div class="recon-flow-arrow ${stage.status === "done" ? "flowed" : ""}" aria-hidden="true">›</div>` : ""}`).join("")}</div>
+      </div>${index < stages.length - 1 ? `<div class="recon-flow-arrow ${stage.status === "done" ? "flowed" : stage.status === "running" ? "flowing" : ""}" aria-hidden="true"></div>` : ""}`).join("")}</div>
       <div class="recon-flow-detail" id="reconFlowDetail"></div>`;
     highlightSelected();
     renderDetail();

@@ -967,14 +967,22 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   gap: 10px 0;
   flex: 1 1 auto;
 }
+/* Connector between stages: an animated dashed line that "flows" to convey the pipeline running. */
 .recon-flow-arrow {
   align-self: center;
-  color: color-mix(in srgb, var(--accent) 55%, var(--soft-line, var(--line)));
-  font-size: 18px;
-  line-height: 1;
-  padding: 0 8px;
   flex: 0 0 auto;
+  width: 34px;
+  height: 2px;
+  margin: 0 6px;
+  border-radius: 2px;
+  background-image: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, var(--soft-line, var(--line))) 0 6px, transparent 6px 12px);
+  background-size: 24px 100%;
+  background-repeat: repeat-x;
+  opacity: .4;
 }
+.recon-flow-arrow.flowed { opacity: 1; background-image: repeating-linear-gradient(90deg, #52d391 0 6px, transparent 6px 12px); animation: reconFlowDash .8s linear infinite; }
+.recon-flow-arrow.flowing { opacity: 1; background-image: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 12px); animation: reconFlowDash .5s linear infinite; }
+@keyframes reconFlowDash { to { background-position: 24px 0; } }
 
 .recon-flow-stage {
   position: relative;
@@ -988,8 +996,8 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
   padding: 9px 12px 10px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--panel) 80%, transparent), color-mix(in srgb, var(--panel-2) 46%, transparent));
-  /* Notched top-right corner for a futuristic HUD panel look. */
-  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  /* Hexagonal HUD panel: notch two opposite corners (top-right + bottom-left). */
+  clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
   transition: border-color .2s ease, box-shadow .2s ease, background .2s ease, transform .2s ease;
 }
 /* Accent strip at the top of each card, coloured by status. */
@@ -1111,9 +1119,6 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 }
 .recon-flow-phase-pct { font-size: 12px; font-weight: 700; color: var(--accent); flex: 0 0 auto; min-width: 38px; text-align: right; }
 
-/* Animated flow along completed connectors. */
-.recon-flow-arrow.flowed { color: #52d391; animation: reconFlowArrow 1.8s ease-in-out infinite; }
-
 /* Interactive stage blocks. */
 .recon-flow-stage { cursor: pointer; }
 .recon-flow-stage:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); transform: translateY(-2px); }
@@ -1149,16 +1154,13 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; opaci
 .recon-flow-chip { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--soft-line, var(--line)); color: var(--ink, #fff); background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
 .recon-flow-chip.muted { color: var(--muted); }
 
-@keyframes reconFlowArrow {
-  0%, 100% { opacity: .4; transform: translateX(0); }
-  50% { opacity: 1; transform: translateX(3px); }
-}
 @keyframes reconFlowScan {
   0% { transform: translateX(-120%); }
   100% { transform: translateX(320%); }
 }
 @media (prefers-reduced-motion: reduce) {
   .recon-flow-arrow.flowed,
+  .recon-flow-arrow.flowing,
   .recon-flow-phase.live .recon-flow-phase-progress::after,
   .recon-flow-phase.live .recon-flow-phase-pulse { animation: none; }
 }
