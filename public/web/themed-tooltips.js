@@ -79,11 +79,19 @@
 
   document.addEventListener("mouseover", (event) => {
     const el = event.target.closest("[title], [data-tooltip]");
-    if (el && el !== activeEl) show(el);
+    if (!el) return;
+    clearTimeout(hideTimer);
+    if (el !== activeEl) show(el);
   });
+  // Hide with a short grace period, and only when the pointer really leaves the target (moving between its
+  // children fires mouseout too, which used to make the tooltip flicker near edges).
+  let hideTimer = null;
   document.addEventListener("mouseout", (event) => {
     const el = event.target.closest("[title], [data-tooltip]");
-    if (el && el === activeEl) hide();
+    if (!el || el !== activeEl) return;
+    if (event.relatedTarget && el.contains(event.relatedTarget)) return;
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { if (activeEl === el) hide(); }, 70);
   });
   document.addEventListener("focusin", (event) => {
     const el = event.target.closest?.("[title], [data-tooltip]");

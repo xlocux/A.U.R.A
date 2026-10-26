@@ -469,7 +469,7 @@
     }
     const dense = graph.nodes.length > 45;
     if (!selected && dense && !(["target", "cluster", "service", "tech"].includes(node.type) && view.zoom > 0.5)) { ctx.restore(); return; }
-    ctx.font = (selected ? "700 12px " : "600 11px ") + pal.font;
+    ctx.font = (selected ? "400 12px " : "400 11px ") + pal.font;
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0.4px";
     paint(ctx, "fillStyle", mix(pal.ink, selected ? 96 : 82), "rgba(240,242,245,.85)");
     ctx.fillText(String(node.label || "").slice(0, selected ? 38 : dense ? 20 : 28), x + r + 8, y + 4);
