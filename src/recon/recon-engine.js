@@ -9,7 +9,7 @@ const constants = require("./engine/constants");
 const pipelines = require("./engine/pipelines");
 const { buildRecoveryActions } = require("./engine/recovery-pool");
 const { isRunControlError } = require("./engine/run-control");
-const { httpxArgsForInput, parsePortList, parseToolSpec, resolveHttpPorts, uniquePorts } = require("./engine/tool-args");
+const { httpxArgsForInput, parsePortList, parseToolSpec, resolveHttpPorts, resolveNmapPorts, uniquePorts } = require("./engine/tool-args");
 const { shouldRetryToolResult } = require("./engine/tool-execution");
 
 module.exports = {
@@ -18,12 +18,15 @@ module.exports = {
   DEFAULT_PASSIVE_SOURCES: constants.DEFAULT_PASSIVE_SOURCES,
   DEFAULT_SCREENSHOT_TOOLS: constants.DEFAULT_SCREENSHOT_TOOLS,
   HTTPX_PORT_PRESETS: constants.HTTPX_PORT_PRESETS,
+  NMAP_PORT_PRESETS: constants.NMAP_PORT_PRESETS,
+  DEFAULT_NMAP_PRESET: constants.DEFAULT_NMAP_PRESET,
   buildRecoveryActions,
   httpxArgsForInput,
   isRunControlError,
   parsePortList,
   parseToolSpec,
   resolveHttpPorts,
+  resolveNmapPorts,
   runFocusedFollowup: withAdaptiveRun("runFocusedFollowup", pipelines.runFocusedFollowup),
   runHttpFollowup: withAdaptiveRun("runHttpFollowup", pipelines.runHttpFollowup),
   runRecon: withAdaptiveRun("runRecon", pipelines.runRecon),

@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { normalizeDomain } = require("../domain-utils");
-const { DEFAULT_HTTPX_PORTS, HTTPX_PORT_PRESETS } = require("./constants");
+const { DEFAULT_HTTPX_PORTS, HTTPX_PORT_PRESETS, NMAP_PORT_PRESETS, DEFAULT_NMAP_PRESET } = require("./constants");
 
 // Tools run through `sh` on the same host, so a forward-slash absolute path works for both
 // Linux and Git Bash on Windows (C:/...).
@@ -30,10 +30,30 @@ function resolveHttpPorts({ preset = "medium", customPorts = "", ports = null } 
 
 function parseToolSpec(value) {
   if (typeof value === "object" && value) {
-    return { name: String(value.name || value.tool || ""), ports: resolveHttpPorts(value) };
+    const name = String(value.name || value.tool || "");
+    // nmap has its own port model (preset / custom / full / top1000), kept separate from httpx ports.
+    if (name === "nmap") {
+      return { name, nmapPreset: value.nmapPreset, nmapPorts: value.nmapPorts, ports: Array.isArray(value.ports) ? value.ports : null };
+    }
+    return { name, ports: resolveHttpPorts(value) };
   }
   const [name, encoded] = String(value || "").split(":", 2);
+  if (name === "nmap") return { name, nmapPorts: encoded || "" };
   return { name, ports: encoded ? resolveHttpPorts({ customPorts: encoded }) : DEFAULT_HTTPX_PORTS };
+}
+
+// Resolves nmap port arguments: explicit custom ports win, then a named preset, then the default.
+// Returns the args fragment to splice into the nmap command (handles --top-ports and -p- for full).
+function resolveNmapPorts(spec = {}) {
+  const customList = parsePortList(spec.nmapPorts);
+  if (customList.length) return ["-p", customList.join(",")];
+  const preset = spec.nmapPreset && NMAP_PORT_PRESETS[spec.nmapPreset] !== undefined ? spec.nmapPreset : DEFAULT_NMAP_PRESET;
+  const value = NMAP_PORT_PRESETS[preset];
+  if (value === "top1000") return ["--top-ports", "1000"];
+  if (value === "1-65535") return ["-p-"];
+  if (Array.isArray(value) && value.length) return ["-p", uniquePorts(value).join(",")];
+  if (Array.isArray(spec.ports) && spec.ports.length) return ["-p", uniquePorts(spec.ports).join(",")];
+  return ["-p", uniquePorts(NMAP_PORT_PRESETS[DEFAULT_NMAP_PRESET]).join(",")];
 }
 
 function httpxArgsForInput(inputPath, ports = DEFAULT_HTTPX_PORTS) {
@@ -66,7 +86,7 @@ function argsForTool(toolSpec, root, artifactsDir, discovered, subdomainWordlist
       return httpxArgsForInput(writeInputFile(artifactsDir, `httpx-${root}.input.txt`, discovered), spec.ports);
     case "nmap": {
       const inputPath = writeInputFile(artifactsDir, `nmap-${root}.input.txt`, discovered);
-      return ["-iL", toToolPath(inputPath), "-p", uniquePorts(spec.ports || DEFAULT_HTTPX_PORTS).join(","), "-sV", "--open", "-T3", "-oA", toToolPath(path.join(artifactsDir, `nmap-${root}`))];
+      return ["-iL", toToolPath(inputPath), ...resolveNmapPorts(spec), "-sV", "--open", "-T3", "-oA", toToolPath(path.join(artifactsDir, `nmap-${root}`))];
     }
     default:
       return null;
@@ -103,6 +123,7 @@ module.exports = {
   parsePortList,
   parseToolSpec,
   resolveHttpPorts,
+  resolveNmapPorts,
   screenshotArgsForTool,
   toToolPath,
   uniquePorts,

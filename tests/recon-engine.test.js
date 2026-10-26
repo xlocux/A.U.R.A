@@ -5,10 +5,12 @@ const test = require("node:test");
 const {
   DEFAULT_HTTPX_PORTS,
   HTTPX_PORT_PRESETS,
+  NMAP_PORT_PRESETS,
   buildRecoveryActions,
   httpxArgsForInput,
   parsePortList,
   parseToolSpec,
+  resolveNmapPorts,
   uniquePorts
 } = require("../src/recon/recon-engine");
 
@@ -38,8 +40,18 @@ test("parseToolSpec resolves httpx presets and custom port strings", () => {
   assert.deepEqual(parseToolSpec({ name: "httpx", customPorts: "80,443,9001" }), { name: "httpx", ports: [80, 443, 9001] });
 });
 
-test("parseToolSpec supports nmap with the same port selection model", () => {
-  assert.deepEqual(parseToolSpec({ name: "nmap", preset: "large" }), { name: "nmap", ports: HTTPX_PORT_PRESETS.large });
+test("parseToolSpec keeps nmap's own preset/custom port model", () => {
+  assert.deepEqual(parseToolSpec({ name: "nmap", nmapPreset: "web" }), { name: "nmap", nmapPreset: "web", nmapPorts: undefined, ports: null });
+  assert.deepEqual(parseToolSpec({ name: "nmap", nmapPorts: "3000,3389,5900" }), { name: "nmap", nmapPreset: undefined, nmapPorts: "3000,3389,5900", ports: null });
+});
+
+test("resolveNmapPorts handles presets, custom ports, full and top-1000", () => {
+  assert.deepEqual(resolveNmapPorts({ nmapPreset: "web" }), ["-p", NMAP_PORT_PRESETS.web.join(",")]);
+  assert.deepEqual(resolveNmapPorts({ nmapPreset: "full" }), ["-p-"]);
+  assert.deepEqual(resolveNmapPorts({ nmapPreset: "top1000" }), ["--top-ports", "1000"]);
+  assert.deepEqual(resolveNmapPorts({ nmapPorts: "3000, 3389 5900" }), ["-p", "3000,3389,5900"]);
+  // Default (no preset) falls back to the service-oriented "common" preset.
+  assert.deepEqual(resolveNmapPorts({}), ["-p", NMAP_PORT_PRESETS.common.join(",")]);
 });
 
 test("recovery action pool includes failed tool actions", () => {
