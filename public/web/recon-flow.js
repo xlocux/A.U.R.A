@@ -35,21 +35,35 @@
     { id: "http", label: "HTTP probing", phases: ["recon", "http-tech-followup", "follow-up-http"], tools: ["httpx"], hint: "Live services, status, titles, tech" },
     { id: "tech", label: "Tech enrichment", phases: ["technology-enrichment"], tools: ["retire", "wpscan", "cmseek"], hint: "Per-service technology detectors" },
     { id: "js", label: "JS discovery", phases: ["follow-up-js"], tools: ["getJS"], hint: "Extract script URLs from live services" },
-    { id: "screenshots", label: "Screenshots", phases: ["recon"], tools: ["gowitness", "eyewitness", "chromium"], hint: "Visual triage of live services" },
+    { id: "screenshots", label: "Screens", phases: ["recon"], tools: ["gowitness", "eyewitness", "chromium"], hint: "Visual triage of live services" },
     { id: "fingerprint", label: "Trackers & favicons", phases: ["tracker-extraction", "favicon-fingerprint"], tools: [], hint: "Analytics IDs and favicon hashes" },
     { id: "dirs", label: "Directories", phases: ["follow-up-dirs"], tools: ["ffuf"], hint: "Content discovery on live services" },
     { id: "cloud", label: "Cloud resources", phases: ["follow-up-cloud"], tools: ["cloud_enum"], hint: "Public cloud buckets/blobs by keyword" },
     { id: "bypass403", label: "403/401 bypass", phases: ["follow-up-bypass403"], tools: ["gobypass403"], hint: "Access-control bypass attempts on forbidden endpoints" },
-    { id: "vuln", label: "Vuln check", phases: ["follow-up-vuln"], tools: ["nuclei"], hint: "nuclei templates + NVD CVE correlation of detected versions" },
-    { id: "recovery", label: "AI recovery", phases: ["ai-action-pool", "ai-tool-recovery"], tools: [], hint: "AI retries incomplete phases" }
+    { id: "recovery", label: "AI recovery", phases: ["ai-action-pool", "ai-tool-recovery"], tools: [], hint: "AI retries incomplete phases" },
+    // ── Vulnerability zone: a distinct phase that starts once recon has produced live services ──
+    { id: "vport", zone: "vuln", label: "Port scan", phases: ["follow-up-ports"], tools: ["nmap"], hint: "nmap service/version detection on the chosen ports" },
+    { id: "vversion", zone: "vuln", strict: true, label: "Version → CVE", phases: ["follow-up-vuln"], sources: ["nvd"], tools: [], hint: "Detected software versions correlated with NVD CVEs" },
+    { id: "vnuclei", zone: "vuln", strict: true, label: "Template scan", phases: ["follow-up-vuln"], sources: ["nuclei"], tools: ["nuclei"], hint: "nuclei templates against live services (CVE / misconfig / exposure)" }
   ];
+  STAGES.forEach((stage) => { stage.zone = stage.zone || "recon"; });
 
-  // Organic "molecular" layout (percent of the field), a loose serpentine so consecutive stages are
-  // neighbours: top row left→right, middle row right→left, bottom row left→right.
+  // Organic "molecular" layout (percent of the field). Recon (left ~75%) is a loose 3-row serpentine;
+  // the vulnerability phase sits in its own zone on the right, entered through the handoff divider.
   const POSITIONS = [
-    [7, 14], [22, 24], [37, 12], [52, 24], [67, 12], [82, 22],
-    [90, 46], [76, 54], [61, 44], [46, 56], [31, 44], [16, 54],
-    [8, 80], [24, 88], [40, 78], [56, 88], [72, 78], [88, 86]
+    [7, 21], [19.3, 31], [31.6, 19], [43.9, 31], [56.2, 19], [68.5, 29],
+    [66, 51], [53.7, 59], [41.4, 49], [29.1, 61], [16.8, 49],
+    [8, 83], [20, 91], [32, 81], [44, 91], [56, 81], [68, 89],
+    [88, 77], [90, 53], [88, 28]
+  ];
+  const DIVIDER_X = 77; // percent
+
+  // Synapses: data-dependency / correlation links between NON-consecutive stages (what feeds what).
+  // They fire (pulse along a curved dendrite) when an endpoint is running or a correlation event lands.
+  const SYNAPSES = [
+    ["tls", "subdomains"], ["subdomains", "http"], ["urls", "params"], ["crawl", "js"], ["http", "tech"],
+    ["http", "screenshots"], ["http", "bypass403"], ["subdomains", "cloud"], ["params", "dirs"],
+    ["tech", "vversion"], ["http", "vport"], ["http", "vnuclei"], ["vport", "vversion"]
   ];
 
   // Representative command each tool runs (shown in the stage modal).
@@ -65,7 +79,7 @@
     eyewitness: "eyewitness --web -f hosts.txt -d out --no-prompt", chromium: "chromium --headless --screenshot <url>",
     ffuf: "ffuf -u <url>/FUZZ -w paths.txt -mc 200,204,301,302,307,401,403,405",
     cloud_enum: "cloud_enum -k <keyword> --quickscan", gobypass403: "gobypass403 -u <url>",
-    nuclei: "nuclei -l services.txt -jsonl -severity low,medium,high,critical -rate-limit 50",
+    nmap: "nmap -iL hosts.txt -p <ports> -sV --open -T3", nuclei: "nuclei -l services.txt -jsonl -severity low,medium,high,critical -rate-limit 50",
     retire: "retire --jspath <js>", wpscan: "wpscan --url <url> --no-banner", cmseek: "cmseek -u <url> --batch"
   };
 
@@ -121,12 +135,19 @@
       const fy = ((index * 11) % 6) + 3;
       const dur = 6 + ((index * 5) % 6);
       const delay = -((index * 3) % 7);
-      return `<div class="flow-hex idle" data-stage-id="${esc(stage.id)}" tabindex="0" role="button" style="left:${x}%;top:${y}%;--i:${index};--fx:${index % 2 ? fx : -fx}px;--fy:${index % 3 ? -fy : fy}px;--dur:${dur}s;--delay:${delay}s">
-        <div class="flow-hex-float"><div class="flow-hex-shape"><span class="flow-hex-name">${esc(stage.label)}</span></div></div>
+      const vertices = ["v1", "v2", "v3", "v4", "v5", "v6"].map((v) => `<i class="flow-vtx ${v}"></i>`).join("");
+      return `<div class="flow-hex idle" data-stage-id="${esc(stage.id)}" data-zone="${esc(stage.zone)}" tabindex="0" role="button" style="left:${x}%;top:${y}%;--i:${index};--fx:${index % 2 ? fx : -fx}px;--fy:${index % 3 ? -fy : fy}px;--dur:${dur}s;--delay:${delay}s">
+        <div class="flow-hex-float">${vertices}<div class="flow-hex-shape"><span class="flow-hex-ring"></span><span class="flow-hex-core"></span><span class="flow-hex-name">${esc(stage.label)}</span></div></div>
       </div>`;
     }).join("");
     const links = STAGES.slice(0, -1).map((_, index) => `<g class="flow-link off" data-link="${index}"><path class="flow-link-base"/><path class="flow-link-glow"/><path class="flow-link-flow"/></g>`).join("");
-    body.innerHTML = `<div class="flow-field" id="flowField"><div class="flow-stage" id="flowStage"><svg class="flow-links" id="flowLinks" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${links}</svg>${hexes}</div></div>`;
+    // Two glowing "data packets" ride each link while it is active (positioned via CSS offset-path).
+    const packets = STAGES.slice(0, -1).map((_, index) => `<i class="flow-packet" data-packet="${index}" style="--pd:0s"></i><i class="flow-packet" data-packet="${index}" style="--pd:-0.75s"></i>`).join("");
+    const synapses = SYNAPSES.map((_, k) => `<g class="flow-syn off" data-syn="${k}"><path class="syn-base"/><path class="syn-pulse" pathLength="100"/></g>`).join("");
+    const zones = `<div class="flow-zone-label recon" style="left:1.5%">RECON<small>discovery &amp; enumeration</small></div>
+      <div class="flow-zone-label vuln" style="left:${DIVIDER_X + 2.5}%">VULNERABILITY<small>exposure &amp; CVE</small></div>
+      <div class="flow-divider" style="left:${DIVIDER_X}%"><span>HANDOFF</span></div>`;
+    body.innerHTML = `<div class="flow-field" id="flowField"><div class="flow-stage" id="flowStage">${zones}<svg class="flow-links" id="flowLinks" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g class="flow-synapses">${synapses}</g>${links}</svg>${packets}${hexes}</div></div>`;
     applyZoom("set");
   }
 
@@ -169,7 +190,32 @@
       if (!a || !b) return;
       const d = curvePath(a, b);
       group.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
+      if (group.classList.contains("on")) {
+        stage.querySelectorAll(`.flow-packet[data-packet="${index}"]`).forEach((packet) => { packet.style.offsetPath = `path("${d}")`; });
+      }
     });
+    const idIndex = new Map(STAGES.map((s, i) => [s.id, i]));
+    svg.querySelectorAll(".flow-syn").forEach((group) => {
+      const [fromId, toId] = SYNAPSES[Number(group.dataset.syn)];
+      const a = centers[idIndex.get(fromId)];
+      const b = centers[idIndex.get(toId)];
+      if (!a || !b) return;
+      const d = synapsePath(a, b, Number(group.dataset.syn) % 2 ? 1 : -1);
+      group.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
+    });
+  }
+
+  // Dendrite-like arc: a quadratic curve bowed perpendicular to the straight line between two tiles.
+  function synapsePath(a, b, side) {
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(70, len * 0.22) * side;
+    const cx = mx + (-dy / len) * bow;
+    const cy = my + (dx / len) * bow;
+    return `M${a.x.toFixed(1)},${a.y.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
   }
 
   // Soft organic cubic curve: leave/enter horizontally for side-by-side tiles, vertically for row jumps.
@@ -211,7 +257,7 @@
       if (!prev || tool.status === "completed") toolStatus.set(name, tool.status);
     }
     return STAGES.map((stage) => {
-      const sawPhase = (stage.phases || []).some((phase) => phasesSeen.has(phase));
+      const sawPhase = !stage.strict && (stage.phases || []).some((phase) => phasesSeen.has(phase));
       const sawSource = (stage.sources || []).some((source) => events.some((event) => event.source === source));
       const isActive = running && (stage.phases || []).includes(activePhase);
       let status = idle ? "idle" : "pending";
@@ -220,6 +266,23 @@
       const tools = (stage.tools || []).map((tool) => ({ name: tool, status: idle ? "idle" : (toolStatus.get(tool) || "pending") }));
       return { ...stage, status, tools };
     });
+  }
+
+  // Stage ids touched by a correlation/AI event in the last 90s (events carry created_at timestamps).
+  function hotStageIds(events, stages) {
+    const hot = new Set();
+    const now = Date.now();
+    for (const event of events || []) {
+      const label = `${event.phase || ""} ${event.source || ""}`;
+      if (!/correlat|ai-|ai_/i.test(label)) continue;
+      const t = Date.parse(event.created_at || "");
+      if (!Number.isNaN(t) && now - t > 90000) continue;
+      for (const stage of stages) {
+        const hit = (stage.phases || []).includes(event.phase) || (stage.sources || []).includes(event.source) || (stage.tools || []).some((tool) => tool.name === event.source);
+        if (hit) hot.add(stage.id);
+      }
+    }
+    return hot;
   }
 
   function tooltipFor(stage) {
@@ -257,7 +320,26 @@
       const b = stages[i + 1];
       const lit = a.status === "running" || b.status === "running";
       const trace = a.status === "done" && b.status === "done";
-      group.setAttribute("class", `flow-link ${lit ? "on" : trace ? "done" : "off"}`);
+      const zone = b.zone === "vuln" ? " zone-vuln" : "";
+      const gate = a.zone !== b.zone ? " gate" : "";
+      group.setAttribute("class", `flow-link ${lit ? "on" : trace ? "done" : "off"}${zone}${gate}`);
+      document.querySelectorAll(`.flow-packet[data-packet="${i}"]`).forEach((packet) => {
+        packet.classList.toggle("live", lit);
+        packet.classList.toggle("zone-vuln", b.zone === "vuln");
+      });
+    });
+
+    // Synapses fire while a connected stage runs or when a fresh correlation/AI event touches either end;
+    // otherwise two completed stages keep a faint trace, and nothing shows before the run starts.
+    const hot = hotStageIds(lastEvents, stages);
+    const byId = new Map(stages.map((s) => [s.id, s]));
+    document.querySelectorAll(".flow-syn").forEach((group) => {
+      const [fromId, toId] = SYNAPSES[Number(group.dataset.syn)];
+      const a = byId.get(fromId);
+      const b = byId.get(toId);
+      const fire = a.status === "running" || b.status === "running" || hot.has(fromId) || hot.has(toId);
+      const dim = a.status === "done" && b.status === "done";
+      group.setAttribute("class", `flow-syn ${fire ? "fire" : dim ? "dim" : "off"}${b.zone === "vuln" ? " zone-vuln" : ""}`);
     });
 
     const running = stages.find((stage) => stage.status === "running");

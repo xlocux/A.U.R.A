@@ -78,8 +78,9 @@ body::after {
   width: 100vw;
   height: 100vh;
   z-index: 0;
-  opacity: .5;
-  filter: saturate(1.25);
+  /* Accentuated: the animated effects are the app's atmosphere, so they read clearly behind panels. */
+  opacity: .92;
+  filter: saturate(1.6) brightness(1.4) contrast(1.12);
 }
 
 header,
