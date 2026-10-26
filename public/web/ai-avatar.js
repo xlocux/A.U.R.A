@@ -49,7 +49,17 @@
     "Ask me what to run next."
   ];
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  function situationQuote() {
+    if (!window.AuraQuotes) return null;
+    const tab = document.querySelector(".tab.active")?.dataset.tab;
+    if (tab && Math.random() < 0.35) { const s = window.AuraQuotes.get("section:" + tab); if (s) return s; }
+    const running = document.querySelector("#tab-flow.active .flow-hex.running");
+    const status = document.getElementById("runStatus")?.textContent || "";
+    return window.AuraQuotes.get(running ? "idleRunning" : /completed/i.test(status) ? "idleDone" : "idleEmpty");
+  }
   function contextQuip() {
+    const sq = situationQuote();
+    if (sq) return sq;
     const running = document.querySelector("#tab-flow.active .flow-hex.running .flow-hex-name")?.textContent?.trim();
     if (running) return pick(["Still on " + running + "...", running + " is cooking.", "Watching " + running + " closely."]);
     if (document.querySelector("#tab-flow.active")) return pick(["Click a tile for its command and events.", "Tiles light up as phases start."]);
@@ -65,6 +75,9 @@
   let sleepTimer = null;
   let lastActivity = Date.now();
   let thinking = false;
+  let thinkingSince = 0;
+  let thinkingTimer = null;
+  let vulnSeen = 0;
   let clicks = [];
   let roamer = null;
   let roaming = false;
@@ -106,7 +119,10 @@
       bubble.className = "ai-avatar-bubble";
       document.body.appendChild(bubble);
     }
-    bubble.textContent = text;
+    bubble.textContent = "";
+    const [first, ...rest] = String(text).split("\n");
+    bubble.append(first);
+    if (rest.length) { const q = document.createElement("em"); q.textContent = rest.join(" "); bubble.appendChild(q); }
     const rect = visible.getBoundingClientRect();
     // Prefer below the avatar (header sits at the top of the panel); flip above near the screen bottom.
     const below = rect.bottom + 8 + 60 < window.innerHeight;
@@ -143,7 +159,11 @@
   function scheduleSleep() {
     clearInterval(sleepTimer);
     sleepTimer = setInterval(() => {
-      if (!thinking && Date.now() - lastActivity > 150000) for (const el of mounts()) el.classList.add("asleep");
+      if (!thinking && Date.now() - lastActivity > 150000) {
+        const already = mounts().some((el) => el.classList.contains("asleep"));
+        for (const el of mounts()) el.classList.add("asleep");
+        if (!already) { const sq = (window.AuraQuotes ? window.AuraQuotes.get("sleep", { force: true }) : null); if (sq) say(sq, 4200); }
+      }
     }, 15000);
   }
 
@@ -236,6 +256,51 @@
     }
   }
 
+  // Runs a choreographed gag with the roaming copy: hides the home avatar, hands the script some helpers,
+  // and always cleans up afterwards. Returns false when she can't perform right now.
+  async function stage(script) {
+    const origin = mounts().find((el) => el !== roamer && isVisible(el));
+    if (roaming || reducedMotion() || !origin || document.hidden) return false;
+    roaming = true;
+    lastRoam = Date.now();
+    const r = ensureRoamer();
+    const size = { w: 46, h: 52 };
+    const centerOf = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2 - size.w / 2, y: b.top + b.height / 2 - size.h / 2 }; };
+    const at = (p, s = 1, rot = 0) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ") rotate(" + rot + "deg)";
+    const api = {
+      el: r, size, at, sleep, say, act,
+      home: () => centerOf(origin),
+      place(p, o = {}) { r.getAnimations().forEach((a) => a.cancel()); r.style.transform = at(p, o.scale ?? 1, o.rot ?? 0); r.style.opacity = String(o.opacity ?? 1); },
+      move(from, to, o = {}) {
+        const mid = o.arc === false ? null : { x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - (o.lift ?? 60) };
+        r.classList.toggle("face-left", to.x < from.x);
+        r.classList.add("walking");
+        const frames = mid ? [{ transform: at(from) }, { transform: at(mid), offset: 0.5 }, { transform: at(to) }] : [{ transform: at(from) }, { transform: at(to) }];
+        return r.animate(frames, { duration: o.ms ?? 1500, easing: o.easing ?? "ease-in-out", fill: "forwards" }).finished.then(() => r.classList.remove("walking"));
+      },
+      anim(frames, opts) { return r.animate(frames, { fill: "forwards", ...opts }).finished; },
+      randomPoint(margin = 100) { return { x: margin + Math.random() * Math.max(1, innerWidth - 2 * margin - size.w), y: 90 + Math.random() * Math.max(1, innerHeight - 190 - size.h) }; }
+    };
+    try {
+      origin.classList.add("av-away");
+      r.style.display = "block";
+      await script(api);
+    } catch {
+      // gag interrupted: fall through to cleanup
+    } finally {
+      r.getAnimations().forEach((a) => a.cancel());
+      r.style.display = "none";
+      r.style.pointerEvents = "none";
+      r.style.cursor = "";
+      r.style.opacity = "";
+      r.style.transform = "";
+      r.classList.remove("walking", "face-left", "av-overload", "av-glitching");
+      origin.classList.remove("av-away");
+      roaming = false;
+    }
+    return true;
+  }
+
   // The eyes glance toward the cursor (throttled to animation frames).
   function trackCursor() {
     let queued = false;
@@ -262,11 +327,17 @@
   function react(type, text, detail = {}) {
     wake();
     if (type === "vuln" || type === "done" || type === "error" || type === "tool-fail") markImportant();
-    if (type === "thinking") { thinking = true; setState("think", true); }
+    if (type === "thinking") {
+      thinking = true; setState("think", true); thinkingSince = Date.now();
+      clearTimeout(thinkingTimer);
+      thinkingTimer = setTimeout(() => { if (thinking) { const q = (window.AuraQuotes ? window.AuraQuotes.get("thinking", { force: false }) : null); if (q) say(q, 4500); } }, 5000);
+    }
     else if (type === "reply") {
-      thinking = false; setState("think", false);
+      thinking = false; setState("think", false); clearTimeout(thinkingTimer);
       act(pick(["tilt", "wink", "sparkle"]), 1100);
-      if (Math.random() < 0.3) say(pick(["There you go.", "Hope that helps!", "Anything else?"]), 2600);
+      const slow = Date.now() - thinkingSince > 8000 ? (window.AuraQuotes ? window.AuraQuotes.get("slowReply", { force: true }) : null) : null;
+      if (slow) say(slow, 4500);
+      else if (Math.random() < 0.3) say(pick(["There you go.", "Hope that helps!", "Anything else?"]), 2600);
     } else if (type === "stage") {
       const tile = document.querySelector('#tab-flow.active .flow-hex[data-stage-id="' + detail.stageId + '"]');
       const label = detail.label || "A stage";
@@ -274,8 +345,10 @@
         ? pick([label + " done - check Vulns!", label + " finished. Let's see what turned up."])
         : pick([label + " complete!", label + " wrapped up.", "Nice, " + label + " is done."]);
       // Walk over to the tile when the Flow is on screen and we haven't wandered recently.
-      if (tile && Date.now() - lastRoam > 20000) roamTo(tile, { text: line, action: detail.zone === "vuln" ? "sparkle" : "cheer" });
-      else { act("sparkle", 1100); say(line, 3200); }
+      const sq = (window.AuraQuotes ? window.AuraQuotes.get(""+"stage:"+detail.stageId+"", { force: false }) : null);
+      const full = sq ? line + "\n" + sq : line;
+      if (tile && Date.now() - lastRoam > 20000) roamTo(tile, { text: full, action: detail.zone === "vuln" ? "sparkle" : "cheer" });
+      else { act("sparkle", 1100); say(full, 3600); }
     }
     else if (type === "vuln") {
       // Found something: power up! The aura grows (A.U.R.A, get it?). Walks to the finding's tile if the Flow is open.
@@ -288,22 +361,35 @@
         "My power level is over " + (8000 + n * 1000) + "!",
         n + " finding" + (n === 1 ? "" : "s") + " - time to power up!"
       ]);
-      if (tile && !roaming && Date.now() - lastRoam > 6000) roamTo(tile, { text: line, action: "saiyan", stay: 4000 });
-      else { act("saiyan", 3400); say(line, 4600); }
+      vulnSeen += n;
+      const vq = (window.AuraQuotes ? window.AuraQuotes.get(""+(n >= 5 ? "vulnMany" : n >= 3 ? "vulnSome" : "vulnFew")+"", { force: true }) : null);
+      const vfull = vq ? line + "\n" + vq : line;
+      if (tile && !roaming && Date.now() - lastRoam > 6000) roamTo(tile, { text: vfull, action: "saiyan", stay: 4200 });
+      else { act("saiyan", 3400); say(vfull, 4800); }
     } else if (type === "start") {
+      vulnSeen = 0;
+      const tier = document.getElementById("scanTier")?.value;
+      const sq = (window.AuraQuotes ? window.AuraQuotes.get(""+(tier === "light" ? "startLight" : tier === "full" ? "startFull" : "start")+"", { force: true }) : null);
       act("cheer", 1100);
-      say(pick(["Let's hunt!", "Scan launched - I'll watch the flow.", "Here we go.", "Engines on."]), 3000);
+      say(pick(["Let's hunt!", "Scan launched - I'll watch the flow.", "Here we go.", "Engines on."]) + (sq ? "\n" + sq : ""), 4200);
     } else if (type === "tool-fail") {
       setState("think", false);
       act("worried", 2800);
-      say(text || "A tool failed.", 4200);
+      const fq = (window.AuraQuotes ? window.AuraQuotes.get(""+(/timed out/.test(text || "") ? "toolTimeout" : "toolFail")+"", { force: false }) : null);
+      say((text || "A tool failed.") + (fq ? "\n" + fq : ""), 4800);
     }
-    else if (type === "error") { thinking = false; setState("think", false); act("shake", 600); say(text || "Hmm, that didn't work."); }
+    else if (type === "error") {
+      thinking = false; setState("think", false); clearTimeout(thinkingTimer); act("shake", 600);
+      const eq = (window.AuraQuotes ? window.AuraQuotes.get(""+(/run failed/i.test(text || "") ? "runFail" : "aiFail")+"", { force: true }) : null);
+      say((text || "Hmm, that didn't work.") + (eq ? "\n" + eq : ""), 4800);
+    }
     else if (type === "done") {
       thinking = false; setState("think", false);
       const hex = document.querySelector('#tab-flow.active .flow-hex[data-stage-id="recovery"]') || document.querySelector("#tab-flow.active .flow-hex");
-      if (hex && Date.now() - lastRoam > 8000) roamTo(hex, { text: text || "Recon complete!", action: "cheer", stay: 3200 });
-      else { act("cheer", 1900); say(text || "Recon complete!"); }
+      const dq = (window.AuraQuotes ? window.AuraQuotes.get(""+(vulnSeen > 0 ? "doneVulns" : "done")+"", { force: true }) : null);
+      const dfull = (text || "Recon complete!") + (dq ? "\n" + dq : "");
+      if (hex && Date.now() - lastRoam > 8000) roamTo(hex, { text: dfull, action: "cheer", stay: 3600 });
+      else { act("cheer", 1900); say(dfull, 4800); }
     }
     else if (type === "say") say(text || pick(QUIPS));
   }
@@ -317,7 +403,7 @@
       if (restore?.classList.contains("active")) restore.click(); // open the chat if minimized
       const now = Date.now();
       clicks = clicks.filter((t) => now - t < 2000).concat(now);
-      if (clicks.length >= 3) { act("dizzy", 1200); say(pick(["Hey, that tickles!", "Whoa, easy there!", "I'm dizzy now..."])); clicks = []; }
+      if (clicks.length >= 3) { act("dizzy", 1200); { const dz = (window.AuraQuotes ? window.AuraQuotes.get("dizzy", { force: true }) : null); say(pick(["Hey, that tickles!", "Whoa, easy there!", "I'm dizzy now..."]) + (dz ? "\n" + dz : "")); } clicks = []; }
       else { act(pick(["wink", "tilt", "sparkle", "blush"]), 1300); say(contextQuip()); }
     });
   }
@@ -339,11 +425,11 @@
     // A short hello once per session.
     if (!sessionStorage.getItem("auraAvatarHello")) {
       sessionStorage.setItem("auraAvatarHello", "1");
-      setTimeout(() => { act("wink", 1300); say("Hi, I'm Aura. Ask me about the run."); }, 2200);
+      setTimeout(() => { act("wink", 1300); const hq = (window.AuraQuotes ? window.AuraQuotes.get("hello", { force: true }) : null); say("Hi, I'm Aura. Ask me about the run." + (hq ? "\n" + hq : ""), 5200); }, 2200);
     }
   }
 
-  window.AuraAvatar = { react, say, act, roamTo };
+  window.AuraAvatar = { react, say, act, roamTo, stage, isThinking: () => thinking, voice, isRoaming: () => roaming };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

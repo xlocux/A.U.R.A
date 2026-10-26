@@ -210,3 +210,21 @@ input[type="checkbox"], input[type="radio"] { border-radius: 0 !important; accen
 .tool-toggle-name { font-size: calc(10.5px * var(--font-scale, 1)) !important; letter-spacing: .05em; text-transform: uppercase; }
 .tool-toggle-state { border-radius: 0 !important; font-size: calc(7.5px * var(--font-scale, 1)) !important; padding: 1px 4px !important; letter-spacing: .08em; }
 .tool-grid { row-gap: 5px !important; column-gap: 8px !important; }
+
+/* ── Topology fullscreen: the graph owns the whole screen; controls float in two small translucent bars. ── */
+body.topology-fullscreen-mode #tab-topology .topology-main { display: block !important; padding: 0 !important; }
+body.topology-fullscreen-mode #tab-topology #topologyCanvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; max-height: none !important; }
+body.topology-fullscreen-mode #tab-topology .topology-head,
+body.topology-fullscreen-mode #tab-topology .topology-smartbar {
+  position: absolute !important; top: 10px; z-index: 5; width: auto !important; min-height: 0 !important;
+  padding: 4px 6px !important; gap: 6px !important; align-items: center !important;
+  background: color-mix(in srgb, var(--bg) 55%, transparent) !important; backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)) !important; border-radius: 0 !important;
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+}
+body.topology-fullscreen-mode #tab-topology .topology-head { right: 12px; left: auto; }
+body.topology-fullscreen-mode #tab-topology .topology-head > :not(.topology-actions) { display: none !important; } /* title + stats text */
+body.topology-fullscreen-mode #tab-topology .topology-smartbar { left: 12px; right: auto; display: flex !important; }
+body.topology-fullscreen-mode #tab-topology .topology-smartbar input { width: 190px !important; min-width: 0 !important; }
+body.topology-fullscreen-mode #tab-topology .topology-smartbar select { width: auto !important; max-width: 120px; }
+body.topology-fullscreen-mode #tab-topology .topology-smartbar input, body.topology-fullscreen-mode #tab-topology .topology-smartbar select { font-size: 10px !important; padding: 3px 6px !important; min-height: 0 !important; height: 24px !important; }
