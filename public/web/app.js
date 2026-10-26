@@ -6,6 +6,8 @@ let lastEventId = 0;
 let poll = null;
 let refreshRunInFlight = false;
 let latestRunActivity = "";
+let resultsTargetName = null; // target of the currently loaded run (for per-target lookups like cloud leads)
+let cloudLeadsCache = [];
 let aiSettings = null;
 let aiModels = [];
 let aiRuntimeStatus = null;
@@ -748,6 +750,7 @@ async function _refreshRun() {
   ]);
   const run = runData?.run;
   if (!run) return;
+  resultsTargetName = run.target_name || resultsTargetName;
   if (["completed", "failed", "cancelled"].includes(run.status) && poll) { clearInterval(poll); poll = null; }
   const counts = countsResp?.counts || {};
   $("runStatus").textContent = run.status;
@@ -1191,6 +1194,29 @@ function renderRiskUrls() {
   rowsEl.innerHTML = filtered.slice(0, 500).map((match) =>
     `<tr><td><span class="risk-tag risk-${esc(match.cls)}">${esc(match.cls)}</span></td><td class="mono wrap"><a href="${esc(match.url)}" target="_blank" rel="noreferrer noopener">${esc(match.url)}</a> ${rowActions(match.url, match.url)}</td><td>${esc(match.param)}</td></tr>`
   ).join("") || `<tr><td colspan="3" class="muted">No parameterised URLs matched risk patterns.</td></tr>`;
+}
+
+// Cloud resources discovered by cloud_enum are stored as asset leads (lead_type "cloud_resource").
+async function renderCloudLeads() {
+  const rowsEl = $("cloudLeadRows");
+  if (!rowsEl) return;
+  const target = resultsTargetName || $("resultsProjectSelect")?.value || $("target")?.value;
+  if (!target) { rowsEl.innerHTML = `<tr><td colspan="4" class="muted">Load a run to see its cloud resources.</td></tr>`; return; }
+  try {
+    const data = await api(`/api/targets/${encodeURIComponent(target)}/leads`);
+    cloudLeadsCache = (data.leads || []).filter((lead) => (lead.lead_type || lead.type) === "cloud_resource");
+    if ($("cloudLeadsHint")) $("cloudLeadsHint").textContent = countBucket(cloudLeadsCache.length, "resource");
+    rowsEl.innerHTML = cloudLeadsCache.length
+      ? cloudLeadsCache.map((lead) => {
+          const meta = lead.metadata || lead.metadata_json || {};
+          const platform = meta.platform || (lead.source || "").split(":")[1] || "cloud";
+          const href = /^https?:\/\//i.test(lead.value || "") ? lead.value : "";
+          return `<tr><td>${esc(platform)}</td><td class="mono wrap">${esc(lead.value || "")} ${rowActions(lead.value, href)}</td><td>${esc(meta.access || "-")}</td><td>${esc(lead.source || "cloud_enum")}</td></tr>`;
+        }).join("")
+      : `<tr><td colspan="4" class="muted">No cloud resources found for ${esc(target)} yet. Enable cloud_enum (Full tier) and re-run.</td></tr>`;
+  } catch (error) {
+    rowsEl.innerHTML = `<tr><td colspan="4" class="danger-text">${esc(error.message)}</td></tr>`;
+  }
 }
 
 function renderHttpServices(services) {
@@ -2340,10 +2366,16 @@ document.addEventListener("click", (event) => {
     const asset = tab.dataset.asset;
     document.querySelectorAll(".assets-tab").forEach((node) => node.classList.toggle("active", node === tab));
     document.querySelectorAll(".asset-view").forEach((view) => view.classList.toggle("active", view.id === `asset-${asset}`));
+    if (asset === "cloud") renderCloudLeads();
     return;
   }
   const chip = event.target.closest(".risk-chip");
   if (chip) { riskUrlFilter = chip.dataset.risk || "all"; renderRiskUrls(); }
+});
+$("exportCloudLeads")?.addEventListener("click", () => {
+  const values = [...new Set(cloudLeadsCache.map((lead) => lead.value).filter(Boolean))].sort();
+  if (!values.length) { $("status").textContent = "No cloud resources to export."; return; }
+  downloadText(`${exportBaseName()}-cloud-resources.txt`, values.join("\n"));
 });
 $("exportRiskUrls")?.addEventListener("click", () => {
   const all = classifyRiskUrls(resultsData.urls);
