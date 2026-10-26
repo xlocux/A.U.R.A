@@ -426,7 +426,8 @@ body.sidebar-collapsed #workspaceNav .sidebar-toggle { align-self: center; width
 .flow-hex.running .flow-vtx, .flow-hex:hover .flow-vtx { opacity: 1; }
 
 /* ── Display font styles (Settings > Appearance > Flow font). Free OFL fonts in the spirit of the references. ── */
-:root { --font-display: 'Pixelify Sans', 'Rajdhani', 'Segoe UI', sans-serif; }
+:root { --font-display: 'Share Tech Mono', ui-monospace, Consolas, monospace; }
+:root[data-flow-font="pixel"] { --font-display: 'Pixelify Sans', 'Rajdhani', 'Segoe UI', sans-serif; }
 :root[data-flow-font="wave"] { --font-display: 'Audiowide', 'Rajdhani', 'Segoe UI', sans-serif; }
 :root[data-flow-font="angular"] { --font-display: 'Tektur', 'Rajdhani', 'Segoe UI', sans-serif; }
 /* Sizes tuned per style (pixel fonts like a little more room; the wide wave font needs less). */

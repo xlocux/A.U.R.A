@@ -89,27 +89,25 @@ button.hud-btn {
   border-radius: 0 !important;
   color: color-mix(in srgb, var(--hb) 30%, var(--ink)) !important;
   font-family: var(--font-display, 'Rajdhani'), 'Segoe UI', sans-serif !important;
-  font-weight: 700 !important;
-  letter-spacing: .09em;
+  font-weight: 400 !important;
+  letter-spacing: .08em;
   text-transform: uppercase;
   background:
-    linear-gradient(var(--hb), var(--hb)) left top / 12px 2px no-repeat,
-    linear-gradient(var(--hb), var(--hb)) left top / 2px 12px no-repeat,
-    linear-gradient(var(--hb), var(--hb)) right bottom / 12px 2px no-repeat,
-    linear-gradient(var(--hb), var(--hb)) right bottom / 2px 12px no-repeat,
-    linear-gradient(var(--hb), var(--hb)) center top / var(--bar) 2px no-repeat,
-    linear-gradient(var(--hb), var(--hb)) center bottom / var(--bar) 2px no-repeat,
-    linear-gradient(180deg, color-mix(in srgb, var(--hb) 20%, transparent), color-mix(in srgb, var(--hb) 7%, transparent)),
-    repeating-linear-gradient(0deg, color-mix(in srgb, var(--hb) 8%, transparent) 0 1px, transparent 1px 3px) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 52%, transparent), 0 0 10px color-mix(in srgb, var(--hb) 10%, transparent) !important;
+    linear-gradient(var(--hb), var(--hb)) left top / 8px 1px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) left top / 1px 8px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) right bottom / 8px 1px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) right bottom / 1px 8px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) center top / var(--bar) 1px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) center bottom / var(--bar) 1px no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--hb) 7%, transparent), color-mix(in srgb, var(--hb) 2%, transparent)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 24%, transparent) !important;
   clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
   transition: background-size .2s ease, box-shadow .2s ease, color .2s ease, filter .2s ease;
 }
 button.hud-btn:hover:not(:disabled) {
   --bar: 64%;
   color: #fff !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 70%, transparent), inset 0 0 18px color-mix(in srgb, var(--hb) 28%, transparent) !important;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--hb) 55%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 48%, transparent), inset 0 0 14px color-mix(in srgb, var(--hb) 10%, transparent) !important;
 }
 button.hud-btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(1.25); }
 button.hud-btn:focus-visible { outline: 1px solid color-mix(in srgb, var(--hb) 80%, #fff); outline-offset: 2px; }
@@ -119,18 +117,17 @@ button.hud-btn:disabled { opacity: .4; filter: none; cursor: not-allowed; --bar:
 button.hud-btn.primary, button.hud-btn#quickStart, button.hud-btn#start, button.hud-btn.aura-dialog-primary {
   color: #fff !important;
   background:
-    linear-gradient(var(--hb), var(--hb)) left top / 12px 2px no-repeat, linear-gradient(var(--hb), var(--hb)) left top / 2px 12px no-repeat, linear-gradient(var(--hb), var(--hb)) right bottom / 12px 2px no-repeat, linear-gradient(var(--hb), var(--hb)) right bottom / 2px 12px no-repeat,
-    linear-gradient(var(--hb), var(--hb)) center top / var(--bar) 2px no-repeat, linear-gradient(var(--hb), var(--hb)) center bottom / var(--bar) 2px no-repeat,
-    linear-gradient(180deg, color-mix(in srgb, var(--hb) 38%, transparent), color-mix(in srgb, var(--hb) 16%, transparent)),
-    repeating-linear-gradient(0deg, color-mix(in srgb, var(--hb) 9%, transparent) 0 1px, transparent 1px 3px) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 62%, transparent), 0 0 14px color-mix(in srgb, var(--hb) 20%, transparent) !important;
+    linear-gradient(var(--hb), var(--hb)) left top / 8px 1px no-repeat, linear-gradient(var(--hb), var(--hb)) left top / 1px 8px no-repeat, linear-gradient(var(--hb), var(--hb)) right bottom / 8px 1px no-repeat, linear-gradient(var(--hb), var(--hb)) right bottom / 1px 8px no-repeat,
+    linear-gradient(var(--hb), var(--hb)) center top / var(--bar) 1px no-repeat, linear-gradient(var(--hb), var(--hb)) center bottom / var(--bar) 1px no-repeat,
+    linear-gradient(180deg, color-mix(in srgb, var(--hb) 16%, transparent), color-mix(in srgb, var(--hb) 6%, transparent)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 40%, transparent) !important;
 }
 button.hud-btn.secondary-button, button.hud-btn.aura-dialog-secondary { opacity: .88; --hb: color-mix(in srgb, var(--accent) 55%, var(--muted)); }
 button.hud-btn.danger-button, button.hud-btn.danger, button.hud-btn.api-key-delete { --hb: var(--bad); }
 button.hud-btn.hud-sm { letter-spacing: .06em; clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 5px 100%, 0 calc(100% - 5px)); }
 button.hud-btn.hud-sm:hover:not(:disabled) { --bar: 56%; }
 /* Selected tabs / pressed toggles read as filled. */
-button.hud-btn.active, button.hud-btn[aria-pressed="true"], button.hud-btn[aria-selected="true"] { color: #fff !important; --bar: 70%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 70%, transparent), inset 0 0 16px color-mix(in srgb, var(--hb) 30%, transparent) !important; }
+button.hud-btn.active, button.hud-btn[aria-pressed="true"], button.hud-btn[aria-selected="true"] { color: #fff !important; --bar: 70%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hb) 50%, transparent), inset 0 0 12px color-mix(in srgb, var(--hb) 14%, transparent) !important; }
 @media (prefers-reduced-motion: reduce) { button.hud-btn { transition: none; } }
 
 /* Fullscreen views that aren't modals (see AuraFx in cyber-modals.js). */
@@ -141,3 +138,22 @@ button.hud-btn.active, button.hud-btn[aria-pressed="true"], button.hud-btn[aria-
 .fx-target.fx-out > .fx-lost { display: flex; animation: fmLostText .7s steps(1, end) forwards; }
 .fx-target.fx-out > :not(.fx-noise):not(.fx-lost) { animation: fmBodyOut .7s linear forwards; }
 @media (prefers-reduced-motion: reduce) { .fx-target, .fx-target > * { animation: none !important; } }
+
+/* ── Topology: same visual language as the Flow (no own background, display font, themed legend) ── */
+#topologyCanvas { background: transparent !important; }
+.topology-main { background: color-mix(in srgb, var(--bg) 30%, transparent) !important; }
+.topology-head h2, .topology-side h2 { font-family: var(--font-display, 'Rajdhani'), 'Segoe UI', sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.topology-legend-item .topology-dot.target { background: var(--accent); } .topology-legend-item .topology-dot.domain, .topology-legend-item .topology-dot.phase { background: var(--accent-2); }
+.topology-legend-item .topology-dot.cluster { background: #7dd3fc; } .topology-legend-item .topology-dot.service { background: #fcd34d; } .topology-legend-item .topology-dot.tech { background: #c4b5fd; }
+.topology-legend-item .topology-dot.artifact { background: #fb923c; } .topology-legend-item .topology-dot.candidate { background: var(--bad); } .topology-legend-item .topology-dot.url { background: var(--muted); }
+@supports (color: oklch(from red l c h)) {
+  .topology-legend-item .topology-dot.cluster { background: oklch(from var(--accent) .8 .13 calc(h + 55)); }
+  .topology-legend-item .topology-dot.tech { background: oklch(from var(--accent) .78 .14 calc(h + 130)); }
+  .topology-legend-item .topology-dot.service { background: oklch(from var(--accent) .8 .14 calc(h + 205)); }
+  .topology-legend-item .topology-dot.artifact { background: oklch(from var(--accent) .76 .15 calc(h + 285)); }
+}
+
+/* ── One typeface everywhere: Share Tech Mono (as in the Flow legend). ── */
+:root { --font-base: 'Share Tech Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace; --font-display: var(--font-base); }
+html, body, button, input, select, textarea { font-family: var(--font-base) !important; }
+h1, h2, h3, h4, strong, b, th { font-family: var(--font-base) !important; font-weight: 400; letter-spacing: .06em; }

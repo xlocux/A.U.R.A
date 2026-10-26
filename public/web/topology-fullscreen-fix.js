@@ -22,16 +22,7 @@
       openButton.innerHTML = window.AuraIcons ? window.AuraIcons.expand : "";
       actions?.appendChild(openButton);
     }
-    if (!document.getElementById("topologyFullscreenClose")) {
-      const closeButton = document.createElement("button");
-      closeButton.id = "topologyFullscreenClose";
-      closeButton.type = "button";
-      closeButton.className = "topology-fullscreen-close";
-      closeButton.title = "Exit fullscreen";
-      closeButton.setAttribute("aria-label", "Exit fullscreen");
-      closeButton.innerHTML = window.AuraIcons ? window.AuraIcons.collapse : "";
-      main.appendChild(closeButton);
-    }
+    document.getElementById("topologyFullscreenClose")?.remove(); // the fullscreen button toggles back, no Close needed
     return true;
   }
 
@@ -40,13 +31,8 @@
       if (event.target.closest("#topologyFullscreen")) {
         event.preventDefault();
         event.stopPropagation();
-        openFullscreen();
+        if (document.body.classList.contains("topology-fullscreen-mode")) closeFullscreen(); else openFullscreen();
         return;
-      }
-      if (event.target.closest("#topologyFullscreenClose")) {
-        event.preventDefault();
-        event.stopPropagation();
-        closeFullscreen();
       }
     }, true);
     document.addEventListener("keydown", (event) => {
@@ -58,19 +44,30 @@
     ensureControls();
     document.body.classList.add("topology-fullscreen-mode");
     window.AuraFx?.enter(document.querySelector("#tab-topology .topology-main"));
+    syncIcon();
     rerenderTopology();
   }
 
   function closeFullscreen() {
     if (!document.body.classList.contains("topology-fullscreen-mode")) return;
-    const finish = () => { document.body.classList.remove("topology-fullscreen-mode"); rerenderTopology(); };
+    const finish = () => { document.body.classList.remove("topology-fullscreen-mode"); syncIcon(); rerenderTopology(); };
     const main = document.querySelector("#tab-topology .topology-main");
     if (window.AuraFx && main) window.AuraFx.exit(main, finish); else finish();
   }
 
+  // The one fullscreen button swaps between "enter" and "exit" icons.
+  function syncIcon() {
+    const button = document.getElementById("topologyFullscreen");
+    if (!button || !window.AuraIcons) return;
+    const full = document.body.classList.contains("topology-fullscreen-mode");
+    button.innerHTML = full ? window.AuraIcons.collapse : window.AuraIcons.expand;
+    button.title = full ? "Exit fullscreen" : "Fullscreen";
+    button.setAttribute("aria-label", button.title);
+  }
+
   function rerenderTopology() {
     window.dispatchEvent(new Event("resize"));
-    setTimeout(() => window.AuraTopology?.render?.(), 80);
+    setTimeout(() => { if (window.AuraTopology?.fit) window.AuraTopology.fit(); else window.AuraTopology?.render?.(); }, 120);
   }
 
   function injectStyles() {
@@ -87,14 +84,12 @@
       body.topology-fullscreen-mode .workspace-main,
       body.topology-fullscreen-mode #tab-topology,
       body.topology-fullscreen-mode .topology-shell { position: static !important; width: 100vw !important; max-width: none !important; height: 100dvh !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
-      body.topology-fullscreen-mode .topology-main { position: fixed !important; inset: 0 !important; z-index: 9998 !important; display: grid !important; grid-template-rows: auto auto minmax(0, 1fr) !important; width: 100vw !important; height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 12px !important; border-radius: 0 !important; background: rgba(5, 7, 11, .99) !important; border: 0 !important; box-shadow: none !important; overflow: hidden !important; }
-      body.topology-fullscreen-mode .topology-head { min-height: 48px !important; padding-right: 112px !important; }
+      body.topology-fullscreen-mode .topology-main { position: fixed !important; inset: 0 !important; z-index: 9998 !important; display: grid !important; grid-template-rows: auto auto minmax(0, 1fr) !important; width: 100vw !important; height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; padding: 12px !important; border-radius: 0 !important; background: color-mix(in srgb, var(--bg) 62%, transparent) !important; border: 0 !important; box-shadow: none !important; overflow: hidden !important; }
+      body.topology-fullscreen-mode .topology-head { min-height: 48px !important; padding-right: 12px !important; }
       body.topology-fullscreen-mode .topology-smartbar { align-items: center !important; min-height: 48px !important; }
       body.topology-fullscreen-mode #topologyResetSmart { width: auto !important; min-width: max-content !important; min-height: 34px !important; max-height: 34px !important; align-self: center !important; justify-self: end !important; padding: 0 12px !important; }
       body.topology-fullscreen-mode #topologyCanvas { display: block !important; width: 100% !important; height: 100% !important; min-width: 0 !important; min-height: 0 !important; max-width: 100% !important; max-height: calc(100dvh - 72px) !important; }
-      .topology-fullscreen-close { display: none; }
-      body.topology-fullscreen-mode #topologyFullscreenClose { display: inline-flex !important; position: fixed !important; top: 14px !important; right: 14px !important; left: auto !important; bottom: auto !important; z-index: 10060 !important; width: 40px !important; min-width: 40px !important; height: 38px !important; min-height: 38px !important; align-items: center !important; justify-content: center !important; margin: 0 !important; padding: 0 !important; }
-      #topologyFullscreenClose svg, #topologyFullscreen svg { width: 16px; height: 16px; }
+      #topologyFullscreen svg { width: 16px; height: 16px; }
     `;
     document.head.appendChild(style);
   }

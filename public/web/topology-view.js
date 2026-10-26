@@ -241,7 +241,8 @@
       render();
       return;
     }
-    const rect = canvas.getBoundingClientRect();
+    // Layout size (not getBoundingClientRect): it must not be distorted by the fullscreen enter/exit animation.
+    const rect = { width: canvas.clientWidth, height: canvas.clientHeight };
     if (rect.width < 2 || rect.height < 2) return; // Canvas not visible yet; a later render will fit.
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const node of graph.nodes) {
@@ -294,7 +295,7 @@
   function render() {
     const canvas = $("topologyCanvas");
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    const rect = { width: canvas.clientWidth, height: canvas.clientHeight };
     const scale = Math.min(2, window.devicePixelRatio || 1);
     const width = Math.max(1, Math.floor(rect.width * scale));
     const height = Math.max(1, Math.floor(rect.height * scale));
@@ -315,69 +316,164 @@
     draw(ctx, rect.width, rect.height);
   }
 
+  // Theme-aware palette read from the CSS variables (refreshed every ~1.5s so theme changes apply live).
+  let palCache = null;
+  let palAt = -999;
+  function themePalette() {
+    if (palCache && pulse - palAt < 90) return palCache;
+    palAt = pulse;
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => (cs.getPropertyValue(name) || "").trim() || fallback;
+    const accent = v("--accent", "#43c59e");
+    const rel = (shift, l, c) => "oklch(from " + accent + " " + l + " " + c + " calc(h + " + shift + "))";
+    palCache = {
+      accent,
+      accent2: v("--accent-2", "#8fdcc3"),
+      bad: v("--bad", "#ef6f6c"),
+      ink: v("--ink", "#f0f2f5"),
+      muted: v("--muted", "#9da6b5"),
+      enum: rel(55, 0.8, 0.13),
+      content: rel(130, 0.78, 0.14),
+      analysis: rel(205, 0.8, 0.14),
+      exposure: rel(285, 0.76, 0.15),
+      font: v("--font-display", "'Rajdhani', 'Segoe UI', sans-serif")
+    };
+    return palCache;
+  }
+
+  // Canvas ignores colours it cannot parse, so set a plain fallback first and the modern colour after it.
+  function paint(ctx, prop, value, fallback) { ctx[prop] = fallback; ctx[prop] = value; }
+  const mix = (color, pct) => "color-mix(in srgb, " + color + " " + pct + "%, transparent)";
+
+  function hexPath(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let k = 0; k < 6; k += 1) {
+      const a = (k * Math.PI) / 3;
+      const px = x + r * Math.cos(a);
+      const py = y + r * Math.sin(a);
+      if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+  }
+
   function draw(ctx, width, height) {
+    const pal = themePalette();
     const centerX = width / 2 + view.offsetX;
     const centerY = height / 2 + view.offsetY;
-    ctx.clearRect(0, 0, width, height);
-    drawGrid(ctx, width, height);
+    ctx.clearRect(0, 0, width, height); // transparent: the app's animated background shows through
     const nodeMap = new Map(graph.nodes.map((node) => [node.id, node]));
-    for (const edge of graph.edges) {
+    const light = graph.edges.length <= 260; // packets on every edge only while the graph is small
+    graph.edges.forEach((edge, index) => {
       const from = nodeMap.get(edge.from);
       const to = nodeMap.get(edge.to);
-      if (!from || !to) continue;
-      drawEdge(ctx, centerX + from.x * view.zoom, centerY + from.y * view.zoom, centerX + to.x * view.zoom, centerY + to.y * view.zoom, edge);
-    }
+      if (!from || !to) return;
+      const hot = Boolean(selectedNodeId) && (edge.from === selectedNodeId || edge.to === selectedNodeId);
+      drawEdge(ctx, pal, centerX + from.x * view.zoom, centerY + from.y * view.zoom, centerX + to.x * view.zoom, centerY + to.y * view.zoom, edge, from, to, hot, light, index);
+    });
     for (const node of graph.nodes) {
-      drawNode(ctx, centerX + node.x * view.zoom, centerY + node.y * view.zoom, node, node.id === selectedNodeId);
+      drawNode(ctx, pal, centerX + node.x * view.zoom, centerY + node.y * view.zoom, node, node.id === selectedNodeId);
     }
   }
 
-  function drawGrid(ctx, width, height) {
-    ctx.strokeStyle = "rgba(67, 197, 158, .07)";
-    ctx.lineWidth = 1;
-    const gap = 36 * view.zoom;
-    for (let x = view.offsetX % gap; x < width; x += gap) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-    }
-    for (let y = view.offsetY % gap; y < height; y += gap) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-    }
+  function nodeRadius(node) {
+    return nodeStyle(node, themePalette()).radius + Math.min(7, Number(node.weight || 1));
   }
 
-  function drawEdge(ctx, x1, y1, x2, y2, edge) {
-    const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
-    gradient.addColorStop(0, "rgba(67, 197, 158, .40)");
-    gradient.addColorStop(1, "rgba(143, 220, 195, .16)");
-    ctx.strokeStyle = gradient;
-    ctx.lineWidth = edge.type === "uses" ? 0.9 : 1.25;
+  // Links: steel dashes drifting slowly at rest; links of the selected node turn bright and carry packets.
+  function drawEdge(ctx, pal, x1, y1, x2, y2, edge, from, to, hot, light, index) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const r1 = nodeRadius(from) * view.zoom + 3;
+    const r2 = nodeRadius(to) * view.zoom + 3;
+    if (len < r1 + r2 + 4) return;
+    const ax = x1 + (dx / len) * r1;
+    const ay = y1 + (dy / len) * r1;
+    const bx = x2 - (dx / len) * r2;
+    const by = y2 - (dy / len) * r2;
+    const cx = (ax + bx) / 2;
+    const cy = Math.min(ay, by) - 18;
+    ctx.save();
+    ctx.lineCap = "round";
     ctx.beginPath();
-    const midX = (x1 + x2) / 2;
-    ctx.moveTo(x1, y1);
-    ctx.quadraticCurveTo(midX, Math.min(y1, y2) - 18, x2, y2);
+    ctx.moveTo(ax, ay);
+    ctx.quadraticCurveTo(cx, cy, bx, by);
+    if (hot) {
+      paint(ctx, "shadowColor", pal.accent, "#43c59e");
+      ctx.shadowBlur = 10;
+      paint(ctx, "strokeStyle", pal.accent, "#43c59e");
+      ctx.lineWidth = 1.8;
+    } else {
+      paint(ctx, "strokeStyle", mix(pal.ink, 38), "rgba(220,225,235,.38)");
+      ctx.lineWidth = edge.type === "uses" ? 0.8 : 1;
+      ctx.setLineDash([5, 6]);
+      ctx.lineDashOffset = -pulse * 0.12;
+    }
     ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    if (hot || light) {
+      const count = hot ? 2 : 1;
+      for (let k = 0; k < count; k += 1) {
+        const t = (pulse * (hot ? 0.011 : 0.004) + index * 0.173 + k * 0.5) % 1;
+        const u = 1 - t;
+        const px = u * u * ax + 2 * u * t * cx + t * t * bx;
+        const py = u * u * ay + 2 * u * t * cy + t * t * by;
+        ctx.beginPath();
+        ctx.arc(px, py, hot ? 2.6 : 1.6, 0, Math.PI * 2);
+        paint(ctx, "shadowColor", pal.accent, "#43c59e");
+        ctx.shadowBlur = hot ? 10 : 4;
+        paint(ctx, "fillStyle", hot ? "#ffffff" : mix(pal.accent, 75), "#ffffff");
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
-  function drawNode(ctx, x, y, node, selected) {
-    const style = nodeStyle(node);
-    const radius = (style.radius + Math.min(7, Number(node.weight || 1))) * (selected ? 1.25 : 1);
-    const pulseRadius = selected ? Math.sin(pulse / 9) * 2.5 : Math.sin(pulse / 22) * 1.4;
-    ctx.shadowColor = style.color;
-    ctx.shadowBlur = selected ? 26 : 14;
-    ctx.fillStyle = style.color;
-    ctx.beginPath();
-    ctx.arc(x, y, radius + pulseRadius, 0, Math.PI * 2);
+  // Nodes: see-through hexagons with a thin outline, an inner ring and vertex dots (same language as the Flow tiles).
+  function drawNode(ctx, pal, x, y, node, selected) {
+    const style = nodeStyle(node, pal);
+    const base = (style.radius + Math.min(7, Number(node.weight || 1))) * (selected ? 1.2 : 1);
+    const r = base + (selected ? Math.sin(pulse / 9) * 1.5 : Math.sin(pulse / 26) * 0.8);
+    ctx.save();
+    hexPath(ctx, x, y, r);
+    paint(ctx, "fillStyle", mix(style.color, selected ? 22 : 10), "rgba(255,255,255,.08)");
+    paint(ctx, "shadowColor", style.color, style.fallback);
+    ctx.shadowBlur = selected ? 20 : 8;
     ctx.fill();
     ctx.shadowBlur = 0;
-    if (selected) {
-      ctx.strokeStyle = "rgba(255,255,255,.82)";
-      ctx.lineWidth = 2;
+    paint(ctx, "strokeStyle", style.color, style.fallback);
+    ctx.lineWidth = selected ? 1.6 : 1.1;
+    hexPath(ctx, x, y, r);
+    ctx.stroke();
+    paint(ctx, "strokeStyle", mix(style.color, 45), style.fallback);
+    ctx.lineWidth = 0.7;
+    hexPath(ctx, x, y, r * 0.66);
+    ctx.stroke();
+    paint(ctx, "fillStyle", style.color, style.fallback);
+    for (let k = 0; k < 6; k += 1) {
+      const a = (k * Math.PI) / 3;
       ctx.beginPath();
-      ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.arc(x + r * Math.cos(a), y + r * Math.sin(a), 1.3, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.fillStyle = "rgba(240, 242, 245, .88)";
-    ctx.font = selected ? "700 12px Inter, Segoe UI, sans-serif" : "12px Inter, Segoe UI, sans-serif";
-    ctx.fillText(String(node.label || "").slice(0, selected ? 38 : 28), x + radius + 8, y + 4);
+    if (selected) {
+      ctx.setLineDash([3, 6]);
+      ctx.lineDashOffset = -pulse * 0.5;
+      ctx.lineWidth = 0.9;
+      paint(ctx, "strokeStyle", pal.accent, "#43c59e");
+      ctx.beginPath();
+      ctx.arc(x, y, r + 9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const dense = graph.nodes.length > 45;
+    if (!selected && dense && !(["target", "cluster", "service", "tech"].includes(node.type) && view.zoom > 0.5)) { ctx.restore(); return; }
+    ctx.font = (selected ? "700 12px " : "600 11px ") + pal.font;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "0.4px";
+    paint(ctx, "fillStyle", mix(pal.ink, selected ? 96 : 82), "rgba(240,242,245,.85)");
+    ctx.fillText(String(node.label || "").slice(0, selected ? 38 : dense ? 20 : 28), x + r + 8, y + 4);
+    ctx.restore();
   }
 
   function selectNode(event) {
@@ -563,20 +659,21 @@
     return `<div class="topology-selection-card"><strong>${title}</strong>${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}<code>${escapeHtml(code)}</code></div>`;
   }
 
-  function nodeStyle(node) {
-    const colors = {
-      target: ["#43c59e", 15],
-      cluster: ["#49d8ff", 12],
-      domain: ["#8fdcc3", 8],
-      service: ["#f2b84b", 8],
-      tech: ["#a78bfa", 7],
-      url: ["#9da6b5", 6],
-      artifact: ["#ef6f6c", 7],
-      candidate: ["#f2b84b", 8],
-      phase: ["#8fdcc3", 10]
+  // Colour per node type: hue-rotated from the theme accent (like the Flow categories); vuln-like = theme "bad".
+  function nodeStyle(node, pal = themePalette()) {
+    const map = {
+      target: [pal.accent, "#43c59e", 15],
+      cluster: [pal.enum, "#7dd3fc", 12],
+      domain: [pal.accent2, "#8fdcc3", 8],
+      service: [pal.analysis, "#fcd34d", 8],
+      tech: [pal.content, "#c4b5fd", 7],
+      url: [pal.muted, "#9da6b5", 6],
+      artifact: [pal.exposure, "#fb923c", 7],
+      candidate: [pal.bad, "#ef6f6c", 8],
+      phase: [pal.accent2, "#8fdcc3", 10]
     };
-    const [color, radius] = colors[node.type] || ["#9da6b5", 7];
-    return { color, radius };
+    const [color, fallback, radius] = map[node.type] || [pal.muted, "#9da6b5", 7];
+    return { color, fallback, radius };
   }
 
   function legendItem(type, label, hint) {
@@ -609,5 +706,5 @@
     return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   }
 
-  window.AuraTopology = { bind, render, update };
+  window.AuraTopology = { bind, render, update, fit };
 })();

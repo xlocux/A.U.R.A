@@ -384,11 +384,25 @@ function applyTheme(value) {
   window.dispatchEvent(new CustomEvent("aura:appearance-change"));
 }
 
-function applyFlowFont(value) {
-  const style = ["pixel", "wave", "angular"].includes(value) ? value : "pixel";
+function applyFlowFont(value, chosen = false) {
+  const style = ["mono", "pixel", "wave", "angular"].includes(value) ? value : "mono";
   document.documentElement.dataset.flowFont = style;
   if ($("flowFont")) $("flowFont").value = style;
-  saveUiSettings({ flowFont: style });
+  saveUiSettings(chosen ? { flowFont: style, flowFontChosen: true } : { flowFont: style });
+}
+
+const VOICE_LABELS = [
+  "Silent - no chatter at all",
+  "Quiet - only the important moments (findings, completion, failures)",
+  "Balanced - key moments plus the occasional remark",
+  "Chatty - frequent remarks, antics and wandering"
+];
+function applyAvatarVoice(value) {
+  const level = Math.max(0, Math.min(3, Number(value ?? 2) || 0));
+  document.documentElement.dataset.avatarVoice = String(level);
+  if ($("avatarVoice")) $("avatarVoice").value = String(level);
+  if ($("avatarVoiceLabel")) $("avatarVoiceLabel").textContent = VOICE_LABELS[level];
+  saveUiSettings({ avatarVoice: level });
 }
 
 function applyBackgroundEffect(value) {
@@ -2496,7 +2510,8 @@ $("resultsLoadRun")?.addEventListener("click", () => {
 $("fontScale").addEventListener("input", () => applyFontScale($("fontScale").value));
 $("themeSelect").addEventListener("change", () => applyTheme($("themeSelect").value));
 $("backgroundEffect").addEventListener("change", () => applyBackgroundEffect($("backgroundEffect").value));
-$("flowFont")?.addEventListener("change", () => applyFlowFont($("flowFont").value));
+$("flowFont")?.addEventListener("change", () => applyFlowFont($("flowFont").value, true));
+$("avatarVoice")?.addEventListener("input", () => applyAvatarVoice($("avatarVoice").value));
 document.querySelectorAll(".tab").forEach((button) => {
   if (button.dataset.navAction) return; // action buttons (e.g. Flow) handle their own click
   button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -2551,5 +2566,9 @@ updateReconModeUi();
 updateApiKeyProviderHints();
 applyTheme(getUiSettings().theme || "aura");
 applyBackgroundEffect(getUiSettings().backgroundEffect || "random");
-applyFlowFont(getUiSettings().flowFont || "pixel");
+{
+  const ui = getUiSettings();
+  applyFlowFont(ui.flowFontChosen ? ui.flowFont : "mono");
+  applyAvatarVoice(ui.avatarVoice ?? 2);
+}
 applyFontScale(getUiSettings().fontScale || 100);

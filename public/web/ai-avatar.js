@@ -91,7 +91,14 @@
     for (const el of mounts()) el.classList.toggle(`state-${name}`, on);
   }
 
+  // Personality level (0 silent .. 3 chatty), set in Settings > AI Agent. Important moments stay audible at level 1.
+  const voice = () => Number(document.documentElement.dataset.avatarVoice ?? 2);
+  let importantUntil = 0;
+  const markImportant = () => { importantUntil = Date.now() + 7000; };
+
   function say(text, ms = 4200) {
+    const level = voice();
+    if (level === 0 || (level === 1 && Date.now() > importantUntil)) return;
     const visible = (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
     if (!visible) return;
     if (!bubble) {
@@ -119,8 +126,8 @@
   function scheduleIdle() {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      if (!thinking && !document.hidden) {
-        const canRoam = Date.now() - lastRoam > 90000;
+      if (!thinking && !document.hidden && voice() >= 1) {
+        const canRoam = voice() >= 2 && Date.now() - lastRoam > (voice() >= 3 ? 45000 : 90000);
         const action = pick(canRoam ? ["wink", "tilt", "sparkle", "quip", "roam", "roam"] : ["wink", "tilt", "sparkle", "wink", "quip"]);
         if (action === "roam") {
           const hexes = [...document.querySelectorAll("#tab-flow.active .flow-hex")];
@@ -130,7 +137,7 @@
         else act(action, 1300);
       }
       scheduleIdle();
-    }, 14000 + Math.random() * 14000);
+    }, (14000 + Math.random() * 14000) * [1, 3, 1, 0.5][voice()]);
   }
 
   function scheduleSleep() {
@@ -254,6 +261,7 @@
   // Public reactions, fired by the chat and the run lifecycle.
   function react(type, text, detail = {}) {
     wake();
+    if (type === "vuln" || type === "done" || type === "error" || type === "tool-fail") markImportant();
     if (type === "thinking") { thinking = true; setState("think", true); }
     else if (type === "reply") {
       thinking = false; setState("think", false);
