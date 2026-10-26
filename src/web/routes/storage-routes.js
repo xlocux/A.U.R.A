@@ -84,6 +84,14 @@ async function getStorageUsage({ response }) {
   });
 }
 
+// Release info for the sidebar footer: package version plus the short git commit when running from a checkout.
+function getVersion({ response }) {
+  let commit = "";
+  try { commit = require("child_process").execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: path.join(__dirname, "..", "..", ".."), encoding: "utf8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* not a git checkout */ }
+  sendJson(response, { version: require("../../../package.json").version, commit });
+}
+
 module.exports = [
+  { method: "GET", path: "/api/version", handler: getVersion },
   { method: "GET", path: "/api/storage/usage", handler: getStorageUsage }
 ];

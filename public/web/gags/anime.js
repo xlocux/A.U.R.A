@@ -31,6 +31,7 @@
     const t = fx("av-an-title", 0, 0);
     t.textContent = text;
     t.style.left = "50%"; t.style.top = "46%";
+    t.style.fontSize = `min(92px, ${Math.round(88 / Math.max(6, text.length) * 100) / 10}vw)`;
     lines.animate([{ opacity: 0 }, { opacity: 1 }, { opacity: 1 }, { opacity: 0 }], { duration: ms, fill: "forwards" });
     t.animate([{ transform: "translate(-50%, -50%) scale(2.6) skewX(-10deg)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(1) skewX(-10deg)", opacity: 1, offset: 0.18 }, { transform: "translate(-50%, -50%) scale(1.06) skewX(-10deg)", opacity: 1, offset: 0.85 }, { transform: "translate(-50%, -50%) scale(1.3) skewX(-10deg)", opacity: 0 }], { duration: ms, fill: "forwards" });
     await wait(ms);
@@ -215,6 +216,8 @@
       done(p.animate([{ transform: "translate(0,0) rotate(0deg)", opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px, ${Math.sin(a) * d + 70}px) rotate(${rand(200, 600)}deg)`, opacity: 0 }], { duration: rand(900, 1500), easing: "cubic-bezier(.2,.7,.4,1)", fill: "forwards" }), p);
     }
   }
+
+  window.AuraAnimeFx = { fx, smoke, title, shake, wait, rand, pick, done, centre };
 
   function boot() {
     window.addEventListener("aura:ai", (event) => {

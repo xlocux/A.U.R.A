@@ -139,14 +139,6 @@ header {
   filter: drop-shadow(0 0 14px rgba(111, 244, 238, .18));
 }
 
-.headerbar h1::after {
-  content: "locu.uk";
-  display: block;
-  margin-left: -2px;
-  color: var(--vercel-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
 
 #status {
   justify-self: end;

@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "note": "Aura's gag packs. Add a pack file in this folder and list it here; the loader fetches it at startup. See README.md.",
+  "disabled": [],
+  "packs": [
+    { "id": "anime", "file": "anime.js", "since": "0.1.0", "title": "Anime classics", "gags": ["ninja", "samurai", "demon", "kamehameha", "nani"] },
+    { "id": "eyes-luffy", "file": "eyes-luffy.js", "since": "0.1.0", "title": "Dojutsu eyes and Luffy moves", "gags": ["eyes", "gomu", "gear5", "haki"] }
+  ]
+}

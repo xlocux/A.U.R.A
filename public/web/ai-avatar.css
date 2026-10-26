@@ -259,3 +259,20 @@ html.av-trip .workspace-main, html.av-trip .tabs { animation-name: avTripFilter,
   background: linear-gradient(180deg, transparent, var(--accent) 22%, #fff 50%, var(--accent) 78%, transparent); box-shadow: 0 0 40px 10px var(--accent), 0 0 90px 24px color-mix(in srgb, var(--accent) 55%, transparent); }
 
 .av-an-confetti { position: fixed; z-index: 1150; width: 6px; height: 9px; pointer-events: none; }
+
+/* Dojutsu eyes + Luffy moves. */
+.av-an-eye { position: fixed; z-index: 1150; width: 46px; height: 46px; pointer-events: none; filter: drop-shadow(0 0 10px var(--bad)); }
+.av-an-eye svg { width: 100%; height: 100%; display: block; }
+.ai-avatar-roamer.av-eyes .av-eye { fill: var(--eye, #ff2a1a); filter: drop-shadow(0 0 4px var(--eye, #ff2a1a)); }
+html.av-xray .workspace *, html.av-xray header * { outline: 1px solid color-mix(in srgb, #cfd3ff 45%, transparent); outline-offset: -1px; }
+html.av-xray .workspace { filter: contrast(1.2) brightness(1.15) hue-rotate(200deg); transition: filter .4s; }
+.av-an-arm { position: fixed; z-index: 1147; height: 9px; margin-top: -4.5px; transform-origin: 0 50%; pointer-events: none; border-radius: 5px; background: linear-gradient(180deg, #f1c7a1, #c98f68); box-shadow: 0 0 8px rgba(0, 0, 0, .5); }
+.av-an-fist { position: fixed; z-index: 1148; width: 20px; height: 20px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 35% 35%, #f6d4b4, #c98f68); border: 1px solid #7a4a2d; }
+.av-an-impact { position: fixed; z-index: 1146; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; pointer-events: none; border: 3px solid var(--warn); background: radial-gradient(circle, #fff 0, color-mix(in srgb, var(--warn) 70%, transparent) 40%, transparent 70%); }
+.ai-avatar-roamer.av-gear5 { filter: brightness(2.4) saturate(.2) drop-shadow(0 0 16px #fff); }
+.ai-avatar-roamer.av-gear5 svg { animation: avGear5 .5s ease-in-out infinite alternate; transform-origin: 50% 100%; }
+@keyframes avGear5 { from { transform: scale(1.15, .85); } to { transform: scale(.88, 1.2); } }
+.av-an-dark { background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, .25) 10%, rgba(0, 0, 0, .92) 100%); }
+.av-an-hakiring { border-color: #111; box-shadow: 0 0 14px #e01020, inset 0 0 14px #e01020; }
+.av-an-haki-bolt { position: fixed; z-index: 1146; width: var(--l, 50vmax); height: 3px; pointer-events: none; transform-origin: 0 50%; transform: rotate(var(--a, 0deg)); opacity: 0;
+  background: linear-gradient(90deg, #fff, #e01020 20%, #111 60%, transparent); box-shadow: 0 0 10px #e01020; clip-path: polygon(0 40%, 18% 0, 34% 100%, 52% 10%, 70% 90%, 100% 40%, 100% 60%, 70% 100%, 52% 30%, 34% 100%, 18% 20%, 0 60%); }

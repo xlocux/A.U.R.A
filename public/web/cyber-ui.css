@@ -269,3 +269,21 @@ html[data-avatar-voice="4"] .ai-panel::after { content: ""; position: absolute; 
 @keyframes psychoPanel { 0%, 92% { translate: 0 0; } 93% { translate: 2px 0; filter: hue-rotate(-20deg); } 95% { translate: -2px 1px; } 97%, 100% { translate: 0 0; filter: none; } }
 @media (prefers-reduced-motion: reduce) { html[data-avatar-voice="4"] .ai-panel { animation: none; } }
 html[data-avatar-voice="4"] .ai-panel:not(.floating) { position: relative; }
+
+/* Header: logo on the left, product name with the temperament tagline underneath. */
+.headerbar h1 { display: grid !important; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; }
+.headerbar h1 .header-logo-img { grid-row: 1 / 3; }
+.headerbar h1 .header-title-text { grid-column: 2; grid-row: 1; }
+.aura-acronym { grid-column: 2; grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px;
+  font-family: var(--font-display, monospace); font-size: calc(9.5px * var(--font-scale, 1)); letter-spacing: .1em; text-transform: uppercase; font-weight: 400; color: var(--muted); transition: color .4s; }
+.aura-acronym[data-level="3"] { color: var(--warn); }
+.aura-acronym[data-level="4"] { color: var(--bad); text-shadow: 0 0 8px color-mix(in srgb, var(--bad) 60%, transparent); }
+.aura-acronym.glitch { animation: auraAcrGlitch .5s steps(2, end); }
+@keyframes auraAcrGlitch { 0% { translate: -2px 0; text-shadow: 2px 0 var(--accent), -2px 0 var(--bad); } 50% { translate: 2px 0; opacity: .6; } 100% { translate: 0 0; } }
+
+/* Sidebar footer: site + release. */
+.tabs::after { display: none !important; }
+.sidebar-meta { order: 50; margin-top: auto; padding: 10px 10px 2px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--font-display, monospace); font-size: calc(10px * var(--font-scale, 1)); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.sidebar-meta-ver { color: var(--accent); opacity: .8; }
+body.sidebar-collapsed .sidebar-meta { display: none; }
