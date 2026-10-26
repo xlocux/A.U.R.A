@@ -488,6 +488,57 @@
     const selection = $("topologySelection");
     if (selection) selection.innerHTML = formatNode(selected);
     render();
+    openNodeModal(selected);
+  }
+
+  // ── Node info modal ──
+  function ensureNodeModal() {
+    let modal = document.getElementById("topologyNodeModal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "topologyNodeModal";
+    modal.className = "topology-node-modal hidden";
+    modal.innerHTML = '<div class="topology-node-dialog" role="dialog" aria-modal="true" aria-labelledby="tnmTitle"><div id="tnmBody"></div></div>';
+    document.body.appendChild(modal);
+    const close = () => modal.classList.add("hidden");
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal || event.target.closest("[data-tnm-close]")) { close(); return; }
+      const link = event.target.closest("[data-tnm-node]");
+      if (link) {
+        const target = graph.nodes.find((node) => node.id === link.dataset.tnmNode);
+        if (target) { selectedNodeId = target.id; const sel = $("topologySelection"); if (sel) sel.innerHTML = formatNode(target); render(); openNodeModal(target); }
+        return;
+      }
+      const copy = event.target.closest("[data-tnm-copy]");
+      if (copy) navigator.clipboard?.writeText(copy.dataset.tnmCopy).then(() => { copy.textContent = "Copied"; setTimeout(() => { copy.textContent = "Copy value"; }, 1200); }).catch(() => {});
+    });
+    document.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+    return modal;
+  }
+
+  function openNodeModal(node) {
+    const modal = ensureNodeModal();
+    const pal = themePalette();
+    const style = nodeStyle(node, pal);
+    const data = node.data || {};
+    const value = data.url || data.domain || data.value || data.report_path || data.output_dir || data.technology || node.id;
+    const neighborIds = new Set();
+    for (const edge of graph.edges) {
+      if (edge.from === node.id) neighborIds.add(edge.to);
+      else if (edge.to === node.id) neighborIds.add(edge.from);
+    }
+    const neighbors = [...neighborIds].map((id) => graph.nodes.find((n) => n.id === id)).filter(Boolean);
+    const links = neighbors.slice(0, 18).map((n) => '<button type="button" class="tnm-link" data-tnm-node="' + escapeHtml(n.id) + '"><i style="background:' + nodeStyle(n, pal).fallback + '"></i>' + escapeHtml(String(n.label || n.id).slice(0, 34)) + "</button>").join("");
+    const open = /^https?:\/\//i.test(String(value)) ? '<a class="tnm-open" href="' + escapeHtml(value) + '" target="_blank" rel="noreferrer noopener">Open</a>' : "";
+    modal.querySelector("#tnmBody").innerHTML =
+      '<div class="tnm-head"><span class="tnm-tag" style="--tn:' + style.color + '">NODE // ' + escapeHtml(String(node.type || "").toUpperCase()) + '</span>' +
+      '<button type="button" class="tnm-close" data-tnm-close aria-label="Close"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+      '<h3 id="tnmTitle" class="tnm-title">' + escapeHtml(node.label || node.id) + "</h3>" +
+      '<div class="tnm-card">' + formatNode(node) + "</div>" +
+      "<h4>Connections (" + neighbors.length + ")</h4>" +
+      '<div class="tnm-links">' + (links || '<span class="muted">No connected nodes.</span>') + (neighbors.length > 18 ? '<span class="muted">+' + (neighbors.length - 18) + " more</span>" : "") + "</div>" +
+      '<div class="tnm-actions"><button type="button" data-tnm-copy="' + escapeHtml(value) + '">Copy value</button>' + open + "</div>";
+    modal.classList.remove("hidden");
   }
 
   function animate() {

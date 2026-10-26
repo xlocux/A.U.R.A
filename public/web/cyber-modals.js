@@ -11,7 +11,8 @@
     { modal: ".aura-dialog-modal", dialog: ".aura-dialog" },
     { modal: ".project-inspector-modal", dialog: ".project-inspector-dialog" },
     { modal: ".proxy-import-modal", dialog: ".proxy-import-dialog" },
-    { modal: ".tools-modal", dialog: ".tools-dialog" }
+    { modal: ".tools-modal", dialog: ".tools-dialog" },
+    { modal: ".topology-node-modal", dialog: ".topology-node-dialog" }
   ];
   const BOOT_MS = 780;
   const CLOSE_MS = 700;

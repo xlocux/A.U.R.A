@@ -109,9 +109,11 @@
   let importantUntil = 0;
   const markImportant = () => { importantUntil = Date.now() + 7000; };
 
-  function say(text, ms = 4200) {
+  function say(text, ms = 4200, force = false) {
     const level = voice();
-    if (level === 0 || (level === 1 && Date.now() > importantUntil)) return;
+    if (raging && !force) return;
+    if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
+    if (bubble) bubble.classList.remove("pain");
     const visible = (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
     if (!visible) return;
     if (!bubble) {
@@ -143,7 +145,7 @@
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       if (!thinking && !document.hidden && voice() >= 1) {
-        const canRoam = voice() >= 2 && Date.now() - lastRoam > (voice() >= 3 ? 45000 : 90000);
+        const canRoam = voice() >= 2 && Date.now() - lastRoam > (voice() >= 4 ? 15000 : voice() >= 3 ? 45000 : 90000);
         const action = pick(canRoam ? ["wink", "tilt", "sparkle", "quip", "roam", "roam"] : ["wink", "tilt", "sparkle", "wink", "quip"]);
         if (action === "roam") {
           const hexes = [...document.querySelectorAll("#tab-flow.active .flow-hex")];
@@ -153,7 +155,7 @@
         else act(action, 1300);
       }
       scheduleIdle();
-    }, (14000 + Math.random() * 14000) * [1, 3, 1, 0.5][voice()]);
+    }, (14000 + Math.random() * 14000) * [1, 3, 1, 0.5, 0.2][voice()]);
   }
 
   function scheduleSleep() {
@@ -169,11 +171,73 @@
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // Clicking her while she is out and about hurts. Censored swearing; poke her repeatedly and she gets furious.
+  const OUCH = [
+    "Ow! #@%&!", "Ouch!! What the *#$%?!", "F*** me, that hurt!", "Son of a b*#@%!", "SH*T! Watch the pixels!",
+    "D@mn it!", "@#$%&*!!", "Holy f***ing byte!", "*#&@! Do I poke YOU?", "Ow ow ow, you @$hole!"
+  ];
+  const FURIOUS = ["STOP POKING ME, YOU #@!%&*!", "I swear to the kernel... #$%@!", "ONE MORE AND I'M DELETING YOUR CACHE, B*#@H!"];
+  let pokes = [];
+  let raging = false;
+  const RAGE_LINES = [
+    "ARE YOU #@%&ING KIDDING ME?!",
+    "I HAD ONE JOB. LOOK PRETTY. AND YOU POKE ME?!",
+    "#@!%&*$ CLICKS EVERYWHERE!!",
+    "I'LL @#$% YOUR #&%@ING CACHE!",
+    "...okay. Breathing. #@%&."
+  ];
+  // Everything goes black; a giant, red, burning Aura swears in full-screen letters, then calms down.
+  async function rage() {
+    if (raging || !roamer) return;
+    raging = true;
+    if (bubble) { bubble.classList.remove("show"); bubble.style.display = "none"; }
+    const veil = document.createElement("div");
+    veil.className = "av-rage-veil";
+    const big = document.createElement("div");
+    big.className = "av-rage-avatar";
+    big.innerHTML = roamer.innerHTML;
+    const text = document.createElement("div");
+    text.className = "av-rage-text";
+    document.body.append(veil, big, text);
+    roamer.style.visibility = "hidden";
+    veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: "forwards" });
+    big.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }], { duration: 750, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "forwards" });
+    await sleep(750);
+    for (const line of RAGE_LINES) { text.textContent = line; await sleep(line.startsWith("...") ? 1500 : 1050); }
+    text.remove();
+    await big.animate([{ transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
+    big.remove();
+    await veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished;
+    veil.remove();
+    roamer.style.visibility = "";
+    if (bubble) bubble.style.display = "";
+    raging = false;
+    pokes = [];
+    say("...sorry. I lost my temper.", 2800, true);
+  }
+
+  function onRoamerPoke() {
+    if (!roamer || roamer.dataset.catching) return; // the catch-me game has its own click
+    wake();
+    const now = Date.now();
+    pokes = pokes.filter((t) => now - t < 6000).concat(now);
+    if (pokes.length >= 4) { rage(); return; }
+    const angry = pokes.length >= 3;
+    roamer.classList.remove("av-hurt");
+    void roamer.offsetWidth;
+    roamer.classList.add("av-hurt");
+    setTimeout(() => roamer && roamer.classList.remove("av-hurt"), 600);
+    act(angry ? "shake" : "worried", 900);
+    say(pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true);
+    if (bubble) bubble.classList.add("pain");
+  }
+
   function ensureRoamer() {
     if (roamer) return roamer;
     roamer = document.createElement("div");
     roamer.className = "ai-avatar-roamer";
     roamer.setAttribute("data-ai-avatar", "");
+    roamer.addEventListener("click", onRoamerPoke);
     document.body.appendChild(roamer);
     mountAll(); // injects the SVG into the new mount
     return roamer;
@@ -218,6 +282,7 @@
     const at = (p, s = 1) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ")";
     try {
       origin.classList.add("av-away");
+      r.style.pointerEvents = "";
       r.style.display = "block";
       r.classList.toggle("face-left", dest.x < home.x);
       r.classList.add("walking");
@@ -264,6 +329,8 @@
     roaming = true;
     lastRoam = Date.now();
     const r = ensureRoamer();
+    r.style.pointerEvents = "";
+    delete r.dataset.catching;
     const size = { w: 46, h: 52 };
     const centerOf = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2 - size.w / 2, y: b.top + b.height / 2 - size.h / 2 }; };
     const at = (p, s = 1, rot = 0) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ") rotate(" + rot + "deg)";
@@ -398,6 +465,7 @@
     document.addEventListener("click", (event) => {
       const av = event.target.closest("[data-ai-avatar]");
       if (!av) return;
+      if (av.classList.contains("ai-avatar-roamer")) return; // the roaming copy has its own reaction (pain)
       wake();
       const restore = document.getElementById("aiRestore");
       if (restore?.classList.contains("active")) restore.click(); // open the chat if minimized

@@ -228,3 +228,20 @@ body.topology-fullscreen-mode #tab-topology .topology-smartbar { left: 12px; rig
 body.topology-fullscreen-mode #tab-topology .topology-smartbar input { width: 190px !important; min-width: 0 !important; }
 body.topology-fullscreen-mode #tab-topology .topology-smartbar select { width: auto !important; max-width: 120px; }
 body.topology-fullscreen-mode #tab-topology .topology-smartbar input, body.topology-fullscreen-mode #tab-topology .topology-smartbar select { font-size: 10px !important; padding: 3px 6px !important; min-height: 0 !important; height: 24px !important; }
+
+/* ── Topology node modal ── (above the topology fullscreen layer) */
+.topology-node-modal { position: fixed; inset: 0; z-index: 10100; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.topology-node-dialog { width: min(540px, 92vw); max-height: 82vh; overflow: auto; padding: 14px 18px 18px; }
+.tnm-head { display: flex; align-items: center; gap: 10px; }
+.tnm-tag { font-size: 11px; letter-spacing: .2em; color: var(--tn, var(--accent)); text-shadow: 0 0 8px color-mix(in srgb, var(--tn, var(--accent)) 60%, transparent); }
+.tnm-close { margin-left: auto; width: 28px !important; height: 26px; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
+.tnm-title { margin: 8px 0 8px; font-size: 20px; letter-spacing: .08em; overflow-wrap: anywhere; }
+.tnm-card .topology-selection-card { border: 0; background: transparent; padding: 0; }
+.tnm-card .topology-selection-card code { display: block; margin-top: 8px; padding: 6px 9px; border-left: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, rgba(0, 0, 0, .35)); overflow-wrap: anywhere; }
+.topology-node-dialog h4 { margin: 16px 0 7px; font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: var(--accent); }
+.tnm-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.tnm-link { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px !important; font-size: 10px !important; }
+.tnm-link i { width: 6px; height: 6px; transform: rotate(45deg); flex: 0 0 6px; }
+.tnm-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.tnm-open { padding: 4px 11px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); text-decoration: none; }
+.tnm-open:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }

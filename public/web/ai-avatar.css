@@ -143,3 +143,62 @@
 .ai-avatar-roamer.av-overload .av-fig { animation: avSaiyanShake .06s linear infinite; }
 .ai-avatar-roamer.av-glitching { animation: avGlitch .22s steps(2, end) infinite; }
 @keyframes avGlitch { 0% { filter: drop-shadow(3px 0 0 rgba(255, 40, 90, .8)) drop-shadow(-3px 0 0 rgba(0, 229, 255, .8)); } 100% { filter: drop-shadow(-3px 0 0 rgba(255, 40, 90, .8)) drop-shadow(3px 0 0 rgba(0, 229, 255, .8)); clip-path: inset(0 0 40% 0); } }
+
+/* Car, flame trails, storm, scorch mark, shattered pieces. */
+.av-car { position: fixed; z-index: 1147; width: 110px; height: 38px; margin: -19px 0 0 -55px; pointer-events: none; filter: drop-shadow(0 0 10px #7fd8ff); }
+.av-car svg { width: 100%; height: 100%; display: block; }
+.av-trail { position: fixed; z-index: 1146; height: 5px; margin: -2px 0 0 0; border-radius: 3px; pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 60, 0, 0), #ff3d00 20%, #ff9a1f 55%, #fff6a8);
+  filter: blur(.5px) drop-shadow(0 0 8px #ff6a00); animation: avTrailFlicker .12s steps(2, end) infinite alternate; }
+@keyframes avTrailFlicker { from { height: 4px; } to { height: 7px; } }
+.av-storm { position: fixed; inset: 0; z-index: 1141; pointer-events: none; background: radial-gradient(circle at 50% 35%, rgba(18, 24, 52, .35), rgba(2, 4, 12, .78)); }
+.av-bolt-svg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1146; pointer-events: none; filter: drop-shadow(0 0 8px var(--accent)); }
+.av-scorch { position: fixed; z-index: 1142; width: 74px; height: 26px; margin: -13px 0 0 -37px; border-radius: 50%; pointer-events: none; background: radial-gradient(ellipse, rgba(0, 0, 0, .7), transparent 70%); }
+.av-piece { display: block; }
+
+.av-bottle { position: fixed; z-index: 1147; width: 30px; height: 45px; margin: -22px 0 0 -15px; pointer-events: none; filter: drop-shadow(0 0 8px rgba(120, 220, 255, .7)); }
+.av-bottle svg { width: 100%; height: 100%; display: block; }
+
+/* Mushroom + the UI-wide trip (blur, wobble, colour shift, SVG displacement). */
+.av-shroom { position: fixed; z-index: 1147; width: 34px; height: 38px; margin: -19px 0 0 -17px; pointer-events: none; filter: drop-shadow(0 0 8px rgba(255, 90, 70, .6)); }
+.av-shroom svg { width: 100%; height: 100%; display: block; }
+html.av-trip header, html.av-trip .tabs, html.av-trip .workspace { animation: avTripFilter 8.6s ease-in-out both; }
+html.av-trip .workspace-main, html.av-trip .tabs { animation-name: avTripFilter, avTripWarp; animation-duration: 8.6s, 2.4s; animation-iteration-count: 1, infinite; animation-timing-function: ease-in-out; animation-fill-mode: both, none; }
+.ai-avatar-roamer.av-tripping { animation: avTripHue 1.2s linear infinite; }
+@keyframes avTripFilter {
+  0% { filter: blur(0) hue-rotate(0deg) saturate(1); }
+  10% { filter: blur(1.2px) hue-rotate(40deg) saturate(1.6) url(#avTrip); }
+  50% { filter: blur(2.2px) hue-rotate(180deg) saturate(2.2) url(#avTrip); }
+  88% { filter: blur(1.4px) hue-rotate(320deg) saturate(1.7) url(#avTrip); }
+  100% { filter: blur(0) hue-rotate(360deg) saturate(1); }
+}
+@keyframes avTripWarp { 0%, 100% { transform: skew(.6deg, -.3deg) scale(1.003); } 50% { transform: skew(-.7deg, .4deg) scale(.998); } }
+@keyframes avTripHue { to { filter: hue-rotate(360deg) saturate(2) drop-shadow(0 0 12px var(--accent)); } }
+@media (prefers-reduced-motion: reduce) { html.av-trip header, html.av-trip .tabs, html.av-trip .workspace, html.av-trip .workspace-main { animation: none; } }
+
+/* Pain: the roaming avatar can be poked. */
+.ai-avatar-roamer:not(.av-piece) { pointer-events: auto; cursor: pointer; }
+.ai-avatar-roamer.av-hurt { animation: avHurt .5s linear; }
+@keyframes avHurt {
+  0% { filter: drop-shadow(0 0 16px var(--bad)) hue-rotate(-40deg) saturate(2.4) brightness(1.5); }
+  20% { translate: -4px 2px; } 40% { translate: 4px -2px; } 60% { translate: -3px -2px; } 80% { translate: 3px 2px; }
+  100% { filter: drop-shadow(0 0 10px var(--accent)); translate: 0 0; }
+}
+.ai-avatar-bubble.pain { border-color: var(--bad); color: var(--bad); box-shadow: 0 8px 26px rgba(0, 0, 0, .5), 0 0 16px color-mix(in srgb, var(--bad) 45%, transparent); }
+
+/* Rage mode: the screen goes black and a giant red burning Aura does the talking. */
+.av-rage-veil { position: fixed; inset: 0; z-index: 1148; background: #000; pointer-events: all; }
+.av-rage-avatar { position: fixed; left: 50%; top: 42%; width: 46px; height: 52px; z-index: 1149; pointer-events: none;
+  --av-c: #ff3b2f; --av-c2: #ff9a3b; filter: drop-shadow(0 0 18px #ff2a1a) saturate(1.6); animation: avRageShake .06s linear infinite; }
+.av-rage-avatar svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.av-rage-avatar .av-aura { opacity: 1; }
+.av-rage-avatar .aura-flame { fill: #ff3b1f; stroke: #ffb199; animation: avFlame .14s steps(2, end) infinite alternate; }
+.av-rage-avatar .aura-flame.f2 { fill: #ffd27a; }
+.av-rage-avatar .aura-core { fill: #ff2a1a; opacity: .4; }
+.av-rage-avatar .av-eye { fill: #fff; filter: drop-shadow(0 0 4px #ff2a1a); animation: none; }
+.av-rage-avatar .av-mouth { transform: scale(1.8, 1.9); }
+.av-rage-avatar .av-fig { animation: none; }
+.av-rage-text { position: fixed; left: 50%; top: 80%; transform: translateX(-50%); z-index: 1150; max-width: 88vw; text-align: center; pointer-events: none;
+  font-family: var(--font-display, monospace); font-size: clamp(20px, 3.4vw, 42px); letter-spacing: .06em; color: #ff4d3d; text-shadow: 0 0 18px #ff2a1a, 2px 0 #00e5ff, -2px 0 #ff2a55; animation: avRageText .09s steps(2, end) infinite alternate; }
+@keyframes avRageShake { 0% { translate: -5px 3px; rotate: -1deg; } 25% { translate: 5px -4px; rotate: 1deg; } 50% { translate: -4px -3px; rotate: -.5deg; } 75% { translate: 4px 4px; rotate: .8deg; } 100% { translate: -5px 3px; rotate: -1deg; } }
+@keyframes avRageText { from { translate: -2px 0; } to { translate: 2px 1px; } }

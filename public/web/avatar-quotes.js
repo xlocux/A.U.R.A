@@ -170,7 +170,8 @@
   // get(key): the next line of that pool, or null when she spoke too recently (unless force: true).
   function get(key, { force = false } = {}) {
     const now = Date.now();
-    if (!force && now - lastQuoteAt < COOLDOWN_MS) return null;
+    const cooldown = Number(document.documentElement.dataset.avatarVoice) >= 4 ? 5000 : COOLDOWN_MS;
+    if (!force && now - lastQuoteAt < cooldown) return null;
     const line = draw(key);
     if (line) lastQuoteAt = now;
     return line;

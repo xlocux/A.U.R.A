@@ -395,10 +395,11 @@ const VOICE_LABELS = [
   "Silent - no chatter at all",
   "Quiet - only the important moments (findings, completion, failures)",
   "Balanced - key moments plus the occasional remark",
-  "Chatty - frequent remarks, antics and wandering"
+  "Chatty - frequent remarks, antics and wandering",
+  "Psychopathic - frenzied antics back to back, constant commentary, pure chaos"
 ];
 function applyAvatarVoice(value) {
-  const level = Math.max(0, Math.min(3, Number(value ?? 2) || 0));
+  const level = Math.max(0, Math.min(4, Number(value ?? 2) || 0));
   document.documentElement.dataset.avatarVoice = String(level);
   if ($("avatarVoice")) $("avatarVoice").value = String(level);
   if ($("avatarVoiceLabel")) $("avatarVoiceLabel").textContent = VOICE_LABELS[level];
