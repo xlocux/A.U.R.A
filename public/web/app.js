@@ -1196,6 +1196,48 @@ function renderRiskUrls() {
   ).join("") || `<tr><td colspan="3" class="muted">No parameterised URLs matched risk patterns.</td></tr>`;
 }
 
+// Vulnerability findings (nuclei + NVD) are stored as asset leads with lead_type "vulnerability".
+let vulnLeadsCache = [];
+let vulnSeverityFilter = "all";
+const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0, unknown: 0 };
+
+async function renderVulnLeads() {
+  const rowsEl = $("vulnLeadRows");
+  if (!rowsEl) return;
+  const target = resultsTargetName || $("resultsProjectSelect")?.value || $("target")?.value;
+  if (!target) { rowsEl.innerHTML = `<tr><td colspan="4" class="muted">Load a run to see its vulnerability findings.</td></tr>`; return; }
+  try {
+    const data = await api(`/api/targets/${encodeURIComponent(target)}/leads`);
+    vulnLeadsCache = (data.leads || [])
+      .filter((lead) => (lead.lead_type || lead.type) === "vulnerability")
+      .map((lead) => ({ ...lead, _meta: lead.metadata || lead.metadata_json || {} }))
+      .sort((a, b) => (SEVERITY_RANK[String(b._meta.severity || "").toLowerCase()] || 0) - (SEVERITY_RANK[String(a._meta.severity || "").toLowerCase()] || 0));
+    renderVulnRows();
+  } catch (error) {
+    rowsEl.innerHTML = `<tr><td colspan="4" class="danger-text">${esc(error.message)}</td></tr>`;
+  }
+}
+
+function renderVulnRows() {
+  const rowsEl = $("vulnLeadRows");
+  if (!rowsEl) return;
+  const filtered = vulnSeverityFilter === "all"
+    ? vulnLeadsCache
+    : vulnLeadsCache.filter((lead) => String(lead._meta.severity || "").toLowerCase() === vulnSeverityFilter);
+  if ($("vulnLeadsHint")) $("vulnLeadsHint").textContent = countBucket(vulnLeadsCache.length, "finding");
+  rowsEl.innerHTML = filtered.length
+    ? filtered.map((lead) => {
+        const meta = lead._meta;
+        const sev = String(meta.severity || "unknown").toLowerCase();
+        const engine = meta.engine || (lead.source || "").split(":")[0] || "-";
+        const ref = meta.url || meta.reference;
+        const refCell = ref ? `<a href="${esc(ref)}" target="_blank" rel="noreferrer noopener">${esc(meta.cve || "details")} ↗</a>` : esc(meta.cve || "-");
+        const cvss = meta.cvss ? ` <span class="muted">(${esc(meta.cvss)})</span>` : "";
+        return `<tr><td><span class="risk-tag vuln-${esc(sev)}">${esc(sev)}</span>${cvss}</td><td class="mono wrap">${esc(lead.value || "")}</td><td>${esc(engine)}</td><td>${refCell}</td></tr>`;
+      }).join("")
+    : `<tr><td colspan="4" class="muted">No findings at this severity.</td></tr>`;
+}
+
 // Cloud resources discovered by cloud_enum are stored as asset leads (lead_type "cloud_resource").
 async function renderCloudLeads() {
   const rowsEl = $("cloudLeadRows");
@@ -2367,10 +2409,17 @@ document.addEventListener("click", (event) => {
     document.querySelectorAll(".assets-tab").forEach((node) => node.classList.toggle("active", node === tab));
     document.querySelectorAll(".asset-view").forEach((view) => view.classList.toggle("active", view.id === `asset-${asset}`));
     if (asset === "cloud") renderCloudLeads();
+    if (asset === "vulns") renderVulnLeads();
     return;
   }
   const chip = event.target.closest(".risk-chip");
   if (chip) { riskUrlFilter = chip.dataset.risk || "all"; renderRiskUrls(); }
+});
+$("vulnSeverityFilter")?.addEventListener("change", () => { vulnSeverityFilter = $("vulnSeverityFilter").value; renderVulnRows(); });
+$("exportVulnLeads")?.addEventListener("click", () => {
+  const lines = vulnLeadsCache.map((lead) => `[${(lead._meta.severity || "?").toUpperCase()}] ${lead.value}${lead._meta.url ? ` ${lead._meta.url}` : ""}`);
+  if (!lines.length) { $("status").textContent = "No vulnerability findings to export."; return; }
+  downloadText(`${exportBaseName()}-vulnerabilities.txt`, lines.join("\n"));
 });
 $("exportCloudLeads")?.addEventListener("click", () => {
   const values = [...new Set(cloudLeadsCache.map((lead) => lead.value).filter(Boolean))].sort();

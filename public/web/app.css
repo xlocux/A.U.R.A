@@ -611,6 +611,11 @@ button:disabled { opacity: .55; cursor: wait; }
 .risk-tag.risk-lfi { background: rgba(167, 139, 250, .18); border-color: rgba(167, 139, 250, .5); }
 .risk-tag.risk-redirect { background: rgba(96, 165, 250, .18); border-color: rgba(96, 165, 250, .5); }
 .risk-tag.risk-rce { background: rgba(248, 113, 113, .22); border-color: rgba(248, 113, 113, .6); }
+.risk-tag.vuln-critical { background: rgba(190, 18, 60, .30); border-color: rgba(244, 63, 94, .7); color: #ffe4e6; }
+.risk-tag.vuln-high { background: rgba(248, 113, 113, .20); border-color: rgba(248, 113, 113, .6); }
+.risk-tag.vuln-medium { background: rgba(242, 184, 75, .18); border-color: rgba(242, 184, 75, .5); }
+.risk-tag.vuln-low { background: rgba(96, 165, 250, .16); border-color: rgba(96, 165, 250, .5); }
+.risk-tag.vuln-info, .risk-tag.vuln-unknown { background: rgba(255,255,255,.05); }
 .result-view-toolbar {
   display: grid;
   grid-template-columns: max-content minmax(180px, 260px);
