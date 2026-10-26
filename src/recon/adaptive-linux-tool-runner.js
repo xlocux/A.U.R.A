@@ -38,13 +38,15 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
   const inputPath = findFlagValue(options.args || [], "-l");
   if (!inputPath || !fs.existsSync(inputPath)) return original(options);
   const hosts = fs.readFileSync(inputPath, "utf8").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (hosts.length <= profile.httpxBatchSize) return original(options);
-
   const store = options.store || context.store || null;
   const runId = options.runId || context.runId || null;
   const targetName = options.targetName || context.targetName || null;
   const proxied = httpxUsesProxy(options.args) || Boolean(options.proxyUrl);
-  const batchSize = proxied ? Math.min(profile.httpxBatchSize, 300) : profile.httpxBatchSize;
+  // Keep batches modest so each httpx invocation finishes within a sane timeout and partial results
+  // are saved often (a huge batch that times out mid-probe loses most of its hosts).
+  const batchSize = Math.min(profile.httpxBatchSize, proxied ? 80 : 200);
+  // Batch whenever we exceed one batch worth of hosts (not only above the full profile size).
+  if (hosts.length <= batchSize) return original(options);
   const batches = chunkList(hosts, batchSize);
   const batchDir = path.join(path.dirname(inputPath), "httpx-batches");
   fs.mkdirSync(batchDir, { recursive: true });
@@ -70,7 +72,7 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
     const stdoutPath = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}.stdout.jsonl`);
     const stderrPath = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}.stderr.txt`);
     fs.writeFileSync(batchPath, `${batches[index].join("\n")}\n`, "utf8");
-    const batchTimeoutMs = deriveHttpxBatchTimeout({ options, profile, proxied });
+    const batchTimeoutMs = deriveHttpxBatchTimeout({ options, profile, proxied, batchHosts: batches[index].length });
     lastBatchTimeoutMs = batchTimeoutMs;
     const batchArgs = replaceFlagValue(options.args || [], "-l", batchPath);
     appendRunEvent(store, runId, {
@@ -194,12 +196,15 @@ function adaptToolInvocation(options, profile) {
   return adapted;
 }
 
-function deriveHttpxBatchTimeout({ options, profile, proxied }) {
+function deriveHttpxBatchTimeout({ options, profile, proxied, batchHosts = 0 }) {
   const configured = Number(options.timeoutMs || 0);
   const base = proxied ? PROXY_HTTPX_BATCH_TIMEOUT_MS : DIRECT_HTTPX_BATCH_TIMEOUT_MS;
-  const profileLimit = Number(profile.httpxBatchTimeoutMs || DEFAULT_HTTPX_BATCH_TIMEOUT_MS);
-  const selected = Math.min(configured || base, profileLimit, base);
-  return Math.max(30000, selected);
+  // Scale the per-batch timeout with the number of hosts so a batch isn't killed mid-probe (which
+  // loses most of its results). Proxied probing is slower per host. Bounded to a sane [base, 5min].
+  const perHostMs = proxied ? 1200 : 600;
+  const scaled = (batchHosts || 0) * perHostMs;
+  const ceiling = Math.max(configured || 0, 300000);
+  return Math.min(Math.max(scaled, base, 60000), ceiling);
 }
 
 function httpxUsesProxy(args = []) {
