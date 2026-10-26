@@ -111,7 +111,7 @@
 
   function say(text, ms = 4200, force = false) {
     const level = voice();
-    if (raging && !force) return;
+    if ((raging || isAway()) && !force) return;
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
     if (bubble) bubble.classList.remove("pain");
     const visible = (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
@@ -144,7 +144,7 @@
   function scheduleIdle() {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      if (!thinking && !document.hidden && voice() >= 1) {
+      if (!thinking && !document.hidden && voice() >= 1 && !isAway()) {
         const canRoam = voice() >= 2 && Date.now() - lastRoam > (voice() >= 4 ? 15000 : voice() >= 3 ? 45000 : 90000);
         const action = pick(canRoam ? ["wink", "tilt", "sparkle", "quip", "roam", "roam"] : ["wink", "tilt", "sparkle", "wink", "quip"]);
         if (action === "roam") {
@@ -216,19 +216,53 @@
     say("...sorry. I lost my temper.", 2800, true);
   }
 
+  // Scenes take over the roaming copy: hide it and the bubble, then give everything back at the end.
+  function tantrumStart() {
+    if (raging || !roamer) return null;
+    raging = true;
+    const rect = roamer.getBoundingClientRect();
+    if (bubble) { bubble.classList.remove("show"); bubble.style.display = "none"; }
+    roamer.style.visibility = "hidden";
+    return { rect, svg: roamer.innerHTML };
+  }
+  function tantrumEnd() {
+    if (roamer) roamer.style.visibility = "";
+    if (bubble) bubble.style.display = "";
+    raging = false;
+    pokes = [];
+  }
+  // "Away" mode: she has left the chat. The home avatar is greyed out and she stays quiet until she is back.
+  let awayTimer = null;
+  function setAway(ms) {
+    document.documentElement.dataset.avatarAway = "1";
+    for (const el of mounts()) if (el !== roamer) el.classList.add("av-away");
+    clearTimeout(awayTimer);
+    awayTimer = setTimeout(() => {
+      delete document.documentElement.dataset.avatarAway;
+      for (const el of mounts()) if (el !== roamer) el.classList.remove("av-away");
+    }, ms);
+  }
+  const isAway = () => Boolean(document.documentElement.dataset.avatarAway);
+  let lastPointer = { x: innerWidth / 2, y: innerHeight / 2 };
+
   function onRoamerPoke() {
     if (!roamer || roamer.dataset.catching) return; // the catch-me game has its own click
     wake();
     const now = Date.now();
     pokes = pokes.filter((t) => now - t < 6000).concat(now);
-    if (pokes.length >= 4) { rage(); return; }
+    if (pokes.length >= 4) {
+      const scene = window.AuraTantrums ? window.AuraTantrums.choose() : "rage";
+      if (scene === "rage") rage(); else window.AuraTantrums.run(scene);
+      return;
+    }
     const angry = pokes.length >= 3;
     roamer.classList.remove("av-hurt");
     void roamer.offsetWidth;
     roamer.classList.add("av-hurt");
     setTimeout(() => roamer && roamer.classList.remove("av-hurt"), 600);
     act(angry ? "shake" : "worried", 900);
-    say(pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true);
+    const rudePoke = voice() >= 4 && window.AuraQuotes ? window.AuraQuotes.rude("poke") : null;
+    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true);
     if (bubble) bubble.classList.add("pain");
   }
 
@@ -264,8 +298,8 @@
   // Leave the chat, walk (along a gentle arc) to the target, react, then walk back home.
   async function roamTo(target, { text = "", action = "cheer", stay = 2600 } = {}) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
-    if (roaming || reducedMotion() || !origin || document.hidden) {
-      if (text) say(text);
+    if (isAway() || roaming || reducedMotion() || !origin || document.hidden) {
+      if (text && !isAway()) say(text);
       return;
     }
     roaming = true;
@@ -325,7 +359,7 @@
   // and always cleans up afterwards. Returns false when she can't perform right now.
   async function stage(script) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
-    if (roaming || reducedMotion() || !origin || document.hidden) return false;
+    if (isAway() || roaming || reducedMotion() || !origin || document.hidden) return false;
     roaming = true;
     lastRoam = Date.now();
     const r = ensureRoamer();
@@ -373,6 +407,7 @@
     let queued = false;
     window.addEventListener("pointermove", (event) => {
       wake();
+      lastPointer = { x: event.clientX, y: event.clientY };
       if (queued) return;
       queued = true;
       requestAnimationFrame(() => {
@@ -497,7 +532,7 @@
     }
   }
 
-  window.AuraAvatar = { react, say, act, roamTo, stage, isThinking: () => thinking, voice, isRoaming: () => roaming };
+  window.AuraAvatar = { react, say, act, roamTo, stage, rage, tantrumStart, tantrumEnd, setAway, isAway, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

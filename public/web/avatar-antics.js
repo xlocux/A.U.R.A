@@ -611,7 +611,7 @@
 
   function okToPerform() {
     const api = A();
-    if (!api || api.voice() < 2 || api.isRoaming() || api.isThinking() || document.hidden) return false;
+    if (!api || api.voice() < 2 || api.isRoaming() || api.isThinking() || api.isAway() || document.hidden) return false;
     if (Date.now() - lastInput < (api.voice() >= 4 ? 1500 : 5000)) return false; // someone is busy
     if (document.querySelector(".fx-modal:not(.hidden), #flowStageModal.open")) return false;
     if (document.body.classList.contains("topology-fullscreen-mode") || document.body.classList.contains("results-view-expanded") || document.fullscreenElement) return false;
@@ -619,6 +619,9 @@
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return false;
     return true;
   }
+
+  const RARE_EXTRA = [];
+  function registerAntic(name, fn, isRare = true) { ANTICS[name] = fn; if (isRare) RARE_EXTRA.push(name); window.AuraAvatar.antics = Object.keys(ANTICS); }
 
   async function run(name) {
     const api = A();
@@ -632,7 +635,7 @@
     const wild = A() && A().voice() >= 4;
     const names = Object.keys(ANTICS).filter((n) => n !== lastName && (wild || !CRAZY.has(n)));
     // explode is the showpiece: keep it rare
-    const rare = ["explode", "shatter", "storm", "deLorean", "alice", "shroom"];
+    const rare = ["explode", "shatter", "storm", "deLorean", "alice", "shroom", ...RARE_EXTRA];
     const pool = names.flatMap((n) => (CRAZY.has(n) ? [n, n, n] : rare.includes(n) ? [n] : [n, n]));
     return pick(pool);
   }
@@ -655,12 +658,12 @@
     schedule();
     // Double-click her for an instant gag (any personality level above Silent).
     document.addEventListener("dblclick", (event) => {
-      if (!event.target.closest("[data-ai-avatar]") || !A() || A().voice() < 1 || A().isRoaming()) return;
+      if (!event.target.closest("[data-ai-avatar]") || !A() || A().voice() < 1 || A().isRoaming() || A().isAway()) return;
       run(chooseName());
     });
   }
 
-  window.AuraAvatar = Object.assign(window.AuraAvatar || {}, { antic: run, antics: Object.keys(ANTICS) });
+  window.AuraAvatar = Object.assign(window.AuraAvatar || {}, { antic: run, registerAntic, antics: Object.keys(ANTICS) });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

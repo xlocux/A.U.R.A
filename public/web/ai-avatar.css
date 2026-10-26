@@ -202,3 +202,60 @@ html.av-trip .workspace-main, html.av-trip .tabs { animation-name: avTripFilter,
   font-family: var(--font-display, monospace); font-size: clamp(20px, 3.4vw, 42px); letter-spacing: .06em; color: #ff4d3d; text-shadow: 0 0 18px #ff2a1a, 2px 0 #00e5ff, -2px 0 #ff2a55; animation: avRageText .09s steps(2, end) infinite alternate; }
 @keyframes avRageShake { 0% { translate: -5px 3px; rotate: -1deg; } 25% { translate: 5px -4px; rotate: 1deg; } 50% { translate: -4px -3px; rotate: -.5deg; } 75% { translate: 4px 4px; rotate: .8deg; } 100% { translate: -5px 3px; rotate: -1deg; } }
 @keyframes avRageText { from { translate: -2px 0; } to { translate: 2px 1px; } }
+
+/* Tantrum scenes: she leaves, throws tokens, smashes the page with a hammer. */
+.av-tt-ghost { position: fixed; z-index: 1149; width: 46px; height: 52px; margin: -26px 0 0 -23px; pointer-events: none; scale: 1.5;
+  --av-c: var(--bad); --av-c2: var(--warn); filter: drop-shadow(0 0 12px var(--bad)); }
+.av-tt-ghost svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.av-tt-ghost.face-left svg { transform: scaleX(-1); }
+.av-tt-ghost.walking { animation: avTtWalk .32s ease-in-out infinite alternate; }
+.av-tt-ghost.sulk .av-mouth { transform: scale(1.4, 1.6); }
+.av-tt-say { position: fixed; z-index: 1150; transform: translateX(-50%); max-width: 280px; padding: 5px 10px; pointer-events: none; opacity: 0; text-align: center;
+  font-family: var(--font-display, monospace); font-size: 12px; letter-spacing: .04em; color: var(--bad); background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--bad); box-shadow: 0 0 16px color-mix(in srgb, var(--bad) 40%, transparent); clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.av-tt-say.show { opacity: 1; }
+.av-tt-suitcase { position: absolute; right: -14px; bottom: 2px; width: 16px; height: 12px; background: var(--warn); border: 1px solid var(--ink); border-radius: 2px; }
+.av-tt-suitcase::before { content: ""; position: absolute; left: 4px; top: -5px; width: 6px; height: 4px; border: 1px solid var(--ink); border-bottom: 0; }
+.av-tt-note { position: fixed; left: 50%; bottom: 46px; translate: -50% 0; z-index: 1150; padding: 7px 16px; pointer-events: none; font-family: var(--font-display, monospace); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--accent); background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--accent); clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+.av-tt-token { position: fixed; left: 0; top: 0; z-index: 1150; margin: -10px 0 0 -22px; padding: 3px 8px; pointer-events: none; font-family: var(--font-display, monospace); font-size: 11px; letter-spacing: .06em;
+  color: var(--bg); background: var(--warn); border: 1px solid var(--ink); clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%); box-shadow: 0 0 12px var(--warn); }
+.av-tt-ring { position: fixed; z-index: 1149; width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 2px solid var(--warn); border-radius: 50%; pointer-events: none; }
+.av-tt-hammer { position: fixed; z-index: 1150; width: 54px; height: 82px; pointer-events: none; transform-origin: 50% 100%; opacity: 0; filter: drop-shadow(0 0 8px var(--accent)); }
+.av-tt-hammer svg { width: 100%; height: 100%; display: block; }
+.av-tt-hammer .h-head { fill: var(--muted); stroke: var(--ink); stroke-width: 1.5; }
+.av-tt-hammer .h-shaft { fill: var(--warn); stroke: var(--ink); stroke-width: 1; }
+.av-tt-crack { position: fixed; z-index: 1148; width: 200px; height: 200px; margin: -100px 0 0 -100px; pointer-events: none; }
+.av-tt-crack path { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; opacity: .85; filter: drop-shadow(0 0 3px var(--accent)); }
+.av-tt-letters, .av-tt-l { display: inline; }
+.av-tt-l { white-space: pre; }
+@keyframes avTtWalk { from { translate: 0 0; rotate: -4deg; } to { translate: 0 -5px; rotate: 4deg; } }
+
+/* Anime gags: ninja, samurai, demon, kamehameha, nani. */
+.av-an-smoke { position: fixed; z-index: 1146; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; pointer-events: none; background: color-mix(in srgb, var(--ink) 70%, var(--bg)); filter: blur(3px); }
+.av-an-shuriken { position: fixed; z-index: 1147; width: 24px; height: 24px; pointer-events: none; }
+.av-an-shuriken svg { width: 100%; height: 100%; display: block; }
+.av-an-shuriken path { fill: var(--muted); stroke: var(--ink); stroke-width: 1; }
+.av-an-shuriken circle { fill: var(--bg); }
+.av-an-clone { position: fixed; z-index: 1146; width: 46px; height: 52px; margin: -26px 0 0 -23px; pointer-events: none; filter: drop-shadow(0 0 6px var(--accent)) brightness(.9); }
+.av-an-clone svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.av-an-lines { position: fixed; inset: 0; z-index: 1141; pointer-events: none; opacity: 0;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0 2.2deg, color-mix(in srgb, var(--ink) 55%, transparent) 2.2deg 2.6deg);
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 18%, #000 70%); mask: radial-gradient(circle at 50% 50%, transparent 18%, #000 70%); }
+.av-an-title { position: fixed; left: 50%; top: 46%; z-index: 1151; pointer-events: none; white-space: nowrap; opacity: 0; font-family: var(--font-display, monospace); font-size: clamp(34px, 7vw, 92px); letter-spacing: .08em; font-style: italic;
+  color: var(--ink); -webkit-text-stroke: 2px var(--bad); text-shadow: 4px 4px 0 var(--accent), 0 0 30px var(--bad); }
+.av-an-petal { position: fixed; z-index: 1146; width: 9px; height: 6px; border-radius: 80% 0 80% 0; pointer-events: none; background: color-mix(in srgb, #ffb7d5 80%, var(--ink)); }
+.av-an-slash { position: fixed; z-index: 1150; width: 150vmax; height: 3px; pointer-events: none; transform-origin: 50% 50%; background: linear-gradient(90deg, transparent, var(--ink) 15%, #fff 50%, var(--ink) 85%, transparent); box-shadow: 0 0 18px 4px var(--accent), 0 0 60px 10px #fff; }
+.av-an-white { position: fixed; inset: 0; z-index: 1149; pointer-events: none; background: #fff; opacity: 0; }
+.av-an-vignette { position: fixed; inset: 0; z-index: 1140; pointer-events: none; opacity: 0; background: radial-gradient(circle at 50% 50%, transparent 30%, color-mix(in srgb, var(--bad) 55%, #000) 120%); }
+.av-an-ring { position: fixed; z-index: 1145; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 2px solid var(--bad); box-shadow: 0 0 22px var(--bad), inset 0 0 18px var(--bad); pointer-events: none; }
+.ai-avatar-roamer.av-demon { --av-c: #ff2a1a; --av-c2: #ff9a3b; filter: drop-shadow(0 0 16px #ff2a1a) saturate(1.8); animation: avRageShake .08s linear infinite; }
+.ai-avatar-roamer.av-demon::before, .ai-avatar-roamer.av-demon::after { content: ""; position: absolute; top: -6px; width: 9px; height: 17px; background: #ff2a1a; clip-path: polygon(50% 0, 100% 100%, 0 100%); filter: drop-shadow(0 0 4px #ff9a3b); }
+.ai-avatar-roamer.av-demon::before { left: 7px; rotate: -18deg; }
+.ai-avatar-roamer.av-demon::after { right: 7px; rotate: 18deg; }
+.ai-avatar-roamer.av-demon .av-eye { fill: #fff; filter: drop-shadow(0 0 4px #ff2a1a); }
+.av-an-orb { position: fixed; z-index: 1147; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #fff 20%, var(--accent) 65%, transparent 72%); box-shadow: 0 0 30px 8px var(--accent); }
+.av-an-beam { position: fixed; z-index: 1147; height: 56px; width: var(--len, 100vw); pointer-events: none; transform-origin: 0 50%; border-radius: 28px;
+  background: linear-gradient(180deg, transparent, var(--accent) 22%, #fff 50%, var(--accent) 78%, transparent); box-shadow: 0 0 40px 10px var(--accent), 0 0 90px 24px color-mix(in srgb, var(--accent) 55%, transparent); }
+
+.av-an-confetti { position: fixed; z-index: 1150; width: 6px; height: 9px; pointer-events: none; }

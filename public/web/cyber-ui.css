@@ -245,3 +245,27 @@ body.topology-fullscreen-mode #tab-topology .topology-smartbar input, body.topol
 .tnm-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 .tnm-open { padding: 4px 11px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); text-decoration: none; }
 .tnm-open:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+/* Graduated sliders: ticks under every step, current level highlighted. */
+.range-ticks { position: relative; height: 22px; margin: 2px 8px 6px; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(25% - .25px)) 0 0 / calc(100% - 1px) 6px no-repeat; }
+.range-ticks::after { content: ""; position: absolute; right: 0; top: 0; width: 1px; height: 6px; background: var(--line); }
+.range-ticks span { position: absolute; top: 8px; transform: translateX(-50%); white-space: nowrap; font-size: calc(9px * var(--font-scale, 1)); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: color .2s; }
+.range-ticks span:first-child { transform: translateX(-8px); }
+.range-ticks span:last-child { transform: translateX(calc(-100% + 8px)); }
+.range-ticks span.on { color: var(--accent); text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent); }
+#avatarVoice[value="4"] + .range-ticks span.on, html[data-avatar-voice="4"] #avatarVoice + .range-ticks span.on { color: var(--bad); text-shadow: 0 0 8px var(--bad); }
+
+/* Psychopathic: the chat panel turns red, jagged and a bit unstable. */
+html[data-avatar-voice="4"] .ai-panel { --accent: var(--bad); --accent-2: var(--warn); --line: color-mix(in srgb, var(--bad) 60%, transparent);
+  border-color: var(--bad); box-shadow: 0 0 22px color-mix(in srgb, var(--bad) 35%, transparent), inset 0 0 40px color-mix(in srgb, var(--bad) 10%, transparent);
+  background: color-mix(in srgb, #1a0407 82%, var(--panel)); animation: psychoPanel 3.2s steps(1, end) infinite; }
+html[data-avatar-voice="4"] .ai-header h2 { color: var(--bad); text-shadow: 1px 0 var(--accent-2), -1px 0 #00e5ff; }
+html[data-avatar-voice="4"] .ai-header p { color: var(--warn); }
+html[data-avatar-voice="4"] .ai-message { border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, #240509 78%, transparent); }
+html[data-avatar-voice="4"] .ai-message.assistant { border-color: var(--bad); background: color-mix(in srgb, #3a060c 80%, transparent); box-shadow: -3px 0 0 var(--bad); }
+html[data-avatar-voice="4"] .ai-message.user { border-color: var(--warn); background: color-mix(in srgb, #2a1205 80%, transparent); }
+html[data-avatar-voice="4"] .ai-input textarea { border-color: var(--bad); caret-color: var(--bad); }
+html[data-avatar-voice="4"] .ai-panel::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--bad) 8%, transparent) 3px 4px); }
+@keyframes psychoPanel { 0%, 92% { translate: 0 0; } 93% { translate: 2px 0; filter: hue-rotate(-20deg); } 95% { translate: -2px 1px; } 97%, 100% { translate: 0 0; filter: none; } }
+@media (prefers-reduced-motion: reduce) { html[data-avatar-voice="4"] .ai-panel { animation: none; } }
+html[data-avatar-voice="4"] .ai-panel:not(.floating) { position: relative; }
