@@ -51,12 +51,7 @@
     panel.className = "tab-panel aura-logs-panel";
     panel.innerHTML = `
       <div class="logs-subtabs">
-        <button type="button" class="active" data-log-subtab="activity">Activity</button>
-        <button type="button" data-log-subtab="timeline">Timeline</button>
-        <button type="button" data-log-subtab="events">Run Events</button>
-        <button type="button" data-log-subtab="tools">Tool Results</button>
-        <button type="button" data-log-subtab="ai">AI Decisions</button>
-        <button type="button" data-log-subtab="correlation">Correlation</button>
+        <button type="button" class="active" data-log-subtab="tools">Tool Logs</button>
         <button type="button" data-log-subtab="errors">Warnings & Errors</button>
         <button type="button" id="logsClearBtn" class="logs-clear-btn" title="Clear live events log">Clear logs</button>
       </div>
@@ -68,7 +63,7 @@
     logsButton.addEventListener("click", (event) => {
       event.preventDefault();
       activateMainPanel("logs");
-      renderActiveLogSubtab("activity");
+      renderActiveLogSubtab("tools");
     });
     // Restore #tab-runs children when navigating away from logs tab to runs tab.
     document.addEventListener("click", (event) => {
@@ -119,9 +114,7 @@
       shell.insertAdjacentHTML("beforebegin", `
         <div class="topology-view-tabs">
           <button type="button" class="active" data-topology-view="graph">Graph</button>
-          <button type="button" data-topology-view="dashboard">Dashboard</button>
-          <button type="button" data-topology-view="sources">Sources</button>
-          <button type="button" data-topology-view="technologies">Technologies</button>
+          <button type="button" data-topology-view="stats">Stats</button>
         </div>
         <div id="topologyDashboard" class="topology-dashboard hidden"></div>
       `);
@@ -152,7 +145,7 @@
       refreshInFlight = true;
       try {
         await loadRunData(runId);
-        renderActiveLogSubtab(document.querySelector("[data-log-subtab].active")?.dataset.logSubtab || "timeline");
+        renderActiveLogSubtab(document.querySelector("[data-log-subtab].active")?.dataset.logSubtab || "tools");
         const view = activeTopologyView();
         if (view !== "graph" && !document.getElementById("topologyDashboard")?.classList.contains("hidden")) {
           renderTopologyView(view, { useCache: true });
@@ -251,20 +244,14 @@
     const urls = array(data?.urls);
     const technologies = array(data?.technologies);
     const techCounts = new Map(technologies.map((item) => [item.name || item.technology || String(item), Number(item.count || item.serviceCount || 1)]));
-    if (view === "dashboard") return [
+    // Single consolidated stats view (was Dashboard + Sources + Technologies).
+    if (view === "stats" || view === "dashboard" || view === "sources" || view === "technologies") return [
       metricCards({ domains, services, urls, technologies }),
       bars("HTTP status", countBy(services, (item) => item.statusCode || item.status_code || "none")),
       bars("Top technologies", techCounts),
-      bars("Top URL hosts", countBy(urls, (item) => item.host || safeHost(item.url) || "unknown"))
-    ].join("");
-    if (view === "sources") return [
+      bars("Top URL hosts", countBy(urls, (item) => item.host || safeHost(item.url) || "unknown")),
       bars("Domain sources", countCsv(domains, (item) => item.source || "unknown")),
       bars("Service sources", countCsv(services, (item) => item.source || "unknown")),
-      bars("URL sources", countCsv(urls, (item) => item.source || "unknown"))
-    ].join("");
-    if (view === "technologies") return [
-      bars("Top technologies", techCounts),
-      bars("Service hosts", countBy(services, (item) => item.host || safeHost(item.url) || "unknown")),
       technologyTable(technologies)
     ].join("");
     return "";

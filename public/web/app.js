@@ -1227,6 +1227,13 @@ function renderRunDelta(delta) {
     return;
   }
   $("runDeltaSummary").textContent = delta.comparedToRunId ? `Compared with run ${delta.comparedToRunId}` : "First run for this target.";
+  // Surface the delta compactly in the Explorer (the standalone Delta subtab was consolidated away).
+  const explorerDelta = $("explorerDeltaSummary");
+  if (explorerDelta) {
+    explorerDelta.textContent = delta.comparedToRunId
+      ? `vs run ${delta.comparedToRunId}: +${delta.domains?.addedCount || 0} domains, +${delta.urls?.addedCount || 0} URLs, +${delta.httpServices?.addedCount || 0} services (−${delta.domains?.removedCount || 0} domains removed)`
+      : "First run for this target — no delta to compare.";
+  }
   $("deltaNewDomains").textContent = delta.domains?.addedCount || 0;
   $("deltaRemovedDomains").textContent = delta.domains?.removedCount || 0;
   $("deltaNewUrls").textContent = delta.urls?.addedCount || 0;
@@ -2202,6 +2209,14 @@ document.querySelectorAll(".settings-tab").forEach((button) => {
 });
 document.querySelectorAll(".result-subtab").forEach((button) => {
   button.addEventListener("click", () => activateResultsView(button.dataset.resultsView));
+});
+// Assets sub-navigation (Domains / Services / URLs / Tech merged into one Results view).
+document.addEventListener("click", (event) => {
+  const tab = event.target.closest(".assets-tab");
+  if (!tab) return;
+  const asset = tab.dataset.asset;
+  document.querySelectorAll(".assets-tab").forEach((node) => node.classList.toggle("active", node === tab));
+  document.querySelectorAll(".asset-view").forEach((view) => view.classList.toggle("active", view.id === `asset-${asset}`));
 });
 // Add an "Expand" control to the Results sub-tab strip that opens the active view fullscreen.
 (function addResultsExpandButton() {

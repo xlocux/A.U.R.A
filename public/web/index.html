@@ -405,15 +405,9 @@
 
       <div class="result-subtabs" aria-label="Results views">
         <button class="result-subtab active" data-results-view="explorer" type="button">Explorer</button>
-        <button class="result-subtab" data-results-view="domains" type="button">Domains</button>
-        <button class="result-subtab" data-results-view="services" type="button">Services</button>
-        <button class="result-subtab" data-results-view="urls" type="button">URLs</button>
-        <button class="result-subtab" data-results-view="technologies" type="button">Tech</button>
+        <button class="result-subtab" data-results-view="assets" type="button">Assets</button>
         <button class="result-subtab" data-results-view="screenshots" type="button">Screenshots</button>
-        <button class="result-subtab" data-results-view="tool-logs" type="button">Tool Logs</button>
         <button class="result-subtab" data-results-view="activity" type="button">Activity</button>
-        <button class="result-subtab" data-results-view="ai-log" type="button">AI Log</button>
-        <button class="result-subtab" data-results-view="delta" type="button">Delta</button>
         <button class="result-subtab" data-results-view="export" type="button">Export</button>
       </div>
 
@@ -467,15 +461,25 @@
           <button id="exportFilteredCsv" type="button">Export View CSV</button>
         </div>
         <div id="resultExplorerSummary" class="result-summary"></div>
+        <div id="explorerDeltaSummary" class="result-summary muted"></div>
         <div class="result-explorer-grid"><div id="resultTree" class="result-tree"><div class="empty-state">No run loaded.</div></div><div id="resultDetail" class="result-detail"><div class="empty-state">Select a domain, service, URL, technology, screenshot run, or candidate.</div></div></div>
       </div>
 
-      <div id="results-domains" class="pane result-view"><h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="domainGroupBy">Group by</label><select id="domainGroupBy"><option value="none">None</option><option value="kind">Kind</option><option value="root">Root domain</option><option value="source">Source</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead><tbody id="domainRows"></tbody></table></div></div>
-      <div id="results-services" class="pane result-view"><h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="serviceGroupBy">Group by</label><select id="serviceGroupBy"><option value="none">None</option><option value="status">Status code</option><option value="tech">Technology</option><option value="host">Host</option><option value="scheme">Scheme</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead><tbody id="serviceRows"></tbody></table></div></div>
-      <div id="results-technologies" class="pane result-view"><h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="technologyGroupBy">Group by</label><select id="technologyGroupBy"><option value="none">None</option><option value="source">Source</option><option value="serviceCount">Service count</option><option value="hostCount">Host count</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead><tbody id="technologyRows"></tbody></table></div></div>
+      <div id="results-assets" class="pane result-view">
+        <div class="assets-subnav" aria-label="Asset views">
+          <button type="button" class="assets-tab active" data-asset="domains">Domains</button>
+          <button type="button" class="assets-tab" data-asset="services">Services</button>
+          <button type="button" class="assets-tab" data-asset="urls">URLs</button>
+          <button type="button" class="assets-tab" data-asset="technologies">Tech</button>
+        </div>
+        <div class="asset-view active" id="asset-domains"><h2>Domains & Subdomains <span id="domainRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="domainGroupBy">Group by</label><select id="domainGroupBy"><option value="none">None</option><option value="kind">Kind</option><option value="root">Root domain</option><option value="source">Source</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Domain</th><th>Kind</th><th>Source</th></tr></thead><tbody id="domainRows"></tbody></table></div></div>
+        <div class="asset-view" id="asset-services"><h2>HTTP Services <span id="serviceRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="serviceGroupBy">Group by</label><select id="serviceGroupBy"><option value="none">None</option><option value="status">Status code</option><option value="tech">Technology</option><option value="host">Host</option><option value="scheme">Scheme</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Tech</th></tr></thead><tbody id="serviceRows"></tbody></table></div></div>
+        <div class="asset-view" id="asset-urls"><h2>URLs <span class="muted">(gau / wayback / crawl)</span></h2><div class="result-view-toolbar"><label for="urlGroupBy">Group by</label><select id="urlGroupBy"><option value="none">None</option><option value="host">Host</option><option value="params">Parameters</option><option value="source">Source</option><option value="path">Path prefix</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead><tbody id="artifactRows"></tbody></table></div></div>
+        <div class="asset-view" id="asset-technologies"><h2>Technology Stack <span id="technologyRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="technologyGroupBy">Group by</label><select id="technologyGroupBy"><option value="none">None</option><option value="source">Source</option><option value="serviceCount">Service count</option><option value="hostCount">Host count</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Technology</th><th>Services</th><th>Hosts</th><th>Source</th></tr></thead><tbody id="technologyRows"></tbody></table></div></div>
+      </div>
       <div id="results-screenshots" class="pane result-view"><h2>Visual Triage <span id="screenshotRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="screenshotGroupBy">Group by</label><select id="screenshotGroupBy"><option value="none">None</option><option value="tool">Tool</option><option value="status">Status</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Screens</th><th>Report / Output</th></tr></thead><tbody id="screenshotRows"></tbody></table></div></div>
-      <div id="results-urls" class="pane result-view"><h2>Wayback URLs</h2><div class="result-view-toolbar"><label for="urlGroupBy">Group by</label><select id="urlGroupBy"><option value="none">None</option><option value="host">Host</option><option value="params">Parameters</option><option value="source">Source</option><option value="path">Path prefix</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Type</th><th>Value</th><th>Extra</th></tr></thead><tbody id="artifactRows"></tbody></table></div></div>
-      <div id="results-tool-logs" class="pane result-view"><h2>Tool Logs <span id="toolLogRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="toolLogGroupBy">Group by</label><select id="toolLogGroupBy"><option value="tool">Tool</option><option value="status">Status</option><option value="none">None</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th><th>Logs</th></tr></thead><tbody id="toolLogRows"><tr><td colspan="5" class="muted">No tool results for this run.</td></tr></tbody></table></div></div>
+      <!-- Kept in the DOM (hidden): the Logs tab reads #toolLogRows and the Activity feed reads these tables. -->
+      <div id="results-tool-logs" class="pane result-view" hidden><h2>Tool Logs <span id="toolLogRowsHint" class="heading-hint"></span></h2><div class="result-view-toolbar"><label for="toolLogGroupBy">Group by</label><select id="toolLogGroupBy"><option value="tool">Tool</option><option value="status">Status</option><option value="none">None</option></select></div><div class="scroll result-table-scroll"><table><thead><tr><th>Tool</th><th>Status</th><th>Exit</th><th>Started</th><th>Logs</th></tr></thead><tbody id="toolLogRows"><tr><td colspan="5" class="muted">No tool results for this run.</td></tr></tbody></table></div></div>
 
       <div id="results-activity" class="pane result-view"><div class="split"><div class="pane"><h2>Current Activity</h2><div id="runActivity" class="notice muted">No active run loaded.</div></div><div class="pane"><h2>Live Events</h2><div id="events" class="scroll"></div></div></div></div>
 

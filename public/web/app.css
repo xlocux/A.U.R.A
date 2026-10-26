@@ -575,6 +575,31 @@ button:disabled { opacity: .55; cursor: wait; }
 .result-view.active {
   display: block;
 }
+/* Assets view inner nav (Domains / Services / URLs / Tech merged into one Results view). */
+.assets-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.assets-tab {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .03);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.assets-tab.active {
+  color: #071017;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.asset-view { display: none; }
+.asset-view.active { display: block; }
 .result-view-toolbar {
   display: grid;
   grid-template-columns: max-content minmax(180px, 260px);
