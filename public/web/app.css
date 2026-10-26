@@ -600,6 +600,17 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .asset-view { display: none; }
 .asset-view.active { display: block; }
+/* Risk URL buckets (gf-style classification of collected URLs). */
+.risk-bucket-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.risk-chip { width: auto; margin: 0; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.03); color: var(--muted); font-size: 12px; white-space: nowrap; }
+.risk-chip.active { color: #071017; border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.risk-tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; border: 1px solid var(--line); color: var(--ink); }
+.risk-tag.risk-sqli { background: rgba(255, 99, 132, .18); border-color: rgba(255, 99, 132, .5); }
+.risk-tag.risk-xss { background: rgba(242, 184, 75, .18); border-color: rgba(242, 184, 75, .5); }
+.risk-tag.risk-ssrf { background: rgba(111, 244, 238, .16); border-color: rgba(111, 244, 238, .5); }
+.risk-tag.risk-lfi { background: rgba(167, 139, 250, .18); border-color: rgba(167, 139, 250, .5); }
+.risk-tag.risk-redirect { background: rgba(96, 165, 250, .18); border-color: rgba(96, 165, 250, .5); }
+.risk-tag.risk-rce { background: rgba(248, 113, 113, .22); border-color: rgba(248, 113, 113, .6); }
 .result-view-toolbar {
   display: grid;
   grid-template-columns: max-content minmax(180px, 260px);

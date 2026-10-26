@@ -1141,6 +1141,56 @@ function renderArtifacts(artifacts) {
     const href = /^https?:\/\//i.test(artifact.value || "") ? artifact.value : "";
     return { groupKey, html: `<tr><td>${esc(artifact.artifact_type)}</td><td class="mono wrap"><span class="cell-value">${esc(artifact.value)}</span> ${rowActions(artifact.value, href)}</td><td>${esc(JSON.stringify(artifact.extra_json || {}))}</td></tr>` };
   });
+  renderRiskUrls();
+}
+
+// gf-style risk buckets: classify already-collected parameterised URLs by their parameter names.
+// Pure analysis over existing data (no new scan). A URL can land in several buckets.
+const RISK_PARAM_PATTERNS = {
+  sqli: /^(id|select|report|role|update|query|user|name|sort|where|search|params|process|row|view|table|from|sel|results|order|keyword|column|field|delete|string|number|filter|cat|category|pid|uid)$/i,
+  xss: /^(q|s|search|id|action|keyword|query|page|keywords|url|view|name|field|callback|return|type|email|message|comment|title|content|redirect|ref|data)$/i,
+  ssrf: /^(url|uri|redirect|next|goto|dest|destination|redir|redirect_uri|continue|return_to|image|img|src|source|out|host|port|to|callback|domain|site|feed|path|proxy|fetch|load|open|target)$/i,
+  lfi: /^(file|document|folder|root|path|dir|pg|style|pdf|template|php_path|doc|page|include|inc|locate|show|site|type|content|layout|mod|conf|download|read|filename)$/i,
+  redirect: /^(url|redirect|next|return|returnurl|goto|dest|destination|redir|redirect_uri|continue|return_to|r|u|link|target|rurl|checkout_url|to|out|login_url|image_url|go|redir_url)$/i,
+  rce: /^(cmd|exec|command|execute|ping|jump|code|reg|do|func|arg|option|load|process|step|function|req|feature|exe|module|payload|run|system|shell|daemon)$/i
+};
+let riskUrlFilter = "all";
+
+function classifyRiskUrls(urls) {
+  const matches = [];
+  for (const item of urls || []) {
+    const value = item.value || item.url || "";
+    let params = [];
+    try { params = [...new URL(value).searchParams.keys()]; }
+    catch { const q = value.split("?")[1]; if (q) params = q.split("&").map((kv) => kv.split("=")[0]).filter(Boolean); }
+    if (!params.length) continue;
+    const seen = new Set();
+    for (const param of params) {
+      for (const [cls, re] of Object.entries(RISK_PARAM_PATTERNS)) {
+        const key = `${cls}|${value}|${param}`;
+        if (re.test(param) && !seen.has(key)) { matches.push({ cls, url: value, param }); seen.add(key); }
+      }
+    }
+  }
+  return matches;
+}
+
+function renderRiskUrls() {
+  const rowsEl = $("riskUrlRows");
+  if (!rowsEl) return;
+  const all = classifyRiskUrls(resultsData.urls);
+  const counts = {};
+  for (const match of all) counts[match.cls] = (counts[match.cls] || 0) + 1;
+  const classes = ["sqli", "xss", "ssrf", "lfi", "redirect", "rce"];
+  if ($("riskUrlsHint")) $("riskUrlsHint").textContent = `${all.length} candidate(s)`;
+  if ($("riskUrlBuckets")) {
+    $("riskUrlBuckets").innerHTML = [`<button type="button" class="risk-chip${riskUrlFilter === "all" ? " active" : ""}" data-risk="all">All ${all.length}</button>`]
+      .concat(classes.map((cls) => `<button type="button" class="risk-chip risk-${cls}${riskUrlFilter === cls ? " active" : ""}" data-risk="${cls}">${cls} ${counts[cls] || 0}</button>`)).join("");
+  }
+  const filtered = riskUrlFilter === "all" ? all : all.filter((match) => match.cls === riskUrlFilter);
+  rowsEl.innerHTML = filtered.slice(0, 500).map((match) =>
+    `<tr><td><span class="risk-tag risk-${esc(match.cls)}">${esc(match.cls)}</span></td><td class="mono wrap"><a href="${esc(match.url)}" target="_blank" rel="noreferrer noopener">${esc(match.url)}</a> ${rowActions(match.url, match.url)}</td><td>${esc(match.param)}</td></tr>`
+  ).join("") || `<tr><td colspan="3" class="muted">No parameterised URLs matched risk patterns.</td></tr>`;
 }
 
 function renderHttpServices(services) {
@@ -2210,13 +2260,17 @@ document.querySelectorAll(".settings-tab").forEach((button) => {
 document.querySelectorAll(".result-subtab").forEach((button) => {
   button.addEventListener("click", () => activateResultsView(button.dataset.resultsView));
 });
-// Assets sub-navigation (Domains / Services / URLs / Tech merged into one Results view).
+// Assets sub-navigation (Domains / Services / URLs / Tech / Risk merged into one Results view).
 document.addEventListener("click", (event) => {
   const tab = event.target.closest(".assets-tab");
-  if (!tab) return;
-  const asset = tab.dataset.asset;
-  document.querySelectorAll(".assets-tab").forEach((node) => node.classList.toggle("active", node === tab));
-  document.querySelectorAll(".asset-view").forEach((view) => view.classList.toggle("active", view.id === `asset-${asset}`));
+  if (tab) {
+    const asset = tab.dataset.asset;
+    document.querySelectorAll(".assets-tab").forEach((node) => node.classList.toggle("active", node === tab));
+    document.querySelectorAll(".asset-view").forEach((view) => view.classList.toggle("active", view.id === `asset-${asset}`));
+    return;
+  }
+  const chip = event.target.closest(".risk-chip");
+  if (chip) { riskUrlFilter = chip.dataset.risk || "all"; renderRiskUrls(); }
 });
 // Add an "Expand" control to the Results sub-tab strip that opens the active view fullscreen.
 (function addResultsExpandButton() {
