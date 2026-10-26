@@ -18,7 +18,7 @@ const FOCUSED_PHASES = new Set(["urls", "http-only", "tech", "screenshots", "tra
 const SCAN_TIER_TOOLS = {
   light: { tlsx: true },
   normal: { getjs: true, katana: true, tlsx: true, subzy: true },
-  full: { ffuf: true, cloudEnum: true, bypass403: true, getjs: true, katana: true, tlsx: true, subzy: true, waymore: true, paramspider: true }
+  full: { ffuf: true, cloudEnum: true, bypass403: true, getjs: true, katana: true, tlsx: true, subzy: true, waymore: true, paramspider: true, nuclei: true }
 };
 const SERVICE_PHASES = new Set(["tech", "screenshots", "trackers", "favicons", "dirs", "bypass403", "js", "crawl"]);
 
@@ -110,6 +110,8 @@ async function createReconRun({ request, response, store }) {
         runSubzy: flag("subzy"),
         runWaymore: flag("waymore"),
         runParamSpider: flag("paramspider"),
+        runNuclei: flag("nuclei"),
+        nvdApiKey: store.getActiveApiKey("nvd")?.api_key || null,
         ...options
       });
     }

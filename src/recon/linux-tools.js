@@ -30,7 +30,8 @@ const ALLOWED_TOOLS = new Set([
   "tlsx",
   "subzy",
   "waymore",
-  "paramspider"
+  "paramspider",
+  "nuclei"
 ]);
 
 // Runs an allowlisted tool through `sh -lc`. Inside a recon run the adaptive runner applies the

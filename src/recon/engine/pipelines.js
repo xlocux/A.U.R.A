@@ -12,6 +12,7 @@ const { announceProxy, appendAiLog, createProxyController, runHttpxOnHosts, tool
 const { collectFavicons, collectScreenshots, collectTrackers } = require("./web-collectors");
 const { runBypass403, runCloudEnum, runDirectoryDiscovery, runJsDiscovery } = require("./cloud-dirs");
 const { runKatanaCrawl, runTlsxGrab, runSubzyTakeover, runWaymore, runParamSpider } = require("./recon-extra-tools");
+const { runVulnAssessment } = require("./vuln-assessment");
 
 const DEFAULT_TIMEOUT_MS = 180000;
 
@@ -57,7 +58,9 @@ async function runRecon({
   runTlsx = false,
   runSubzy = false,
   runWaymore = false,
-  runParamSpider = false
+  runParamSpider = false,
+  runNuclei = false,
+  nvdApiKey = null
 }) {
   const roots = [...new Set((rootDomains || []).map(normalizeDomain).filter(Boolean))];
   if (roots.length === 0) throw new Error("Recon requires at least one valid root domain");
@@ -123,6 +126,19 @@ async function runRecon({
     if (useLinuxRunner && runParamSpider) {
       await waitForRunControl(store, runId);
       await runParamSpider({ ...shared, domains: roots });
+    }
+
+    // End-of-recon vulnerability assessment: optional nuclei scan (Full tier) + NVD CVE correlation
+    // of detected software versions. Best-effort — it never throws, so it can't fail the run.
+    if (useLinuxRunner) {
+      await waitForRunControl(store, runId);
+      await runVulnAssessment({
+        ...shared,
+        services: context.httpServices,
+        technologies: store.listTechnologySummary ? store.listTechnologySummary({ runId, limit: 500 }) : [],
+        runNuclei,
+        nvdApiKey
+      });
     }
 
     store.saveDomains(runId, targetName, [...discovered].map((domain) => ({

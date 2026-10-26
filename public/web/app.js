@@ -1018,7 +1018,7 @@ async function startDeepSeekLogin() {
 
 // Only include a tool flag when its checkbox is ticked, so an unticked box lets the scan tier decide.
 function reconToolFlags() {
-  const map = { ffuf: "useFfuf", cloudEnum: "useCloudEnum", bypass403: "useBypass403", getjs: "useGetJs", katana: "useKatana", tlsx: "useTlsx", subzy: "useSubzy", waymore: "useWaymore", paramspider: "useParamSpider" };
+  const map = { ffuf: "useFfuf", cloudEnum: "useCloudEnum", bypass403: "useBypass403", getjs: "useGetJs", katana: "useKatana", tlsx: "useTlsx", subzy: "useSubzy", waymore: "useWaymore", paramspider: "useParamSpider", nuclei: "useNuclei" };
   const flags = {};
   for (const [key, id] of Object.entries(map)) if ($(id)?.checked) flags[key] = true;
   return flags;

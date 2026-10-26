@@ -72,6 +72,7 @@
     useWaymore: "waymore -i <domain> -mode U",
     useParamSpider: "paramspider -d <domain>",
     useNmap: "nmap -iL hosts.txt -p <ports> -sV --open -T3",
+    useNuclei: "nuclei -l services.txt -jsonl -severity low,medium,high,critical -rate-limit 50",
     gowitness: "gowitness scan file -f hosts.txt --screenshot-path shots/",
     eyewitness: "eyewitness --web -f hosts.txt -d out --no-prompt"
   };
