@@ -186,7 +186,9 @@ async function runCmsDetector({ store, runId, targetName, service, linuxRuntime,
   if (/(joomla|drupal|wordpress|cms)/i.test(tech)) {
     const outputDir = path.join(artifactsDir, "cmseek", safeName(service.url));
     fs.mkdirSync(outputDir, { recursive: true });
-    const args = ["-u", service.url, "--batch", "--output", toToolPath(outputDir)];
+    // CMSeeK has no --output flag (it writes to its own Result/ dir); passing it makes argparse
+    // bail with a usage error. We parse detected tech from stdout, so --batch alone is enough.
+    const args = ["-u", service.url, "--batch", "--random-agent"];
     const result = await runDetectorTool({ store, runId, linuxRuntime, toolName: "cmseek", args, timeoutMs: Math.min(timeoutMs, 90000), proxyUrl });
     const artifacts = writeDetectorArtifacts(artifactsDir, "cmseek", service, result);
     store.recordToolResult(runId, {

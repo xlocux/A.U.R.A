@@ -11,6 +11,20 @@ const { DEFAULT_TOOL_RECOVERY_ATTEMPTS } = require("./constants");
 const { waitForRunControl } = require("./run-control");
 const { toToolPath } = require("./tool-args");
 const { recordToolRun, runLinuxToolWithProxy, runToolWithRecovery, toolFailureDetail } = require("./tool-execution");
+const { createEnvironmentRunner } = require("../environment-setup");
+const { TOOL_PATH_EXPORT, shellQuote } = require("../../core/shell");
+
+// One-shot PATH check so an optional tool that isn't installed is skipped once, cleanly, instead of
+// failing loudly on every target (e.g. gobypass403 printing "not found" for each forbidden URL).
+async function binaryOnPath(binary) {
+  try {
+    const runner = createEnvironmentRunner();
+    const res = await runner.run(`${TOOL_PATH_EXPORT} && command -v ${shellQuote(binary)} >/dev/null 2>&1 && echo OK`, 15000);
+    return /OK/.test(res.stdout || "");
+  } catch {
+    return false;
+  }
+}
 
 const MAX_FFUF_TARGETS = 25;
 const MAX_BYPASS_TARGETS = 20;
@@ -328,6 +342,10 @@ async function runBypass403({ store, runId, targetName, linuxRuntime, timeoutMs,
     .map((service) => service.url).filter(Boolean))].slice(0, MAX_BYPASS_TARGETS);
   if (targets.length === 0) {
     store.appendEvent(runId, { phase: "follow-up-bypass403", severity: "info", source: "gobypass403", message: "403 bypass skipped: no 401/403/405 services to test." });
+    return 0;
+  }
+  if (!(await binaryOnPath("gobypass403"))) {
+    store.appendEvent(runId, { phase: "follow-up-bypass403", severity: "warn", source: "gobypass403", message: `403 bypass skipped: gobypass403 is not installed on PATH. Install it from Settings > Environment (it is a Full-tier optional tool).` });
     return 0;
   }
   let total = 0;
