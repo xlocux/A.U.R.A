@@ -115,8 +115,9 @@ test("artifact endpoint never serves database files", async () => {
 
 test("earlier runs keep their results when a later run sees the same observations", async () => {
   const first = store.createRun({ targetName: "demo" });
+  store.updateRun(first.id, { status: "completed" }); // delta only compares against completed runs
   const second = store.createRun({ targetName: "demo" });
-  const domain = { domain: "app.example.com", rootDomain: "example.com", source: "subfinder" };
+  const domain ={ domain: "app.example.com", rootDomain: "example.com", source: "subfinder" };
   const service = { url: "https://app.example.com", host: "app.example.com", statusCode: 200, technologies: ["nginx"] };
   store.saveDomains(first.id, "demo", [domain]);
   store.saveHttpServices(first.id, "demo", [service]);

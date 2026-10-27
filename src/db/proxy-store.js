@@ -4,10 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
-
-function nowIso() {
-  return new Date().toISOString();
-}
+const { nowIso, transaction } = require("./store/helpers");
 
 class ProxyStore {
   constructor(dbPath = process.env.AURA_PROXY_DB || path.join(__dirname, "../../data/proxies.db")) {
@@ -164,16 +161,7 @@ class ProxyStore {
   }
 
   transaction(fn) {
-    if (this.db.isTransaction) return fn();
-    this.db.exec("BEGIN");
-    try {
-      const result = fn();
-      this.db.exec("COMMIT");
-      return result;
-    } catch (error) {
-      if (this.db.isTransaction) this.db.exec("ROLLBACK");
-      throw error;
-    }
+    return transaction(this.db, fn);
   }
 
   async getActiveProxies() {
@@ -219,55 +207,6 @@ class ProxyStore {
     return this.db.prepare(query).all(...params);
   }
 
-  async getBestProxies(count = 10, filters = {}) {
-    const {
-      minSuccessRate = 0,
-      maxLatency = null,
-      proxyType = null,
-      country = null,
-      toolId = null
-    } = filters;
-
-    let query = `
-      SELECT p.*, pm.latency_ms, pm.success_rate, pm.last_tested
-      FROM proxies p
-      LEFT JOIN proxy_metrics pm ON p.id = pm.proxy_id
-      WHERE p.status = 'active'
-    `;
-    
-    const params = [];
-
-    if (minSuccessRate > 0) {
-      query += ` AND pm.success_rate >= ?`;
-      params.push(minSuccessRate);
-    }
-    
-    if (maxLatency !== null) {
-      query += ` AND pm.latency_ms <= ?`;
-      params.push(maxLatency);
-    }
-    
-    if (proxyType) {
-      query += ` AND p.type = ?`;
-      params.push(proxyType);
-    }
-    
-    if (country) {
-      query += ` AND p.country = ?`;
-      params.push(country);
-    }
-    
-    if (toolId) {
-      query += ` AND (pm.tool_id IS NULL OR pm.tool_id = ?)`;
-      params.push(toolId);
-    }
-
-    query += ` ORDER BY pm.success_rate DESC, pm.latency_ms ASC LIMIT ?`;
-    params.push(count);
-
-    return this.db.prepare(query).all(...params);
-  }
-
   async getProxyMetrics(proxyId) {
     return this.db.prepare("SELECT * FROM proxy_metrics WHERE proxy_id = ?").get(proxyId);
   }
@@ -279,15 +218,6 @@ class ProxyStore {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(runId, proxyId, targetUrl, success ? 1 : 0, latencyMs, errorMessage, httpStatus);
     return Number(result.lastInsertRowid);
-  }
-
-  async getProxyTestHistory(proxyId, limit = 50) {
-    return this.db.prepare(`
-      SELECT * FROM proxy_test_runs
-      WHERE proxy_id = ?
-      ORDER BY timestamp DESC
-      LIMIT ?
-    `).all(proxyId, limit);
   }
 
   async deleteProxy(proxyId) {

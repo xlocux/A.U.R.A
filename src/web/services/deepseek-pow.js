@@ -20,14 +20,12 @@ function wasmPath() {
 
 function reloadWasm() { wasm = null; }
 
-function loadWasm() {
-  if (wasm) return wasm;
-  const bytes = fs.readFileSync(wasmPath());
-  const ex = new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports;
+// Builds hash(str) over a wasm exports object (shared with deepseek-login's vector check).
+function createHasher(ex) {
   const malloc = ex.__wbindgen_export_0;
   const addsp = ex.__wbindgen_add_to_stack_pointer;
   const enc = new TextEncoder();
-  const hash = (str) => {
+  return (str) => {
     const retptr = addsp(-16);
     const b = enc.encode(str);
     const p = malloc(b.length, 1);
@@ -37,10 +35,17 @@ function loadWasm() {
     const outPtr = view.getInt32(retptr, true);
     const outLen = view.getInt32(retptr + 4, true);
     const hex = Buffer.from(new Uint8Array(ex.memory.buffer, outPtr, outLen)).toString("ascii");
+    ex.__wbindgen_export_2(outPtr, outLen, 1); // free the result string, else ~10 MB leaks per solve
     addsp(16);
     return hex;
   };
-  wasm = { hash };
+}
+
+function loadWasm() {
+  if (wasm) return wasm;
+  const bytes = fs.readFileSync(wasmPath());
+  const ex = new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports;
+  wasm = { hash: createHasher(ex), ex };
   return wasm;
 }
 
@@ -71,4 +76,4 @@ function powResponseHeader(challenge) {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
 }
 
-module.exports = { solveChallenge, powResponseHeader, reloadWasm, wasmPath };
+module.exports = { solveChallenge, powResponseHeader, reloadWasm, createHasher, loadWasm };

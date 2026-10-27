@@ -5,6 +5,7 @@ const path = require("node:path");
 const { commandDisplay, runLinuxTool } = require("./linux-tools");
 const { toToolPath } = require("./engine/tool-args");
 const { buildProxyAwareInvocation } = require("./tool-proxy-policy");
+const { MAX_HTML_SCAN_CHARS, MAX_PAGE_BYTES, fetchBoundedText } = require("./bounded-fetch");
 
 const MAX_DETECTOR_URLS = 50;
 const DEFAULT_DETECTOR_ATTEMPTS = 2;
@@ -65,14 +66,14 @@ async function runTechnologyEnrichment({
 
   for (const service of sampled) {
     await waitForRunControl(store, runId);
-    await runRetireOnService({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl });
+    await runRetireOnService({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl, rootDomains: context?.rootDomains || [] });
     await waitForRunControl(store, runId);
     await runCmsDetector({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl });
   }
 }
 
-async function runRetireOnService({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl }) {
-  const retireInput = await prepareRetireInput({ service, artifactsDir, proxyUrl });
+async function runRetireOnService({ store, runId, targetName, service, linuxRuntime, timeoutMs, artifactsDir, proxyUrl, rootDomains = [] }) {
+  const retireInput = await prepareRetireInput({ service, artifactsDir, proxyUrl, rootDomains });
   if (retireInput.skipped) {
     store.appendEvent(runId, {
       phase: "technology-enrichment",
@@ -100,24 +101,25 @@ async function runRetireOnService({ store, runId, targetName, service, linuxRunt
   saveTechnologyService(store, runId, targetName, service, "retire.js", technologies, result);
 }
 
-async function prepareRetireInput({ service, artifactsDir, proxyUrl = null }) {
+async function prepareRetireInput({ service, artifactsDir, proxyUrl = null, rootDomains = [], fetchImpl = fetch }) {
   // Page/script downloads use Node fetch, which would bypass the configured proxy.
   if (proxyUrl) return { skipped: true, reason: "page download would bypass the configured proxy" };
   const inputDir = path.join(artifactsDir, "retire-input", safeName(service.url));
   fs.mkdirSync(inputDir, { recursive: true });
   let html = "";
   try {
-    html = await fetchText(service.url, { proxyUrl, timeoutMs: 15000 });
+    html = await fetchText(service.url, { timeoutMs: 15000, fetchImpl });
   } catch (error) {
     return { skipped: true, reason: `unable to fetch page HTML (${error.message})` };
   }
 
   fs.writeFileSync(path.join(inputDir, "index.html"), html, "utf8");
-  const scriptUrls = extractScriptUrls(html, service.url).slice(0, 20);
+  const allowed = (url) => isAllowedScriptHost(url, service, rootDomains);
+  const scriptUrls = extractScriptUrls(html, service.url).filter(allowed).slice(0, 20);
   let saved = 0;
   for (const scriptUrl of scriptUrls) {
     try {
-      const content = await fetchText(scriptUrl, { proxyUrl, timeoutMs: 15000 });
+      const content = await fetchText(scriptUrl, { timeoutMs: 15000, allowFinalUrl: allowed, fetchImpl });
       fs.writeFileSync(path.join(inputDir, `${String(saved + 1).padStart(3, "0")}-${safeName(scriptUrl)}.js`), content, "utf8");
       saved += 1;
     } catch {
@@ -132,26 +134,32 @@ function retireArgsForPath(inputDir) {
   return ["--path", toToolPath(inputDir), "--outputformat", "json", "--exitwith", "0"];
 }
 
-async function fetchText(url, { proxyUrl = null, timeoutMs = 15000 } = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+async function fetchText(url, { timeoutMs = 15000, allowFinalUrl = null, fetchImpl = fetch } = {}) {
+  return (await fetchBoundedText(url, { fetchImpl, timeoutMs, maxBytes: MAX_PAGE_BYTES, allowFinalUrl })).text;
+}
+
+// Only the service's own host or an in-scope root may serve scripts we download (no LAN/loopback probing).
+function isAllowedScriptHost(scriptUrl, service, rootDomains = []) {
   try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AURA-Recon/0.1)" },
-      signal: controller.signal
+    const host = new URL(scriptUrl).hostname.toLowerCase();
+    const own = new URL(service.url).hostname.toLowerCase();
+    if (host === own) return true;
+    return rootDomains.some((root) => {
+      const r = String(root || "").toLowerCase();
+      return r && (host === r || host.endsWith(`.${r}`));
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.text();
-  } finally {
-    clearTimeout(timer);
+  } catch {
+    return false;
   }
 }
 
 function extractScriptUrls(html, baseUrl) {
   const urls = [];
-  const pattern = /<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+  // Bounded gap and capped input: an unterminated <script src=' flood used to take tens of seconds.
+  const pattern = /<script\b[^>]{0,1000}?\bsrc=["']([^"']{1,2000})["']/gi;
+  const text = String(html || "").slice(0, MAX_HTML_SCAN_CHARS);
   let match;
-  while ((match = pattern.exec(String(html || ""))) !== null) {
+  while ((match = pattern.exec(text)) !== null) {
     try {
       const parsed = new URL(match[1], baseUrl);
       if (parsed.protocol === "http:" || parsed.protocol === "https:") urls.push(parsed.toString());
@@ -449,6 +457,9 @@ function firstUsefulLine(value) {
 
 
 module.exports = {
+  extractScriptUrls,
+  isAllowedScriptHost,
+  prepareRetireInput,
   parseBuiltWithTechnologies,
   parseRetireTechnologies,
   parseWpscanTechnologies,

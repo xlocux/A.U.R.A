@@ -59,7 +59,8 @@ function withAdaptiveRun(functionName, pipeline) {
     const cancellation = store && runId ? watchRunCancellation(store, runId) : null;
     try {
       return await withRunContext(
-        { store, runId, targetName, adaptiveProfile: profile, cancelSignal: cancellation?.signal || null },
+        // artifactsDir: where tools run; rootDomains: the in-scope roots (page scripts are fetched only from them)
+        { store, runId, targetName, adaptiveProfile: profile, cancelSignal: cancellation?.signal || null, artifactsDir, rootDomains: (options.rootDomains || []).map((d) => String(d).trim().toLowerCase()).filter(Boolean) },
         () => pipeline({ ...options, artifactsDir, adaptiveProfile: profile, ...(screenshotTools ? { screenshotTools } : {}) })
       );
     } finally {

@@ -171,7 +171,7 @@ async function runCveCorrelation({ store, runId, targetName, technologies, servi
     return 0;
   }
   store.appendEvent(runId, { phase: PHASE, severity: "ok", source: "nvd", message: `CVE correlation started for ${pairs.length} product:version pair(s).` });
-  let total = 0;
+  let total = 0, failed = 0;
   for (const { product, version } of pairs) {
     await waitForRunControl(store, runId);
     let cves = [];
@@ -182,6 +182,8 @@ async function runCveCorrelation({ store, runId, targetName, technologies, servi
       store.appendEvent(runId, { phase: PHASE, severity: "warn", source: "nvd", message: `NVD lookup failed for ${product} ${version}: ${error.message}` });
       continue;
     }
+    // a failed lookup is not "no CVEs": say so, so a 503 from NVD cannot pass for a clean result
+    if (cves.failed) { failed += 1; store.appendEvent(runId, { phase: PHASE, severity: "warn", source: "nvd", message: `NVD lookup failed for ${product} ${version}: ${cves.error}` }); continue; }
     if (!cves.length) continue;
     store.saveAssetLeads(runId, targetName, cves.map((cve) => ({
       leadType: "vulnerability",
@@ -203,9 +205,9 @@ async function runCveCorrelation({ store, runId, targetName, technologies, servi
   }
   store.appendEvent(runId, {
     phase: PHASE,
-    severity: total ? "warn" : "ok",
+    severity: total || failed ? "warn" : "ok",
     source: "nvd",
-    message: `CVE correlation completed: ${total} CVE(s) across ${pairs.length} product:version pair(s).`
+    message: `CVE correlation completed: ${total} CVE(s) across ${pairs.length} product:version pair(s)${failed ? `, ${failed} lookup(s) FAILED (results incomplete)` : ""}.`
   });
   return total;
 }
@@ -258,5 +260,6 @@ module.exports = {
   nucleiArgs,
   parseNucleiJsonl,
   parseTechToken,
+  runCveCorrelation,
   runVulnAssessment
 };

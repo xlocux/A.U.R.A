@@ -20,18 +20,18 @@ function sleep(ms) {
 }
 
 // Blocks while the run is paused; throws RunControlError once it is cancelled or deleted.
-async function waitForRunControl(store, runId) {
+async function waitForRunControl(store, runId, label = "Run") {
   let run = store.getRun(runId);
   if (!run) throw new RunControlError("cancelled", "Run no longer exists");
   if (run.status === "cancelled") throw new RunControlError("cancelled", "Run cancelled by user");
   if (run.status !== "paused") return;
-  store.appendEvent(runId, { phase: "control", severity: "warn", source: "engine", message: "Run paused. Waiting for resume or cancel." });
+  store.appendEvent(runId, { phase: "control", severity: "warn", source: "engine", message: `${label} paused. Waiting for resume or cancel.` });
   while (run.status === "paused") {
     await sleep(POLL_MS);
     run = store.getRun(runId);
     if (!run || run.status === "cancelled") throw new RunControlError("cancelled", "Run cancelled by user");
   }
-  store.appendEvent(runId, { phase: "control", severity: "ok", source: "engine", message: "Run resumed." });
+  store.appendEvent(runId, { phase: "control", severity: "ok", source: "engine", message: `${label} resumed.` });
 }
 
 // Aborts the returned signal when the run is cancelled, so running tools are killed instead of

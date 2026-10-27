@@ -7,7 +7,7 @@ const { classifyApiFailure } = require("../provider-apis");
 const { commandDisplay } = require("../linux-tools");
 const { preflightCheckToolAvailability } = require("../tool-preflight-check");
 const { loadToolRegistry } = require("../tool-registry");
-const { API_PASSIVE_PROVIDERS, DEFAULT_TOOL_RECOVERY_ATTEMPTS, TOOL_RAN_STATUSES } = require("./constants");
+const { API_PASSIVE_PROVIDERS, DEFAULT_TOOL_RECOVERY_ATTEMPTS } = require("./constants");
 const { waitForRunControl } = require("./run-control");
 const { argsForTool, parseToolSpec } = require("./tool-args");
 const { recordToolRun, runLinuxToolWithProxy, runToolWithRecovery, toolFailureDetail } = require("./tool-execution");
@@ -19,6 +19,8 @@ function createRunContext({ urls = [], httpServices = [] } = {}) {
 function queueToolRecoveryAction(context, action, result = null) {
   if (!context || context.recoveryMode || !action) return;
   if (result && result.status === "completed") return;
+  // The tool already got its in-tool retries; a recovery action would re-run a timing-out tool again and again.
+  if (result?.status === "timeout") return;
   const normalized = { ...action, id: action.id || `retry-${action.toolName || action.phase || "tool"}`, source: "tool-result" };
   if (context.recoveryQueue.some((item) => item.id === normalized.id)) return;
   context.recoveryQueue.push(normalized);
@@ -92,7 +94,7 @@ function recordNonBlockingToolError({ store, runId, toolName, root, args = [], e
 }
 
 // Saves what a discovery tool produced: domains for every tool, plus URLs (gau) or HTTP services (httpx).
-function saveToolOutput({ store, runId, targetName, spec, root, roots, result, discovered, context, proxied }) {
+function saveToolOutput({ store, runId, targetName, spec, root, roots, result, discovered, context }) {
   const domains = spec.name === "nmap" ? [] : extractDomains(result.stdout, roots);
   for (const domain of domains) discovered.add(domain);
   store.saveDomains(runId, targetName, domains.map((domain) => ({
@@ -119,20 +121,6 @@ function saveToolOutput({ store, runId, targetName, spec, root, roots, result, d
     context.httpServices.push(...services);
     store.saveHttpServices(runId, targetName, services, "httpx");
     store.appendEvent(runId, { phase: "recon", severity: services.length ? "ok" : "warn", source: "httpx", message: `httpx parsed ${services.length} HTTP services with status/tech` });
-    if (services.length === 0 && proxied && TOOL_RAN_STATUSES.has(result.status)) {
-      store.appendEvent(runId, { phase: "recon", severity: "warn", source: "httpx", message: `httpx returned 0 services with proxy; queuing direct (no-proxy) retry for ${root}` });
-      queueToolRecoveryAction(context, {
-        id: `retry-httpx-direct-${root}`,
-        phase: "http-tool",
-        toolName: "httpx",
-        toolSpec: spec,
-        root,
-        domains: [...discovered],
-        reason: `httpx returned 0 services through proxy for ${root}; retrying without proxy`,
-        status: "zero_output_with_proxy",
-        directOnly: true
-      });
-    }
   }
 }
 
@@ -148,9 +136,14 @@ async function collectLinuxTools({ store, runId, targetName, roots, linuxTools, 
       await waitForRunControl(store, runId);
       const spec = parseToolSpec(toolSpec);
       if (context.unavailableTools.has(spec.name)) continue;
+      // nmap ignores HTTP_PROXY and would connect directly, so it never runs behind a proxy (fail closed).
+      if (spec.name === "nmap" && proxied) {
+        store.appendEvent(runId, { phase: "recon", severity: "warn", source: "nmap", message: `nmap skipped for ${root}: it cannot use the configured proxy and would scan directly from your own address.` });
+        continue;
+      }
       let args;
       try {
-        args = argsForTool(spec, root, artifactsDir, discovered, subdomainWordlistPath);
+        args = argsForTool(spec, root, artifactsDir, [...discovered].filter((domain) => rootForDomain(domain, [root])), subdomainWordlistPath);
       } catch (error) {
         recordNonBlockingToolError({ store, runId, toolName: spec.name, root, error, context, toolSpec: spec });
         continue;
@@ -174,7 +167,7 @@ async function collectLinuxTools({ store, runId, targetName, roots, linuxTools, 
       }
       recordToolRun({ store, runId, artifactsDir, artifactName: `${spec.name}-${root}`, toolName: spec.name, args, linuxRuntime, result });
       collectedResults.push({ toolName: spec.name, root, status: result.status });
-      saveToolOutput({ store, runId, targetName, spec, root, roots, result, discovered, context, proxied });
+      saveToolOutput({ store, runId, targetName, spec, root, roots, result, discovered, context });
       queueToolRecoveryAction(context, {
         id: `retry-${spec.name}-${root}`,
         phase: "linux-tool",

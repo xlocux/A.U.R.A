@@ -152,6 +152,8 @@ async function startWebServer(argv = process.argv) {
     server.once("error", reject);
     server.listen(args.port, args.host, resolve);
   });
+  // After listen succeeded: a second instance failing with EADDRINUSE must not touch the first one's live runs.
+  store.failInterruptedRuns();
   const url = `http://${args.host}:${args.port}`;
   process.stdout.write(`A.U.R.A web UI listening on ${url}\n`);
   if (auth.usingDefaultPassword()) {

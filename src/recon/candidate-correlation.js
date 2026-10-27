@@ -187,7 +187,7 @@ function scoreCandidate({ lead, rootDomains, existingObservations = [] }) {
     rationale.push("public RDAP associated domain evidence");
   }
 
-  if (lead.source === "whoisxmlapi") {
+  if (isReverseWhoisSource(lead.source)) {
     score += 55;
     techniques.push("whois_rdap_overlap");
     rationale.push("Reverse WHOIS provider returned this domain for target terms");
@@ -295,8 +295,14 @@ function appendAiLog(store, runId, message, payload = {}) {
   });
 }
 
+// Leads are saved as "whoisxmlapi-reverse-whois"; match the whole family so purchased leads get scored.
+function isReverseWhoisSource(source) {
+  return String(source || "").startsWith("whoisxmlapi");
+}
+
 module.exports = {
   CORRELATION_TECHNIQUES,
+  isReverseWhoisSource,
   runCandidateCorrelation,
   scoreCandidate
 };

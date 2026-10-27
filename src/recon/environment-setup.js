@@ -241,17 +241,19 @@ function evaluateCapability(tool, output, status) {
 function createEnvironmentRunner() {
   return {
     mode: "native",
-    run: (command, timeoutMs) => runNativeShell({ command, timeoutMs })
+    run: (command, timeoutMs, options = {}) => runNativeShell({ command, timeoutMs, ...options })
   };
 }
 
-function runNativeShell({ command, timeoutMs }) {
-  return runShellProcess({ command: "sh", args: ["-lc", command], timeoutMs });
+function runNativeShell({ command, timeoutMs, cwd, env }) {
+  return runShellProcess({ command: "sh", args: ["-lc", command], timeoutMs, cwd, env });
 }
 
-function runShellProcess({ command, args, timeoutMs }) {
+function runShellProcess({ command, args, timeoutMs, cwd, env }) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
+      ...(cwd ? { cwd } : {}),
+      ...(env ? { env } : {}),
       detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"]

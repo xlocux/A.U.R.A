@@ -2,14 +2,6 @@
 
 const reconEngine = require("../../recon/recon-engine");
 
-const RUN_CONTROL_POLL_MS = 1000;
-
-function createRunControlError(message) {
-  const error = new Error(message);
-  error.name = "RunControlError";
-  return error;
-}
-
 function isRunControlError(error) {
   return error?.name === "RunControlError" || reconEngine.isRunControlError(error);
 }
@@ -41,27 +33,7 @@ function recordBackgroundFailure({ store, runId, phase, error }) {
   }
 }
 
-// Blocks while a run is paused; throws a RunControlError when it is cancelled or deleted.
-async function waitForRunControl(store, runId, label = "Run") {
-  let run = store.getRun(runId);
-  if (!run || run.status === "cancelled") throw createRunControlError("Run cancelled by user");
-  if (run.status !== "paused") return;
-  store.appendEvent(runId, {
-    phase: "control",
-    severity: "warn",
-    source: "engine",
-    message: `${label} paused. Waiting for resume or cancel.`
-  });
-  while (run?.status === "paused") {
-    await new Promise((resolve) => setTimeout(resolve, RUN_CONTROL_POLL_MS));
-    run = store.getRun(runId);
-    if (!run || run.status === "cancelled") throw createRunControlError("Run cancelled by user");
-  }
-}
-
 module.exports = {
-  createRunControlError,
   isRunControlError,
-  runInBackground,
-  waitForRunControl
+  runInBackground
 };

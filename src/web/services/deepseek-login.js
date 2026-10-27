@@ -9,7 +9,7 @@ const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
-const { reloadWasm } = require("./deepseek-pow");
+const { reloadWasm, createHasher } = require("./deepseek-pow");
 const { ensureDeviceId, deepSeekValidateToken } = require("./deepseek-web");
 
 const LOGIN_URL = "https://chat.deepseek.com/";
@@ -138,15 +138,7 @@ function extractToken(localStore, cookie) {
 function wasmMatchesVector(buffer) {
   try {
     const ex = new WebAssembly.Instance(new WebAssembly.Module(buffer), {}).exports;
-    const ret = ex.__wbindgen_add_to_stack_pointer(-16);
-    const b = new TextEncoder().encode(`${WASM_VECTOR.salt}_${WASM_VECTOR.expire_at}_${WASM_VECTOR.answer}`);
-    const p = ex.__wbindgen_export_0(b.length, 1);
-    new Uint8Array(ex.memory.buffer).set(b, p);
-    ex.wasm_deepseek_hash_v1(ret, p, b.length);
-    const view = new DataView(ex.memory.buffer);
-    const hex = Buffer.from(new Uint8Array(ex.memory.buffer, view.getInt32(ret, true), view.getInt32(ret + 4, true))).toString("ascii");
-    ex.__wbindgen_add_to_stack_pointer(16);
-    return hex === WASM_VECTOR.challenge;
+    return createHasher(ex)(`${WASM_VECTOR.salt}_${WASM_VECTOR.expire_at}_${WASM_VECTOR.answer}`) === WASM_VECTOR.challenge;
   } catch { return false; }
 }
 

@@ -9,7 +9,7 @@
 //
 // Every tool runs through runLinuxToolWithProxy, so when an upstream proxy is configured the
 // uniform HTTP_PROXY/HTTPS_PROXY/ALL_PROXY exports applied by spawnLinuxTool route the tool.
-// (tlsx opens raw TLS sockets, so a proxy applies only on a best-effort basis.)
+// (tlsx opens raw TLS sockets and ignores the proxy, so runTlsxGrab is skipped when one is configured.)
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -113,6 +113,11 @@ function parseTlsxDomains(stdout, rootDomains = []) {
 }
 
 async function runTlsxGrab({ store, runId, targetName, linuxRuntime, timeoutMs, artifactsDir, proxyController, proxyUrl, hosts = [], rootDomains = [] }) {
+  // tlsx opens raw TLS sockets and ignores HTTP_PROXY: behind a proxy it would connect directly, so skip it.
+  if (proxyUrl || proxyController?.hasPool()) {
+    store.appendEvent(runId, { phase: "follow-up-tls", severity: "warn", source: "tlsx", message: "tlsx skipped: it opens direct TLS connections and would bypass the configured proxy." });
+    return 0;
+  }
   const targets = [...new Set(hosts.map((h) => String(h).trim()).filter(Boolean))].slice(0, MAX_TLS_TARGETS);
   if (targets.length === 0) {
     store.appendEvent(runId, { phase: "follow-up-tls", severity: "info", source: "tlsx", message: "TLS grab skipped: no hosts to probe." });

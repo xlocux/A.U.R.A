@@ -97,19 +97,17 @@ async function executeRecoveryAction(action, options) {
       roots: action.root ? [action.root] : roots,
       linuxTools: tools,
       subdomainWordlistPath,
-      discovered: new Set(discoveredDomains || roots)
+      // Share the run's own Set so domains found by a retry reach the later phases.
+      discovered: discoveredDomains instanceof Set ? discoveredDomains : new Set(discoveredDomains || roots)
     });
     action.completed = results.some((item) => item.toolName === toolName && TOOL_RAN_STATUSES.has(item.status));
     return;
   }
   if (action.phase === "http-tool") {
-    const direct = action.directOnly === true;
     action.completed = await retryHttpToolAction({
       ...common,
       action,
-      domains: action.domains || discoveredDomains || roots,
-      proxyUrl: direct ? null : proxyUrl,
-      proxyController: direct ? null : proxyController
+      domains: action.domains || discoveredDomains || roots
     });
     return;
   }

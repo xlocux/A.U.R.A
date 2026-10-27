@@ -179,11 +179,11 @@ async function createHttpFollowupRun({ request, response, store, params }) {
   });
 }
 
-async function createFocusedFollowupRun({ request, response, store, params, phaseName }) {
+async function createFocusedFollowupRun({ request, response, store, params }) {
   const sourceRunId = params.id;
   const sourceRun = requireRun(store, sourceRunId, "Source run not found");
   const body = await readBody(request);
-  const requestedPhase = phaseName || params.phase || body.phase;
+  const requestedPhase = params.phase || body.phase;
   if (!FOCUSED_PHASES.has(requestedPhase)) throw new HttpError(400, `Unsupported follow-up phase: ${requestedPhase || "(none)"}`);
   const options = runnerOptions(body);
   const phase = requestedPhase === "http-only" ? "http" : requestedPhase;
@@ -229,8 +229,6 @@ module.exports = [
   { method: "POST", path: "/api/recon-runs", handler: createReconRun },
   { method: "POST", path: "/api/recon-runs/:id/:action", handler: (context) => {
     if (["pause", "resume", "cancel"].includes(context.params.action)) return updateRunControl(context);
-    if (context.params.action === "http-followup") return createHttpFollowupRun(context);
-    if (context.params.action === "focused-followup") return createFocusedFollowupRun(context);
     throw new HttpError(404, `Unknown run action: ${context.params.action}`);
   } },
   { method: "POST", path: "/api/recon-runs/:id/follow-up/http", handler: createHttpFollowupRun },

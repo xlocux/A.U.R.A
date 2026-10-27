@@ -158,9 +158,13 @@ function normalizeGithubRawUrl(value) {
   return parsed.toString();
 }
 
-async function readLimitedText(response, maxBytes) {
+async function readLimitedText(response, maxBytes, label = "Proxy list") {
+  return (await readLimitedBuffer(response, maxBytes, label)).toString("utf8");
+}
+
+async function readLimitedBuffer(response, maxBytes, label = "Proxy list") {
   const declared = Number(response.headers.get("content-length") || 0);
-  if (declared > maxBytes) throw new Error(`Proxy list is larger than ${maxBytes} bytes`);
+  if (declared > maxBytes) throw new Error(`${label} is larger than ${maxBytes} bytes`);
   const reader = response.body.getReader();
   const chunks = [];
   let total = 0;
@@ -170,11 +174,11 @@ async function readLimitedText(response, maxBytes) {
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel();
-      throw new Error(`Proxy list is larger than ${maxBytes} bytes`);
+      throw new Error(`${label} is larger than ${maxBytes} bytes`);
     }
     chunks.push(value);
   }
-  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
 }
 
 function splitCsvLine(line) {
@@ -183,3 +187,5 @@ function splitCsvLine(line) {
 
 module.exports = ProxySources;
 module.exports.PROXIFLY_ALL_URL = PROXIFLY_ALL_URL;
+module.exports.readLimitedText = readLimitedText;
+module.exports.readLimitedBuffer = readLimitedBuffer;

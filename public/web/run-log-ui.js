@@ -1,27 +1,22 @@
 "use strict";
 
 (function initAuraRunLogUi() {
-  let eventsReordering = false;
   let aiRowsReordering = false;
   let toolRowsReordering = false;
 
   function boot() {
     installDiagnosticsExportButton();
-    observeNewestFirstRunEvents();
     observeNewestFirstTable("aiLogRows", 0, () => aiRowsReordering, (value) => { aiRowsReordering = value; });
     observeNewestFirstTable("toolLogRows", 3, () => toolRowsReordering, (value) => { toolRowsReordering = value; });
     document.addEventListener("click", (event) => {
       if (event.target.closest?.('[data-results-view="activity"]')) {
         setTimeout(installDiagnosticsExportButton, 0);
-        setTimeout(sortRunEventsNewestFirst, 0);
       }
     }, true);
     window.addEventListener("aura:run-loaded", () => {
       setTimeout(installDiagnosticsExportButton, 0);
-      setTimeout(sortRunEventsNewestFirst, 0);
     });
     setTimeout(installDiagnosticsExportButton, 250);
-    setTimeout(sortRunEventsNewestFirst, 250);
   }
 
   function installDiagnosticsExportButton() {
@@ -48,40 +43,6 @@
       }
       window.location.href = `/api/recon-runs/${encodeURIComponent(runId)}/diagnostics`;
     });
-  }
-
-  function observeNewestFirstRunEvents() {
-    const target = document.getElementById("events");
-    if (!target || target.dataset.newestFirstObserver === "true") return;
-    target.dataset.newestFirstObserver = "true";
-    const observer = new MutationObserver(() => {
-      observer.disconnect();
-      sortRunEventsNewestFirst(target);
-      observer.observe(target, { childList: true });
-    });
-    observer.observe(target, { childList: true });
-    sortRunEventsNewestFirst(target);
-  }
-
-  function sortRunEventsNewestFirst(target) {
-    if (!target) target = document.getElementById("events");
-    if (!target || eventsReordering) return;
-    const nodes = [...target.children].filter((node) => node.classList?.contains("event"));
-    if (nodes.length < 2) return;
-    eventsReordering = true;
-    try {
-      nodes
-        .sort((left, right) => eventTime(right) - eventTime(left))
-        .forEach((node) => target.appendChild(node));
-    } finally {
-      eventsReordering = false;
-    }
-  }
-
-  function eventTime(node) {
-    const match = String(node.textContent || "").match(/^\[([^\]]+)]/);
-    const time = match ? Date.parse(match[1]) : 0;
-    return Number.isFinite(time) ? time : 0;
   }
 
   function observeNewestFirstTable(tbodyId, timeCellIndex, getLock, setLock) {

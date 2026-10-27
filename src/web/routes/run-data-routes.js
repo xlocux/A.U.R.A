@@ -34,30 +34,38 @@ function getRun({ response, store, params }) {
 
 function listEvents({ response, store, params, url }) {
   requireRun(store, params.id);
+  const tail = Math.floor(Number(url.searchParams.get("tail")));
+  if (Number.isFinite(tail) && tail > 0) {
+    sendJson(response, { events: store.listLatestEvents(params.id, Math.min(MAX_LIST_LIMIT, tail)) });
+    return;
+  }
   const after = Number(url.searchParams.get("after")) || 0;
   sendJson(response, { events: store.listEvents(params.id, after, listLimit(url, 500)) });
 }
 
 function listAiLog({ response, store, params }) {
   requireRun(store, params.id);
-  const events = store.listEvents(params.id, 0, 5000).filter((event) => String(event.phase || "").startsWith("ai-"));
+  const events = store.listLatestEvents(params.id, 5000, "ai-%");
   sendJson(response, { events, techniques: CORRELATION_TECHNIQUES });
 }
 
 function getResultTree({ response, store, params }) {
   const run = requireRun(store, params.id);
   const runId = run.id;
+  const domains = store.listDomains({ runId, limit: FULL_LIST_LIMIT });
+  const httpServices = store.listHttpServices({ runId, limit: FULL_LIST_LIMIT });
+  const urls = store.listUrls({ runId, limit: FULL_LIST_LIMIT });
   const tree = buildResultTree({
     run,
     target: store.getTarget(run.target_name),
     counts: store.getRunObservationCounts(runId),
-    domains: store.listDomains({ runId, limit: FULL_LIST_LIMIT }),
-    httpServices: store.listHttpServices({ runId, limit: FULL_LIST_LIMIT }),
-    urls: store.listUrls({ runId, limit: FULL_LIST_LIMIT }),
+    domains,
+    httpServices,
+    urls,
     screenshots: store.listScreenshots({ runId }),
     assetLeads: store.listAssetLeads({ targetName: run.target_name, limit: FULL_LIST_LIMIT })
       .filter((lead) => !lead.run_id || lead.run_id === runId),
-    delta: buildRunDelta(store, runId)
+    delta: buildRunDelta(store, runId, { domains, urls, httpServices })
   });
   sendJson(response, { tree });
 }

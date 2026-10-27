@@ -1,19 +1,26 @@
 "use strict";
 
 const { readBody, sendJson, HttpError } = require("../http-utils");
+const { mask } = require("../../db/store/helpers");
 const { answerAgentChat } = require("../services/ai-agent");
 const { getAiRuntimeStatus, listOpenRouterFreeModels, normalizeAiProvider } = require("../services/ai-runtime");
 const { startDeepSeekLogin, deepSeekLoginStatus, cancelDeepSeekLogin } = require("../services/deepseek-login");
 const { deepSeekUpload, ensureDeviceId } = require("../services/deepseek-web");
 
+// Never send the session token to the browser in full; same masking as API keys.
+function maskedSettings(settings) {
+  return { ...settings, deepseekToken: mask(settings.deepseekToken) };
+}
+
 async function getAiSettings({ response, store }) {
-  sendJson(response, { settings: store.getAiSettings(), models: await listOpenRouterFreeModels() });
+  sendJson(response, { settings: maskedSettings(store.getAiSettings()), models: await listOpenRouterFreeModels() });
 }
 
 async function saveAiSettings({ request, response, store }) {
   const body = await readBody(request);
   const autonomyLevel = Number(body.autonomyLevel);
   const current = store.getAiSettings();
+  const submittedToken = String(body.deepseekToken || "").trim();
   const settings = store.saveAiSettings({
     deepseekDeviceId: current.deepseekDeviceId, // preserve the stable device id across form saves
     provider: normalizeAiProvider(body.provider),
@@ -22,9 +29,10 @@ async function saveAiSettings({ request, response, store }) {
     localEndpoint: String(body.localEndpoint || "").trim(),
     localModel: String(body.localModel || "").trim(),
     autonomyLevel: Number.isFinite(autonomyLevel) ? Math.max(0, Math.min(4, Math.round(autonomyLevel))) : 1,
-    deepseekToken: String(body.deepseekToken || "").trim()
+    // Empty or the echoed mask means "unchanged": keep the stored token.
+    deepseekToken: submittedToken && submittedToken !== mask(current.deepseekToken) ? submittedToken : current.deepseekToken
   });
-  sendJson(response, { settings });
+  sendJson(response, { settings: maskedSettings(settings) });
 }
 
 async function getRuntimeStatus({ response, url }) {

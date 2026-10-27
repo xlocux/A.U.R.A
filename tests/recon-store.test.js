@@ -338,6 +338,7 @@ test("run delta compares discoveries with the previous target run", () => {
     { url: "https://shared.example.com/old", host: "shared.example.com", path: "/old", params: [] }
   ]);
 
+  store.updateRun(first.id, { status: "completed" });
   const second = store.createRun({ targetName: target.target_name });
   store.saveDomains(second.id, target.target_name, [
     { domain: "new.example.com", rootDomain: "example.com", kind: "subdomain", source: "subfinder" },
@@ -360,6 +361,66 @@ test("run delta compares discoveries with the previous target run", () => {
   assert.equal(delta.urls.addedCount, 1);
   assert.equal(delta.urls.removedCount, 1);
   assert.equal(delta.httpServices.addedCount, 1);
+
+  // recon -> provider-discovery -> recon: the discovery run must not become the baseline.
+  store.updateRun(second.id, { status: "completed" });
+  const discovery = store.createRun({ targetName: target.target_name, runType: "provider-discovery" });
+  store.updateRun(discovery.id, { status: "completed" });
+  const third = store.createRun({ targetName: target.target_name });
+  store.saveDomains(third.id, target.target_name, [
+    { domain: "new.example.com", rootDomain: "example.com", kind: "subdomain", source: "subfinder" },
+    { domain: "shared.example.com", rootDomain: "example.com", kind: "subdomain", source: "subfinder" }
+  ]);
+  const afterDiscovery = buildRunDelta(store, third.id);
+  assert.equal(afterDiscovery.comparedToRunId, second.id);
+  assert.equal(afterDiscovery.domains.addedCount, 0);
+  assert.equal(buildRunDelta(store, discovery.id).comparedToRunId, null);
+  store.close();
+});
+
+test("http services list one newest row per URL with technologies merged from every source", () => {
+  const store = openScanStore(tempDb("services-merge.db"));
+  const run = store.createRun({ targetName: "demo" });
+  const url = "https://a.example.com";
+  const svc = (over) => ({ url, host: "a.example.com", scheme: "https", port: 443, raw: {}, ...over });
+  store.saveHttpServices(run.id, "demo", [svc({ statusCode: 403, title: "Forbidden", technologies: [] })], "httpx");
+  store.saveHttpServices(run.id, "demo", [svc({ statusCode: 200, title: "Welcome", technologies: ["Nginx", "WordPress"] })], "httpx-recovery");
+  store.saveHttpServices(run.id, "demo", [svc({ statusCode: 200, title: "Welcome", technologies: ["Cloudflare", "WordPress 6.4", "nginx"] })], "wpscan");
+  const services = store.listHttpServices({ runId: run.id });
+  assert.equal(services.length, 1);
+  assert.equal(services[0].statusCode, 200);
+  assert.equal(services[0].title, "Welcome");
+  assert.deepEqual(services[0].technologies.slice().sort(), ["Cloudflare", "Nginx", "WordPress", "WordPress 6.4"]);
+  const nginx = store.listTechnologySummary({ runId: run.id }).find((item) => item.name.toLowerCase() === "nginx");
+  assert.equal(nginx.count, 1);
+  store.close();
+});
+
+test("failInterruptedRuns marks unfinished runs failed and leaves completed ones", () => {
+  const store = openScanStore(tempDb("interrupted.db"));
+  const running = store.createRun({ targetName: "demo" });
+  store.updateRun(running.id, { status: "running" });
+  const queued = store.createRun({ targetName: "demo" });
+  const done = store.createRun({ targetName: "demo" });
+  store.updateRun(done.id, { status: "completed" });
+  assert.equal(store.failInterruptedRuns(), 2);
+  for (const id of [running.id, queued.id]) {
+    const run = store.getRun(id);
+    assert.equal(run.status, "failed");
+    assert.equal(run.active_phase, "interrupted");
+    assert.equal(run.error_message, "Server stopped during the run");
+    assert.ok(run.finished_at);
+  }
+  assert.equal(store.getRun(done.id).status, "completed");
+  store.close();
+});
+
+test("listLatestEvents returns the last N events ascending, optionally by phase", () => {
+  const store = openScanStore(tempDb("latest-events.db"));
+  const run = store.createRun({ targetName: "demo" });
+  for (let i = 1; i <= 10; i += 1) store.appendEvent(run.id, { phase: i % 2 ? "ai-x" : "recon", message: `m${i}` });
+  assert.deepEqual(store.listLatestEvents(run.id, 3).map((e) => e.message), ["m8", "m9", "m10"]);
+  assert.deepEqual(store.listLatestEvents(run.id, 2, "ai-%").map((e) => e.message), ["m7", "m9"]);
   store.close();
 });
 

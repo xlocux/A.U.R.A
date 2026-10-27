@@ -39,7 +39,8 @@ async function createTarget({ request, response, store }) {
   }
   validateOrThrow(built.config);
   const { configPath, target } = saveTargetConfig(store, built.config);
-  const bootstrapRun = startTargetBootstrap({
+  // bootstrap:false lets a caller that starts its own recon (quick start) avoid a duplicate parallel run.
+  const bootstrapRun = body.bootstrap === false ? null : startTargetBootstrap({
     store,
     target,
     config: built.config,
@@ -80,11 +81,6 @@ function listTargetLeads({ response, store, params }) {
   sendJson(response, { leads: store.listAssetLeads({ targetName: params.name }) });
 }
 
-function getLatestRun({ response, store, params }) {
-  if (!store.getTarget(params.name)) throw new HttpError(404, "Target not found");
-  sendJson(response, { run: store.getLatestRunForTarget(params.name) });
-}
-
 module.exports = [
   { method: "GET", path: "/api/targets", handler: listTargets },
   { method: "POST", path: "/api/targets", handler: createTarget },
@@ -93,6 +89,5 @@ module.exports = [
   { method: "PUT", path: "/api/targets/:name/config", handler: updateTargetConfig },
   { method: "DELETE", path: "/api/targets/:name", handler: deleteTarget },
   { method: "GET", path: "/api/targets/:name/asset-leads", handler: listTargetLeads },
-  { method: "GET", path: "/api/targets/:name/leads", handler: listTargetLeads },
-  { method: "GET", path: "/api/targets/:name/latest-run", handler: getLatestRun }
+  { method: "GET", path: "/api/targets/:name/leads", handler: listTargetLeads }
 ];

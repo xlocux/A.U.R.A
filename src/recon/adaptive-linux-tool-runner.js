@@ -48,14 +48,13 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
   // Batch whenever we exceed one batch worth of hosts (not only above the full profile size).
   if (hosts.length <= batchSize) return original(options);
   const batches = chunkList(hosts, batchSize);
-  const batchDir = path.join(path.dirname(inputPath), "httpx-batches");
+  // One folder per input file: every httpx call in a run reuses this runner, so a shared folder let later calls overwrite earlier batch files.
+  const batchDir = path.join(path.dirname(inputPath), "httpx-batches", path.basename(inputPath, path.extname(inputPath)).replaceAll(/[^a-z0-9_.-]/gi, "_"));
   fs.mkdirSync(batchDir, { recursive: true });
   const startedAt = new Date().toISOString();
   const stdout = [];
   const stderr = [];
   const childResults = [];
-  let status = "completed";
-  let exitCode = 0;
   let lastBatchTimeoutMs = 0;
 
   appendRunEvent(store, runId, {
@@ -66,11 +65,13 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
     payload: { inputCount: hosts.length, batchSize, batchCount: batches.length, proxied }
   });
 
-  for (let index = 0; index < batches.length; index += 1) {
+  // Runs (or re-runs, suffix ".retry") one batch and records its files, tool row and summary at its own index.
+  const runBatch = async (index, suffix = "") => {
     const batchNumber = index + 1;
-    const batchPath = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}.txt`);
-    const stdoutPath = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}.stdout.jsonl`);
-    const stderrPath = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}.stderr.txt`);
+    const stem = path.join(batchDir, `batch-${String(batchNumber).padStart(4, "0")}${suffix}`);
+    const batchPath = `${stem}.txt`;
+    const stdoutPath = `${stem}.stdout.jsonl`;
+    const stderrPath = `${stem}.stderr.txt`;
     fs.writeFileSync(batchPath, `${batches[index].join("\n")}\n`, "utf8");
     const batchTimeoutMs = deriveHttpxBatchTimeout({ options, profile, proxied, batchHosts: batches[index].length });
     lastBatchTimeoutMs = batchTimeoutMs;
@@ -79,7 +80,7 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
       phase: "httpx-batch",
       severity: "info",
       source: "adaptive-httpx",
-      message: `httpx batch ${batchNumber}/${batches.length} started with ${batches[index].length} hosts and ${Math.round(batchTimeoutMs / 1000)}s timeout.`,
+      message: `httpx batch ${batchNumber}/${batches.length}${suffix ? " (retry)" : ""} started with ${batches[index].length} hosts and ${Math.round(batchTimeoutMs / 1000)}s timeout.`,
       payload: { batch: batchNumber, batchCount: batches.length, inputCount: batches[index].length, batchPath, batchTimeoutMs }
     });
 
@@ -87,9 +88,7 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
     fs.writeFileSync(stdoutPath, result.stdout || "", "utf8");
     fs.writeFileSync(stderrPath, result.stderr || "", "utf8");
     const services = parseHttpxJsonLines(result.stdout || "");
-    if (services.length && store?.saveHttpServices && targetName) {
-      store.saveHttpServices(runId, targetName, services, "httpx-batch");
-    }
+    // Services are not saved here: the caller saves the merged stdout, saving per batch too stored every row twice.
     if (store?.recordToolResult) {
       store.recordToolResult(runId, {
         toolName: "httpx-batch",
@@ -105,13 +104,9 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
     }
 
     const batchSummary = { batch: batchNumber, inputCount: batches[index].length, status: result.status, exitCode: result.exitCode, errorMessage: result.errorMessage || null, parsedServices: services.length, stdoutPath, stderrPath };
-    childResults.push(batchSummary);
-    if (result.stdout) stdout.push(result.stdout);
-    if (result.stderr) stderr.push(`[batch ${batchNumber}/${batches.length}]\n${result.stderr}`);
-    if (result.status !== "completed" && status === "completed") status = result.status;
-    if (result.status === "cancelled") break;
-    if (result.exitCode !== 0 && exitCode === 0) exitCode = result.exitCode;
-
+    childResults[index] = batchSummary;
+    stdout[index] = result.stdout || ""; // a retry replaces the failed attempt's partial output
+    stderr[index] = result.stderr ? `[batch ${batchNumber}/${batches.length}]\n${result.stderr}` : "";
     appendRunEvent(store, runId, {
       phase: "httpx-batch",
       severity: result.status === "completed" ? "ok" : "warn",
@@ -119,21 +114,36 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
       message: `httpx batch ${batchNumber}/${batches.length} ${result.status}; parsed ${services.length} HTTP services.`,
       payload: batchSummary
     });
+    return result;
+  };
+
+  let cancelled = false;
+  for (let index = 0; index < batches.length && !cancelled; index += 1) {
+    cancelled = (await runBatch(index)).status === "cancelled";
+  }
+  // Re-run each failed batch once so one bad stretch does not silently drop most of the hosts.
+  for (let index = 0; index < batches.length && !cancelled; index += 1) {
+    if (!childResults[index] || childResults[index].status === "completed") continue;
+    cancelled = (await runBatch(index, ".retry")).status === "cancelled";
   }
 
-  const parsedTotal = childResults.reduce((sum, item) => sum + Number(item.parsedServices || 0), 0);
-  const failedBatches = childResults.filter(b => b.status !== "completed");
-  const batchesMissingOutput = childResults.filter(b => b.parsedServices === 0 && b.status === "completed");
+  const results = childResults.filter(Boolean);
+  const parsedTotal = results.reduce((sum, item) => sum + Number(item.parsedServices || 0), 0);
+  const failedBatches = results.filter((b) => b.status !== "completed");
+  const batchesMissingOutput = results.filter((b) => b.parsedServices === 0 && b.status === "completed");
+  const failedList = failedBatches.map((b) => `batch ${b.batch}: ${b.status}`).join(", ");
+  const status = failedBatches.length ? (failedBatches.find((b) => b.status === "cancelled") || failedBatches[0]).status : "completed";
+  const exitCode = failedBatches.length ? (failedBatches.find((b) => b.exitCode)?.exitCode ?? null) : 0;
 
   appendRunEvent(store, runId, {
     phase: "httpx-batch",
-    severity: parsedTotal > 0 ? "ok" : status === "completed" && batchesMissingOutput.length ? "warn" : "error",
+    severity: failedBatches.length ? (parsedTotal > 0 ? "warn" : "error") : parsedTotal > 0 ? "ok" : "warn",
     source: "adaptive-httpx",
-    message: parsedTotal > 0
-      ? `Adaptive httpx batching finished with ${parsedTotal} parsed services from ${hosts.length} hosts across ${batches.length} batches.`
-      : status === "completed" && batchesMissingOutput.length
-        ? `Adaptive httpx batching completed all batches but parsed ${parsedTotal} services (${batchesMissingOutput.length} batches produced no output). This may indicate httpx is not compatible with your environment or the target hosts are blocking requests.`
-        : `Adaptive httpx batching failed: ${failedBatches.length}/${batches.length} batches did not complete.`,
+    message: failedBatches.length
+      ? `Adaptive httpx batching incomplete: ${failedBatches.length}/${batches.length} batches still failed after one retry (${failedList}); ${parsedTotal} services parsed from the rest.`
+      : parsedTotal > 0
+        ? `Adaptive httpx batching finished with ${parsedTotal} parsed services from ${hosts.length} hosts across ${batches.length} batches.`
+        : `Adaptive httpx batching completed all batches but parsed ${parsedTotal} services (${batchesMissingOutput.length} batches produced no output). This may indicate httpx is not compatible with your environment or the target hosts are blocking requests.`,
     payload: {
       inputCount: hosts.length,
       parsedServices: parsedTotal,
@@ -141,26 +151,26 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
       failedBatches: failedBatches.length,
       batchesMissingOutput: batchesMissingOutput.length,
       status,
-      childResults
+      childResults: results
     }
   });
 
   return {
     toolName: options.toolName,
     args: options.args,
-    status: parsedTotal > 0 ? "completed" : status === "completed" && batchesMissingOutput.length ? "completed_no_output" : status,
-    exitCode: parsedTotal > 0 ? 0 : exitCode,
+    status: status !== "completed" ? status : parsedTotal === 0 && batchesMissingOutput.length ? "completed_no_output" : "completed",
+    exitCode,
     startedAt,
     finishedAt: new Date().toISOString(),
-    stdout: stdout.join("\n"),
-    stderr: stderr.join("\n"),
-    errorMessage: parsedTotal > 0
-      ? null
-      : status === "completed" && batchesMissingOutput.length
+    stdout: stdout.filter(Boolean).join("\n"),
+    stderr: stderr.filter(Boolean).join("\n"),
+    errorMessage: status !== "completed"
+      ? status === "timeout"
+        ? `One or more httpx batches timed out after ${lastBatchTimeoutMs}ms and again on retry (${failedList}). Try increasing timeout or reducing batch size.`
+        : `One or more adaptive httpx batches failed after retry: ${failedList}`
+      : parsedTotal === 0 && batchesMissingOutput.length
         ? `httpx completed but parsed zero services from ${hosts.length} hosts. This may indicate the target is unreachable, blocking, or httpx binary incompatibility.`
-        : status === "timeout"
-          ? `One or more httpx batches timed out after ${lastBatchTimeoutMs}ms. Try increasing timeout or reducing batch size.`
-          : `One or more adaptive httpx batches failed: ${failedBatches.map(b => `batch ${b.batch}: ${b.status}`).join(", ")}`,
+        : null,
     adaptiveBatching: {
       enabled: true,
       inputCount: hosts.length,
@@ -170,7 +180,7 @@ async function runBatchedHttpx({ original, options, profile, context = {} }) {
       failedBatches: failedBatches.length,
       batchesMissingOutput: batchesMissingOutput.length,
       proxied,
-      childResults
+      childResults: results
     }
   };
 }

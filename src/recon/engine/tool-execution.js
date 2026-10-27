@@ -19,7 +19,7 @@ function firstUsefulLine(value) {
 }
 
 function toolFailureDetail(result) {
-  if (result.status === "completed") return "";
+  if (result.status === "completed") return result.outputTruncated ? "; output truncated at the capture limit, results may be incomplete" : "";
   const detail = firstUsefulLine(result.stderr || result.errorMessage || result.stdout);
   return detail ? `; ${detail}` : "";
 }

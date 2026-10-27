@@ -59,12 +59,6 @@ const hydrate = {
   httpService: (r) => ({ ...r, statusCode: r.status_code, technologies: parseJson(r.technologies_json, []), raw: parseJson(r.raw_json, {}) }),
   screenshot: (r) => ({ ...r, metadata: parseJson(r.metadata_json, {}) }),
   assetLead: (r) => ({ ...r, matchTerms: parseJson(r.match_terms_json, []), metadata: parseJson(r.metadata_json, {}) }),
-  discoveryQuery: (r) => ({
-    ...r,
-    includeTerms: parseJson(r.include_terms_json, []),
-    excludeTerms: parseJson(r.exclude_terms_json, []),
-    raw: parseJson(r.raw_json, {})
-  }),
   apiKey: (r, includeSecret = false) => ({
     id: r.id,
     provider: r.provider,

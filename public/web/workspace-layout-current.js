@@ -138,8 +138,12 @@
   }
 
   function observeRunData() {
+    // The tree, lists and events are heavy: reload them only while a view that shows them is open.
+    const viewIsVisible = () =>
+      Boolean(document.querySelector("#tab-logs.active")) ||
+      (Boolean(document.querySelector("#tab-topology.active")) && document.getElementById("topologyDashboard")?.classList.contains("hidden") === false);
     const refresh = async () => {
-      if (refreshInFlight) return;
+      if (refreshInFlight || !viewIsVisible()) return;
       const runId = activeRunId();
       if (!runId) return;
       refreshInFlight = true;
@@ -167,7 +171,7 @@
     const id = encodeURIComponent(runId);
     const [tree, events, domains, services, urls, technologies] = await Promise.all([
       fetchJson(`/api/recon-runs/${id}/result-tree`),
-      fetchJson(`/api/recon-runs/${id}/events`),
+      fetchJson(`/api/recon-runs/${id}/events?limit=100000`), // default is the first 500, which misses late warnings
       fetchJson(`/api/recon-runs/${id}/domains`),
       fetchJson(`/api/recon-runs/${id}/http-services`),
       fetchJson(`/api/recon-runs/${id}/urls`),

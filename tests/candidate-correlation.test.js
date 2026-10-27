@@ -25,7 +25,7 @@ test("candidate correlation summary includes techniques used as evidence", () =>
     rootDomains: ["example.com"],
     leads: [{
       value: "candidate.test",
-      source: "whoisxmlapi",
+      source: "whoisxmlapi-reverse-whois",
       matchTerms: ["example"],
       metadata: { nameserverOverlap: true }
     }]

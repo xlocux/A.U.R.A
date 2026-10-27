@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { MAX_HTML_SCAN_CHARS, MAX_ICON_BYTES, MAX_PAGE_BYTES, fetchBounded, fetchBoundedText } = require("./bounded-fetch");
 
 const DEFAULT_FAVICON_PATHS = [
   "/favicon.ico",
@@ -60,11 +61,13 @@ async function faviconCandidates(pageUrl, { fetchImpl = fetch, timeoutMs = 12000
 
 function extractIconHrefs(html) {
   const hrefs = [];
-  const linkPattern = /<link\b[^>]*>/gi;
+  // Bounded tag length + capped input: unclosed "<link" floods were quadratic.
+  const linkPattern = /<link\b[^>]{0,2000}>/gi;
   const relPattern = /\brel\s*=\s*(["'])(.*?)\1/i;
   const hrefPattern = /\bhref\s*=\s*(["'])(.*?)\1/i;
   let match;
-  while ((match = linkPattern.exec(String(html || ""))) !== null) {
+  const text = String(html || "").slice(0, MAX_HTML_SCAN_CHARS);
+  while ((match = linkPattern.exec(text)) !== null) {
     const tag = match[0];
     const rel = relPattern.exec(tag)?.[2] || "";
     if (!rel.split(/\s+/).some((part) => /^(icon|shortcut|apple-touch-icon|apple-touch-icon-precomposed|mask-icon)$/i.test(part))) continue;
@@ -74,38 +77,15 @@ function extractIconHrefs(html) {
   return hrefs;
 }
 
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 AURA-Recon/0.1";
+
 async function fetchText(url, { fetchImpl = fetch, timeoutMs = 12000 } = {}) {
-  return fetchWithTimeout(url, { fetchImpl, timeoutMs, accept: "text/html,application/xhtml+xml" }, async (response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return { text: await response.text(), url: response.url || url };
-  });
+  const page = await fetchBoundedText(url, { fetchImpl, timeoutMs, maxBytes: MAX_PAGE_BYTES, accept: "text/html,application/xhtml+xml", userAgent: BROWSER_UA });
+  return { text: page.text, url: page.url };
 }
 
 async function fetchBytes(url, { fetchImpl = fetch, timeoutMs = 12000 } = {}) {
-  return fetchWithTimeout(url, { fetchImpl, timeoutMs, accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" }, async (response) => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    return { bytes: buffer, contentType: response.headers.get("content-type") || "", url: response.url || url };
-  });
-}
-
-// The timeout covers reading the body too, so a server that trickles bytes cannot stall the run.
-async function fetchWithTimeout(url, { fetchImpl = fetch, timeoutMs = 12000, accept = "*/*" } = {}, readBody = (response) => response) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(url, {
-      redirect: "follow",
-      headers: {
-        "Accept": accept,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 AURA-Recon/0.1"
-      },
-      signal: controller.signal
-    });
-    return await readBody(response);
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchBounded(url, { fetchImpl, timeoutMs, maxBytes: MAX_ICON_BYTES, label: "Icon", accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8", userAgent: BROWSER_UA });
 }
 
 function looksLikeIcon(icon) {

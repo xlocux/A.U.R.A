@@ -6,7 +6,8 @@ const {
   extractProductVersions,
   nucleiArgs,
   parseNucleiJsonl,
-  parseTechToken
+  parseTechToken,
+  runCveCorrelation
 } = require("../src/recon/engine/vuln-assessment");
 const { buildRequestUrl, parseNvdResponse } = require("../src/web/services/nvd-client");
 
@@ -168,4 +169,21 @@ test("parseNvdResponse returns empty array for non-object or empty input", () =>
   assert.deepEqual(parseNvdResponse(null), []);
   assert.deepEqual(parseNvdResponse({}), []);
   assert.deepEqual(parseNvdResponse({ vulnerabilities: [] }), []);
+});
+
+test("a failed NVD lookup is reported as a warning, never as a clean \"0 CVE\" result", async () => {
+  const nvdClient = require("../src/web/services/nvd-client");
+  const original = nvdClient.lookupCves;
+  const failed = Object.assign([], { failed: true, error: "NVD HTTP 503" });
+  nvdClient.lookupCves = async () => failed;
+  const events = [];
+  const store = { appendEvent: (_run, event) => events.push(event), saveAssetLeads() { throw new Error("nothing to save"); }, getRun: () => ({ status: "running" }) };
+  try {
+    const total = await runCveCorrelation({ store, runId: 1, targetName: "acme", technologies: [], services: [{ technologies: ["nginx/1.18.0"] }], nvdApiKey: "" });
+    assert.equal(total, 0);
+  } finally { nvdClient.lookupCves = original; }
+  assert.ok(events.some((event) => event.severity === "warn" && /lookup failed/i.test(event.message)));
+  const last = events.at(-1);
+  assert.equal(last.severity, "warn");
+  assert.match(last.message, /FAILED/);
 });

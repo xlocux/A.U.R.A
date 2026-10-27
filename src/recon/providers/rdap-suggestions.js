@@ -1,6 +1,7 @@
 "use strict";
 
 const { normalizeDomain } = require("../domain-utils");
+const { extractRegistrableLabel } = require("../tld-correlation-engine");
 
 const RDAP_BASE_URL = "https://rdap.org/domain/";
 const MAX_INCLUDE_TERMS = 4;
@@ -228,8 +229,8 @@ function domainBrandTokens(domains) {
   const tokens = new Set();
   for (const domain of domains || []) {
     if (RESERVED_DOMAINS.has(domain)) continue;
-    const labels = domain.split(".").filter(Boolean);
-    const candidate = labels.length > 1 ? labels[labels.length - 2] : labels[0];
+    // Registrable label skips second-level country suffixes (acme.co.uk -> acme, not co).
+    const candidate = extractRegistrableLabel(domain) || domain.split(".")[0];
     for (const token of String(candidate || "").toLowerCase().split(/[^a-z0-9]+/)) {
       if (token.length >= 3 && !GENERIC_DOMAIN_TOKENS.has(token)) tokens.add(token);
     }
@@ -240,7 +241,9 @@ function domainBrandTokens(domains) {
 function isTargetRelatedTerm(value, brandTokens) {
   if (!brandTokens || brandTokens.size === 0) return false;
   const text = String(value || "").toLowerCase();
-  return [...brandTokens].some((token) => text.includes(token));
+  // Word-boundary match so a token like "acme" does not hit "pacmenu" (and "com" style noise stays out).
+  const words = new Set(text.split(/[^a-z0-9]+/).filter(Boolean));
+  return [...brandTokens].some((token) => words.has(token));
 }
 
 module.exports = {

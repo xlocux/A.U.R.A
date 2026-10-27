@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const { createEnvironmentRunner } = require("../../recon/environment-setup");
 const { TOOL_PATH_EXPORT, shellQuote } = require("../../core/shell");
 const { listOpenRouterFreeModels } = require("./ai-runtime");
@@ -35,7 +38,9 @@ const MAX_MODEL_ATTEMPTS = 6;
 
 const CLI_RUNTIMES = {
   claude: { name: "Claude Code", binary: "claude", command: (prompt) => `claude -p ${shellQuote(prompt)}` },
-  codex: { name: "Codex CLI", binary: "codex", command: (prompt) => `codex exec --skip-git-repo-check ${shellQuote(prompt)}` },
+  // shortcut: claude -p still runs with its default tools (no verified flag to disable them); only the empty temp cwd limits it.
+  // shortcut: opencode is restricted via an opencode.json (deny edit/bash/webfetch) written in the temp cwd; unverified against a real install.
+  codex: { name: "Codex CLI", binary: "codex", command: (prompt) => `codex exec --sandbox read-only --skip-git-repo-check ${shellQuote(prompt)}` },
   opencode: { name: "OpenCode", binary: "opencode", command: (prompt) => `opencode run ${shellQuote(prompt)}` }
 };
 
@@ -50,7 +55,7 @@ function buildAgentPromptWithContext({ prompt, body, store }) {
   const runId = Number(body.runId || 0);
   const targetName = String(body.targetName || "").trim();
   const run = runId ? store.getRun(runId) : targetName ? store.getLatestRunForTarget(targetName) : null;
-  const events = run ? store.listEvents(run.id, 0, 20) : [];
+  const events = run ? store.listLatestEvents(run.id, 20) : []; // the newest events, so "latest" really is the latest
   const tools = run ? store.listToolResults({ runId: run.id, limit: 10 }) : [];
   const domains = run ? store.listDomains({ runId: run.id, limit: 10 }) : [];
   const counts = run ? store.getRunObservationCounts(run.id) : null;
@@ -195,15 +200,22 @@ function setupHelpMessage(prompt) {
   return "OpenCode is not available to the backend yet. Go to Settings > Environment and run Install / Update Tools first.";
 }
 
-async function callCliAgent({ prompt, provider, runtimeName }) {
+async function callCliAgent({ prompt, provider, runtimeName, runner = createEnvironmentRunner({ runtime: runtimeName || "linux" }) }) {
   const cli = CLI_RUNTIMES[provider] || CLI_RUNTIMES.opencode;
-  const runner = createEnvironmentRunner({ runtime: runtimeName || "linux" });
   const check = await runner.run(`${TOOL_PATH_EXPORT} && command -v ${shellQuote(cli.binary)}`, CLI_CHECK_TIMEOUT_MS);
   if (check.status !== "completed") {
     if (provider === "opencode") return setupHelpMessage(prompt);
     return `${cli.name} is selected, but the ${cli.binary} CLI was not found in the execution environment. Install it or select OpenCode/OpenRouter in Settings > AI Agent.`;
   }
-  const result = await runner.run(`${TOOL_PATH_EXPORT} && ${cli.command(`${SYSTEM_PROMPT}\n\n${prompt}`)}`, CLI_RUN_TIMEOUT_MS);
+  // Prompt holds target-controlled text: run the CLI in an empty temp dir, away from data/aura.db.
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aura-ai-"));
+  let result;
+  try {
+    fs.writeFileSync(path.join(cwd, "opencode.json"), JSON.stringify({ permission: { edit: "deny", bash: "deny", webfetch: "deny" } }));
+    result = await runner.run(`${TOOL_PATH_EXPORT} && ${cli.command(`${SYSTEM_PROMPT}\n\n${prompt}`)}`, CLI_RUN_TIMEOUT_MS, { cwd });
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
   if (result.status === "completed" && result.stdout) return result.stdout;
   return `${cli.name} did not complete the request.\n${result.stderr || result.errorMessage || "Check the CLI authentication and configuration."}`;
 }
@@ -223,5 +235,6 @@ async function answerAgentChat({ body, store }) {
 
 module.exports = {
   answerAgentChat,
+  callCliAgent,
   buildAgentPromptWithContext
 };

@@ -12,6 +12,8 @@
   const ZOOM_MAX = 2;
 
   let currentRunId = null;
+  let flowEvents = []; // every event of the run so far, fetched incrementally with after=
+  let flowLastEventId = 0;
   let timer = null;
   let selectedStageId = null;
   let lastStages = [];
@@ -580,15 +582,21 @@
   // ── Data refresh / lifecycle ───────────────────────────────────────────────
   async function refresh() {
     if (!currentRunId) return;
+    const runId = currentRunId;
     try {
       const [runData, eventData, countsData, toolData] = await Promise.all([
-        api(`/api/recon-runs/${currentRunId}`),
-        api(`/api/recon-runs/${currentRunId}/events`),
-        api(`/api/recon-runs/${currentRunId}/counts`),
-        api(`/api/recon-runs/${currentRunId}/tool-results`)
+        api(`/api/recon-runs/${runId}`),
+        api(`/api/recon-runs/${runId}/events?after=${flowLastEventId}&limit=5000`),
+        api(`/api/recon-runs/${runId}/counts`),
+        api(`/api/recon-runs/${runId}/tool-results`)
       ]);
+      if (runId !== currentRunId) return; // switched while loading
+      for (const event of eventData.events || []) {
+        flowEvents.push(event);
+        flowLastEventId = Math.max(flowLastEventId, event.id);
+      }
       lastRun = runData.run;
-      render({ run: runData.run, events: eventData.events || [], counts: countsData.counts, toolResults: toolData.toolResults || [] });
+      render({ run: runData.run, events: flowEvents, counts: countsData.counts, toolResults: toolData.toolResults || [] });
       const terminal = ["completed", "failed", "cancelled"].includes(runData.run?.status);
       if (terminal && timer) { clearInterval(timer); timer = null; }
     } catch (error) {
@@ -606,6 +614,8 @@
     if (!panel) return;
     currentRunId = (runId === undefined ? deriveRunId() : (runId || null));
     selectedStageId = null;
+    flowEvents = [];
+    flowLastEventId = 0;
     prevStatus = null;
     announcedEvents.clear();
     announcedTools.clear();

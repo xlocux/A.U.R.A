@@ -41,19 +41,6 @@ class ProxyService {
     return this.store.recordProxyTest(proxyId, { success: Boolean(metrics.success), latencyMs: metrics.latency });
   }
 
-  getProxyEnvVars(proxy) {
-    if (!proxy) return {};
-    const proxyUrl = this.formatProxyUrl(proxy);
-    return {
-      HTTP_PROXY: proxyUrl,
-      HTTPS_PROXY: proxyUrl,
-      ALL_PROXY: proxyUrl,
-      http_proxy: proxyUrl,
-      https_proxy: proxyUrl,
-      all_proxy: proxyUrl
-    };
-  }
-
   formatProxyUrl(proxy) {
     const auth = proxy.username && proxy.password
       ? `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`

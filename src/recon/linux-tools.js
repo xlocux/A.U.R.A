@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { TOOL_PATH_EXPORT, shellQuote } = require("../core/shell");
 const { getRunContext } = require("./run-context");
@@ -72,11 +75,14 @@ function spawnLinuxTool({
       [shellQuote(toolName), ...args.map(shellQuote)].join(" ")
     ].filter(Boolean).join(" && ");
     const child = spawn("sh", ["-lc", command], {
+      cwd: toolWorkingDir(getRunContext()), // ProjectDiscovery tools drop resume.cfg into the cwd; keep it out of the repo
       detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"]
     });
-    const capture = { stdout: "", stderr: "", stdoutTruncated: false, stderrTruncated: false };
+    const capture = { stdout: "", stderr: "", stdoutBytes: 0, stderrBytes: 0, stdoutTruncated: false, stderrTruncated: false };
+    child.stdout.setEncoding("utf8"); // decoder keeps multi-byte characters intact across chunk boundaries
+    child.stderr.setEncoding("utf8");
     let stopReason = null;
     const stop = (reason) => {
       if (stopReason) return;
@@ -91,14 +97,12 @@ function spawnLinuxTool({
       signal?.removeEventListener("abort", onAbort);
     };
 
-    child.stdout.on("data", (chunk) => {
-      const text = chunk.toString("utf8");
-      capture.stdout = appendLimited(capture.stdout, text, capture, "stdout");
+    child.stdout.on("data", (text) => {
+      appendLimited(capture, text, "stdout");
       if (onStdout) onStdout(text);
     });
-    child.stderr.on("data", (chunk) => {
-      const text = chunk.toString("utf8");
-      capture.stderr = appendLimited(capture.stderr, text, capture, "stderr");
+    child.stderr.on("data", (text) => {
+      appendLimited(capture, text, "stderr");
       if (onStderr) onStderr(text);
     });
     child.stdin.on("error", () => {
@@ -122,16 +126,40 @@ function spawnLinuxTool({
   });
 }
 
-function appendLimited(current, next, capture, streamName) {
-  if (capture[`${streamName}Truncated`]) return current;
-  const combined = `${current}${next}`;
-  if (Buffer.byteLength(combined, "utf8") <= MAX_CAPTURE_BYTES) return combined;
-  capture[`${streamName}Truncated`] = true;
-  return combined.slice(0, MAX_CAPTURE_BYTES) + TRUNCATION_NOTICE;
+// Running byte counter (no re-measuring the whole buffer); a capped stream is cut at the last newline so no half line is kept.
+function appendLimited(capture, text, streamName) {
+  const bytesKey = `${streamName}Bytes`;
+  const truncatedKey = `${streamName}Truncated`;
+  if (capture[truncatedKey]) return;
+  const bytes = Buffer.byteLength(text, "utf8");
+  if (capture[bytesKey] + bytes <= MAX_CAPTURE_BYTES) {
+    capture[streamName] += text;
+    capture[bytesKey] += bytes;
+    return;
+  }
+  capture[truncatedKey] = true;
+  const room = MAX_CAPTURE_BYTES - capture[bytesKey];
+  const kept = capture[streamName] + Buffer.from(text, "utf8").subarray(0, room).toString("utf8");
+  const cut = kept.lastIndexOf("\n");
+  capture[streamName] = (cut >= 0 ? kept.slice(0, cut + 1) : kept) + TRUNCATION_NOTICE;
+}
+
+// Run artifacts folder when the run offers one, else a private temp folder (never the repo root).
+function toolWorkingDir(context) {
+  const candidates = [context?.artifactsDir, context?.runId ? path.resolve("data", "recon-runs", String(Number(context.runId))) : null];
+  for (const dir of candidates) if (dir && fs.existsSync(dir)) return dir;
+  const fallback = path.join(os.tmpdir(), "aura-tool-cwd");
+  fs.mkdirSync(fallback, { recursive: true });
+  return fallback;
 }
 
 function finalizeResult(result) {
   const truncated = Boolean(result.capture?.stdoutTruncated || result.capture?.stderrTruncated);
+  const runContext = getRunContext();
+  // A capped capture still reports "completed", so surface the cut as a visible run event.
+  if (truncated && runContext?.store?.appendEvent && runContext.runId) {
+    runContext.store.appendEvent(runContext.runId, { phase: "recon", severity: "warn", source: result.toolName, message: `${result.toolName} output exceeded ${MAX_CAPTURE_BYTES / 1024 / 1024} MB and was cut at the last full line; results may be incomplete.` });
+  }
   const errorMessage = [result.errorMessage, truncated ? "Tool output was truncated to prevent parser or UI overload." : ""].filter(Boolean).join("; ") || null;
   return {
     toolName: result.toolName,
@@ -221,6 +249,8 @@ function createLinuxToolRunner({ runLinuxToolImpl = runLinuxTool } = {}) {
 
 module.exports = {
   ALLOWED_TOOLS,
+  appendLimited,
+  toolWorkingDir,
   commandDisplay,
   killProcess,
   createLinuxToolRunner,

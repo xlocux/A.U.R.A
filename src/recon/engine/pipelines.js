@@ -141,7 +141,8 @@ async function runRecon({
       });
     }
 
-    store.saveDomains(runId, targetName, [...discovered].map((domain) => ({
+    // Only roots: every other domain was already saved by the tool that found it (no doubled rows).
+    store.saveDomains(runId, targetName, [...discovered].filter((domain) => roots.includes(domain)).map((domain) => ({
       domain,
       rootDomain: rootForDomain(domain, roots),
       kind: roots.includes(domain) ? "root" : "subdomain",

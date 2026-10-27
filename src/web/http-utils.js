@@ -38,7 +38,7 @@ function sendJson(response, payload, statusCode = 200) {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff"
   });
-  response.end(JSON.stringify(payload, null, 2));
+  response.end(JSON.stringify(payload));
 }
 
 function sendFile(response, filePath, extraHeaders = {}) {

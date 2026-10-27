@@ -125,7 +125,8 @@ async function fetchNvd(product, version, apiKey, fetchImpl) {
     headers,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
-  if (!response.ok) return []; // 403 (rate limit / bad key), 404, 5xx: degrade gracefully.
+  // Throw (not []) so lookupCves does not cache an outage as "no CVEs" for 7 days.
+  if (!response.ok) throw new Error(`NVD HTTP ${response.status}`);
   const text = await response.text();
   if (!text) return [];
   return parseNvdResponse(JSON.parse(text));
@@ -157,14 +158,14 @@ async function lookupCves({ product, version, apiKey = null, fetchImpl = fetch }
     const findings = await enqueue(() => fetchNvd(cleanProduct, cleanVersion, apiKey, fetchImpl), delayMs);
     writeCache(cleanProduct, cleanVersion, findings);
     return findings;
-  } catch {
-    return [];
+  } catch (error) {
+    // `failed` lets callers tell a failed lookup from a genuine "no CVEs" (never cached).
+    return Object.assign([], { failed: true, error: error.message });
   }
 }
 
 module.exports = {
   CACHE_DIR,
-  CACHE_TTL_MS,
   buildRequestUrl,
   lookupCves,
   parseNvdResponse

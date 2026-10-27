@@ -20,3 +20,8 @@ Thumbs.db
 desktop.ini
 .vscode/settings.json
 .idea/
+
+# Tool droppings (ProjectDiscovery resume file, gowitness db/report); root-anchored so
+# src/recon/tools/builtin/gowitness.json stays tracked.
+resume.cfg
+/gowitness.*

@@ -82,6 +82,5 @@ module.exports = [
   { method: "GET", path: "/api/recon-runs/:id/artifacts/file", handler: serveArtifactFile },
   { method: "GET", path: "/api/recon-runs/:id/export", handler: exportRun },
   { method: "GET", path: "/api/recon-runs/:id/export/:format", handler: exportRun },
-  { method: "GET", path: "/api/recon-runs/:id/diagnostics", handler: exportDiagnostics },
-  { method: "GET", path: "/api/recon-runs/:id/diagnostics.json", handler: exportDiagnostics }
+  { method: "GET", path: "/api/recon-runs/:id/diagnostics", handler: exportDiagnostics }
 ];

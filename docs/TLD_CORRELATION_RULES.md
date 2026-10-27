@@ -44,20 +44,7 @@ records auto-promotions and review decisions for auditability.
 
 ## API
 
-Focused TLD discovery/correlation can be requested with:
-
-```http
-POST /api/v1/runs/{run_id}/phases/domain_intelligence/tld-discovery
-```
-
-Supported body fields:
-
-- `registrable_label`
-- `strategies`
-- `correlation_engine_enabled`
-- `auto_promotion_enabled`
-- `correlation_sources`
-- `confidence_threshold_for_review`
-
-The response includes queued strategy jobs, correlation settings, evaluated
-candidate count, and per-candidate correlation results.
+There is no dedicated HTTP endpoint for TLD discovery. The former
+`POST /api/v1/runs/{run_id}/phases/domain_intelligence/tld-discovery` route was
+removed (it only queued `recon_jobs` that no worker claimed). Candidate
+correlation runs as part of the normal recon pipeline.

@@ -66,13 +66,6 @@ module.exports = {
     return rows.map(hydrate.assetLead);
   },
 
-  listAssetDiscoveryQueries({ targetName, limit = 50 } = {}) {
-    const rows = targetName
-      ? this.db.prepare("SELECT * FROM asset_discovery_queries WHERE target_name=? ORDER BY id DESC LIMIT ?").all(targetName, limit)
-      : this.db.prepare("SELECT * FROM asset_discovery_queries ORDER BY id DESC LIMIT ?").all(limit);
-    return rows.map(hydrate.discoveryQuery);
-  },
-
   // Case-insensitive substring search across observations; the newest sighting of each value wins.
   searchAll({ query, targetName = null, limit = 200 } = {}) {
     const term = String(query || "").toLowerCase().trim();

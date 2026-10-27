@@ -100,10 +100,6 @@ function buildProxyAwareInvocation({ toolName, args = [], proxyUrl = null } = {}
   };
 }
 
-function toolUsesProxyRoute(toolName) {
-  return getToolProxyPolicy(toolName).proxied;
-}
-
 function argsWithNativeProxy(args, flag, proxyUrl) {
   if (hasProxyFlag(args)) return args;
   return [...args, flag, proxyUrl];
@@ -122,6 +118,5 @@ module.exports = {
   DIRECT_DNS_REASON,
   ENV_PROXY_REASON,
   buildProxyAwareInvocation,
-  getToolProxyPolicy,
-  toolUsesProxyRoute
+  getToolProxyPolicy
 };

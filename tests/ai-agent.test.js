@@ -11,7 +11,7 @@ function fakeStore(overrides = {}) {
     markApiKeyUsed: () => {},
     getRun: () => null,
     getLatestRunForTarget: () => null,
-    listEvents: () => [],
+    listLatestEvents: () => [],
     listToolResults: () => [],
     listDomains: () => [],
     getRunObservationCounts: () => null,
@@ -78,4 +78,22 @@ test("buildAgentPromptWithContext grounds the prompt in run data and the questio
   assert.match(prompt, /domains=3/);
   assert.match(prompt, /acme\.example/);
   assert.match(prompt, /what did you find\?/);
+});
+
+test("CLI agent runs in an empty temp cwd (not the repo) and codex gets the read-only sandbox", async () => {
+  const calls = [];
+  const runner = {
+    run: async (command, timeoutMs, options) => {
+      calls.push({ command, options, existed: options?.cwd && require("node:fs").existsSync(options.cwd) });
+      return { status: "completed", stdout: "ok" };
+    }
+  };
+  const reply = await require("../src/web/services/ai-agent").callCliAgent({ prompt: "hi", provider: "codex", runner });
+  assert.equal(reply, "ok");
+  const run = calls[1];
+  assert.ok(run.options.cwd);
+  assert.notEqual(require("node:path").resolve(run.options.cwd), process.cwd());
+  assert.ok(run.existed);
+  assert.match(run.command, /--sandbox read-only/);
+  assert.equal(require("node:fs").existsSync(run.options.cwd), false, "temp dir removed afterwards");
 });

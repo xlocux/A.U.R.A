@@ -5,6 +5,11 @@ let activeRunId = null;
 let lastEventId = 0;
 let poll = null;
 let refreshRunInFlight = false;
+let lastRenderedRunId = null;
+let deltaFinalRunId = null; // run whose delta was fetched after it finished
+const FINAL_RUN_STATUSES = ["completed", "failed", "cancelled"];
+const MAX_RENDER_ROWS = 1000;
+const MAX_EVENT_NODES = 1000;
 let latestRunActivity = "";
 let lastRunStatusForAvatar = null;
 let resultsTargetName = null; // target of the currently loaded run (for per-target lookups like cloud leads)
@@ -616,8 +621,9 @@ async function loadTargetConfig() {
   $("targetValidation").className = "notice ok";
 }
 
-async function createTarget() {
+async function createTarget(options) {
   const payload = {
+    ...(options && options.bootstrap === false ? { bootstrap: false } : {}),
     targetName: $("newTargetName").value.trim(),
     programUrl: $("newProgramUrl").value.trim(),
     inScope: textLines("newInScope"),
@@ -681,6 +687,7 @@ async function refreshLeads() {
 function clearRunView() {
   activeRunId = null;
   lastEventId = 0;
+  lastRenderedRunId = null;
   $("runId").textContent = "-";
   $("runStatus").textContent = "idle";
   $("domainCount").textContent = "0";
@@ -744,10 +751,10 @@ async function loadSelectedResultsRun() {
   window.AuraAiAgent?.resetRunFeed?.(activeRunId);
   $("runId").textContent = activeRunId;
   $("events").innerHTML = "";
-  await refreshRun();
+  // Always poll after a switch: the tick stops itself on a finished status, and a load in flight for the old run is discarded.
   if (poll) clearInterval(poll);
-  const run = (await api(`/api/recon-runs/${activeRunId}`))?.run;
-  if (run && ["queued", "running", "paused"].includes(run.status)) poll = setInterval(refreshRun, 1500);
+  poll = setInterval(refreshRun, 1500);
+  await refreshRun();
   // The loader lives in Recon; jump to Results to show the loaded run.
   activateTab("results");
 }
@@ -764,9 +771,9 @@ async function restoreLatestRunForSelectedTarget() {
     activeRunId = run.id;
     lastEventId = 0;
     $("runId").textContent = activeRunId;
-    await refreshRun();
     if (poll) clearInterval(poll);
-    if (["queued", "running", "paused"].includes(run.status)) poll = setInterval(refreshRun, 1500);
+    poll = setInterval(refreshRun, 1500);
+    await refreshRun();
   } catch (error) {
     $("status").textContent = error.message;
   }
@@ -778,22 +785,49 @@ async function refreshRun() {
   try { await _refreshRun(); } catch (err) { console.error("[refreshRun]", err); } finally { refreshRunInFlight = false; }
 }
 
+// Which lists to refetch: only those whose count changed (or all, after a run switch).
+function listsToFetch(counts, prev, force) {
+  const changed = (key) => force || counts[key] !== prev[key];
+  return { domains: changed("domains"), urls: changed("urls"), services: changed("httpServices"), technologies: changed("technologies"), screenshots: changed("screenshots") };
+}
+
 async function _refreshRun() {
   if (!activeRunId) return;
-  const [runData, eventData, countsResp, domainData, artifactData, serviceData, technologyData, screenshotData, toolData, deltaData] = await Promise.all([
-    api(`/api/recon-runs/${activeRunId}`),
-    api(`/api/recon-runs/${activeRunId}/events?after=${lastEventId}`),
-    api(`/api/recon-runs/${activeRunId}/counts`),
-    api(`/api/recon-runs/${activeRunId}/domains`),
-    api(`/api/recon-runs/${activeRunId}/artifacts`),
-    api(`/api/recon-runs/${activeRunId}/http-services`),
-    api(`/api/recon-runs/${activeRunId}/technologies`),
-    api(`/api/recon-runs/${activeRunId}/screenshots`),
-    api(`/api/recon-runs/${activeRunId}/tool-results`),
-    api(`/api/recon-runs/${activeRunId}/delta`)
+  const runId = activeRunId; // the user may switch run/target while requests are in flight
+  const switched = runId !== lastRenderedRunId;
+  if (switched) lastEventId = 0;
+  const eventsUrl = switched ? `/api/recon-runs/${runId}/events?tail=500` : `/api/recon-runs/${runId}/events?after=${lastEventId}`;
+  const [runData, eventData, countsResp] = await Promise.all([
+    api(`/api/recon-runs/${runId}`),
+    api(eventsUrl),
+    api(`/api/recon-runs/${runId}/counts`)
   ]);
+  if (runId !== activeRunId) return;
   const run = runData?.run;
   if (!run) return;
+  const counts = countsResp?.counts || {};
+  const finished = FINAL_RUN_STATUSES.includes(run.status);
+  const finishing = finished && deltaFinalRunId !== run.id;
+  const lists = listsToFetch(counts, switched ? {} : (resultsData.totals || {}), switched);
+  const get = (flag, path) => (flag ? api(`/api/recon-runs/${runId}/${path}`) : null);
+  const [domainData, artifactData, serviceData, technologyData, screenshotData, toolData, deltaData] = await Promise.all([
+    get(lists.domains, "domains"),
+    get(lists.urls, "artifacts"),
+    get(lists.services, "http-services"),
+    get(lists.technologies, "technologies"),
+    get(lists.screenshots, "screenshots"),
+    get(switched || finishing || eventData.events.length > 0, "tool-results"),
+    get(switched || finishing, "delta")
+  ]);
+  if (runId !== activeRunId) return;
+  if (switched) {
+    // New run: drop the previous run's events and make every table redraw.
+    $("events").innerHTML = "";
+    lastRenderedRunId = run.id;
+    resultsData.totals = {};
+    resultsData.toolResults = [];
+  }
+  if (finishing) deltaFinalRunId = run.id;
   resultsTargetName = run.target_name || resultsTargetName;
   // Let the avatar celebrate once when a watched run finishes.
   if (run.status !== lastRunStatusForAvatar) {
@@ -803,8 +837,7 @@ async function _refreshRun() {
     }
     lastRunStatusForAvatar = run.status;
   }
-  if (["completed", "failed", "cancelled"].includes(run.status) && poll) { clearInterval(poll); poll = null; }
-  const counts = countsResp?.counts || {};
+  if (finished && poll) { clearInterval(poll); poll = null; }
   $("runStatus").textContent = run.status;
   updateRunControlButtons(run.status);
   $("domainCount").textContent = counts.domains;
@@ -821,34 +854,38 @@ async function _refreshRun() {
     div.textContent = `[${event.created_at}] ${event.phase || "-"} ${event.source || "-"}: ${event.message}`;
     $("events").prepend(div);
   }
-  // Only re-render each table when its count changes — full re-render every 1.5s
-  // on hundreds of rows saturates the renderer even when nothing changed.
-  const prev = resultsData.totals || {};
-  if (counts.domains !== prev.domains) renderDomains(domainData.domains || []);
-  if (counts.urls !== prev.urls) renderArtifacts(artifactData.artifacts || []);
-  if (counts.httpServices !== prev.httpServices) renderHttpServices(serviceData.services || []);
-  if (counts.technologies !== prev.technologies) renderTechnologies(technologyData.technologies || []);
-  if (counts.screenshots !== prev.screenshots) renderScreenshots(screenshotData.screenshots || []);
-  if ((toolData.toolResults || []).length !== (resultsData.toolResults || []).length) renderToolResults(toolData.toolResults || []);
+  while ($("events").childElementCount > MAX_EVENT_NODES) $("events").lastElementChild.remove();
+  // Only fetch and re-render a table when its count changes — a full redraw every 1.5s
+  // on thousands of rows saturates the renderer even when nothing changed.
+  const topologyChanged = Object.values(lists).some(Boolean);
+  if (domainData) renderDomains(domainData.domains || []);
+  if (artifactData) renderArtifacts(artifactData.artifacts || [], counts.urls);
+  if (serviceData) renderHttpServices(serviceData.services || []);
+  if (technologyData) renderTechnologies(technologyData.technologies || []);
+  if (screenshotData) renderScreenshots(screenshotData.screenshots || []);
+  if (toolData) renderToolResults(toolData.toolResults || []);
   resultsData.totals = { ...counts };
-  renderRunDelta(deltaData.delta || null);
-  window.AuraTopology?.update?.({
-    domains: domainData.domains || [],
-    services: serviceData.services || [],
-    urls: (artifactData.artifacts || []).map((a) => ({ ...a, url: a.value, host: a.extra_json?.host })),
-    screenshots: screenshotData.screenshots || [],
-    technologies: technologyData.technologies || []
-  }, { preserveCamera: true });
+  if (deltaData) renderRunDelta(deltaData.delta || null);
+  if (topologyChanged) {
+    window.AuraTopology?.update?.({
+      domains: resultsData.domains,
+      services: resultsData.services,
+      urls: resultsData.urls.map((a) => ({ ...a, url: a.value, host: a.extra_json?.host })),
+      screenshots: resultsData.screenshots,
+      technologies: resultsData.technologies
+    }, { preserveCamera: true });
+  }
   window.AuraAiAgent.publishRunInsights?.({
     run,
     events: eventData.events,
     counts,
-    delta: deltaData.delta,
-    technologies: technologyData.technologies,
-    screenshots: screenshotData.screenshots
+    delta: resultsData.delta,
+    technologies: resultsData.technologies,
+    screenshots: resultsData.screenshots
   });
   window.AuraAiLog.refresh(activeRunId);
-  window.AuraResultsExplorer.refresh(activeRunId);
+  // The result tree is rebuilt server-side on every call: reload it only when the data changed.
+  if (topologyChanged || finishing) window.AuraResultsExplorer.refresh(runId);
 }
 
 function renderRunActivity(run = null, newEvents = []) {
@@ -1013,7 +1050,7 @@ async function quickStart() {
       $("newProgramUrl").value = "";
       $("newInScope").value = domains.join("\n");
       $("newOutOfScope").value = outOfScope.join("\n");
-      await createTarget();
+      await createTarget({ bootstrap: false }); // startRecon below is the only run
       if (!(targets || []).some((t) => t.target_name === name)) throw new Error("Could not create the target.");
     } else {
       $("target").value = name;
@@ -1185,8 +1222,10 @@ function renderDomains(domains) {
   });
 }
 
-function renderArtifacts(artifacts) {
+function renderArtifacts(artifacts, total) {
   resultsData.urls = artifacts || [];
+  // /artifacts is capped server-side (2,000); the counter holds the real total.
+  const all = Math.max(Number(total ?? resultsData.totals?.urls) || 0, resultsData.urls.length);
   $("artifactRows").innerHTML = renderGroupedRows(resultsData.urls, $("urlGroupBy").value, (artifact) => {
     let groupKey = "";
     if ($("urlGroupBy").value === "host") groupKey = hostnameOf(artifact.value) || "unknown host";
@@ -1195,7 +1234,7 @@ function renderArtifacts(artifacts) {
     else if ($("urlGroupBy").value === "path") groupKey = pathPrefixOf(artifact.value);
     const href = /^https?:\/\//i.test(artifact.value || "") ? artifact.value : "";
     return { groupKey, html: `<tr><td>${esc(artifact.artifact_type)}</td><td class="mono wrap"><span class="cell-value">${esc(artifact.value)}</span> ${rowActions(artifact.value, href)}</td><td>${esc(JSON.stringify(artifact.extra_json || {}))}</td></tr>` };
-  });
+  }, all);
   renderRiskUrls();
 }
 
@@ -1210,6 +1249,18 @@ const RISK_PARAM_PATTERNS = {
   rce: /^(cmd|exec|command|execute|ping|jump|code|reg|do|func|arg|option|load|process|step|function|req|feature|exe|module|payload|run|system|shell|daemon)$/i
 };
 let riskUrlFilter = "all";
+// Full URL list (/urls, up to 100,000) loaded on demand for risk classification and exports.
+let fullUrlsCache = { runId: null, count: null, urls: [] };
+
+async function loadFullUrls() {
+  const runId = activeRunId;
+  const count = resultsData.totals?.urls;
+  if (!runId) return [];
+  if (fullUrlsCache.runId === runId && fullUrlsCache.count === count) return fullUrlsCache.urls;
+  const urls = (await api(`/api/recon-runs/${runId}/urls`))?.urls || [];
+  fullUrlsCache = { runId, count, urls };
+  return urls;
+}
 
 function classifyRiskUrls(urls) {
   const matches = [];
@@ -1233,11 +1284,13 @@ function classifyRiskUrls(urls) {
 function renderRiskUrls() {
   const rowsEl = $("riskUrlRows");
   if (!rowsEl) return;
-  const all = classifyRiskUrls(resultsData.urls);
+  const fullUrls = fullUrlsCache.runId === activeRunId && fullUrlsCache.count === resultsData.totals?.urls;
+  const all = classifyRiskUrls(fullUrls ? fullUrlsCache.urls : resultsData.urls);
   const counts = {};
   for (const match of all) counts[match.cls] = (counts[match.cls] || 0) + 1;
   const classes = ["sqli", "xss", "ssrf", "lfi", "redirect", "rce"];
-  if ($("riskUrlsHint")) $("riskUrlsHint").textContent = `${all.length} candidate(s)`;
+  const sampled = !fullUrls && (resultsData.totals?.urls || 0) > resultsData.urls.length;
+  if ($("riskUrlsHint")) $("riskUrlsHint").textContent = `${all.length} candidate(s)${sampled ? ` (from first ${resultsData.urls.length.toLocaleString("en-US")} of ${resultsData.totals.urls.toLocaleString("en-US")} URLs)` : ""}`;
   if ($("riskUrlBuckets")) {
     $("riskUrlBuckets").innerHTML = [`<button type="button" class="risk-chip${riskUrlFilter === "all" ? " active" : ""}" data-risk="all">All ${all.length}</button>`]
       .concat(classes.map((cls) => `<button type="button" class="risk-chip risk-${cls}${riskUrlFilter === cls ? " active" : ""}" data-risk="${cls}">${cls} ${counts[cls] || 0}</button>`)).join("");
@@ -1676,10 +1729,16 @@ function enableTableSorting() {
   });
 }
 
-function renderGroupedRows(items, groupBy, mapper) {
+// Rows beyond MAX_RENDER_ROWS are not drawn; `total` lets a capped server list say "first N of M".
+function truncationNote(shown, total) {
+  return total > shown ? `<tr><td colspan="99" class="muted">First ${shown.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}</td></tr>` : "";
+}
+
+function renderGroupedRows(items, groupBy, mapper, total = items.length) {
   const rows = [];
   let lastGroup = null;
-  for (const item of items) {
+  const shownItems = items.slice(0, MAX_RENDER_ROWS);
+  for (const item of shownItems) {
     const mapped = mapper(item);
     if (groupBy && groupBy !== "none" && mapped.groupKey !== lastGroup) {
       rows.push(`<tr class="group-row"><td colspan="99">${esc(mapped.groupKey || "Other")}</td></tr>`);
@@ -1687,6 +1746,7 @@ function renderGroupedRows(items, groupBy, mapper) {
     }
     rows.push(mapped.html);
   }
+  rows.push(truncationNote(shownItems.length, total));
   return rows.join("");
 }
 
@@ -1851,23 +1911,23 @@ function exportBaseName() {
   return `aura-${($("target")?.value || "run")}${activeRunId ? `-run${activeRunId}` : ""}`;
 }
 
-function collectAllUrls() {
+function collectAllUrls(allUrls = resultsData.urls) {
   const urls = new Set();
-  for (const item of resultsData.urls || []) { const v = item.value || item.url; if (/^https?:\/\//i.test(v || "")) urls.add(v); }
+  for (const item of allUrls || []) { const v = item.value || item.url; if (/^https?:\/\//i.test(v || "")) urls.add(v); }
   for (const svc of resultsData.services || []) { if (/^https?:\/\//i.test(svc.url || "")) urls.add(svc.url); }
   return [...urls].sort();
 }
 
-function collectHosts() {
+function collectHosts(allUrls = resultsData.urls) {
   const hosts = new Set();
   for (const d of resultsData.domains || []) { if (d.domain) hosts.add(String(d.domain).toLowerCase()); }
   for (const svc of resultsData.services || []) { const h = hostnameOf(svc.url); if (h) hosts.add(h.toLowerCase()); }
-  for (const u of resultsData.urls || []) { const h = hostnameOf(u.value || u.url); if (h) hosts.add(h.toLowerCase()); }
+  for (const u of allUrls || []) { const h = hostnameOf(u.value || u.url); if (h) hosts.add(h.toLowerCase()); }
   return [...hosts].filter(Boolean).sort();
 }
 
-function exportUrlList() {
-  const urls = collectAllUrls();
+async function exportUrlList() {
+  const urls = collectAllUrls(await loadFullUrls());
   if (!urls.length) { $("status").textContent = "No URLs to export yet."; return; }
   downloadText(`${exportBaseName()}-urls.txt`, urls.join("\n"));
 }
@@ -1878,8 +1938,8 @@ function exportLiveServices() {
   downloadText(`${exportBaseName()}-live-services.txt`, urls.join("\n"));
 }
 
-function exportBurpScope() {
-  const hosts = collectHosts();
+async function exportBurpScope() {
+  const hosts = collectHosts(await loadFullUrls());
   if (!hosts.length) { $("status").textContent = "No hosts to build a scope from yet."; return; }
   const include = hosts.map((host) => ({
     enabled: true,
@@ -1890,9 +1950,9 @@ function exportBurpScope() {
   downloadText(`${exportBaseName()}-burp-scope.json`, JSON.stringify(scope, null, 2), "application/json");
 }
 
-function exportCaidoScope() {
+async function exportCaidoScope() {
   // Caido in-scope uses host globs; export both the exact host and a wildcard for its registrable root.
-  const hosts = collectHosts();
+  const hosts = collectHosts(await loadFullUrls());
   if (!hosts.length) { $("status").textContent = "No hosts to build a scope from yet."; return; }
   const globs = new Set();
   for (const host of hosts) {
@@ -2464,6 +2524,7 @@ document.addEventListener("click", (event) => {
     document.querySelectorAll(".asset-view").forEach((view) => view.classList.toggle("active", view.id === `asset-${asset}`));
     if (asset === "cloud") renderCloudLeads();
     if (asset === "vulns") renderVulnLeads();
+    if (asset === "risk") loadFullUrls().then(renderRiskUrls).catch(() => {});
     return;
   }
   const chip = event.target.closest(".risk-chip");
@@ -2480,8 +2541,8 @@ $("exportCloudLeads")?.addEventListener("click", () => {
   if (!values.length) { $("status").textContent = "No cloud resources to export."; return; }
   downloadText(`${exportBaseName()}-cloud-resources.txt`, values.join("\n"));
 });
-$("exportRiskUrls")?.addEventListener("click", () => {
-  const all = classifyRiskUrls(resultsData.urls);
+$("exportRiskUrls")?.addEventListener("click", async () => {
+  const all = classifyRiskUrls(await loadFullUrls());
   const shown = riskUrlFilter === "all" ? all : all.filter((m) => m.cls === riskUrlFilter);
   const urls = [...new Set(shown.map((m) => m.url))].sort();
   if (!urls.length) { $("status").textContent = "No risk URLs to export."; return; }

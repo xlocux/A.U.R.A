@@ -33,3 +33,11 @@ test("powResponseHeader encodes the solved answer as base64 JSON", () => {
 test("rejects an unknown algorithm", () => {
   assert.throws(() => solveChallenge({ ...KNOWN, algorithm: "OtherV2" }), /Unsupported/);
 });
+
+test("repeated solves do not grow wasm memory and stay correct", () => {
+  const { loadWasm } = require("../src/web/services/deepseek-pow");
+  assert.equal(solveChallenge(KNOWN), 47450); // warm up (loads wasm)
+  const before = loadWasm().ex.memory.buffer.byteLength;
+  for (let n = 0; n < 4; n += 1) assert.equal(solveChallenge(KNOWN), 47450);
+  assert.equal(loadWasm().ex.memory.buffer.byteLength, before);
+});

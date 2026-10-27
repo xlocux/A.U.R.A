@@ -4,7 +4,8 @@ const { hydrate, nowIso, parseJson, toJson, transaction, uniqueBy } = require(".
 
 const DOMAIN_COLUMNS = "MIN(id) id, MAX(run_id) run_id, target_name, MIN(domain) domain, COALESCE(MAX(root_domain),'') root_domain, COALESCE(MAX(kind),'subdomain') kind, group_concat(DISTINCT source) source, COALESCE(MAX(status),'discovered') status, MIN(first_seen_at) first_seen_at, MAX(last_seen_at) last_seen_at, '{}' metadata_json";
 const URL_COLUMNS = "MIN(id) id, MAX(run_id) run_id, target_name, MIN(url) url, COALESCE(MAX(host),'') host, COALESCE(MAX(path),'') path, COALESCE(MAX(query),'') query, COALESCE(MAX(params_json),'[]') params_json, group_concat(DISTINCT source) source, MIN(first_seen_at) first_seen_at, MAX(last_seen_at) last_seen_at, '{}' metadata_json";
-const SERVICE_COLUMNS = "MIN(id) id, MAX(run_id) run_id, target_name, MIN(url) url, COALESCE(MAX(host),'') host, COALESCE(MAX(scheme),'') scheme, MAX(port) port, MAX(status_code) status_code, COALESCE(MAX(title),'') title, COALESCE(MAX(webserver),'') webserver, COALESCE(MAX(technologies_json),'[]') technologies_json, COALESCE(MAX(final_url),'') final_url, MAX(content_length) content_length, group_concat(DISTINCT source) source, MAX(observed_at) observed_at, '{}' raw_json";
+// Whole newest row per URL (never columns mixed from different rows); technologies and sources are merged in JS.
+const SERVICE_COLUMNS = "id, run_id, target_name, url, COALESCE(host,'') host, COALESCE(scheme,'') scheme, port, status_code, COALESCE(title,'') title, COALESCE(webserver,'') webserver, technologies_json, COALESCE(final_url,'') final_url, content_length, source, observed_at, '{}' raw_json";
 
 function countDistinct(db, table, column, runId) {
   return db.prepare(`SELECT COUNT(*) count FROM (SELECT 1 FROM ${table} WHERE run_id=? GROUP BY lower(${column}))`).get(Number(runId)).count;
@@ -21,10 +22,12 @@ function summarizeTechnologies(rows) {
       const label = String(name || "").trim();
       if (!label) continue;
       const key = label.toLowerCase();
-      const entry = byName.get(key) || { name: label, count: 0, hosts: new Set(), urls: [], sources: new Set(), lastSeenAt: null };
-      entry.count += 1;
+      const entry = byName.get(key) || { name: label, count: 0, hosts: new Set(), urls: [], urlKeys: new Set(), sources: new Set(), lastSeenAt: null };
+      // Count distinct services (URLs), not detector rows.
+      if (row.url) entry.urlKeys.add(String(row.url).toLowerCase());
+      entry.count = row.url ? entry.urlKeys.size : entry.count + 1;
       if (row.host) entry.hosts.add(row.host);
-      if (row.url && entry.urls.length < 12) entry.urls.push(row.url);
+      if (row.url && entry.urls.length < 12 && !entry.urls.includes(row.url)) entry.urls.push(row.url);
       if (row.source) entry.sources.add(row.source);
       if (row.observed_at && (!entry.lastSeenAt || row.observed_at > entry.lastSeenAt)) entry.lastSeenAt = row.observed_at;
       byName.set(key, entry);
@@ -113,8 +116,25 @@ module.exports = {
   },
 
   listHttpServices({ runId, limit = 1000 }) {
-    return this.db.prepare(`SELECT ${SERVICE_COLUMNS} FROM recon_http_services WHERE run_id=? GROUP BY target_name, lower(url) ORDER BY host, port LIMIT ?`)
-      .all(Number(runId), limit).map(hydrate.httpService);
+    const id = Number(runId);
+    const rows = this.db.prepare(`SELECT ${SERVICE_COLUMNS} FROM recon_http_services WHERE run_id=? AND id IN (SELECT MAX(id) FROM recon_http_services WHERE run_id=? GROUP BY target_name, lower(url)) ORDER BY host, port LIMIT ?`)
+      .all(id, id, limit);
+    if (!rows.length) return [];
+    const merged = new Map();
+    for (const row of this.db.prepare("SELECT target_name, url, technologies_json, source FROM recon_http_services WHERE run_id=? ORDER BY id").all(id)) {
+      const key = `${row.target_name}|${String(row.url).toLowerCase()}`;
+      const entry = merged.get(key) || { techs: new Map(), sources: new Set() };
+      for (const name of parseJson(row.technologies_json, [])) {
+        const label = String(name || "").trim();
+        if (label && !entry.techs.has(label.toLowerCase())) entry.techs.set(label.toLowerCase(), label);
+      }
+      if (row.source) entry.sources.add(row.source);
+      merged.set(key, entry);
+    }
+    return rows.map((row) => {
+      const entry = merged.get(`${row.target_name}|${String(row.url).toLowerCase()}`);
+      return hydrate.httpService({ ...row, technologies_json: toJson([...entry.techs.values()]), source: [...entry.sources].join(",") });
+    });
   },
 
   listTechnologySummary({ runId, limit = 100 } = {}) {

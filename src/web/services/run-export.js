@@ -9,22 +9,39 @@ const EXPORT_FORMATS = {
   markdown: { contentType: "text/markdown; charset=utf-8", extension: "md", render: runSnapshotMarkdown }
 };
 EXPORT_FORMATS.md = EXPORT_FORMATS.markdown;
+const EXPORT_LIST_LIMIT = 100000;
+
+function truncatedNames(snapshot) {
+  return Object.entries(snapshot.truncated || {}).filter(([, cut]) => cut).map(([name]) => name);
+}
 
 function buildRunSnapshot(store, runId) {
   const run = store.getRun(runId);
   if (!run) return null;
+  const counts = store.getRunObservationCounts(runId);
+  const domains = store.listDomains({ runId, limit: EXPORT_LIST_LIMIT });
+  const httpServices = store.listHttpServices({ runId, limit: EXPORT_LIST_LIMIT });
+  const technologies = store.listTechnologySummary({ runId, limit: EXPORT_LIST_LIMIT });
+  const urls = store.listUrls({ runId, limit: EXPORT_LIST_LIMIT });
   return {
     exportedAt: new Date().toISOString(),
     run,
-    events: store.listEvents(runId, 0, 5000),
-    counts: store.getRunObservationCounts(runId),
-    domains: store.listDomains({ runId, limit: 10000 }),
-    httpServices: store.listHttpServices({ runId, limit: 10000 }),
-    technologies: store.listTechnologySummary({ runId, limit: 10000 }),
-    urls: store.listUrls({ runId, limit: 10000 }),
+    events: store.listLatestEvents(runId, 5000),
+    counts,
+    // A list shorter than its count was cut by the cap; exports say so instead of looking complete.
+    truncated: {
+      domains: counts.domains > domains.length,
+      httpServices: counts.httpServices > httpServices.length,
+      technologies: counts.technologies > technologies.length,
+      urls: counts.urls > urls.length
+    },
+    domains,
+    httpServices,
+    technologies,
+    urls,
     screenshots: store.listScreenshots({ runId }).map(withScreenshotImages),
     toolResults: store.listToolResults({ runId, limit: 1000 }),
-    delta: buildRunDelta(store, runId)
+    delta: buildRunDelta(store, runId, { domains, urls, httpServices })
   };
 }
 
@@ -48,6 +65,9 @@ function csvCell(value) {
 
 function runSnapshotCsv(snapshot) {
   const rows = [["type", "value", "detail", "source", "status", "seen_at"]];
+  const counts = snapshot.counts || {};
+  for (const [name, count] of Object.entries(counts)) rows.push(["count", name, String(count), "", "", ""]);
+  for (const name of truncatedNames(snapshot)) rows.push(["truncated", name, `list cut at ${EXPORT_LIST_LIMIT} rows, see count`, "", "", ""]);
   for (const domain of snapshot.domains) {
     rows.push(["domain", domain.domain, domain.kind || "", domain.source || "", domain.status || "", domain.first_seen_at || ""]);
   }
@@ -101,6 +121,8 @@ function runSnapshotMarkdown(snapshot) {
   } else {
     lines.push("- New domains: no previous run");
   }
+  const cut = truncatedNames(snapshot);
+  if (cut.length) lines.push("", `> Note: lists truncated at ${EXPORT_LIST_LIMIT} rows: ${cut.join(", ")}.`);
   lines.push("", "## Recent Events", "");
   lines.push(...snapshot.events.slice(-50).map((event) => `- ${event.created_at} ${event.source || "system"}: ${event.message}`));
   lines.push("");

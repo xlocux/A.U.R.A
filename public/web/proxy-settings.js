@@ -175,12 +175,6 @@
     await refreshDashboard();
   }
 
-  async function enableSelectedProxy() {
-    if (!$("proxyUrl").value.trim()) await useBestServerProxy();
-    $("proxyEnabled").checked = true;
-    await saveSettings();
-  }
-
   function renderSavedList(settings = getSettings()) {
     if (!$("proxySavedList")) return;
     const proxies = settings.proxies || [];
@@ -307,34 +301,6 @@
     const [list, stats] = await Promise.all([apiFetch(`/api/proxies?status=${encodeURIComponent(status)}&limit=100`), apiFetch("/api/proxies/stats")]);
     renderMetrics(list.proxies || [], stats);
     renderProxyRows(list.proxies || []);
-  }
-
-  async function preflightServerProxies() {
-    setActivity("running", "Cleaning proxy pool", "Running protocol preflight and deleting failed or high-latency routes.");
-    setStatus("Cleanup preflight running: testing imported proxies and pruning unhealthy entries...", "muted");
-    try {
-      const result = await apiFetch("/api/proxies/preflight", {
-        method: "POST",
-        body: JSON.stringify({
-          status: "preflight",
-          options: {
-            concurrency: 5,
-            timeout: 3500,
-            maxLatencyMs: DEFAULT_MAX_LATENCY_MS,
-            purgeFailed: true,
-            purgeHighLatency: true
-          }
-        })
-      });
-      const cleanup = result.cleanup || {};
-      const kept = Math.max(Number(result.summary?.successful || 0) - Number(cleanup.highLatencyRemoved || 0), 0);
-      setActivity(kept ? "ok" : "failed", "Cleanup preflight complete", `${kept}/${result.summary.total} healthy proxies kept. Removed ${cleanup.removed || 0} unhealthy entries.`);
-      setStatus(`Cleanup preflight complete: ${kept} kept, ${cleanup.removed || 0} removed.`, kept ? "ok" : "warn");
-      await refreshDashboard();
-    } catch (error) {
-      setActivity("failed", "Proxy preflight failed", error.message);
-      throw error;
-    }
   }
 
   async function useBestServerProxy() {
@@ -467,6 +433,4 @@
   }
 
   window.AuraProxySettings = { activeProxyUrl, bind };
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
-  else bind();
 })();

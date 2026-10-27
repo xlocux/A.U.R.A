@@ -1,9 +1,10 @@
 "use strict";
 
-const { runCandidateCorrelation } = require("../../recon/candidate-correlation");
+const { isReverseWhoisSource, runCandidateCorrelation } =require("../../recon/candidate-correlation");
 const reconEngine = require("../../recon/recon-engine");
 const { inferRootDomains } = require("../target-service");
-const { runInBackground, waitForRunControl } = require("./background-runs");
+const { runInBackground } = require("./background-runs");
+const { waitForRunControl } = require("../../recon/engine/run-control");
 const {
   extractBrandTerms,
   filterScopeDomains,
@@ -101,7 +102,7 @@ async function bootstrapTargetRecon({ store, runId, target, config, rootDomains,
       suggestions: { ...suggestions, includeTerms: reverseWhoisTerms }
     });
     correlationInputs = correlationInputs.concat(store.listAssetLeads({ targetName })
-      .filter((lead) => lead.run_id === runId && lead.source === "whoisxmlapi"));
+      .filter((lead) => lead.run_id === runId && isReverseWhoisSource(lead.source)));
   }
 
   runCandidateCorrelation({ store, runId, targetName, rootDomains, leads: correlationInputs, config });

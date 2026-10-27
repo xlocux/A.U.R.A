@@ -105,7 +105,6 @@ module.exports = [
   { method: "GET", path: "/api/wordlists/:id", handler: getWordlist },
   { method: "GET", path: "/api/wordlists/:id/metadata", handler: getWordlistMetadata },
   { method: "GET", path: "/api/wordlists/:id/preview", handler: previewWordlist },
-  { method: "GET", path: "/api/wordlists/:id/read", handler: previewWordlist },
   { method: "GET", path: "/api/wordlists/:id/download", handler: downloadWordlist },
   { method: "DELETE", path: "/api/wordlists/:id", handler: deleteWordlist }
 ];

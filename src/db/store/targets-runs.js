@@ -76,9 +76,17 @@ module.exports = {
     return row ? hydrate.run(row) : null;
   },
 
+  // Only completed recon-like runs are comparable; a discovery run would make every domain look "added".
   getPreviousRunForTarget(name, before) {
-    const row = this.db.prepare("SELECT * FROM scan_runs WHERE target_name = ? AND id < ? ORDER BY id DESC LIMIT 1").get(name, Number(before));
+    const row = this.db.prepare(`SELECT * FROM scan_runs WHERE target_name = ? AND id < ? AND status = 'completed'
+      AND run_type IN ('recon','full-recon','target-bootstrap') ORDER BY id DESC LIMIT 1`).get(name, Number(before));
     return row ? hydrate.run(row) : null;
+  },
+
+  // Called once at server start: nothing can still be running in a fresh process.
+  failInterruptedRuns() {
+    return Number(this.db.prepare(`UPDATE scan_runs SET status='failed', active_phase='interrupted', finished_at=?, error_message='Server stopped during the run'
+      WHERE status IN ('queued','running','paused')`).run(nowIso()).changes);
   },
 
   appendEvent(runId, { phase = null, severity = "info", source = null, message, payload = {} }) {
@@ -90,6 +98,14 @@ module.exports = {
   listEvents(runId, afterId = 0, limit = 200) {
     return this.db.prepare("SELECT * FROM scan_events WHERE run_id = ? AND id > ? ORDER BY id ASC LIMIT ?")
       .all(Number(runId), Number(afterId) || 0, limit).map(hydrate.event);
+  },
+
+  // Last `limit` events (optionally only phases matching a LIKE pattern), returned in ascending order.
+  listLatestEvents(runId, limit = 200, phaseLike = null) {
+    const rows = phaseLike
+      ? this.db.prepare("SELECT * FROM scan_events WHERE run_id = ? AND phase LIKE ? ORDER BY id DESC LIMIT ?").all(Number(runId), phaseLike, limit)
+      : this.db.prepare("SELECT * FROM scan_events WHERE run_id = ? ORDER BY id DESC LIMIT ?").all(Number(runId), limit);
+    return rows.reverse().map(hydrate.event);
   },
 
   createJob(job) {

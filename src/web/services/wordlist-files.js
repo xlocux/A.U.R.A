@@ -29,7 +29,8 @@ const DEFAULT_WORDLISTS = [
 ];
 
 function ensureDefaultWordlists(store) {
-  return DEFAULT_WORDLISTS.map((wordlist) => store.addWordlist({ ...wordlist, status: "active" }));
+  // Insert only missing defaults: an upsert would re-activate/re-stamp them and beat the operator's lists.
+  return DEFAULT_WORDLISTS.map((wordlist) => store.getWordlistByName(wordlist.name) || store.addWordlist({ ...wordlist, status: "active" }));
 }
 
 function resolveWordlistFile(value) {

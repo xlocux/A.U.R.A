@@ -13,7 +13,7 @@ function exportRunDiagnostics({ store, runId }) {
   if (!run) return null;
   const target = store.getTarget(run.target_name);
   const counts = store.getRunObservationCounts(runId);
-  const events = store.listEvents(runId, 0, 5000);
+  const events = store.listLatestEvents(runId, 5000);
   const toolResults = store.listToolResults({ runId, limit: 2000 });
   const domains = store.listDomains({ runId, limit: 2000 });
   const urls = store.listUrls({ runId, limit: 2000 });
