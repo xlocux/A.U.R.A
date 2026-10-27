@@ -195,12 +195,29 @@
   // and on (the only click that woke it).
   const unlock = () => { if (cfg.on && (!ctx || ctx.state !== "running")) ensureCtx(); };
   for (const type of ["pointerdown", "pointerup", "keydown"]) document.addEventListener(type, unlock, { capture: true });
-  // The audio is prepared at start-up while the page is idle: a browser that lets this site play sound by itself (Edge:
-  // site permission "Media autoplay: Allow") has her voice from the first line; the others wake it at the first click.
-  if (cfg.on) setTimeout(() => { if (cfg.on && !ctx) ensureCtx(); }, 2000);
+  // Before the first click the audio is not even created: the browser would not let it start (and says so in the
+  // console). A browser that lets this site play sound by itself (Edge: site permission "Media autoplay: Allow") is
+  // found out at start-up with a silent probe, and then she speaks from the first line.
+  let autoplayOk = false;
+  const activated = () => !navigator.userActivation || navigator.userActivation.hasBeenActive;
+  function silentWav() {
+    const n = 1600, v = new DataView(new ArrayBuffer(44 + n)); // 0.2 s of 8-bit silence at 8 kHz
+    const put = (at, s) => [...s].forEach((c, i) => v.setUint8(at + i, c.charCodeAt(0)));
+    put(0, "RIFF"); v.setUint32(4, 36 + n, true); put(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); put(36, "data"); v.setUint32(40, n, true);
+    for (let i = 44; i < 44 + n; i += 1) v.setUint8(i, 128); // the mid value is silence in 8-bit audio
+    return URL.createObjectURL(new Blob([v.buffer], { type: "audio/wav" }));
+  }
+  async function probeAutoplay() {
+    if (navigator.getAutoplayPolicy) return navigator.getAutoplayPolicy("audiocontext") === "allowed";
+    const url = silentWav(), probe = new Audio(url);
+    try { await probe.play(); return true; } catch { return false; } finally { probe.pause(); URL.revokeObjectURL(url); }
+  }
+  if (cfg.on) setTimeout(async () => { if (cfg.on && !ctx && !activated() && (await probeAutoplay())) { autoplayOk = true; ensureCtx(); } }, 2000);
   // Before the first click (or while the browser keeps the sound asleep) a line is not played: it would wait inside the
   // silent audio and burst out later, on top of another line. Her bubble shows it instead.
   async function audible() {
+    if (!ctx && !activated() && !autoplayOk) return false;
     ensureCtx();
     if (ctx.state !== "running") await Promise.race([ctx.resume().catch(() => {}), new Promise((r) => setTimeout(r, 300))]);
     return ctx.state === "running";
