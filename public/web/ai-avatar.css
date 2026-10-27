@@ -319,3 +319,24 @@ html.av-xray .workspace { filter: contrast(1.2) brightness(1.15) hue-rotate(200d
 .av-drag-band { position: fixed; z-index: 1146; height: 3px; margin-top: -1.5px; transform-origin: 0 50%; pointer-events: none; border-radius: 2px;
   background: linear-gradient(90deg, var(--accent), var(--warn)); box-shadow: 0 0 8px var(--accent); }
 .av-drag-bite { position: fixed; z-index: 1151; pointer-events: none; font-family: var(--font-display, monospace); font-size: 18px; letter-spacing: .1em; color: var(--bad); text-shadow: 0 0 10px var(--bad), 1px 1px 0 var(--ink); }
+
+/* Bleach pack: Bankai. A dark stage, pink petals (Shunsui's flowered haori), vertical kanji, two crossing blades.
+   Fixed colours on purpose: it is a fullscreen scene, like the Haki one. */
+.ai-avatar-roamer.av-bk-reiatsu { filter: drop-shadow(0 0 12px #ff8cc6) drop-shadow(0 0 28px #a77bff); animation: avRageShake .1s linear infinite; }
+.av-bk-column { position: fixed; bottom: 0; z-index: 1143; width: 140px; margin-left: -70px; pointer-events: none; opacity: 0;
+  background: linear-gradient(to top, transparent, color-mix(in srgb, #ff8cc6 55%, transparent) 35%, color-mix(in srgb, #a77bff 40%, transparent) 70%, transparent); filter: blur(10px); }
+.av-bk-ring { border-color: #ff8cc6; box-shadow: 0 0 18px #ff8cc6, inset 0 0 14px #a77bff; }
+.av-bk-world { position: fixed; inset: 0; z-index: 1142; pointer-events: none; opacity: 0;
+  background: radial-gradient(90% 60% at 50% 105%, #3a1430 0%, transparent 70%), radial-gradient(60% 40% at 50% 0%, #1a1030 0%, transparent 80%), #07050b; }
+.av-bk-world::after { content: ""; position: absolute; left: 0; right: 0; bottom: 24%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 140, 198, .5), transparent); box-shadow: 0 0 24px 2px rgba(255, 140, 198, .35); }
+.av-bk-petal { position: fixed; z-index: 1144; width: 13px; height: 9px; border-radius: 80% 0 80% 0; pointer-events: none; opacity: 0; background: linear-gradient(135deg, #ffd1e6, #ff6fae); box-shadow: 0 0 6px rgba(255, 111, 174, .6); }
+.av-bk-kanji { position: fixed; z-index: 1149; transform: translateY(-50%); writing-mode: vertical-rl; white-space: nowrap; pointer-events: none; font-family: "Yu Mincho", "MS Mincho", "Noto Serif JP", serif; font-size: min(8vh, 60px); line-height: 1; letter-spacing: .16em;
+  color: #fbeef4; text-shadow: 0 0 14px #ff6fae, 0 0 34px rgba(167, 123, 255, .7); }
+.av-bk-kanji span { display: inline-block; opacity: 0; }
+.av-bk-name { position: fixed; z-index: 1151; transform: translateX(-50%); pointer-events: none; text-align: center; white-space: nowrap; opacity: 0; font-family: var(--font-display, monospace); font-style: italic; color: #fff; }
+.av-bk-name small { display: block; font-size: min(2.4vw, 26px); color: #ffd1e6; text-shadow: 0 0 16px #ff6fae; }
+.av-bk-name b { display: block; font-size: min(5vw, 64px); -webkit-text-stroke: 1px #ff6fae; text-shadow: 3px 3px 0 #a77bff, 0 0 26px #ff6fae; }
+.av-bk-name i { display: block; height: 4px; margin: 10px auto 0; width: 72%; border-radius: 2px; background: linear-gradient(90deg, transparent, #c8102e 15%, #ff3b5c 50%, #c8102e 85%, transparent); }
+.av-bk-blade { position: fixed; z-index: 1148; width: 58vmin; height: 5px; margin: -2.5px 0 0 -29vmin; pointer-events: none; transform-origin: 50% 50%; border-radius: 0 60% 60% 0 / 0 100% 100% 0;
+  background: linear-gradient(90deg, #2a1a12 0 18%, #c9a227 18% 20%, #dfe4ee 20% 100%); box-shadow: 0 0 14px rgba(255, 255, 255, .7), 0 0 30px #ff6fae; }
+.av-bk-blade-2 { box-shadow: 0 0 14px rgba(255, 255, 255, .7), 0 0 30px #a77bff; }

@@ -1,0 +1,87 @@
+"use strict";
+
+// Bleach for Auri: a Bankai in the style of Shunsui Kyoraku. Spiritual pressure builds up around her, the screen
+// becomes a dark stage with falling pink petals (his flowered haori), the name appears in vertical kanji, two
+// blades cross with a flash. Registered as an ordinary antic: AuraAvatar.antic("bankai") plays it by hand.
+(function initAvatarBleach() {
+  const F = () => window.AuraAnimeFx;
+  const NAME = ["KATEN KYOKOTSU", "KARAMATSU SHINJU"];
+  const KANJI = "花天狂骨枯松心中";
+
+  function petals(count, ms) {
+    const { fx, rand, done } = F();
+    for (let i = 0; i < count; i += 1) {
+      const p = fx("av-bk-petal", rand(-40, innerWidth), rand(-60, -10));
+      done(p.animate([
+        { transform: "translate(0, 0) rotate(0deg)", opacity: 0 },
+        { opacity: 0.95, offset: 0.1 },
+        { transform: `translate(${rand(-160, 260)}px, ${innerHeight + 80}px) rotate(${rand(360, 900)}deg)`, opacity: 0.5 }
+      ], { duration: rand(ms * 0.6, ms), delay: rand(0, ms * 0.5), easing: "linear", fill: "forwards" }), p);
+    }
+  }
+
+  async function bankai(s) {
+    const { fx, title, shake, wait, done, cry } = F();
+    const home = s.home();
+    const spot = { x: innerWidth / 2 - 23, y: innerHeight / 2 + 30 };
+    s.place(home);
+    s.say("Fine. You want to see my real power?", 2000);
+    await s.move(home, spot, { ms: 1500 });
+    const c = { x: spot.x + 23, y: spot.y + 26 };
+
+    // spiritual pressure: a column of light, rings, the page trembles
+    const column = fx("av-bk-column", c.x, 0);
+    column.animate([{ opacity: 0, transform: "scaleX(.2)" }, { opacity: 1, transform: "scaleX(1)" }], { duration: 600, fill: "forwards" });
+    s.el.classList.add("av-bk-reiatsu");
+    for (let i = 0; i < 3; i += 1) {
+      const ring = fx("av-an-ring av-bk-ring", c.x, c.y);
+      done(ring.animate([{ scale: 0.3, opacity: 1 }, { scale: 30, opacity: 0 }], { duration: 1300, delay: i * 300, easing: "ease-out", fill: "forwards" }), ring);
+    }
+    shake(4, 900);
+    s.say("Flower wind rampage, flower god roar...", 2200);
+    await wait(1700);
+    await title("BANKAI", 1300);
+
+    // the stage
+    const world = fx("av-bk-world", 0, 0);
+    world.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, fill: "forwards" });
+    petals(46, 5200);
+    const kanji = fx("av-bk-kanji", 0, 0, [...KANJI].map((ch) => `<span>${ch}</span>`).join(""));
+    Object.assign(kanji.style, { left: "auto", right: "8vw", top: "50%" });
+    [...kanji.children].forEach((el, i) => el.animate([{ opacity: 0, transform: "translateY(-10px)", filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "none" }], { duration: 380, delay: 200 + i * 170, fill: "forwards" }));
+    const name = fx("av-bk-name", 0, 0, `<small>${NAME[0]}</small><b>${NAME[1]}</b><i></i>`);
+    Object.assign(name.style, { left: "50%", top: "auto", bottom: "12vh" });
+    if (window.AuraSpeech) window.AuraSpeech.speak(cry(NAME.join(": ")), { emotion: "shout", interrupt: true });
+    name.animate([{ opacity: 0, letterSpacing: ".5em" }, { opacity: 1, letterSpacing: ".12em" }], { duration: 900, delay: 500, easing: "ease-out", fill: "forwards" });
+    await wait(1900);
+
+    // two blades cross with a flash
+    const b1 = fx("av-bk-blade", c.x, c.y), b2 = fx("av-bk-blade av-bk-blade-2", c.x, c.y);
+    const cut = { duration: 420, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" };
+    b1.animate([{ transform: "rotate(-150deg) scaleX(0)" }, { transform: "rotate(-35deg) scaleX(1)" }], cut);
+    b2.animate([{ transform: "rotate(-30deg) scaleX(0)" }, { transform: "rotate(-145deg) scaleX(1)" }], cut);
+    await wait(430);
+    const flash = fx("av-an-white", 0, 0);
+    done(flash.animate([{ opacity: 0 }, { opacity: 0.7 }, { opacity: 0 }], { duration: 380, fill: "forwards" }), flash);
+    shake(10, 450);
+    await wait(1600);
+    s.say("Sorry. This one is very dramatic. I love dramatic.", 2600);
+    await wait(1500);
+
+    // curtain
+    for (const el of [world, kanji, name, b1, b2, column]) done(el.animate([{ opacity: getComputedStyle(el).opacity }, { opacity: 0 }], { duration: 700, fill: "forwards" }), el);
+    s.el.classList.remove("av-bk-reiatsu");
+    await wait(800);
+    await s.move(spot, s.home(), { ms: 1300 });
+  }
+
+  function boot() {
+    const api = window.AuraAvatar;
+    if (!api || !api.registerAntic || !window.AuraAnimeFx) return;
+    api.registerAntic("bankai", bankai, true);
+    const { cry } = window.AuraAnimeFx;
+    if (window.AuraSpeech && window.AuraSpeech.prefetch) window.AuraSpeech.prefetch([[cry("BANKAI"), "shout"], [cry(NAME.join(": ")), "shout"]]);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+  else boot();
+})();

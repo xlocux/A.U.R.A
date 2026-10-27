@@ -33,7 +33,8 @@ const apiRouter = createRouter([
   require("./routes/wordlist-routes"),
   require("./routes/environment-routes"),
   require("./routes/proxy-routes"),
-  require("./routes/storage-routes")
+  require("./routes/storage-routes"),
+  require("./routes/voice-routes")
 ]);
 
 function parseArgs(argv) {

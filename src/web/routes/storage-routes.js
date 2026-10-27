@@ -61,13 +61,15 @@ async function getStorageUsage({ response }) {
   const artifacts = dirSize(runsRoot);
   const wordlists = dirSize(wordlistsDir);
   const targetsConfig = dirSize(targetsDir);
+  const voice = dirSize(path.join(dataDir, "voice"));
 
   const categories = [
     { key: "database", label: "Results database", path: "data/aura.db", bytes: database },
     { key: "artifacts", label: "Run artifacts", path: "data/recon-runs/", bytes: artifacts.bytes, files: artifacts.files },
     { key: "proxies", label: "Proxy pool database", path: "data/proxies.db", bytes: proxyDb },
     { key: "wordlists", label: "Generated wordlists", path: "data/wordlists/", bytes: wordlists.bytes, files: wordlists.files },
-    { key: "targets", label: "Target configs", path: "targets/", bytes: targetsConfig.bytes, files: targetsConfig.files }
+    { key: "targets", label: "Target configs", path: "targets/", bytes: targetsConfig.bytes, files: targetsConfig.files },
+    { key: "voice", label: "AURI voice packs", path: "data/voice/", bytes: voice.bytes, files: voice.files }
   ];
   const totalBytes = categories.reduce((sum, item) => sum + item.bytes, 0);
 

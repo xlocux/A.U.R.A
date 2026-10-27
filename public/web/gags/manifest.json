@@ -47,6 +47,15 @@
       "gags": [
         "charset"
       ]
+    },
+    {
+      "id": "bleach",
+      "file": "bleach.js",
+      "since": "0.1.0",
+      "title": "Bleach: Bankai",
+      "gags": [
+        "bankai"
+      ]
     }
   ]
 }
