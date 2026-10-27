@@ -569,11 +569,14 @@
       <div id="aiMessages" class="ai-messages"><div class="ai-message assistant">I can help with target setup, scope review, recon planning, run status, tool failures, and result triage. During scans I will post useful milestones here.</div></div>
       <div class="ai-input">
         <div id="aiAttachments" class="ai-attachments hidden"></div>
-        <div class="ai-input-row">
-          <button id="aiAttach" type="button" class="ai-attach-btn" title="Attach a file (DeepSeek)" aria-label="Attach a file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12 20.5a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
-          <input id="aiFileInput" type="file" class="hidden">
-          <textarea id="aiPrompt" placeholder="Ask about the current target, run, tools, or next recon step"></textarea>
-          <button id="sendAiPrompt" type="button">Send</button>
+        <div class="ai-composer">
+          <textarea id="aiPrompt" rows="1" placeholder="Ask about the current target, run, tools, or next recon step"></textarea>
+          <div class="ai-composer-bar">
+            <button id="aiAttach" type="button" class="ai-attach-btn" title="Attach a file (DeepSeek)" aria-label="Attach a file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12 20.5a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button>
+            <input id="aiFileInput" type="file" class="hidden">
+            <span class="ai-composer-hint">Enter to send, Shift+Enter for a new line</span>
+            <button id="sendAiPrompt" type="button">Send</button>
+          </div>
         </div>
       </div>
       <span class="ai-resize-handle nw" data-resize="nw" aria-hidden="true"></span><span class="ai-resize-handle ne" data-resize="ne" aria-hidden="true"></span><span class="ai-resize-handle sw" data-resize="sw" aria-hidden="true"></span><span class="ai-resize-handle se" data-resize="se" aria-hidden="true"></span>

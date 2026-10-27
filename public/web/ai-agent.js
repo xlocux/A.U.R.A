@@ -227,6 +227,7 @@
     const label = pendingFiles.length ? `${prompt}\n\n(${pendingFiles.length} attachment${pendingFiles.length === 1 ? "" : "s"})` : prompt;
     appendMessage("user", label);
     $("aiPrompt").value = "";
+    fitPrompt();
     window.dispatchEvent(new CustomEvent("aura:ai", { detail: { type: "thinking" } }));
     try {
       const message = await postAgentPrompt(prompt, { fileIds });
@@ -251,15 +252,21 @@
     }
   }
 
-  function saveWindowState() {
+  // `placed` = the operator moved or resized the window: from then on it reopens where they left it.
+  // Until then it opens in the middle of the screen.
+  function saveWindowState(placed) {
     const panel = $("aiPanel");
+    const previous = getWindowState();
+    const minimized = panel.classList.contains("minimized");
     const rect = panel.getBoundingClientRect();
+    const box = minimized ? previous : { left: Math.round(rect.left), top: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) };
     localStorage.setItem(AI_WINDOW_STORAGE_KEY, JSON.stringify({
-      left: Math.round(rect.left),
-      top: Math.round(rect.top),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-      minimized: panel.classList.contains("minimized")
+      left: box.left,
+      top: box.top,
+      width: box.width,
+      height: box.height,
+      placed: placed ?? Boolean(previous.placed),
+      minimized
     }));
   }
 
@@ -268,14 +275,22 @@
     const state = getWindowState();
     if (Number.isFinite(state.width)) panel.style.width = `${state.width}px`;
     if (Number.isFinite(state.height)) panel.style.height = `${state.height}px`;
-    if (Number.isFinite(state.left)) panel.style.left = `${state.left}px`;
-    if (Number.isFinite(state.top)) panel.style.top = `${state.top}px`;
+    if (state.placed && Number.isFinite(state.left)) panel.style.left = `${state.left}px`;
+    if (state.placed && Number.isFinite(state.top)) panel.style.top = `${state.top}px`;
     // Start minimized until the operator opens it, so the assistant never covers results on first load.
     const minimized = state.minimized ?? (Object.keys(state).length === 0);
     if (minimized) {
       panel.classList.add("minimized");
       $("aiRestore").classList.add("active");
-    }
+    } else if (!state.placed) centerPanel();
+    clampPanel();
+  }
+
+  function centerPanel() {
+    const panel = $("aiPanel");
+    const rect = panel.getBoundingClientRect();
+    panel.style.left = `${Math.round((window.innerWidth - rect.width) / 2)}px`;
+    panel.style.top = `${Math.round((window.innerHeight - rect.height) / 2)}px`;
     clampPanel();
   }
 
@@ -305,10 +320,16 @@
   }
 
   function restorePanel() {
+    const state = getWindowState();
     $("aiPanel").classList.remove("minimized");
     $("aiRestore").classList.remove("active");
+    if (state.placed && Number.isFinite(state.left) && Number.isFinite(state.top)) {
+      $("aiPanel").style.left = `${state.left}px`;
+      $("aiPanel").style.top = `${state.top}px`;
+    } else centerPanel();
     clampPanel();
     saveWindowState();
+    $("aiPrompt").focus();
   }
 
   function startDrag(event) {
@@ -330,6 +351,7 @@
     const panel = $("aiPanel");
     const deltaX = event.clientX - aiWindowDrag.startX;
     const deltaY = event.clientY - aiWindowDrag.startY;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > 3) aiWindowDrag.moved = true;
     let { left, top, width, height } = aiWindowDrag;
     if (aiWindowDrag.type === "move") {
       left += deltaX;
@@ -355,9 +377,17 @@
 
   function endWindowEdit() {
     if (!aiWindowDrag) return;
+    const moved = aiWindowDrag.moved;
     aiWindowDrag = null;
     clampPanel();
-    saveWindowState();
+    saveWindowState(moved ? true : undefined);
+  }
+
+  // The prompt grows with what you type (up to a few lines), then scrolls.
+  function fitPrompt() {
+    const prompt = $("aiPrompt");
+    prompt.style.height = "auto";
+    prompt.style.height = `${Math.min(prompt.scrollHeight, 140)}px`;
   }
 
   function bind() {
@@ -377,9 +407,17 @@
     window.addEventListener("pointermove", updateWindow);
     window.addEventListener("pointerup", endWindowEdit);
     window.addEventListener("resize", () => {
+      if (!getWindowState().placed && !$("aiPanel").classList.contains("minimized")) centerPanel();
       clampPanel();
       saveWindowState();
     });
+    // Double-click the header to put the window back in the middle (it then follows the screen again).
+    $("aiDragHandle").addEventListener("dblclick", (event) => {
+      if (event.target.closest("button")) return;
+      centerPanel();
+      saveWindowState(false);
+    });
+    $("aiPrompt").addEventListener("input", fitPrompt);
     $("aiPrompt").addEventListener("keydown", (event) => {
       // Enter sends; Shift+Enter (or Ctrl/Cmd+Enter) inserts a newline.
       if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {

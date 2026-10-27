@@ -264,7 +264,8 @@ html[data-avatar-voice="4"] .ai-header p { color: var(--warn); }
 html[data-avatar-voice="4"] .ai-message { border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, #240509 78%, transparent); }
 html[data-avatar-voice="4"] .ai-message.assistant { border-color: var(--bad); background: color-mix(in srgb, #3a060c 80%, transparent); box-shadow: -3px 0 0 var(--bad); }
 html[data-avatar-voice="4"] .ai-message.user { border-color: var(--warn); background: color-mix(in srgb, #2a1205 80%, transparent); }
-html[data-avatar-voice="4"] .ai-input textarea { border-color: var(--bad); caret-color: var(--bad); }
+html[data-avatar-voice="4"] .ai-composer { border-color: var(--bad); }
+html[data-avatar-voice="4"] .ai-composer textarea { caret-color: var(--bad); }
 html[data-avatar-voice="4"] .ai-panel::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--bad) 8%, transparent) 3px 4px); }
 @keyframes psychoPanel { 0%, 92% { translate: 0 0; } 93% { translate: 2px 0; filter: hue-rotate(-20deg); } 95% { translate: -2px 1px; } 97%, 100% { translate: 0 0; filter: none; } }
 @media (prefers-reduced-motion: reduce) { html[data-avatar-voice="4"] .ai-panel { animation: none; } }

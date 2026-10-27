@@ -340,3 +340,7 @@ html.av-xray .workspace { filter: contrast(1.2) brightness(1.15) hue-rotate(200d
 .av-bk-blade { position: fixed; z-index: 1148; width: 58vmin; height: 5px; margin: -2.5px 0 0 -29vmin; pointer-events: none; transform-origin: 50% 50%; border-radius: 0 60% 60% 0 / 0 100% 100% 0;
   background: linear-gradient(90deg, #2a1a12 0 18%, #c9a227 18% 20%, #dfe4ee 20% 100%); box-shadow: 0 0 14px rgba(255, 255, 255, .7), 0 0 30px #ff6fae; }
 .av-bk-blade-2 { box-shadow: 0 0 14px rgba(255, 255, 255, .7), 0 0 30px #a77bff; }
+
+/* While she is being dragged: no text selection, grabbing hand everywhere. */
+html.av-dragging, html.av-dragging * { user-select: none !important; -webkit-user-select: none !important; cursor: grabbing !important; }
+.ai-avatar-roamer:not(.av-piece):active { cursor: grabbing; }

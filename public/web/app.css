@@ -1423,21 +1423,42 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
   flex-direction: column;
   gap: 6px;
 }
-.ai-input-row { display: flex; gap: 8px; align-items: flex-end; min-width: 0; }
-
-.ai-input textarea {
-  min-height: 54px;
-  max-height: 96px;
-  resize: none;
-  flex: 1 1 auto;
-  min-width: 0; /* let the textarea shrink so the Send button stays inside the panel */
-  margin: 0;
+/* One framed composer: the prompt uses the full width, the actions sit in a thin bar under it. */
+.ai-composer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg, #05070b) 55%, transparent);
+  transition: border-color .16s ease, box-shadow .16s ease;
 }
-
-.ai-input-row button { margin: 0; flex: 0 0 auto; }
-#sendAiPrompt { width: auto !important; min-width: 0 !important; height: 36px; padding: 0 14px !important; white-space: nowrap; }
-.ai-attach-btn { width: 32px !important; height: 36px; min-width: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
-.ai-attach-btn svg { width: 16px; height: 16px; }
+.ai-composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.ai-panel .ai-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  max-height: 140px;
+  margin: 0;
+  padding: 9px 11px 4px !important;
+  resize: none;
+  border: 0 !important;
+  border-radius: 6px 6px 0 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.ai-composer-bar { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 2px 6px 6px 11px; }
+.ai-composer-hint { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); opacity: .7; font-size: calc(10.5px * var(--font-scale, 1)); }
+.ai-composer-bar button { margin: 0 !important; flex: 0 0 auto; }
+.ai-panel #sendAiPrompt { width: auto !important; min-width: 0 !important; min-height: 0 !important; height: 28px; padding: 0 14px !important; white-space: nowrap; }
+.ai-panel .ai-attach-btn { width: 28px !important; height: 28px; min-width: 0 !important; min-height: 0 !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
+.ai-panel .ai-attach-btn[hidden] { display: none !important; }
+.ai-panel .ai-composer-bar .ai-attach-btn { margin-left: -6px !important; }
+.ai-attach-btn svg { width: 15px; height: 15px; }
 .ai-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
 .ai-attachment { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 2px 4px 2px 9px; border-radius: 999px; border: 1px solid var(--soft-line, var(--line)); color: var(--muted); }
 .ai-attachment button { width: auto !important; min-width: 0 !important; margin: 0 !important; padding: 0 6px !important; background: transparent !important; border: 0 !important; color: var(--muted) !important; }

@@ -238,6 +238,9 @@ function updateAiModelBadges() {
   if (badge) badge.textContent = `AI: ${label}`;
   const panel = $("aiPanelModel");
   if (panel) { panel.textContent = label; panel.title = `Active AI model: ${label}`; }
+  // attachments are supported only by the DeepSeek web provider
+  const attach = $("aiAttach");
+  if (attach) attach.hidden = (aiSettings || {}).provider !== "deepseek-web";
 }
 
 function fillModelSelect(id, selected) {
