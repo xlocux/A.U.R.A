@@ -183,17 +183,31 @@
   // Cuts whatever is playing, neural or browser voice.
   function silence() { stopCurrent(); if (synth) { synth.cancel(); lastCancel = Date.now(); } }
   if (synth) synth.getVoices(); // starts loading the system voices (Chrome fills the list asynchronously)
-  // Creating the first AudioContext stalls the page for a moment: do it at the first click or key press (which also
-  // lets the browser play sound), not in the middle of a battle cry.
+  // Creating the first AudioContext stalls the page for a moment: do it while the page is idle or at a click, not in
+  // the middle of a battle cry.
   function ensureCtx() {
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    if (ctx.state !== "running") ctx.resume().catch(() => {});
     return ctx;
   }
-  for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, () => { if (cfg.on && !ctx) ensureCtx(); }, { capture: true });
-  function play(audio, emo, volume, onStart) {
+  // Every click or key press wakes the sound up while it is asleep, not only the first one: Edge, Safari and Firefox
+  // may let it start only inside the click itself, so after a reload she stayed mute until the voice was switched off
+  // and on (the only click that woke it).
+  const unlock = () => { if (cfg.on && (!ctx || ctx.state !== "running")) ensureCtx(); };
+  for (const type of ["pointerdown", "pointerup", "keydown"]) document.addEventListener(type, unlock, { capture: true });
+  // The audio is prepared at start-up while the page is idle: a browser that lets this site play sound by itself (Edge:
+  // site permission "Media autoplay: Allow") has her voice from the first line; the others wake it at the first click.
+  if (cfg.on) setTimeout(() => { if (cfg.on && !ctx) ensureCtx(); }, 2000);
+  // Before the first click (or while the browser keeps the sound asleep) a line is not played: it would wait inside the
+  // silent audio and burst out later, on top of another line. Her bubble shows it instead.
+  async function audible() {
+    ensureCtx();
+    if (ctx.state !== "running") await Promise.race([ctx.resume().catch(() => {}), new Promise((r) => setTimeout(r, 300))]);
+    return ctx.state === "running";
+  }
+  async function play(audio, emo, volume, onStart) {
+    if (!(await audible())) return;
     return new Promise((resolve) => {
-      ensureCtx();
       stopCurrent();
       const buf = ctx.createBuffer(1, audio.data.length, audio.rate);
       buf.copyToChannel(audio.data, 0);
