@@ -40,7 +40,18 @@
       bubble.style.left = `${x}px`;
       bubble.style.top = `${y - 46}px`;
     };
-    g.say = (text, ms = 1600) => { if (window.AuraSpeech) window.AuraSpeech.speak(text, { loud: true, ms }); bubble.textContent = text; bubble.classList.add("show"); clearTimeout(g.hide); g.hide = setTimeout(() => bubble.classList.remove("show"), ms); };
+    // The scene keeps its own pace; the bubble appears as she starts the line (a line that cannot start within 1.2 s
+    // is shown without the voice). The newest line always wins the bubble.
+    let sayId = 0;
+    g.say = async (text, ms = 1600) => {
+      const id = ++sayId;
+      const spoken = window.AuraSpeech ? await window.AuraSpeech.cue(text, { loud: true, ms, deadline: 1200 }) : 0;
+      if (id !== sayId || !bubble.isConnected) return;
+      bubble.textContent = text;
+      bubble.classList.add("show");
+      clearTimeout(g.hide);
+      g.hide = setTimeout(() => bubble.classList.remove("show"), Math.max(ms, spoken + 300));
+    };
     g.remove = () => { clearTimeout(g.hide); el.remove(); bubble.remove(); };
     g.put(g.x, g.y);
     return g;

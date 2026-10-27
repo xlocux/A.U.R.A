@@ -64,15 +64,10 @@ async function kokoro(m) {
     models.set(m.pack, model);
     loadMs = Date.now() - t;
   }
-  // a Japanese line gets Kokoro's Japanese voice when the pack has it (packs downloaded before it was added do not)
+  // A Japanese line is said by a Japanese voice: the chosen one if it is Japanese (or a mix with one), Alpha otherwise.
   const ja = m.lang === "ja";
-  const voice = ja && fs.existsSync(path.join(dir, "voices", "jf_alpha.bin")) ? "jf_alpha" : m.voice;
-  let style = model.voices.get(voice);
-  if (!style) {
-    const buf = fs.readFileSync(path.join(dir, "voices", `${voice}.bin`));
-    style = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-    model.voices.set(voice, style);
-  }
+  const voice = ja && !/(^|\+)jf_/.test(m.voice) ? "jf_alpha" : m.voice;
+  const style = styleOf(model, dir, voice);
   const ps = (await kokoroIds(m.text, voice.startsWith("b"), ja)).trim();
   const ids = [0];
   for (const ch of ps) if (model.vocab[ch] != null && ids.length < 511) ids.push(model.vocab[ch]);
@@ -87,6 +82,24 @@ async function kokoro(m) {
   return { data: out.waveform.data, rate: 24000, loadMs };
 }
 
+// A voice's style vectors; "a+b" averages two voices. Voice files missing from an older pack fall back to the others
+// (and finally to af_heart), so an old download keeps working.
+function styleOf(model, dir, voice) {
+  if (model.voices.has(voice)) return model.voices.get(voice);
+  const read = (name) => {
+    const file = path.join(dir, "voices", `${name}.bin`);
+    if (!fs.existsSync(file)) return null;
+    const buf = fs.readFileSync(file);
+    return new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+  };
+  const parts = voice.split("+").map(read).filter(Boolean);
+  if (!parts.length) parts.push(read("af_heart"));
+  const style = new Float32Array(parts[0].length);
+  for (const p of parts) for (let i = 0; i < style.length; i += 1) style[i] += p[i] / parts.length;
+  model.voices.set(voice, style);
+  return style;
+}
+
 // ── Piper (VITS) ──
 async function piper(m) {
   const dir = path.join(packsDir, m.pack);
@@ -99,9 +112,13 @@ async function piper(m) {
     models.set(m.pack, model);
     loadMs = Date.now() - t;
   }
-  const { config, session } = model;
+  const rate = model.config.audio?.sample_rate || 22050;
+  if (m.lang === "ja" && /([aeiou])\1/i.test(m.text)) return { data: await piperStretchedCry(model, m), rate, loadMs };
+  const ps = await toPhonemes(m.text, model.config.espeak?.voice || "en-us", "piper", m.lang === "ja");
+  return { data: await piperRun(model, ps, m.speed), rate, loadMs };
+}
+async function piperRun({ config, session }, ps, speed) {
   const map = config.phoneme_id_map;
-  const ps = await toPhonemes(m.text, config.espeak?.voice || "en-us", "piper", m.lang === "ja");
   const ids = [...map["^"], ...map["_"]];
   for (const ch of ps) if (map[ch]) ids.push(...map[ch], ...map["_"]);
   ids.push(...map["$"]);
@@ -109,11 +126,47 @@ async function piper(m) {
   const feeds = {
     input: int64(ids),
     input_lengths: new ort.Tensor("int64", BigInt64Array.from([BigInt(ids.length)]), [1]),
-    scales: new ort.Tensor("float32", new Float32Array([inf.noise_scale ?? 0.667, (inf.length_scale ?? 1) / m.speed, inf.noise_w ?? 0.8]), [3])
+    scales: new ort.Tensor("float32", new Float32Array([inf.noise_scale ?? 0.667, (inf.length_scale ?? 1) / speed, inf.noise_w ?? 0.8]), [3])
   };
   if (config.num_speakers > 1) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]), [1]);
   const out = await session.run(feeds);
-  return { data: out[session.outputNames[0]].data, rate: config.audio?.sample_rate || 22050, loadMs };
+  return out[session.outputNames[0]].data;
+}
+// Piper ignores vowel-length marks, so "goooomu goooomu no... bazuuuuka!!" would come out short. Each stretched word
+// is said on its own, slowed down (the more vowels, the slower), and the pieces are joined with the cry's pauses.
+async function piperStretchedCry(model, m) {
+  const rate = model.config.audio?.sample_rate || 22050;
+  const loud = /!/.test(m.text) ? "!" : "";
+  const pieces = [];
+  let plain = [];
+  const flush = async () => { if (plain.length) pieces.push(await piperRun(model, japanese.romajiToIpa(plain.join(" ") + loud, "piper"), m.speed)); plain = []; };
+  for (const token of m.text.split(/\s+/).filter(Boolean)) {
+    const word = token.replace(/[^A-Za-z]/g, "");
+    const pause = /\.\.\.|…/.test(token);
+    const run = (word.match(/([aeiou])\1+/gi) || []).reduce((n, r) => Math.max(n, r.length), 0);
+    if (word && run >= 2) {
+      await flush();
+      pieces.push(await piperRun(model, japanese.romajiToIpa(word + loud, "piper"), m.speed / Math.min(1.7, 1 + 0.18 * run)));
+    } else if (word) plain.push(word);
+    if (pause) { await flush(); pieces.push(new Float32Array(Math.round(rate * 0.22))); }
+  }
+  await flush();
+  // each piece is a whole utterance with its own leading/trailing silence: trim it, so the words run on
+  const edge = Math.round(rate * 0.02);
+  const trim = (p) => {
+    let a = 0, b = p.length - 1;
+    while (a < b && Math.abs(p[a]) < 0.012) a += 1;
+    while (b > a && Math.abs(p[b]) < 0.012) b -= 1;
+    return a >= b ? p : p.subarray(Math.max(0, a - edge), Math.min(p.length, b + edge));
+  };
+  for (let i = 0; i < pieces.length; i += 1) if (pieces[i].some((x) => x !== 0)) pieces[i] = trim(pieces[i]);
+  // a short breath between pieces, never a click
+  const gap = new Float32Array(Math.round(rate * 0.04));
+  const total = pieces.reduce((n, p) => n + p.length + gap.length, 0);
+  const outBuf = new Float32Array(total);
+  let at = 0;
+  for (const p of pieces) { outBuf.set(p, at); at += p.length + gap.length; }
+  return outBuf;
 }
 
 // The eSpeak phonemizer needs a few seconds to start the first time: do it now, outside every line's timing.

@@ -43,13 +43,21 @@
   const CRIES = [...Object.keys(JAPANESE), "FOUND IT!", "JACKPOT!"];
   // [line, emotion, lang] as the voice engine wants it
   const cryLine = (text) => (JAPANESE[text] ? [JAPANESE[text], "shout", "ja"] : [cry(text), "shout", ""]);
+  // Shouts a move and resolves when she STARTS shouting it, with the cry's length in ms (0 = no voice: voice off, or
+  // the cry could not be ready within 2.5 s and is dropped rather than heard after the move is over).
   function shout(text) {
-    if (!window.AuraSpeech) return;
+    if (!window.AuraSpeech || !window.AuraSpeech.cue) return Promise.resolve(0);
     const [line, emotion, lang] = cryLine(text);
-    window.AuraSpeech.speak(line, { emotion, interrupt: true, lang });
+    return window.AuraSpeech.cue(line, { emotion, interrupt: true, lang, deadline: 2500 });
   }
+  // The move name appears exactly as she shouts it and stays up for the whole cry. Resolves when it appears, with the
+  // cry's length (0 without a voice), so a gag can time its strike on the cry: `const cry = await title(...)`.
   async function title(text, ms = 1500, opts = {}) {
-    if (!opts.silent) shout(text);
+    const cryMs = opts.silent ? 0 : await shout(text);
+    show(text, Math.max(ms, cryMs + 200));
+    return cryMs;
+  }
+  async function show(text, ms) {
     const lines = fx("av-an-lines", 0, 0);
     const t = fx("av-an-title", 0, 0);
     t.textContent = text;
@@ -83,8 +91,9 @@
         setTimeout(() => done(star.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 600, fill: "forwards" }), star), 1400);
         await wait(rand(120, 260));
       }
-      s.say("Kage Bunshin no Jutsu!", 1800);
-      title("KAGE BUNSHIN", 1300);
+      // the clones pop up while she shouts, and stay until the cry is over
+      const cry = await title("KAGE BUNSHIN", 1300);
+      s.say("Kage Bunshin no Jutsu!", 1800, false, { silent: true });
       const clones = [];
       for (let i = 0; i < 6; i += 1) {
         const p = { x: rand(80, innerWidth - 120), y: rand(100, innerHeight - 140) };
@@ -94,7 +103,7 @@
         clones.push(c);
         await wait(130);
       }
-      await wait(1300);
+      await wait(Math.max(1300, cry - 780 + 150));
       for (const c of clones) { smoke(parseFloat(c.style.left) + 23, parseFloat(c.style.top) + 26, 6); c.remove(); }
       s.el.style.opacity = "1";
       s.act("sparkle", 800);
@@ -149,9 +158,9 @@
       }
       s.el.classList.add("av-demon");
       s.anim([{ transform: s.at(spot, 1, 0) }, { transform: s.at(spot, 2.6, -3), offset: 0.6 }, { transform: s.at(spot, 2.8, 2) }], { duration: 1700, easing: "ease-out" });
-      title("KYUUBI MODE", 1500);
-      await wait(1000);
-      shake(10, 600);
+      const cry = await title("KYUUBI MODE", 1500);
+      setTimeout(() => shake(10, 600), cry ? cry * 0.5 : 1000);
+      await wait(cry ? cry + 150 : 1000); // her next line comes after the cry, never on top of it
       s.say("I AM THE NINE-TAILED DAEMON. Also a systemd service.", 3200);
       await wait(2400);
       s.say("Do NOT run that scan with root.", 2000);
@@ -180,10 +189,11 @@
         const p = fx("av-particle", c.x + 30 + Math.cos(i) * 90, c.y + Math.sin(i) * 90);
         done(p.animate([{ transform: "translate(0,0)", opacity: 0 }, { transform: `translate(${-Math.cos(i) * 90}px, ${-Math.sin(i) * 90}px)`, opacity: 1 }], { duration: 900, delay: i * 90, easing: "ease-in", fill: "forwards" }), p);
       }
-      for (const [w, d] of [["Ka...", 600], ["me...", 600], ["ha...", 600], ["me...", 600]]) { s.say(w, d + 100); await wait(d); }
-      title("KAMEHAMEHA", 1600);
-      s.say("HAAAAAAA!!", 1500);
-      await wait(250);
+      // the charge is a chant in bubbles; the voice is the cry, and the beam fires on its final "HAAA"
+      for (const [w, d] of [["Ka...", 600], ["me...", 600], ["ha...", 600], ["me...", 600]]) { s.say(w, d + 100, false, { silent: true }); await wait(d); }
+      const cry = await title("KAMEHAMEHA", 1600);
+      s.say("HAAAAAAA!!", 1500, false, { silent: true });
+      await wait(cry ? Math.min(cry * 0.55, 1400) : 250);
       const beam = fx("av-an-beam", c.x + 30, c.y);
       beam.style.setProperty("--len", `${innerWidth}px`);
       shake(10, 1100);
@@ -206,11 +216,10 @@
       await s.move(home, spot, { ms: 1500 });
       s.el.classList.toggle("face-left", target.x < spot.x);
       await wait(500);
-      s.say("Omae wa mou shindeiru.", 2400);
-      await wait(2000);
-      title("NANI?!", 1300);
+      await s.line("Omae wa mou shindeiru.", 2000); // "NANI?!" only once the line is over
+      const cry = await title("NANI?!", 1300);
       shake(9, 500);
-      await wait(900);
+      await wait(Math.max(900, cry + 150));
       s.say("(That's the secret move. You were not supposed to see it.)", 3000);
       await wait(2500);
       await s.move(spot, s.home(), { ms: 1300 });
@@ -221,17 +230,20 @@
   // Little victory dances when results show up: "Yatta!", confetti and a cheer, now and then (never spammy).
   const CHEERS = ["YATTA!", "Sugoi!", "Yosh! Got one!", "Kita kita kita!", "Banzai!", "Nailed it, desu!", "Sasuga, me.", "Yattaaa~!"];
   let lastCheer = 0;
-  function cheer() {
+  async function cheer() {
     const api = window.AuraAvatar;
     if (!api || api.voice() < 2 || api.isAway() || api.isRoaming() || document.hidden) return;
     if (Date.now() - lastCheer < (api.voice() >= 4 ? 25000 : 70000) || Math.random() > (api.voice() >= 3 ? 0.55 : 0.3)) return;
     const home = api.mounts().find((el) => el.getBoundingClientRect().width > 0 && !el.classList.contains("ai-avatar-roamer"));
     if (!home) return;
     lastCheer = Date.now();
+    // the confetti fly when she cheers out loud (a cheer that cannot start within 1.2 s goes without the voice)
+    const line = pick(CHEERS);
+    const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(line, { interrupt: true, deadline: 1200 }) : 0;
     const r = home.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     api.act("cheer", 1600);
-    api.say(pick(CHEERS), 2600, true);
+    api.say(line, Math.max(2600, spoken + 400), true, { silent: true });
     for (let i = 0; i < 22; i += 1) {
       const p = fx("av-an-confetti", x, y);
       p.style.background = pick(["var(--accent)", "var(--accent-2)", "var(--warn)", "var(--ink)"]);

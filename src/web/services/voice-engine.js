@@ -15,6 +15,11 @@ const { fork, spawn } = require("node:child_process");
 
 const RUNTIME_DEPS = { "onnxruntime-node": "1.21.0", phonemizer: "1.2.1" };
 const KOKORO_VOICES = ["af_heart", "af_bella", "af_nicole", "af_sky", "af_sarah", "bf_emma", "bf_isabella"];
+// Japanese female voices: native Japanese (battle cries), and English with a Japanese accent when chosen for everything.
+const KOKORO_JA_VOICES = ["jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro"];
+// Mixes (two timbres averaged): one voice that sounds alike in English and in Japanese.
+const KOKORO_MIXES = ["af_bella+jf_alpha", "af_heart+jf_gongitsune", "af_nicole+jf_nezumi"];
+const KOKORO_ALL = [...KOKORO_VOICES, ...KOKORO_JA_VOICES, ...KOKORO_MIXES];
 const KOKORO_BASE = "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/";
 const PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/";
 const RUNTIME_BYTES = 40e6;
@@ -40,7 +45,7 @@ const PACKS = {
     files: [
       { url: `${KOKORO_BASE}onnx/model.onnx`, to: "model.onnx", sha256: "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb" },
       { url: `${KOKORO_BASE}tokenizer.json`, to: "tokenizer.json" },
-      ...[...KOKORO_VOICES, "jf_alpha"].map((v) => ({ url: `${KOKORO_BASE}voices/${v}.bin`, to: `voices/${v}.bin` })) // jf_alpha: Japanese battle cries
+      ...[...KOKORO_VOICES, ...KOKORO_JA_VOICES].map((v) => ({ url: `${KOKORO_BASE}voices/${v}.bin`, to: `voices/${v}.bin` }))
     ]
   }
 };
@@ -71,7 +76,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
       packs: Object.entries(packs).map(([id, p]) => ({ id, engine: p.engine, label: p.label, note: p.note, bytes: p.bytes, installed: packReady(id) })),
       job: job ? { ...job } : null,
       worker: { state: workerState, error: workerError, threads: workerThreads() },
-      kokoroVoices: KOKORO_VOICES
+      kokoroVoices: KOKORO_ALL
     };
   }
 
@@ -236,7 +241,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     if (!runtimeReady() || !packReady(pack)) throw Object.assign(new Error("Voice pack not installed"), { statusCode: 409 });
     const line = cleanText(text);
     if (!line) return Promise.resolve({ skipped: true });
-    const kokoroVoice = KOKORO_VOICES.includes(voice) ? voice : KOKORO_VOICES[0];
+    const kokoroVoice = KOKORO_ALL.includes(voice) ? voice : KOKORO_VOICES[0];
     const req = { engine: packs[pack].engine, pack, voice: kokoroVoice, speed: clampSpeed(speed), text: line, lang: lang === "ja" ? "ja" : "" };
     touch();
     // Battle cries, rants and the prefetched lines repeat all the time: remember them, so the next time is instant.
@@ -262,4 +267,4 @@ function safeList(dir) {
 let shared = null;
 const voiceEngine = () => (shared = shared || createVoiceEngine());
 
-module.exports = { createVoiceEngine, voiceEngine, cleanText, clampSpeed, PACKS, KOKORO_VOICES };
+module.exports = { createVoiceEngine, voiceEngine, cleanText, clampSpeed, PACKS, KOKORO_VOICES, KOKORO_ALL };

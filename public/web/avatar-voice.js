@@ -83,7 +83,7 @@
   let server = null, serverError = "", pollTimer = null;
   const installed = (id) => Boolean(server && server.packs.some((p) => p.id === id && p.installed));
   const piperPacks = () => (server ? server.packs.filter((p) => p.engine === "piper") : []);
-  const kokoroVoices = () => (server ? server.kokoroVoices : ["af_heart", "af_bella", "af_nicole", "af_sky", "af_sarah", "bf_emma", "bf_isabella"]);
+  const kokoroVoices = () => (server ? server.kokoroVoices : ["af_heart", "af_bella", "af_nicole", "af_sky", "af_sarah", "bf_emma", "bf_isabella", "jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "af_bella+jf_alpha", "af_heart+jf_gongitsune", "af_nicole+jf_nezumi"]);
   // The pack that speaks now: null means "browser voice" (engine not chosen, or its pack not downloaded yet).
   function activePack() {
     if (cfg.engine === "kokoro") return installed("kokoro") ? "kokoro" : null;
@@ -250,15 +250,23 @@
     const item = queue.shift();
     if (item.cancelled) { pump(); return; }
     currentItem = item;
-    let started = false, dropped = false;
-    // the bubble learns how long it has to stay up for this line
-    const onStart = (ms) => { started = true; played += 1; window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms } })); };
+    let started = false, dropped = false, late = false;
+    // the bubble (and whoever asked with onStart, e.g. a gag waiting for its battle cry) learns when she starts and for how long
+    const onStart = (ms) => {
+      started = true; played += 1;
+      window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms } }));
+      if (item.opts.onStart) try { item.opts.onStart(ms); } catch { /* the caller's callback */ }
+    };
     try {
       // When the neural voice is known to be too slow, do not keep the bubble waiting: unless the audio is (almost) ready, use the browser voice.
       // (a Japanese line never falls back: the browser voice would read the romaji as English)
-      const wait = tooSlow() && !item.opts.force && !item.opts.lang ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
-      const audio = item.ready ? await wait : null;
+      let wait = tooSlow() && !item.opts.force && !item.opts.lang ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
+      // A line that cannot start by its deadline is not said late: what it went with (a gag, a bubble) has moved on.
+      const deadline = item.opts.deadline ?? (item.priority ? 0 : STALE_MS);
+      if (deadline) wait = Promise.race([wait || Promise.resolve(null), new Promise((r) => setTimeout(() => { late = true; r(null); }, Math.max(0, deadline - (Date.now() - item.t0))))]);
+      const audio = item.ready || deadline ? await wait : null;
       if (item.cancelled) return;
+      if (late) return; // its bubble still shows (below), without the voice
       // Chatter overtaken while it was being prepared is stale (its bubble is gone); a priority line is always said.
       if (!item.priority && queue.some((q) => !q.cancelled)) { dropped = true; return; }
       if (audio) await play(audio, audio.emo, cfg.volume * (item.opts.loud ? 1.2 : 1), onStart);
@@ -275,6 +283,7 @@
   let hinted = null;
   const hint = (emotion) => { hinted = { emotion, t: Date.now() }; };
   const estimate = (text) => (cfg.on ? Math.round(String(text).split(/\s+/).length * 380 + 700) : 0);
+  const STALE_MS = 2500; // chatter that cannot start within this is not said at all (no lines said seconds late)
   // "Too slow" lasts 45 s at most, then the neural voice is tried again (the machine may have been busy).
   const tooSlow = () => rtf != null && rtf > 1.3 && Date.now() - slowAt < 45000;
 
@@ -282,7 +291,9 @@
     if (!cfg.on || document.hidden || demo) return; // during the mood demo her bubbles stay silent
     if (hinted && Date.now() - hinted.t < 1500 && !opts.emotion) opts = { ...opts, emotion: hinted.emotion };
     hinted = null;
-    const item = { text, opts, emoName: inferEmotion(text, opts), cancelled: false };
+    // opts.ifIdle: say it only if she is not already talking (gag chatter: never a backlog behind the gag)
+    if (opts.ifIdle && (currentItem || queue.some((q) => !q.cancelled))) return false;
+    const item = { text, opts, emoName: inferEmotion(text, opts), cancelled: false, t0: Date.now() };
     item.priority = Boolean(opts.loud || opts.interrupt || opts.force || item.emoName === "rage" || item.emoName === "shout");
     const cut = Boolean(opts.loud || opts.interrupt || item.emoName === "rage");
     // A battle cry is never cut by another line: it is said in full, the next line waits its turn.
@@ -300,6 +311,15 @@
     queue.push(item);
     pump();
     return true; // she will say it: the caller's bubble waits for the "aura:speech" event
+  }
+  // Says a line and resolves when she STARTS saying it, with its length in ms; 0 when it will not be heard (voice
+  // off, dropped, past its deadline). Gags await it to show a move name exactly as she shouts it.
+  function cue(text, opts = {}) {
+    return new Promise((resolve) => {
+      let ms = 0;
+      const ok = speak(text, { ...opts, onStart: (d) => { ms = d; resolve(d); }, done: () => resolve(ms) });
+      if (!ok) resolve(0);
+    });
   }
   function stop() {
     demo = null;
@@ -379,7 +399,7 @@
   // keep the model loaded while the dashboard is open with the voice on: no cold start in the middle of a gag
   setInterval(() => { if (!document.hidden) warm(); }, 8 * 60 * 1000);
   window.AuraSpeech = {
-    speak, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
+    speak, cue, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS)
   };

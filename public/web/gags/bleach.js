@@ -38,9 +38,9 @@
       done(ring.animate([{ scale: 0.3, opacity: 1 }, { scale: 30, opacity: 0 }], { duration: 1300, delay: i * 300, easing: "ease-out", fill: "forwards" }), ring);
     }
     shake(4, 900);
-    s.say("Flower wind rampage, flower god roar...", 2200);
-    await wait(1700);
-    await title("BANKAI", 1300);
+    await s.line("Flower wind rampage, flower god roar...", 1700); // the release command, then "BANKAI"
+    const bankaiCry = await title("BANKAI", 1300);
+    await wait(Math.max(1300, bankaiCry + 150));
 
     // the stage
     const world = fx("av-bk-world", 0, 0);
@@ -50,10 +50,11 @@
     Object.assign(kanji.style, { left: "auto", right: "8vw", top: "50%" });
     [...kanji.children].forEach((el, i) => el.animate([{ opacity: 0, transform: "translateY(-10px)", filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "none" }], { duration: 380, delay: 200 + i * 170, fill: "forwards" }));
     const name = fx("av-bk-name", 0, 0, `<small>${NAME[0]}</small><b>${NAME[1]}</b><i></i>`);
-    Object.assign(name.style, { left: "50%", top: "auto", bottom: "12vh" });
-    shout(NAME.join(": "));
-    name.animate([{ opacity: 0, letterSpacing: ".5em" }, { opacity: 1, letterSpacing: ".12em" }], { duration: 900, delay: 500, easing: "ease-out", fill: "forwards" });
-    await wait(1900);
+    Object.assign(name.style, { left: "50%", top: "auto", bottom: "12vh", opacity: "0" });
+    // the name is written as she shouts it; the blades cross when the cry ends
+    const nameCry = await shout(NAME.join(": "));
+    name.animate([{ opacity: 0, letterSpacing: ".5em" }, { opacity: 1, letterSpacing: ".12em" }], { duration: 900, easing: "ease-out", fill: "forwards" });
+    await wait(Math.max(1900, nameCry + 100));
 
     // two blades cross with a flash
     const b1 = fx("av-bk-blade", c.x, c.y), b2 = fx("av-bk-blade av-bk-blade-2", c.x, c.y);

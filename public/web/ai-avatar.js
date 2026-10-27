@@ -114,7 +114,8 @@
   const visibleMount = () => (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
   let queuedBubble = null;
 
-  // opts.pain: the red "ouch" bubble. Forced lines (pokes, drags) cut the line she is saying.
+  // opts.pain: the red "ouch" bubble. opts.silent: a bubble only (chant fragments). Forced lines (pokes, drags) cut
+  // the line she is saying.
   function say(text, ms = 4200, force = false, opts = {}) {
     const level = voice();
     if ((raging || isAway()) && !force) return;
@@ -124,7 +125,10 @@
     if (!visibleMount()) return;
     // With the voice on, the bubble waits for the voice and shows when she starts saying it, so text and voice never
     // drift apart. A line the voice drops (a newer one came in) is dropped from the bubbles too.
-    if (window.AuraSpeech && window.AuraSpeech.speak(text, { ms, interrupt: force })) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
+    // During a gag the gag sets the pace: a line is spoken only if she is free and can start within 0.9 s; otherwise
+    // it is just a bubble, so lines never pile up behind the gag.
+    const timing = roaming && !force ? { ifIdle: true, deadline: 900 } : {};
+    if (!opts.silent && window.AuraSpeech && window.AuraSpeech.speak(text, { ms, interrupt: force, ...timing })) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
     showBubble(text, ms, opts.pain);
   }
   function showBubble(text, ms, pain = false) {
@@ -220,11 +224,11 @@
     big.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }], { duration: 750, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "forwards" });
     await sleep(750);
     for (const line of RAGE_LINES) {
+      // With the voice on, each line appears when she starts yelling it and stays up while she says it (4.5 s at
+      // most); a line that cannot start within 2 s is shown without the voice. Without a voice: the original rhythm.
+      const ms = window.AuraSpeech ? await window.AuraSpeech.cue(line, { loud: true, deadline: 2000 }) : 0;
       text.textContent = line;
-      // With the voice on, a line stays up until she has said it (4.5 s at most); without it, the original rhythm.
-      let said = Promise.resolve();
-      if (window.AuraSpeech) said = new Promise((resolve) => { if (!window.AuraSpeech.speak(line, { loud: true, done: resolve })) resolve(); });
-      await Promise.all([sleep(line.startsWith("...") ? 1500 : 1050), Promise.race([said, sleep(4500)])]);
+      await sleep(Math.max(line.startsWith("...") ? 1500 : 1050, Math.min(ms, 4500)));
     }
     text.remove();
     await big.animate([{ transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
@@ -401,6 +405,14 @@
         return r.animate(frames, { duration: o.ms ?? 1500, easing: o.easing ?? "ease-in-out", fill: "forwards" }).finished.then(() => r.classList.remove("walking"));
       },
       anim(frames, opts) { return r.animate(frames, { fill: "forwards", ...opts }).finished; },
+      // A line the gag waits for (the next beat depends on it): the bubble appears as she starts it, and the gag goes
+      // on when she has said it (at least ms). Without a voice, or if it cannot start within 1.5 s: bubble and ms only.
+      async line(text, ms = 2000) {
+        if (!(voice() >= 1)) { await sleep(ms); return; }
+        const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(text, { interrupt: true, deadline: 1500 }) : 0;
+        showBubble(text, Math.max(ms, spoken + 400));
+        await sleep(Math.max(ms, spoken + 150));
+      },
       randomPoint(margin = 100) { return { x: margin + Math.random() * Math.max(1, innerWidth - 2 * margin - size.w), y: 90 + Math.random() * Math.max(1, innerHeight - 190 - size.h) }; }
     };
     try {

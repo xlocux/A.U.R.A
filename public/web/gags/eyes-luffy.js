@@ -47,9 +47,9 @@
     s.el.classList.add("av-eyes");
     const big = fx("av-an-eye", c.x, c.y, `<svg viewBox="-50 -50 100 100">${e.svg}</svg>`);
     big.animate([{ transform: "translate(-50%, -50%) scale(.05) rotate(0deg)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(3.4) rotate(360deg)", opacity: 1, offset: 0.35 }, { transform: "translate(-50%, -50%) scale(3.6) rotate(720deg)", opacity: 1, offset: 0.85 }, { transform: "translate(-50%, -50%) scale(.2) rotate(900deg)", opacity: 0 }], { duration: 3000, easing: "ease-in-out", fill: "forwards" }).finished.then(() => big.remove(), () => big.remove());
-    title(e.title, 1600);
+    const cry = await title(e.title, 1600);
     shake(5, 500);
-    await wait(1400);
+    await wait(Math.max(1400, cry + 150)); // her line comes after the cry
     s.say(pick(e.lines), 3200);
     if (key === "byakugan") {
       // byakugan: everything on screen gets an x-ray outline for a moment
@@ -98,8 +98,10 @@
     const target = { x: innerWidth / 2 + (Math.random() - 0.5) * 300, y: innerHeight / 2 + (Math.random() - 0.5) * 160 };
     s.el.classList.toggle("face-left", target.x < c.x);
     s.anim([{ transform: s.at(spot, 1, 0) }, { transform: s.at({ x: spot.x + (target.x < c.x ? 14 : -14), y: spot.y }, 1.15, target.x < c.x ? 8 : -8) }], { duration: 700, easing: "ease-in" });
-    title(strike.title, 1700);
-    await wait(900);
+    // The strike follows the cry: "goooomu goooomu no..." winds up, the fist lands on the move's name.
+    const cry = await title(strike.title, 1700);
+    const windUp = cry ? cry * 0.62 - 320 : 900;
+    await wait(Math.max(200, windUp));
     // one fist, or both hands side by side for the Bazooka
     const offsets = strike.hands === 2 ? [-10, 10] : [0];
     const hits = await Promise.all(offsets.map((o) => stretch({ x: c.x, y: c.y + o }, { x: target.x, y: target.y + o * 1.6 }, 320, strike.size)));
@@ -107,11 +109,15 @@
     crater.animate([{ scale: 0.2, opacity: 1 }, { scale: strike.blast, opacity: 0 }], { duration: 650, fill: "forwards" }).finished.then(() => crater.remove());
     shake(strike.jolt, 550);
     for (const hit of hits) cleanup(hit, 500);
-    await wait(900);
+    // the next line waits for the end of the cry
+    await wait(Math.max(900, cry - Math.max(200, windUp) - 320 + 250));
     s.say("Now the Gatling!", 1200);
     await wait(500);
-    title("GOMU GOMU NO... GATLING!", 1900);
-    for (let i = 0; i < 14; i += 1) {
+    const gatling = await title("GOMU GOMU NO... GATLING!", 1900);
+    // the barrage starts on "gatoriiinguuuu" and lasts as long as the cry
+    await wait(gatling ? gatling * 0.45 : 0);
+    const shots = gatling ? Math.max(14, Math.ceil((gatling * 0.55) / 95)) : 14;
+    for (let i = 0; i < shots; i += 1) {
       const t = { x: target.x + (Math.random() - 0.5) * 140, y: target.y + (Math.random() - 0.5) * 100 };
       stretch(c, t, 120).then((parts) => {
         const spark = fx("av-an-impact", t.x, t.y);
@@ -139,9 +145,9 @@
     const white = fx("av-an-white", 0, 0);
     white.animate([{ opacity: 0 }, { opacity: 0.85 }, { opacity: 0 }], { duration: 700, fill: "forwards" }).finished.then(() => white.remove());
     s.el.classList.add("av-gear5");
-    title("GEAR 5 - NIKA", 1500);
+    const cry = await title("GEAR 5 - NIKA", 1500);
     shake(8, 500);
-    await wait(700);
+    await wait(Math.max(700, cry + 150)); // the laugh comes after the cry
     s.say("HAHAHAHA!", 1500);
     let p = spot;
     for (let i = 0; i < 4; i += 1) {
@@ -172,7 +178,8 @@
     const c = { x: spot.x + 23, y: spot.y + 26 };
     const veil = fx("av-an-vignette av-an-dark", 0, 0);
     veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, fill: "forwards" });
-    title("CONQUEROR'S HAKI", 1700);
+    // the shockwave rolls out as she shouts
+    const cry = await title("CONQUEROR'S HAKI", 1700);
     for (let i = 0; i < 3; i += 1) {
       const ring = fx("av-an-ring av-an-hakiring", c.x, c.y);
       done(ring.animate([{ scale: 0.3, opacity: 1 }, { scale: 40, opacity: 0 }], { duration: 1400, delay: i * 380, easing: "ease-out", fill: "forwards" }), ring);
@@ -184,7 +191,7 @@
       done(bolt.animate([{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0.3, offset: 0.5 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: 1500, delay: i * 90, fill: "forwards" }), bolt);
     }
     shake(12, 1400);
-    await wait(1100);
+    await wait(Math.max(1100, cry + 150));
     s.say("Anyone who isn't asleep is a threat actor.", 2800);
     await wait(2400);
     await veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, fill: "forwards" }).finished;

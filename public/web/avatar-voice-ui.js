@@ -4,7 +4,14 @@
 // (downloaded only when the user asks; they run in the A.U.R.A server on this PC).
 (function initAvatarVoiceUi() {
   const S = () => window.AuraSpeech;
-  const label = (v) => `${v.startsWith("b") ? "UK" : "US"} ${v.slice(3, 4).toUpperCase()}${v.slice(4)}`;
+  const nameOf = (v) => v.slice(3, 4).toUpperCase() + v.slice(4);
+  const label = (v) => (v.includes("+") ? v.split("+").map(nameOf).join(" + ") : `${v.startsWith("b") ? "UK" : v.startsWith("j") ? "JP" : "US"} ${nameOf(v)}`);
+  // Kokoro voices in three groups: English, Japanese (they also speak English, with an accent), mixes of the two
+  const kokoroOptions = (list) => [
+    ["English", list.filter((v) => !v.includes("+") && !v.startsWith("j"))],
+    ["Japanese - also speaks English, with an accent", list.filter((v) => v.startsWith("j") && !v.includes("+"))],
+    ["Mix - the same voice in English and Japanese", list.filter((v) => v.includes("+"))]
+  ].filter(([, vs]) => vs.length).map(([g, vs]) => `<optgroup label="${g}">${vs.map((v) => `<option value="${v}">${label(v)}</option>`).join("")}</optgroup>`).join("");
   const mb = (bytes) => `${Math.round(bytes / 1e6)} MB`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
@@ -45,7 +52,7 @@
       if (key === voiceKey) return;
       voiceKey = key;
       if (st.cfg.engine === "kokoro") {
-        voice.innerHTML = '<option value="auto">Auto - changes with her mood</option>' + st.kokoroVoices.map((v) => `<option value="${v}">${label(v)}</option>`).join("");
+        voice.innerHTML = '<option value="auto">Auto - changes with her mood</option>' + kokoroOptions(st.kokoroVoices);
         voice.value = st.kokoroVoices.includes(st.cfg.voice) ? st.cfg.voice : "auto";
       } else if (st.cfg.engine === "piper") {
         voice.innerHTML = '<option value="auto">Auto - first downloaded voice</option>' + piper.map((p) => `<option value="${p.id}">${esc(p.label.replace(/^Piper - /, ""))}</option>`).join("");
