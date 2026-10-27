@@ -109,13 +109,26 @@
   let importantUntil = 0;
   const markImportant = () => { importantUntil = Date.now() + 7000; };
 
-  function say(text, ms = 4200, force = false) {
+  // While the voice settings are open she keeps still and quiet, so voice tests are not drowned out.
+  const inVoiceSettings = () => Boolean(document.getElementById("tab-settings")?.classList.contains("active") && document.getElementById("settings-auri")?.classList.contains("active"));
+  const visibleMount = () => (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
+  let queuedBubble = null;
+
+  // opts.pain: the red "ouch" bubble. Forced lines (pokes, drags) cut the line she is saying.
+  function say(text, ms = 4200, force = false, opts = {}) {
     const level = voice();
     if ((raging || isAway()) && !force) return;
     if (!force && window.AuraSpeech?.inDemo?.()) return; // the voice mood demo owns the bubble
+    if (!force && inVoiceSettings()) return;
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
-    if (bubble) bubble.classList.remove("pain");
-    const visible = (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
+    if (!visibleMount()) return;
+    // With the voice on, the bubble waits for the voice and shows when she starts saying it, so text and voice never
+    // drift apart. A line the voice drops (a newer one came in) is dropped from the bubbles too.
+    if (window.AuraSpeech && window.AuraSpeech.speak(text, { ms, interrupt: force })) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
+    showBubble(text, ms, opts.pain);
+  }
+  function showBubble(text, ms, pain = false) {
+    const visible = visibleMount();
     if (!visible) return;
     if (!bubble) {
       bubble = document.createElement("div");
@@ -131,11 +144,11 @@
     const below = rect.bottom + 8 + 60 < window.innerHeight;
     bubble.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 232))}px`;
     bubble.style.top = below ? `${rect.bottom + 8}px` : `${Math.max(8, rect.top - 52)}px`;
+    bubble.classList.toggle("pain", pain);
     bubble.classList.add("show");
     bubble.dataset.say = String(text);
-    if (window.AuraSpeech) window.AuraSpeech.speak(text, { ms });
     clearTimeout(bubbleTimer);
-    bubbleTimer = setTimeout(() => bubble.classList.remove("show"), Math.max(ms, window.AuraSpeech ? window.AuraSpeech.estimate(text) : 0));
+    bubbleTimer = setTimeout(() => bubble.classList.remove("show"), ms);
   }
 
   function wake() {
@@ -265,8 +278,7 @@
     setTimeout(() => roamer && roamer.classList.remove("av-hurt"), 600);
     act(angry ? "shake" : "worried", 900);
     const rudePoke = voice() >= 4 && window.AuraQuotes ? window.AuraQuotes.rude("poke") : null;
-    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true);
-    if (bubble) bubble.classList.add("pain");
+    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true, { pain: true });
   }
 
   function ensureRoamer() {
@@ -301,7 +313,7 @@
   // Leave the chat, walk (along a gentle arc) to the target, react, then walk back home.
   async function roamTo(target, { text = "", action = "cheer", stay = 2600 } = {}) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
-    if (isAway() || roaming || reducedMotion() || !origin || document.hidden) {
+    if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings()) {
       if (text && !isAway()) say(text);
       return;
     }
@@ -362,7 +374,7 @@
   // and always cleans up afterwards. Returns false when she can't perform right now.
   async function stage(script) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
-    if (isAway() || roaming || reducedMotion() || !origin || document.hidden) return false;
+    if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings()) return false;
     roaming = true;
     lastRoam = Date.now();
     const r = ensureRoamer();
@@ -521,14 +533,24 @@
     scheduleIdle();
     scheduleSleep();
     window.addEventListener("aura:ai", (event) => react(event.detail?.type, event.detail?.text, event.detail || {}));
-    // While she speaks a bubble, that bubble stays up until the sentence is over.
+    // She starts saying a line: its bubble appears now and stays up until the sentence is over.
     window.addEventListener("aura:speech", (event) => {
       const d = event.detail || {};
-      if (!bubble || bubble.dataset.say !== String(d.text)) return;
+      const text = String(d.text);
+      const stay = (Number(d.ms) || 2000) + 600;
+      if (queuedBubble && queuedBubble.text === text) { const q = queuedBubble; queuedBubble = null; showBubble(text, Math.max(stay, Math.min(q.ms, stay + 2500)), q.pain); return; }
+      if (!bubble || bubble.dataset.say !== text) return;
       bubble.classList.add("show");
       clearTimeout(bubbleTimer);
-      bubbleTimer = setTimeout(() => bubble.classList.remove("show"), (Number(d.ms) || 2000) + 600);
+      bubbleTimer = setTimeout(() => bubble.classList.remove("show"), stay);
     });
+    // Entering the voice settings hushes whatever she was saying (later clicks there, like Test, are left alone).
+    let wasQuiet = false;
+    document.addEventListener("click", () => setTimeout(() => {
+      const quiet = inVoiceSettings();
+      if (quiet && !wasQuiet) { queuedBubble = null; if (bubble) bubble.classList.remove("show"); window.AuraSpeech?.stop?.(); }
+      wasQuiet = quiet;
+    }, 0), true);
     // Mounts can appear later (panel re-render): keep them populated.
     let mountQueued = false;
     new MutationObserver(() => {
@@ -539,11 +561,11 @@
     // A short hello once per session.
     if (!sessionStorage.getItem("auraAvatarHello")) {
       sessionStorage.setItem("auraAvatarHello", "1");
-      setTimeout(() => { act("wink", 1300); const hq = (window.AuraQuotes ? window.AuraQuotes.get("hello", { force: true }) : null); say("Hi, I'm Aura. Ask me about the run." + (hq ? "\n" + hq : ""), 5200); }, 2200);
+      setTimeout(() => { act("wink", 1300); const hq = (window.AuraQuotes ? window.AuraQuotes.get("hello", { force: true }) : null); say("Hi, I'm AURI. Ask me about the run." + (hq ? "\n" + hq : ""), 5200); }, 2200);
     }
   }
 
-  window.AuraAvatar = { react, say, act, roamTo, stage, rage, tantrumStart, tantrumEnd, setAway, isAway, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming };
+  window.AuraAvatar = { react, say, act, roamTo, stage, rage, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

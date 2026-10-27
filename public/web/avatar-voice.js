@@ -190,7 +190,7 @@
   }
   function speakBrowser(item, onStart) {
     return new Promise((resolve) => {
-      if (!synth) return resolve();
+      if (!synth || !synth.getVoices().length) return resolve(); // no speech engine at all
       const line = clean(String(item.text).split("\n").join(". "));
       if (!line) return resolve();
       const u = new SpeechSynthesisUtterance(line);
@@ -218,18 +218,24 @@
     const item = pending;
     pending = null;
     currentItem = item;
+    let started = false, dropped = false;
+    // the bubble learns how long it has to stay up for this line
+    const onStart = (ms) => { started = true; played += 1; window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms } })); };
     try {
       // When the neural voice is known to be too slow, do not keep the bubble waiting: unless the audio is (almost) ready, use the browser voice.
       const wait = tooSlow() && !item.opts.force ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
       const audio = item.ready ? await wait : null;
       if (item.cancelled) return;
       // A newer bubble arrived while this one was being prepared: saying the old one now would be out of sync.
-      if (pending && !item.opts.force && !item.opts.loud) return;
-      // the bubble learns how long it has to stay up for this line
-      const onStart = (ms) => { played += 1; window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms } })); };
+      if (pending && !item.opts.force && !item.opts.loud) { dropped = true; return; }
       if (audio) await play(audio, audio.emo, cfg.volume * (item.opts.loud ? 1.2 : 1), onStart);
       else await speakBrowser(item, onStart);
-    } finally { currentItem = null; pump(); }
+    } finally {
+      // no voice came out (no speech engine, an error): her bubble still shows the line
+      if (!started && !dropped && !item.cancelled) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
+      currentItem = null;
+      pump();
+    }
   }
 
   let hinted = null;
@@ -248,6 +254,7 @@
     item.ready = pack && (!tooSlow() || opts.force || cache.has(cacheKey(pack, text, item.emoName))) ? generate(text, item.emoName) : null;
     pending = item;
     pump();
+    return true; // she will say it: the caller's bubble waits for the "aura:speech" event
   }
   function stop() { demo = null; if (pending) pending.cancelled = true; pending = null; if (currentItem) currentItem.cancelled = true; stopCurrent(); if (synth) synth.cancel(); emit(); }
 

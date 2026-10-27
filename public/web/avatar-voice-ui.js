@@ -37,7 +37,7 @@
     const on = $("auriSpeechOn"), eng = $("auriSpeechEngine"), voice = $("auriSpeechVoice"), vol = $("auriSpeechVol"), list = $("auriPackList");
 
     // Option lists are rebuilt only when they change, so an open dropdown is never reset under the cursor.
-    let voiceKey = "", packKey = "";
+    let voiceKey = "", packKey = "", moreOpen = false;
     function fillVoices(st) {
       const synth = window.speechSynthesis;
       const piper = st.piperPacks.filter((p) => p.installed);
@@ -60,15 +60,25 @@
       const srv = st.server;
       const job = srv && srv.job;
       const running = job && !job.done;
-      const key = srv ? JSON.stringify([srv.packs.map((p) => p.installed), running ? job.pack : "", st.pack]) : "none";
+      // Downloaded packs (and the one downloading) are always listed; the others stay folded under "More voice packs"
+      // once she has a voice, unless the chosen engine still needs one.
+      const mine = (p) => p.installed || (running && job.pack === p.id);
+      const others = srv ? srv.packs.filter((p) => !mine(p)) : [];
+      const needOne = srv && (!srv.packs.some(mine) || (st.cfg.engine !== "browser" && !st.pack && !running));
+      const showOthers = needOne || moreOpen;
+      const key = srv ? JSON.stringify([srv.packs.map((p) => p.installed), running ? job.pack : "", st.pack, showOthers]) : "none";
       if (key !== packKey) {
         packKey = key;
-        list.innerHTML = srv ? srv.packs.map((p) => {
-          const action = p.installed ? "Remove" : running && job.pack === p.id ? "Downloading..." : "Download";
+        const row = (p) => {
+          const downloading = running && job.pack === p.id;
+          const action = p.installed ? "Remove" : downloading ? "Downloading..." : "Download";
           return `<div class="auri-pack${p.id === st.pack ? " is-current" : ""}" data-pack="${p.id}">
             <span class="auri-pack-name">${esc(p.label)}</span><span class="auri-pack-size muted">${mb(p.bytes)} - ${esc(p.note)}</span>
             <button type="button" class="hud-btn hud-sm" data-act="${p.installed ? "remove" : "download"}"${running && !p.installed ? " disabled" : ""}>${action}</button></div>`;
-        }).join("") : "";
+        };
+        list.innerHTML = srv ? srv.packs.filter(mine).map(row).join("")
+          + (others.length && !needOne ? `<button type="button" class="auri-packs-more" data-act="more" aria-expanded="${showOthers}">${showOthers ? "Hide" : "More voice packs"} (${others.length})</button>` : "")
+          + (showOthers ? others.map(row).join("") : "") : "";
       }
       const state = $("auriPackState");
       if (!srv) state.textContent = st.serverError ? `Voice engine unreachable: ${st.serverError}` : "Checking...";
@@ -103,6 +113,7 @@
     list.addEventListener("click", async (event) => {
       const btn = event.target.closest("button[data-act]");
       if (!btn) return;
+      if (btn.dataset.act === "more") { moreOpen = !moreOpen; render(); return; }
       const pack = btn.closest("[data-pack]").dataset.pack;
       btn.disabled = true;
       if (btn.dataset.act === "download") S().download(pack);

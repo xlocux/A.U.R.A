@@ -316,3 +316,8 @@ body.sidebar-collapsed .sidebar-meta { display: none; }
 .auri-pack-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auri-pack-size { font-size: calc(11px * var(--font-scale, 1)); white-space: nowrap; }
 .auri-pack button { width: auto !important; min-width: 86px; }
+.auri-packs-more { display: block; width: auto !important; min-height: 0 !important; margin: 6px 0 2px 8px !important; padding: 2px 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; clip-path: none !important;
+  color: var(--muted); font-size: calc(11px * var(--font-scale, 1)); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.auri-packs-more::before { content: "+ "; color: var(--accent); }
+.auri-packs-more[aria-expanded="true"]::before { content: "- "; }
+.auri-packs-more:hover { color: var(--accent); }
