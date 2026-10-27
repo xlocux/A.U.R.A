@@ -28,18 +28,21 @@
   // Manga speed lines + a big italic move name.
   // "KAMEHAMEHA" -> "KAMEHAMEHAAAA!!": the last vowel is stretched like an anime battle cry.
   const cry = (text) => String(text).replace(/[.?!\s-]+$/, "").replace(/([AEIOUaeiou])([^AEIOUaeiou]*)$/, (m, v, rest) => v.repeat(4) + rest) + "!!";
-  // How each move is shouted: in Japanese, the way the anime says it (romaji; the voice engine uses Japanese sounds).
-  // Moves missing here are shouted as written, in English.
+  // How each move is shouted: in Japanese, the way the anime says it. Written out by hand in romaji, with the stretched
+  // vowels of a battle cry ("goooomu goooomu no... bazuuuuka!!"): the voice engine turns it into Japanese sounds.
+  // Moves missing here are shouted as written, in English (see cry()).
   const JAPANESE = {
-    "KAGE BUNSHIN": "kage bunshin no jutsu", "KYUUBI MODE": "kyuubi moodo", "KAMEHAMEHA": "kamehameha", "NANI?!": "nani",
-    "SHARINGAN": "sharingan", "MANGEKYO": "mangekyou sharingan", "BYAKUGAN": "byakugan", "RINNEGAN": "rinnegan",
-    "GOMU GOMU NO... PISTOL!": "gomu gomu no... pisutoru", "GOMU GOMU NO... GATLING!": "gomu gomu no... gatoringu",
-    "GEAR 5 - NIKA": "gia fifusu... nika", "CONQUEROR'S HAKI": "haoshoku no haki",
-    "BANKAI": "bankai", "KATEN KYOKOTSU: KARAMATSU SHINJU": "katen kyoukotsu... karamatsu shinjuu"
+    "KAGE BUNSHIN": "kaaage bunshin no jutsuuu!!", "KYUUBI MODE": "kyuuubi moooodo!!", "KAMEHAMEHA": "kameeehameeehaaaa!!", "NANI?!": "naaani?!",
+    "SHARINGAN": "sharingaaaan!!", "MANGEKYO": "mangekyooou sharingaaaan!!", "BYAKUGAN": "byakugaaaan!!", "RINNEGAN": "rinnegaaaan!!",
+    "GOMU GOMU NO... PISTOL!": "goooomu goooomu no... pisutooooru!!", "GOMU GOMU NO... GATLING!": "goooomu goooomu no... gatoriiinguuuu!!",
+    "GOMU GOMU NO... BAZOOKA!": "goooomu goooomu no... bazuuuuka!!", "GOMU GOMU NO... ELEPHANT GUN!": "goooomu goooomu no... erefanto gaaaan!!",
+    "GOMU GOMU NO... RED HAWK!": "goooomu goooomu no... reddo hooooku!!", "GOMU GOMU NO... JET PISTOL!": "goooomu goooomu no... jetto pisutooooru!!",
+    "GEAR 5 - NIKA": "giaaa fifusu... nikaaaa!!", "CONQUEROR'S HAKI": "haoshoku no haaaki!!",
+    "BANKAI": "bankaiiii!!", "KATEN KYOKOTSU: KARAMATSU SHINJU": "katen kyoukotsu... karamatsu shinjuuuu!!"
   };
   const CRIES = [...Object.keys(JAPANESE), "FOUND IT!", "JACKPOT!"];
   // [line, emotion, lang] as the voice engine wants it
-  const cryLine = (text) => (JAPANESE[text] ? [cry(JAPANESE[text]), "shout", "ja"] : [cry(text), "shout", ""]);
+  const cryLine = (text) => (JAPANESE[text] ? [JAPANESE[text], "shout", "ja"] : [cry(text), "shout", ""]);
   function shout(text) {
     if (!window.AuraSpeech) return;
     const [line, emotion, lang] = cryLine(text);

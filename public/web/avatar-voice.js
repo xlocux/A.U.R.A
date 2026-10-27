@@ -8,8 +8,9 @@
 // is there she uses the browser voice. Kokoro and Piper have no emotion switch, so emotion comes from natural cues
 // only: the voice picked for the mood, speed, loudness, a touch of pitch and punctuation shaping. No echo, distortion
 // or vibrato: she must always sound like a real voice.
-// Sync with the bubbles: she finishes the sentence she is saying, then says the LATEST bubble (older pending lines
-// are dropped), and the bubble stays up until she has finished it ("aura:speech" event).
+// Sync with the bubbles: she finishes the sentence she is saying, then says the LATEST bubble (older waiting chatter
+// is dropped; battle cries, rants and pokes are never dropped), and the bubble stays up until she has finished it
+// ("aura:speech" event).
 (function initAvatarVoice() {
   const KEY = "aura.speech";
   const synth = window.speechSynthesis;
@@ -22,20 +23,22 @@
   const listeners = new Set();
   const emit = () => listeners.forEach((fn) => fn(info()));
 
-  // ── emotions ── voice = Kokoro voice, speed = model speed, rate = playback rate (a touch of pitch, kept within ±4%
-  // so the voice stays natural), gain = loudness. Female voices only: Auri is a she.
+  // ── emotions ── voice = Kokoro voice, speed = model speed, rate = playback rate (pitch and tempo together, at most
+  // about 10% so the voice stays natural), gain = loudness (never past clipping). Measured on real Piper audio: the
+  // angry settings are about 6 dB louder, 20% faster and 25 Hz higher than neutral; the bored ones 55% slower,
+  // lower and quieter. No effects: she must always sound like a real voice. Female voices only.
   const EMOTIONS = {
     neutral: { voice: "af_heart", speed: 1.0, rate: 1.0, gain: 1 },
-    happy: { voice: "af_bella", speed: 1.06, rate: 1.02, gain: 1.05 },
-    hyped: { voice: "af_bella", speed: 1.16, rate: 1.04, gain: 1.15 },
-    adrenaline: { voice: "af_nicole", speed: 1.24, rate: 1.03, gain: 1.15 },
-    bored: { voice: "af_nicole", speed: 0.84, rate: 0.98, gain: 0.85 },
-    sulk: { voice: "af_sky", speed: 0.88, rate: 0.98, gain: 0.9 },
-    angry: { voice: "af_bella", speed: 1.12, rate: 0.98, gain: 1.2 },
-    rage: { voice: "af_bella", speed: 1.15, rate: 0.97, gain: 1.3 },
-    creepy: { voice: "af_nicole", speed: 0.86, rate: 0.96, gain: 0.9 },
+    happy: { voice: "af_bella", speed: 1.1, rate: 1.03, gain: 1.1 },
+    hyped: { voice: "af_bella", speed: 1.2, rate: 1.05, gain: 1.2 },
+    adrenaline: { voice: "af_nicole", speed: 1.3, rate: 1.05, gain: 1.2 },
+    bored: { voice: "af_nicole", speed: 0.72, rate: 0.86, gain: 0.7 },
+    sulk: { voice: "af_sky", speed: 0.78, rate: 0.9, gain: 0.78 },
+    angry: { voice: "af_bella", speed: 1.22, rate: 1.07, gain: 1.45 },
+    rage: { voice: "af_bella", speed: 1.3, rate: 1.08, gain: 1.6 },
+    creepy: { voice: "af_nicole", speed: 0.76, rate: 0.9, gain: 0.85 },
     sing: { voice: "af_heart", speed: 0.94, rate: 1.02, gain: 1.05 },
-    shout: { voice: "af_bella", speed: 1.0, rate: 1.02, gain: 1.35 } // anime battle cry
+    shout: { voice: "af_bella", speed: 1.0, rate: 1.03, gain: 1.5 } // anime battle cry
   };
 
   function inferEmotion(text, opts) {
@@ -47,7 +50,8 @@
     if (/[♪♫♬]/.test(t)) return "sing";
     if (shouting && /!/.test(t)) return level() >= 4 ? "rage" : "angry";
     if (/#@|[#@%&*$]{2}|ow!|ouch|hands off|poke/i.test(t)) return "angry";
-    if (/\.\.\.|yawn|zzz|boring|nothing|glacier|sleep/i.test(t) && !/!/.test(t)) return "bored";
+    // a fragment like "Ka..." is not boredom: it needs a real sentence
+    if (/\.\.\.|yawn|zzz|boring|nothing|glacier|sleep/i.test(t) && !/!/.test(t) && t.split(/\s+/).length >= 4) return "bored";
     if (/sorry|okay\.|fine\.|lost my temper|i'm back|regret/i.test(t)) return "sulk";
     if (/yatta|sugoi|banzai|kita|jackpot|found it|adrenaline|power level|nailed|yes yes|got you/i.test(t)) return "hyped";
     if (/!/.test(t)) return level() >= 3 ? "hyped" : "happy";
@@ -56,18 +60,22 @@
   function clean(text) {
     return String(text || "")
       .replace(/[♪♫♬♩]/g, "")
-      .replace(/(?:[#@%&*$]\w?){3,}|[#@%&*$!?]{3,}/g, " beep ")
+      .replace(/(?:[#@%&*$]\w?){3,}\w*|[#@%&*$!?]{3,}/g, " beep ") // "#@%&ING" is one bleep, not "beep NG"
       .replace(/\b\w*[#@%&*$]\w*[#@%&*$]\w*\b/g, " beep ")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 260);
   }
+  // The models read punctuation as rhythm: "..." is a lazy pause, "!" a hard accent. Choices depend on the text only
+  // (never random): the result is part of the cache key.
+  const pickBy = (list, text) => list[String(text).length % list.length];
   function shape(text, emo) {
     let t = clean(String(text).split("\n").join(". "));
-    if (emo === "bored") t = "Meh... " + t.replace(/[.!]+$/, "") + "...";
-    if (emo === "sulk") t = t.replace(/^\.+\s*/, "");
+    if (emo === "bored") t = pickBy(["Ugh... ", "Hmm... ", "Meh... "], t) + t.replace(/^\.+\s*/, "").replace(/\s*[.!?]+\s+/g, "... ").replace(/[.!?]+$/, "") + "...";
+    if (emo === "sulk" || emo === "creepy") t = t.replace(/^\.+\s*/, "").replace(/\.\s+/g, "... ");
     if (emo === "rage" || emo === "angry" || emo === "shout") t = t.replace(/\b([A-Z]{3,})\b/g, (w) => w[0] + w.slice(1).toLowerCase());
-    if (emo === "rage" || emo === "angry") t = t.replace(/!+/g, "!!");
+    if (emo === "rage" || emo === "angry") t = t.replace(/\.(?=\s|$)/g, "!").replace(/!+/g, "!!");
+    if (emo === "rage") t = t.replace(/,\s/g, "! ");
     return t;
   }
 
@@ -118,11 +126,12 @@
   }
 
   // ── generation ──
-  let lastGen = null, rtf = null, generating = 0; // rtf = generation time / speech time (moving average)
+  let lastGen = null, rtf = null, generating = 0, slowAt = 0; // rtf = generation time / speech time (moving average)
   const cache = new Map();
   const cacheKey = (pack, text, emoName, lang = "") => { const emo = EMOTIONS[emoName] || EMOTIONS.neutral; return `${pack}|${lang}|${pickVoice(emoName)}|${emo.speed}|${shape(text, emoName)}`; };
   // lang "ja": the line is Japanese romaji (battle cries) and is said with Japanese sounds by the server voices.
-  async function generate(text, emoName, low = false, lang = "") {
+  // priority: a battle cry, a rant or a reaction to a poke: the server never drops it for newer chatter.
+  async function generate(text, emoName, low = false, lang = "", priority = false) {
     const pack = activePack();
     const emo = EMOTIONS[emoName] || EMOTIONS.neutral;
     const line = shape(text, emoName);
@@ -133,15 +142,22 @@
     try {
       const res = await fetch("/api/voice/speak", {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(30000),
-        body: JSON.stringify({ pack, voice: pickVoice(emoName), speed: emo.speed, text: line, lang, low })
+        body: JSON.stringify({ pack, voice: pickVoice(emoName), speed: emo.speed, text: line, lang, low, priority })
       });
       if (res.status === 204) return null; // skipped: a newer line took its place
       if (!res.ok) { const e = await res.json().catch(() => ({})); serverError = e.error || `HTTP ${res.status}`; refresh(); return null; }
       const audio = { data: new Float32Array(await res.arrayBuffer()), rate: Number(res.headers.get("X-Sample-Rate")) || 24000 };
       const ms = Number(res.headers.get("X-Gen-Ms")) || 0, seconds = audio.data.length / audio.rate;
       lastGen = { ms, seconds: Math.round(seconds * 10) / 10, emotion: emoName, pack };
-      const r = ms / Math.max(200, seconds * 1000);
-      rtf = rtf == null ? r : rtf * 0.6 + r * 0.4;
+      // The speed check uses generation time only. A server that does not report model loading (an older one) counts
+      // loading in the first line: that sample is ignored, or she would think she is slow for minutes.
+      const measured = res.headers.has("X-Load-Ms") || rtf != null;
+      if (measured) {
+        // a short line still pays the model's fixed cost: count it as at least 1.5 s of speech, or every cry looks slow
+        const r = ms / Math.max(1500, seconds * 1000);
+        rtf = rtf == null ? r : rtf * 0.6 + r * 0.4;
+        if (rtf > 1.3) slowAt = Date.now();
+      }
       serverError = "";
       cache.set(key, audio);
       if (cache.size > 80) cache.delete(cache.keys().next().value);
@@ -155,12 +171,22 @@
   const warm = () => { if (cfg.on && activePack()) generate("Hi.", "neutral", true); };
 
   // ── playback ──
-  let ctx = null, current = null;
+  let ctx = null, current = null, lastCancel = 0;
   function stopCurrent() { if (current) { try { current.stop(); } catch { /* already stopped */ } current = null; } }
+  // Cuts whatever is playing, neural or browser voice.
+  function silence() { stopCurrent(); if (synth) { synth.cancel(); lastCancel = Date.now(); } }
+  if (synth) synth.getVoices(); // starts loading the system voices (Chrome fills the list asynchronously)
+  // Creating the first AudioContext stalls the page for a moment: do it at the first click or key press (which also
+  // lets the browser play sound), not in the middle of a battle cry.
+  function ensureCtx() {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    return ctx;
+  }
+  for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, () => { if (cfg.on && !ctx) ensureCtx(); }, { capture: true });
   function play(audio, emo, volume, onStart) {
     return new Promise((resolve) => {
-      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === "suspended") ctx.resume();
+      ensureCtx();
       stopCurrent();
       const buf = ctx.createBuffer(1, audio.data.length, audio.rate);
       buf.copyToChannel(audio.data, 0);
@@ -193,43 +219,55 @@
       const v = list.find((x) => x.voiceURI === cfg.voice) || list.find((x) => /^en/i.test(x.lang) && /female|zira|aria|jenny|samantha|hazel|susan/i.test(x.name)) || list.find((x) => /^en/i.test(x.lang));
       if (v) { u.voice = v; u.lang = v.lang; }
       u.volume = Math.min(1, cfg.volume * (item.opts.loud ? 1.25 : 1));
-      // small pitch moves only: big ones make the system voice sound like a robot
-      u.pitch = { rage: 0.92, angry: 0.95, creepy: 0.9, bored: 0.95, sulk: 0.95, hyped: 1.12, adrenaline: 1.12, happy: 1.08, shout: 1.06 }[item.emoName] ?? 1.02;
-      u.rate = { rage: 1.15, angry: 1.08, creepy: 0.88, bored: 0.85, hyped: 1.15, adrenaline: 1.22, sulk: 0.9 }[item.emoName] ?? 1;
+      // clear differences in tempo, moderate in pitch: big pitch moves make a system voice sound like a robot
+      u.pitch = { rage: 0.95, angry: 0.98, creepy: 0.85, bored: 0.88, sulk: 0.92, hyped: 1.15, adrenaline: 1.15, happy: 1.1, shout: 1.05 }[item.emoName] ?? 1.02;
+      u.rate = { rage: 1.3, angry: 1.22, creepy: 0.8, bored: 0.72, hyped: 1.25, adrenaline: 1.35, sulk: 0.8, happy: 1.1 }[item.emoName] ?? 1;
       let done = false;
       const finish = () => { if (!done) { done = true; resolve(); } };
       let started = false;
       u.onstart = () => { started = true; onStart(line.split(/\s+/).length * 380 + 600); };
       u.onend = u.onerror = finish;
-      synth.speak(u);
-      setTimeout(() => { if (!started) finish(); }, 2500); // no speech engine answered: never block the queue
+      // Chrome silently drops an utterance queued in the same instant as speechSynthesis.cancel(): leave a short gap.
+      setTimeout(() => {
+        if (item.cancelled) { finish(); return; }
+        if (synth.paused) synth.resume();
+        synth.speak(u);
+        setTimeout(() => { if (!started) finish(); }, 2500); // no speech engine answered: never block the queue
+      }, Math.max(0, 160 - (Date.now() - lastCancel)));
       setTimeout(finish, 20000);
     });
   }
 
-  // ── queue: one line playing, at most one (the newest) waiting ──
-  let currentItem = null, pending = null, played = 0;
+  // ── queue: one line playing; waiting lines: only the newest chatter is kept, priority lines are never dropped ──
+  // Priority = a battle cry, a rant, a reaction to a poke, a test. opts.done() is called when a line has been said
+  // or dropped, so a scene (the rage) can wait for her to finish a sentence.
+  let currentItem = null, played = 0;
+  const queue = [];
+  const settle = (item) => { if (item.settled) return; item.settled = true; try { if (item.opts.done) item.opts.done(); } catch { /* the caller's callback */ } };
+  const cancelItem = (item) => { item.cancelled = true; settle(item); };
   async function pump() {
-    if (currentItem || !pending) return;
-    const item = pending;
-    pending = null;
+    if (currentItem || !queue.length) return;
+    const item = queue.shift();
+    if (item.cancelled) { pump(); return; }
     currentItem = item;
     let started = false, dropped = false;
     // the bubble learns how long it has to stay up for this line
     const onStart = (ms) => { started = true; played += 1; window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms } })); };
     try {
       // When the neural voice is known to be too slow, do not keep the bubble waiting: unless the audio is (almost) ready, use the browser voice.
-      const wait = tooSlow() && !item.opts.force ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
+      // (a Japanese line never falls back: the browser voice would read the romaji as English)
+      const wait = tooSlow() && !item.opts.force && !item.opts.lang ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
       const audio = item.ready ? await wait : null;
       if (item.cancelled) return;
-      // A newer bubble arrived while this one was being prepared: saying the old one now would be out of sync.
-      if (pending && !item.opts.force && !item.opts.loud) { dropped = true; return; }
+      // Chatter overtaken while it was being prepared is stale (its bubble is gone); a priority line is always said.
+      if (!item.priority && queue.some((q) => !q.cancelled)) { dropped = true; return; }
       if (audio) await play(audio, audio.emo, cfg.volume * (item.opts.loud ? 1.2 : 1), onStart);
       else await speakBrowser(item, onStart);
     } finally {
       // no voice came out (no speech engine, an error): her bubble still shows the line
       if (!started && !dropped && !item.cancelled) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
-      currentItem = null;
+      settle(item);
+      if (currentItem === item) currentItem = null; // a cut-in may already have taken the slot
       pump();
     }
   }
@@ -237,22 +275,39 @@
   let hinted = null;
   const hint = (emotion) => { hinted = { emotion, t: Date.now() }; };
   const estimate = (text) => (cfg.on ? Math.round(String(text).split(/\s+/).length * 380 + 700) : 0);
-  const tooSlow = () => rtf != null && rtf > 1.3;
+  // "Too slow" lasts 45 s at most, then the neural voice is tried again (the machine may have been busy).
+  const tooSlow = () => rtf != null && rtf > 1.3 && Date.now() - slowAt < 45000;
 
   function speak(text, opts = {}) {
     if (!cfg.on || document.hidden || demo) return; // during the mood demo her bubbles stay silent
     if (hinted && Date.now() - hinted.t < 1500 && !opts.emotion) opts = { ...opts, emotion: hinted.emotion };
     hinted = null;
     const item = { text, opts, emoName: inferEmotion(text, opts), cancelled: false };
-    if (opts.loud || opts.interrupt || item.emoName === "rage") { if (currentItem) currentItem.cancelled = true; stopCurrent(); if (synth) synth.cancel(); }
-    if (pending) pending.cancelled = true; // only the latest bubble is worth saying
+    item.priority = Boolean(opts.loud || opts.interrupt || opts.force || item.emoName === "rage" || item.emoName === "shout");
+    const cut = Boolean(opts.loud || opts.interrupt || item.emoName === "rage");
+    // A battle cry is never cut by another line: it is said in full, the next line waits its turn.
+    const shielded = (q) => q.emoName === "shout";
+    if (cut && !(currentItem && shielded(currentItem))) {
+      // cut in: what she is saying stops now and the next line starts at once
+      if (currentItem) { cancelItem(currentItem); currentItem = null; }
+      silence();
+    }
+    // stale chatter is dropped; waiting priority lines stay, unless this line cuts in as well
+    for (const q of queue) if (!shielded(q) && (!q.priority || cut)) cancelItem(q);
+    queue.splice(0, queue.length, ...queue.filter((q) => !q.cancelled));
     const pack = activePack();
-    item.ready = pack && (!tooSlow() || opts.force || cache.has(cacheKey(pack, text, item.emoName, opts.lang))) ? generate(text, item.emoName, false, opts.lang) : null;
-    pending = item;
+    item.ready = pack && (!tooSlow() || opts.force || opts.lang || cache.has(cacheKey(pack, text, item.emoName, opts.lang))) ? generate(text, item.emoName, false, opts.lang, item.priority) : null;
+    queue.push(item);
     pump();
     return true; // she will say it: the caller's bubble waits for the "aura:speech" event
   }
-  function stop() { demo = null; if (pending) pending.cancelled = true; pending = null; if (currentItem) currentItem.cancelled = true; stopCurrent(); if (synth) synth.cancel(); emit(); }
+  function stop() {
+    demo = null;
+    for (const q of queue.splice(0)) cancelItem(q);
+    if (currentItem) { cancelItem(currentItem); currentItem = null; }
+    silence();
+    emit();
+  }
 
   // The Test button: a short monologue through her moods, played back to back (nothing is dropped). The next line
   // is generated while the current one plays; each line also shows in her bubble.
@@ -262,6 +317,7 @@
     ["YATTA! Forty subdomains in one go! I love my job!", "hyped"],
     ["Wait. Is that... a vulnerability? My heart is racing!", "adrenaline"],
     ["...zero results. Again. I'm so bored I could sleep.", "bored"],
+    ["Seriously?! I told you twice. I am NOT doing that again, so stop asking!", "angry"],
     ["HEY! Stop poking me! I said STOP!", "rage"],
     ["I see every open port. And I always see you.", "creepy"],
     ["KAMEHAMEHAAAA!!", "shout"],
@@ -296,7 +352,7 @@
     prefetchList.push(...lines);
     const tick = async () => {
       if (!prefetchList.length) return;
-      if (!cfg.on || !activePack() || currentItem || pending || generating) { setTimeout(tick, 2500); return; }
+      if (!cfg.on || !activePack() || currentItem || queue.length || generating || demo) { setTimeout(tick, 2500); return; }
       const [text, emotion, lang] = prefetchList.shift();
       await generate(text, emotion, true, lang);
       setTimeout(tick, 400);
@@ -308,6 +364,7 @@
   function set(patch) {
     cfg = { ...cfg, ...patch };
     save();
+    if (patch.on) ensureCtx(); // turning the voice on is a click: the right moment to prepare the audio
     if (patch.on === false || patch.engine) stop();
     if (patch.on || patch.engine || patch.voice) warm();
     emit();
@@ -319,6 +376,8 @@
     try { localStorage.setItem("aura.speech.cleaned", "1"); } catch { /* storage unavailable */ }
   }
   refresh().then(() => setTimeout(warm, 2500));
+  // keep the model loaded while the dashboard is open with the voice on: no cold start in the middle of a gag
+  setInterval(() => { if (!document.hidden) warm(); }, 8 * 60 * 1000);
   window.AuraSpeech = {
     speak, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },

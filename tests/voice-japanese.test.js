@@ -17,6 +17,12 @@ test("romaji becomes Japanese phonemes", () => {
   assert.equal(wordToIpa("chidori"), "ʨidoɾi");
 });
 
+test("stretched cries keep their long vowels (Luffy: gooomu gooomu no bazuuuuka)", () => {
+  assert.equal(romajiToIpa("goooomu goooomu no... bazuuuuka!!", "kokoro"), "ˈɡoːːmɯ ˈɡoːːmɯ no... ˈbazɯːːka!!");
+  assert.equal(romajiToIpa("goooomu goooomu no... erefanto gaaaan!!", "piper"), "ˈɡoːːmɯ ˈɡoːːmɯ no... ˈeɾeɸanto ˈɡaːːɴ!!");
+  assert.equal(wordToIpa("reddo"), "ɾeʔdo");
+});
+
 test("cries keep their punctuation, get stress marks and fit each engine", () => {
   assert.equal(romajiToIpa("kamehamehaaaa!!"), "ˈkamehamehaːː!!"); // a stretched vowel gets at most two marks
   assert.equal(romajiToIpa("kage bunshin no jutsu", "kokoro"), "ˈkaɡe ˈbɯnɕiɴ no ˈʥɯʦɯ"); // particles unstressed

@@ -219,7 +219,13 @@
     veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: "forwards" });
     big.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }], { duration: 750, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "forwards" });
     await sleep(750);
-    for (const line of RAGE_LINES) { if (window.AuraSpeech) window.AuraSpeech.speak(line, { loud: true }); text.textContent = line; await sleep(line.startsWith("...") ? 1500 : 1050); }
+    for (const line of RAGE_LINES) {
+      text.textContent = line;
+      // With the voice on, a line stays up until she has said it (4.5 s at most); without it, the original rhythm.
+      let said = Promise.resolve();
+      if (window.AuraSpeech) said = new Promise((resolve) => { if (!window.AuraSpeech.speak(line, { loud: true, done: resolve })) resolve(); });
+      await Promise.all([sleep(line.startsWith("...") ? 1500 : 1050), Promise.race([said, sleep(4500)])]);
+    }
     text.remove();
     await big.animate([{ transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
     big.remove();

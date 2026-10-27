@@ -18,6 +18,7 @@ const KOKORO_VOICES = ["af_heart", "af_bella", "af_nicole", "af_sky", "af_sarah"
 const KOKORO_BASE = "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/";
 const PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/";
 const RUNTIME_BYTES = 40e6;
+const MEMORY_LINES = 80; // generated priority/prefetched lines kept in memory (about 200 KB each)
 
 const PACKS = {
   "piper-linda": {
@@ -59,7 +60,10 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
   let job = null; // { pack, phase: "runtime" | "download", progress, error, done }
   let worker = null, workerState = "stopped", workerError = "", failedAt = 0, idleTimer = null, seq = 0;
   const waiting = new Map();
-  let busy = null, pending = null; // one line generating, at most one (the newest) waiting
+  // one line generating; waiting lines: only the newest chatter is kept, priority lines (battle cries, rage, pokes) never dropped
+  let busy = null;
+  const queue = [];
+  const memory = new Map(); // generated audio of priority / prefetched lines, oldest dropped first
 
   function status() {
     return {
@@ -157,6 +161,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     if (!packs[id]) throw Object.assign(new Error("Unknown voice pack"), { statusCode: 400 });
     if (job && !job.done && job.pack === id) throw Object.assign(new Error("This pack is downloading"), { statusCode: 409 });
     stopWorker();
+    memory.clear(); // lines generated with the removed voice
     fs.rmSync(packDir(id), { recursive: true, force: true });
     // the runtime is only worth keeping while at least one pack uses it
     if (!Object.keys(packs).some(packReady) && !(job && !job.done)) fs.rmSync(runtimeDir, { recursive: true, force: true });
@@ -202,7 +207,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     failWaiting("voice worker stopped");
   }
   // Free the memory (the Kokoro model alone takes several hundred MB) when she has been quiet for a while.
-  const touch = () => { clearTimeout(idleTimer); idleTimer = setTimeout(stopWorker, 10 * 60 * 1000); idleTimer.unref?.(); };
+  const touch = () => { clearTimeout(idleTimer); idleTimer = setTimeout(stopWorker, 20 * 60 * 1000); idleTimer.unref?.(); };
 
   function generate(req) {
     // a worker that just crashed is not restarted for every bubble
@@ -215,18 +220,18 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     });
   }
   async function pump() {
-    if (busy || !pending) return;
-    const item = pending;
-    pending = null;
+    if (busy || !queue.length) return;
+    const item = queue.shift();
     busy = item;
     const t0 = Date.now();
     const result = await generate(item.req);
     busy = null;
-    item.resolve(result.error ? result : { data: result.data, rate: result.rate, ms: Date.now() - t0 });
+    item.resolve(result.error ? result : { data: result.data, rate: result.rate, ms: result.genMs ?? Date.now() - t0, loadMs: result.loadMs || 0 });
     pump();
   }
-  // Latest wins: a line still waiting when a newer one arrives is skipped (the bubble it belonged to is gone).
-  function speak({ pack, voice, speed, text, lang = "", low = false }) {
+  // Latest chatter wins: a normal line still waiting when a newer one arrives is skipped (its bubble is gone). Priority
+  // lines are never skipped by newer ones.
+  function speak({ pack, voice, speed, text, lang = "", low = false, priority = false }) {
     if (!packs[pack]) throw Object.assign(new Error("Unknown voice pack"), { statusCode: 400 });
     if (!runtimeReady() || !packReady(pack)) throw Object.assign(new Error("Voice pack not installed"), { statusCode: 409 });
     const line = cleanText(text);
@@ -234,10 +239,15 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     const kokoroVoice = KOKORO_VOICES.includes(voice) ? voice : KOKORO_VOICES[0];
     const req = { engine: packs[pack].engine, pack, voice: kokoroVoice, speed: clampSpeed(speed), text: line, lang: lang === "ja" ? "ja" : "" };
     touch();
+    // Battle cries, rants and the prefetched lines repeat all the time: remember them, so the next time is instant.
+    const key = priority || low ? JSON.stringify(req) : "";
+    const hit = key && memory.get(key);
+    if (hit) return Promise.resolve({ ...hit, loadMs: 0 });
     return new Promise((resolve) => {
-      if ((busy || pending) && low) { resolve({ skipped: true }); return; }
-      if (pending) pending.resolve({ skipped: true });
-      pending = { req, resolve };
+      if ((busy || queue.length) && low) { resolve({ skipped: true }); return; }
+      for (let i = queue.length - 1; i >= 0; i -= 1) if (!queue[i].priority) { queue[i].resolve({ skipped: true }); queue.splice(i, 1); }
+      const keep = key ? (result) => { if (!result.error && !result.skipped) { memory.set(key, result); if (memory.size > MEMORY_LINES) memory.delete(memory.keys().next().value); } resolve(result); } : resolve;
+      queue.push({ req, resolve: keep, priority: Boolean(priority) });
       pump();
     });
   }

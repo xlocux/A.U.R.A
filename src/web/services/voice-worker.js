@@ -56,10 +56,13 @@ async function kokoroIds(text, british, allJapanese) {
 async function kokoro(m) {
   const dir = path.join(packsDir, m.pack);
   let model = models.get(m.pack);
+  let loadMs = 0;
   if (!model) {
+    const t = Date.now();
     const vocab = JSON.parse(fs.readFileSync(path.join(dir, "tokenizer.json"), "utf8")).model.vocab;
     model = { vocab, voices: new Map(), session: await ort.InferenceSession.create(path.join(dir, "model.onnx"), sessionOptions) };
     models.set(m.pack, model);
+    loadMs = Date.now() - t;
   }
   // a Japanese line gets Kokoro's Japanese voice when the pack has it (packs downloaded before it was added do not)
   const ja = m.lang === "ja";
@@ -81,17 +84,20 @@ async function kokoro(m) {
     style: new ort.Tensor("float32", style.slice(offset, offset + 256), [1, 256]),
     speed: new ort.Tensor("float32", new Float32Array([m.speed]), [1])
   });
-  return { data: out.waveform.data, rate: 24000 };
+  return { data: out.waveform.data, rate: 24000, loadMs };
 }
 
 // ── Piper (VITS) ──
 async function piper(m) {
   const dir = path.join(packsDir, m.pack);
   let model = models.get(m.pack);
+  let loadMs = 0;
   if (!model) {
+    const t = Date.now();
     const config = JSON.parse(fs.readFileSync(path.join(dir, "model.onnx.json"), "utf8"));
     model = { config, session: await ort.InferenceSession.create(path.join(dir, "model.onnx"), sessionOptions) };
     models.set(m.pack, model);
+    loadMs = Date.now() - t;
   }
   const { config, session } = model;
   const map = config.phoneme_id_map;
@@ -107,14 +113,19 @@ async function piper(m) {
   };
   if (config.num_speakers > 1) feeds.sid = new ort.Tensor("int64", BigInt64Array.from([0n]), [1]);
   const out = await session.run(feeds);
-  return { data: out[session.outputNames[0]].data, rate: config.audio?.sample_rate || 22050 };
+  return { data: out[session.outputNames[0]].data, rate: config.audio?.sample_rate || 22050, loadMs };
 }
 
+// The eSpeak phonemizer needs a few seconds to start the first time: do it now, outside every line's timing.
+const warmup = phonemize("hello", "en-us").catch(() => {});
 process.on("message", async (m) => {
   if (!m || m.type !== "speak") return;
   try {
-    const { data, rate } = m.engine === "kokoro" ? await kokoro(m) : await piper(m);
-    process.send({ type: "audio", id: m.id, data: new Float32Array(data), rate });
+    await warmup;
+    const t0 = Date.now();
+    const { data, rate, loadMs } = m.engine === "kokoro" ? await kokoro(m) : await piper(m);
+    // genMs = the time this line took without loading the model: that is what tells whether live speech keeps up
+    process.send({ type: "audio", id: m.id, data: new Float32Array(data), rate, genMs: Math.max(1, Date.now() - t0 - loadMs), loadMs });
   } catch (error) {
     process.send({ type: "error", id: m.id, message: String(error?.message || error).slice(0, 300) });
   }

@@ -6,7 +6,7 @@
     {
       "id": "anime",
       "file": "anime.js",
-      "since": "0.1.0",
+      "since": "0.1.1",
       "title": "Anime classics",
       "gags": [
         "ninja",
@@ -19,7 +19,7 @@
     {
       "id": "eyes-luffy",
       "file": "eyes-luffy.js",
-      "since": "0.1.0",
+      "since": "0.1.1",
       "title": "Dojutsu eyes and Luffy moves",
       "gags": [
         "eyes",
@@ -51,7 +51,7 @@
     {
       "id": "bleach",
       "file": "bleach.js",
-      "since": "0.1.0",
+      "since": "0.1.1",
       "title": "Bleach: Bankai",
       "gags": [
         "bankai"

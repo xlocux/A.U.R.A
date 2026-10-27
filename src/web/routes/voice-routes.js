@@ -21,7 +21,7 @@ async function removeVoicePack({ request, response }) {
 // 200: mono float32 little-endian samples (X-Sample-Rate, X-Gen-Ms). 204: skipped because a newer line arrived.
 async function speakVoice({ request, response }) {
   const body = await readBody(request);
-  const result = await voiceEngine().speak({ pack: String(body.pack || ""), voice: String(body.voice || ""), speed: body.speed, text: body.text, lang: String(body.lang || ""), low: body.low === true });
+  const result = await voiceEngine().speak({ pack: String(body.pack || ""), voice: String(body.voice || ""), speed: body.speed, text: body.text, lang: String(body.lang || ""), low: body.low === true, priority: body.priority === true });
   if (result.skipped) { response.writeHead(204, { "Cache-Control": "no-store" }); response.end(); return; }
   if (result.error) { sendJson(response, { error: result.error }, 503); return; }
   const pcm = Buffer.from(result.data.buffer, result.data.byteOffset, result.data.byteLength);
@@ -29,7 +29,8 @@ async function speakVoice({ request, response }) {
     "Content-Type": "application/octet-stream",
     "Content-Length": pcm.length,
     "X-Sample-Rate": String(result.rate),
-    "X-Gen-Ms": String(result.ms),
+    "X-Gen-Ms": String(result.ms), // generation only, without loading the model
+    "X-Load-Ms": String(result.loadMs || 0),
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff"
   });

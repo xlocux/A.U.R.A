@@ -63,38 +63,50 @@
   }
 
   // ── Luffy ──
-  function stretch(from, to, ms) {
+  // size = how big the fist gets at the end (the arm gets thicker with it)
+  function stretch(from, to, ms, size = 1.6) {
     const { fx } = F();
     const dx = to.x - from.x, dy = to.y - from.y;
     const len = Math.hypot(dx, dy), ang = (Math.atan2(dy, dx) * 180) / Math.PI;
     const arm = fx("av-an-arm", from.x, from.y);
     arm.style.width = `${len}px`;
     arm.style.setProperty("--ang", `${ang}deg`);
+    if (size > 2) { arm.style.height = `${Math.round(size * 5)}px`; arm.style.marginTop = `${-Math.round(size * 2.5)}px`; }
     const fist = fx("av-an-fist", from.x, from.y);
     const t = { duration: ms, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" };
     arm.animate([{ transform: `rotate(${ang}deg) scaleX(0)` }, { transform: `rotate(${ang}deg) scaleX(1)` }], t);
-    return fist.animate([{ transform: "translate(-50%, -50%)" }, { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1.6)` }], t).finished.then(() => ({ arm, fist }));
+    return fist.animate([{ transform: "translate(-50%, -50%)" }, { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${size})` }], t).finished.then(() => ({ arm, fist }));
   }
+  // Luffy's first strike (the Gatling always follows): the title is also how the cry is looked up in anime.js.
+  // blast = size of the impact ring, jolt = how hard the page shakes.
+  const STRIKES = {
+    pistol: { title: "GOMU GOMU NO... PISTOL!", quip: "Watch this. I'm going to be King of the Hackers.", hands: 1, size: 1.6, blast: 3.4, jolt: 14 },
+    bazooka: { title: "GOMU GOMU NO... BAZOOKA!", quip: "Both hands. No more Mr. Nice Hacker.", hands: 2, size: 2, blast: 4.8, jolt: 20 },
+    elephant: { title: "GOMU GOMU NO... ELEPHANT GUN!", quip: "This one is the size of an elephant. Brace.", hands: 1, size: 3.6, blast: 6.5, jolt: 28 }
+  };
   const cleanup = (parts, ms = 250) => { for (const p of [parts.arm, parts.fist]) p.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, fill: "forwards" }).finished.then(() => p.remove(), () => p.remove()); };
 
   async function gomu(s) {
     const { fx, title, shake, wait, smoke } = F();
     const home = s.home();
     const spot = { x: Math.random() < 0.5 ? 100 : innerWidth - 150, y: s.randomPoint(160).y };
+    const strike = STRIKES[F().pick(Object.keys(STRIKES))];
     s.place(home);
-    s.say("Watch this. I'm going to be King of the Hackers.", 2200);
+    s.say(strike.quip, 2200);
     await s.move(home, spot, { ms: 1500 });
     const c = { x: spot.x + 23, y: spot.y + 26 };
     const target = { x: innerWidth / 2 + (Math.random() - 0.5) * 300, y: innerHeight / 2 + (Math.random() - 0.5) * 160 };
     s.el.classList.toggle("face-left", target.x < c.x);
     s.anim([{ transform: s.at(spot, 1, 0) }, { transform: s.at({ x: spot.x + (target.x < c.x ? 14 : -14), y: spot.y }, 1.15, target.x < c.x ? 8 : -8) }], { duration: 700, easing: "ease-in" });
-    title("GOMU GOMU NO... PISTOL!", 1500);
+    title(strike.title, 1700);
     await wait(900);
-    const hit = await stretch(c, target, 320);
+    // one fist, or both hands side by side for the Bazooka
+    const offsets = strike.hands === 2 ? [-10, 10] : [0];
+    const hits = await Promise.all(offsets.map((o) => stretch({ x: c.x, y: c.y + o }, { x: target.x, y: target.y + o * 1.6 }, 320, strike.size)));
     const crater = fx("av-an-impact", target.x, target.y);
-    crater.animate([{ scale: 0.2, opacity: 1 }, { scale: 3.4, opacity: 0 }], { duration: 600, fill: "forwards" }).finished.then(() => crater.remove());
-    shake(14, 500);
-    cleanup(hit, 500);
+    crater.animate([{ scale: 0.2, opacity: 1 }, { scale: strike.blast, opacity: 0 }], { duration: 650, fill: "forwards" }).finished.then(() => crater.remove());
+    shake(strike.jolt, 550);
+    for (const hit of hits) cleanup(hit, 500);
     await wait(900);
     s.say("Now the Gatling!", 1200);
     await wait(500);
