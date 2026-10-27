@@ -40,7 +40,7 @@
       bubble.style.left = `${x}px`;
       bubble.style.top = `${y - 46}px`;
     };
-    g.say = (text, ms = 1600) => { bubble.textContent = text; bubble.classList.add("show"); clearTimeout(g.hide); g.hide = setTimeout(() => bubble.classList.remove("show"), ms); };
+    g.say = (text, ms = 1600) => { if (window.AuraSpeech) window.AuraSpeech.speak(text, { loud: true }); bubble.textContent = text; bubble.classList.add("show"); clearTimeout(g.hide); g.hide = setTimeout(() => bubble.classList.remove("show"), ms); };
     g.remove = () => { clearTimeout(g.hide); el.remove(); bubble.remove(); };
     g.put(g.x, g.y);
     return g;
@@ -84,7 +84,7 @@
     g.put(edge, g.y, 1900, "ease-in");
     await sleep(1950);
     g.remove();
-    note("Aura has left the chat.");
+    note("Auri has left the chat.");
     A().tantrumEnd();
     A().setAway(18000);
     await sleep(18400);

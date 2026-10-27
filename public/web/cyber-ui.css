@@ -287,3 +287,11 @@ html[data-avatar-voice="4"] .ai-panel:not(.floating) { position: relative; }
   font-family: var(--font-display, monospace); font-size: calc(10px * var(--font-scale, 1)); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .sidebar-meta-ver { color: var(--accent); opacity: .8; }
 body.sidebar-collapsed .sidebar-meta { display: none; }
+
+/* Auri speech settings */
+.auri-speech { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 10px; }
+.auri-speech-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.auri-speech-opts { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; align-items: center; }
+.auri-speech-opts[hidden] { display: none; }
+.sidebar-meta a.sidebar-meta-site { color: var(--muted); text-decoration: none; transition: color .2s; }
+.sidebar-meta a.sidebar-meta-site:hover { color: var(--accent); }

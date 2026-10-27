@@ -89,7 +89,7 @@
       el.dataset.avReady = "true";
       el.innerHTML = SVG;
       el.setAttribute("role", "img");
-      el.setAttribute("aria-label", "Aura, the AI assistant");
+      el.setAttribute("aria-label", "Auri, the AI assistant");
     }
   }
 
@@ -131,6 +131,7 @@
     bubble.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 232))}px`;
     bubble.style.top = below ? `${rect.bottom + 8}px` : `${Math.max(8, rect.top - 52)}px`;
     bubble.classList.add("show");
+    if (window.AuraSpeech) window.AuraSpeech.speak(text);
     clearTimeout(bubbleTimer);
     bubbleTimer = setTimeout(() => bubble.classList.remove("show"), ms);
   }
@@ -203,7 +204,7 @@
     veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: "forwards" });
     big.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }], { duration: 750, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "forwards" });
     await sleep(750);
-    for (const line of RAGE_LINES) { text.textContent = line; await sleep(line.startsWith("...") ? 1500 : 1050); }
+    for (const line of RAGE_LINES) { if (window.AuraSpeech) window.AuraSpeech.speak(line, { loud: true }); text.textContent = line; await sleep(line.startsWith("...") ? 1500 : 1050); }
     text.remove();
     await big.animate([{ transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
     big.remove();

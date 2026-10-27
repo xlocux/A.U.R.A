@@ -62,7 +62,7 @@
     ["#sendAiPrompt", "Send", "Ask about the current target, run or next step"],
     ["#aiAttach", "Attach a file", "Upload a file for the assistant (DeepSeek)"],
     ["#aiMinimize", "Hide chat", "Minimise the AI panel"],
-    ["#aiRestore", "AI Agent", "Open the assistant"]
+    ["#aiRestore", "AURI Agent", "Open or close the assistant (AURI is the AI agent of A.U.R.A)"]
   ];
 
   const text = (title, detail, cmd) => [title, detail, cmd ? "Runs: " + cmd : ""].filter(Boolean).join("\n");

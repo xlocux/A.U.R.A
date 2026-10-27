@@ -369,7 +369,7 @@
       if (file) uploadFile(file);
     });
     $("aiMinimize").addEventListener("click", minimizePanel);
-    $("aiRestore").addEventListener("click", restorePanel);
+    $("aiRestore").addEventListener("click", () => ($("aiPanel").classList.contains("minimized") ? restorePanel() : minimizePanel()));
     $("aiDragHandle").addEventListener("pointerdown", startDrag);
     document.querySelectorAll(".ai-resize-handle").forEach((handle) => {
       handle.addEventListener("pointerdown", startResize);

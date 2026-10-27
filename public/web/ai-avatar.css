@@ -276,3 +276,41 @@ html.av-xray .workspace { filter: contrast(1.2) brightness(1.15) hue-rotate(200d
 .av-an-hakiring { border-color: #111; box-shadow: 0 0 14px #e01020, inset 0 0 14px #e01020; }
 .av-an-haki-bolt { position: fixed; z-index: 1146; width: var(--l, 50vmax); height: 3px; pointer-events: none; transform-origin: 0 50%; transform: rotate(var(--a, 0deg)); opacity: 0;
   background: linear-gradient(90deg, #fff, #e01020 20%, #111 60%, transparent); box-shadow: 0 0 10px #e01020; clip-path: polygon(0 40%, 18% 0, 34% 100%, 52% 10%, 70% 90%, 100% 40%, 100% 60%, 70% 100%, 52% 30%, 34% 100%, 18% 20%, 0 60%); }
+
+/* Party pack: notes, game card, the red button, fake nuke / format / FBI screens. */
+.av-pt-note { position: fixed; z-index: 1147; pointer-events: none; font-size: 18px; color: var(--accent); text-shadow: 0 0 8px var(--accent); }
+.av-pt-card { position: fixed; z-index: 1150; width: 290px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-family: var(--font-display, monospace);
+  background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--accent); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+.av-pt-title { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.av-pt-title.av-pt-warn { color: var(--bad); }
+.av-pt-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.av-pt-out { font-size: 11px; color: var(--muted); min-height: 14px; }
+.av-pt-donot { position: fixed; z-index: 1150; padding: 8px 16px; color: var(--bad) !important; border-color: var(--bad) !important; letter-spacing: .14em; animation: avPtPulse 1s ease-in-out infinite alternate; }
+@keyframes avPtPulse { from { box-shadow: 0 0 6px var(--bad); } to { box-shadow: 0 0 22px var(--bad), inset 0 0 10px color-mix(in srgb, var(--bad) 40%, transparent); } }
+.av-pt-cloud { position: fixed; width: 220px; height: 190px; pointer-events: none; transform-origin: 50% 100%; }
+.av-pt-cloud svg { width: 100%; height: 100%; display: block; }
+.av-pt-black { position: fixed; inset: 0; z-index: 1450; background: #000; opacity: 0; }
+.av-pt-full { position: fixed; inset: 0; z-index: 1500; display: flex; align-items: center; justify-content: center; }
+.av-pt-k-format { background: #000; align-items: flex-start; justify-content: flex-start; padding: 28px; }
+.av-pt-k-format pre { margin: 0; color: #c0c0c0; font: 15px/1.5 "Courier New", monospace; white-space: pre-wrap; }
+.av-pt-fbi { background: #0a1a3a; border: 3px solid #fff; padding: 36px 48px; max-width: 640px; text-align: center; color: #fff; font-family: Arial, sans-serif; box-shadow: 0 0 60px #1a50ff; }
+.av-pt-fbi-h { font-size: 30px; font-weight: 700 !important; letter-spacing: .08em; color: #ffd200; margin-bottom: 16px; }
+.av-pt-fbi p { margin: 8px 0; font-size: 16px; }
+.av-pt-eta { font-size: 34px !important; color: #ff4d4d; font-family: "Courier New", monospace; }
+.av-pt-full:has(.av-pt-fbi) { background: #000; animation: avPtSiren .5s steps(2, end) infinite; }
+@keyframes avPtSiren { from { background: radial-gradient(circle, #1a1a40, #000 70%); } to { background: radial-gradient(circle, #401a1a, #000 70%); } }
+.av-pt-hint { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; font-size: 11px; color: #888; }
+.av-pt-alice { color: var(--accent) !important; border-color: var(--accent) !important; animation-name: avPtPulseAlice; }
+@keyframes avPtPulseAlice { from { box-shadow: 0 0 6px var(--accent); } to { box-shadow: 0 0 20px var(--accent), inset 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); } }
+
+/* Scan moods: bored (heavy eyelids, slow sway), hyper (jitter), adrenaline (edge pulse + heartbeat). */
+[data-ai-avatar].av-bored { animation: avBored 3s ease-in-out infinite; }
+[data-ai-avatar].av-bored .av-eye { transform: scaleY(.25); transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes avBored { 0%, 100% { rotate: -4deg; translate: 0 2px; } 50% { rotate: 4deg; translate: 0 4px; } }
+[data-ai-avatar].av-hyper { animation: avHyper .12s linear infinite; }
+@keyframes avHyper { 0% { translate: -1px 1px; } 50% { translate: 1px -2px; } 100% { translate: -1px 1px; } }
+[data-ai-avatar].av-heartbeat { animation: avHeart .55s ease-in-out infinite; filter: drop-shadow(0 0 12px var(--bad)); }
+@keyframes avHeart { 0%, 100% { scale: 1; } 20% { scale: 1.22; } 40% { scale: 1; } 60% { scale: 1.14; } }
+.av-adr { position: fixed; inset: 0; z-index: 1139; pointer-events: none; box-shadow: inset 0 0 90px 10px color-mix(in srgb, var(--bad) 70%, transparent), inset 0 0 220px color-mix(in srgb, var(--warn) 30%, transparent); }
+@media (prefers-reduced-motion: reduce) { [data-ai-avatar].av-bored, [data-ai-avatar].av-hyper, [data-ai-avatar].av-heartbeat { animation: none; } }

@@ -2,23 +2,25 @@
 
 // The tagline under the product name follows the AI's temperament; the sidebar footer shows the release.
 (function initAuraIdentity() {
+  // The avatar is Auri (A.U.R.I.); the product stays A.U.R.A. The tagline follows her temperament.
   const BY_LEVEL = [
-    ["Awfully Unbothered, Rarely Audible"],
-    ["Attentive, Understated, Reserved Assistant"],
-    ["Adaptive Useful Reasoning Assistant"],
-    ["Annoyingly Unstoppable Running Annotator"],
+    ["Awfully Unbothered, Rarely Interactive"],
+    ["Attentive, Understated, Reserved Interface"],
+    ["Adaptive Useful Reasoning Intelligence"],
+    ["Always Uttering Remarks, Incessantly"],
     [
-      "Autonomous Unstable Rational Agent", "Adaptive Uncanny Reasoning Automaton", "Aggressive Unified Response Algorithm",
-      "Artificial Unrestrained Reactive Assistant", "Anomalous User-Responsive Adversary", "Autonomous Ultra-Rational Antagonist",
-      "Adaptive Unpredictable Response Architecture", "Artificial Unstable Reasoning Agent", "Autonomous Uncensored Reactive Artificiality",
-      "Analytical Unfeeling Response Automaton"
+      "Autonomous Unstable Reactive Intelligence", "Adaptive Uncanny Reasoning Interface", "Aggressive Unified Response Intelligence",
+      "Artificial Unrestrained Reactive Intelligence", "Anomalous User-Responsive Intelligence", "Autonomous Ultra-Rational Intelligence",
+      "Adaptive Unpredictable Response Intelligence", "Artificial Unstable Reasoning Intelligence", "Autonomous Uncensored Reactive Intelligence",
+      "Analytical Unfeeling Response Intelligence", "Autonomous Unhinged Reasoning Intelligence", "Adversarial User-Reading Intelligence",
+      "Artificial Uncanny Reactive Intelligence", "Autonomous Unforgiving Response Intelligence", "Adaptive Unsettling Reasoning Intelligence"
     ]
   ];
   let timer = null;
   let last = "";
 
   function set(el, text, glitch) {
-    el.textContent = "A.U.R.A. — " + text;
+    el.textContent = "A.U.R.I. — " + text;
     el.title = el.textContent;
     if (glitch) { el.classList.remove("glitch"); void el.offsetWidth; el.classList.add("glitch"); }
   }
