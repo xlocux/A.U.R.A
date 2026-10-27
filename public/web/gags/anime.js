@@ -28,9 +28,25 @@
   // Manga speed lines + a big italic move name.
   // "KAMEHAMEHA" -> "KAMEHAMEHAAAA!!": the last vowel is stretched like an anime battle cry.
   const cry = (text) => String(text).replace(/[.?!\s-]+$/, "").replace(/([AEIOUaeiou])([^AEIOUaeiou]*)$/, (m, v, rest) => v.repeat(4) + rest) + "!!";
-  const CRIES = ["KAGE BUNSHIN", "KYUUBI MODE", "KAMEHAMEHA", "NANI?!", "SHARINGAN", "MANGEKYO", "BYAKUGAN", "RINNEGAN", "GOMU GOMU NO... PISTOL!", "GOMU GOMU NO... GATLING!", "GEAR 5 - NIKA", "CONQUEROR'S HAKI", "FOUND IT!", "JACKPOT!"];
+  // How each move is shouted: in Japanese, the way the anime says it (romaji; the voice engine uses Japanese sounds).
+  // Moves missing here are shouted as written, in English.
+  const JAPANESE = {
+    "KAGE BUNSHIN": "kage bunshin no jutsu", "KYUUBI MODE": "kyuubi moodo", "KAMEHAMEHA": "kamehameha", "NANI?!": "nani",
+    "SHARINGAN": "sharingan", "MANGEKYO": "mangekyou sharingan", "BYAKUGAN": "byakugan", "RINNEGAN": "rinnegan",
+    "GOMU GOMU NO... PISTOL!": "gomu gomu no... pisutoru", "GOMU GOMU NO... GATLING!": "gomu gomu no... gatoringu",
+    "GEAR 5 - NIKA": "gia fifusu... nika", "CONQUEROR'S HAKI": "haoshoku no haki",
+    "BANKAI": "bankai", "KATEN KYOKOTSU: KARAMATSU SHINJU": "katen kyoukotsu... karamatsu shinjuu"
+  };
+  const CRIES = [...Object.keys(JAPANESE), "FOUND IT!", "JACKPOT!"];
+  // [line, emotion, lang] as the voice engine wants it
+  const cryLine = (text) => (JAPANESE[text] ? [cry(JAPANESE[text]), "shout", "ja"] : [cry(text), "shout", ""]);
+  function shout(text) {
+    if (!window.AuraSpeech) return;
+    const [line, emotion, lang] = cryLine(text);
+    window.AuraSpeech.speak(line, { emotion, interrupt: true, lang });
+  }
   async function title(text, ms = 1500, opts = {}) {
-    if (window.AuraSpeech && !opts.silent) window.AuraSpeech.speak(cry(text), { emotion: "shout", interrupt: true });
+    if (!opts.silent) shout(text);
     const lines = fx("av-an-lines", 0, 0);
     const t = fx("av-an-title", 0, 0);
     t.textContent = text;
@@ -221,8 +237,8 @@
     }
   }
 
-  window.AuraAnimeFx = { fx, smoke, title, shake, wait, rand, pick, done, centre, cry };
-  if (window.AuraSpeech && window.AuraSpeech.prefetch) window.AuraSpeech.prefetch(CRIES.map((c) => [cry(c), "shout"]));
+  window.AuraAnimeFx = { fx, smoke, title, shake, wait, rand, pick, done, centre, cry, shout, cryLine };
+  if (window.AuraSpeech && window.AuraSpeech.prefetch) window.AuraSpeech.prefetch(CRIES.map(cryLine));
 
   function boot() {
     window.addEventListener("aura:ai", (event) => {

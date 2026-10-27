@@ -119,19 +119,20 @@
   // ── generation ──
   let lastGen = null, rtf = null, generating = 0; // rtf = generation time / speech time (moving average)
   const cache = new Map();
-  const cacheKey = (pack, text, emoName) => { const emo = EMOTIONS[emoName] || EMOTIONS.neutral; return `${pack}|${pickVoice(emoName)}|${emo.speed}|${shape(text, emoName)}`; };
-  async function generate(text, emoName, low = false) {
+  const cacheKey = (pack, text, emoName, lang = "") => { const emo = EMOTIONS[emoName] || EMOTIONS.neutral; return `${pack}|${lang}|${pickVoice(emoName)}|${emo.speed}|${shape(text, emoName)}`; };
+  // lang "ja": the line is Japanese romaji (battle cries) and is said with Japanese sounds by the server voices.
+  async function generate(text, emoName, low = false, lang = "") {
     const pack = activePack();
     const emo = EMOTIONS[emoName] || EMOTIONS.neutral;
     const line = shape(text, emoName);
     if (!pack || !line) return null;
-    const key = cacheKey(pack, text, emoName);
+    const key = cacheKey(pack, text, emoName, lang);
     if (cache.has(key)) return { ...cache.get(key), emo };
     generating += 1; emit();
     try {
       const res = await fetch("/api/voice/speak", {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(30000),
-        body: JSON.stringify({ pack, voice: pickVoice(emoName), speed: emo.speed, text: line, low })
+        body: JSON.stringify({ pack, voice: pickVoice(emoName), speed: emo.speed, text: line, lang, low })
       });
       if (res.status === 204) return null; // skipped: a newer line took its place
       if (!res.ok) { const e = await res.json().catch(() => ({})); serverError = e.error || `HTTP ${res.status}`; refresh(); return null; }
@@ -251,7 +252,7 @@
     if (opts.loud || opts.interrupt || item.emoName === "rage") { if (currentItem) currentItem.cancelled = true; stopCurrent(); if (synth) synth.cancel(); }
     if (pending) pending.cancelled = true; // only the latest bubble is worth saying
     const pack = activePack();
-    item.ready = pack && (!tooSlow() || opts.force || cache.has(cacheKey(pack, text, item.emoName))) ? generate(text, item.emoName) : null;
+    item.ready = pack && (!tooSlow() || opts.force || cache.has(cacheKey(pack, text, item.emoName, opts.lang))) ? generate(text, item.emoName, false, opts.lang) : null;
     pending = item;
     pump();
     return true; // she will say it: the caller's bubble waits for the "aura:speech" event
@@ -302,8 +303,8 @@
     const tick = async () => {
       if (!prefetchList.length) return;
       if (!cfg.on || !activePack() || currentItem || pending || generating) { setTimeout(tick, 2500); return; }
-      const [text, emotion] = prefetchList.shift();
-      await generate(text, emotion, true);
+      const [text, emotion, lang] = prefetchList.shift();
+      await generate(text, emotion, true, lang);
       setTimeout(tick, 400);
     };
     setTimeout(tick, 3000);

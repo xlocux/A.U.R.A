@@ -2,12 +2,15 @@
 
 // Child process of voice-engine.js: text -> audio with onnxruntime-node, on this PC. Kokoro and Piper share the
 // eSpeak NG phonemizer; each model is loaded on first use and kept until the engine stops the process.
-// argv: <runtime dir> <packs dir> <threads>. Messages in: { type: "speak", id, engine, pack, voice, speed, text }.
+// Japanese words (anime battle cries, "Yatta!") skip eSpeak: they are turned into Japanese phonemes (voice-japanese.js).
+// argv: <runtime dir> <packs dir> <threads>. Messages in: { type: "speak", id, engine, pack, voice, speed, text, lang }
+// (lang "ja": the whole line is romaji).
 // Messages out: { type: "ready" } once, then { type: "audio", id, data: Float32Array, rate } or { type: "error", id, message }.
 
 const fs = require("node:fs");
 const path = require("node:path");
 const { createRequire } = require("node:module");
+const japanese = require("./voice-japanese");
 
 const [runtimeDir, packsDir, threadArg] = process.argv.slice(2);
 const runtimeRequire = createRequire(path.join(runtimeDir, "package.json"));
@@ -16,17 +19,23 @@ const { phonemize } = runtimeRequire("phonemizer");
 const sessionOptions = { executionProviders: ["cpu"], graphOptimizationLevel: "all", intraOpNumThreads: Number(threadArg) || 4 };
 const models = new Map();
 
-// Punctuation is kept as is (both models were trained with it); only the words go through eSpeak.
+// Punctuation is kept as is (both models were trained with it); only the words go through eSpeak, except the
+// Japanese ones, which become Japanese phonemes.
 const PUNCT = /(\s*[;:,.!?¡¿—…"«»“”(){}[\]]+\s*)+/g;
-async function toPhonemes(text, lang) {
+async function words(chunk, lang, engine, allJapanese) {
+  const out = [];
+  for (const run of japanese.segments(chunk, allJapanese)) out.push(run.ja ? japanese.romajiToIpa(run.text, engine) : (await phonemize(run.text, lang)).join(" "));
+  return out.join(" ");
+}
+async function toPhonemes(text, lang, engine, allJapanese = false) {
   const out = [];
   let last = 0;
   for (const m of text.matchAll(PUNCT)) {
-    if (m.index > last) out.push((await phonemize(text.slice(last, m.index), lang)).join(" "));
+    if (m.index > last) out.push(await words(text.slice(last, m.index), lang, engine, allJapanese));
     out.push(m[0]);
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push((await phonemize(text.slice(last), lang)).join(" "));
+  if (last < text.length) out.push(await words(text.slice(last), lang, engine, allJapanese));
   return out.join("");
 }
 const int64 = (ids) => new ort.Tensor("int64", BigInt64Array.from(ids, BigInt), [1, ids.length]);
@@ -37,8 +46,8 @@ function kokoroNormalize(text) {
     .replace(/\bD[Rr]\.(?= [A-Z])/g, "Doctor").replace(/\b(?:Mr\.|MR\.(?= [A-Z]))/g, "Mister").replace(/\b(?:Ms\.|MS\.(?= [A-Z]))/g, "Miss")
     .replace(/\b(y)eah?\b/gi, "$1e'a").replace(/(?<=\d),(?=\d)/g, "").replace(/(?<=\d)-(?=\d)/g, " to ").trim();
 }
-async function kokoroIds(text, british) {
-  let ps = (await toPhonemes(kokoroNormalize(text), british ? "en" : "en-us"))
+async function kokoroIds(text, british, allJapanese) {
+  let ps = (await toPhonemes(kokoroNormalize(text), british ? "en" : "en-us", "kokoro", allJapanese))
     .replace(/kəkˈoːɹoʊ/g, "kˈoʊkəɹoʊ").replace(/kəkˈɔːɹəʊ/g, "kˈəʊkəɹəʊ").replace(/ʲ/g, "j").replace(/r/g, "ɹ").replace(/x/g, "k").replace(/ɬ/g, "l")
     .replace(/(?<=[a-zɹː])(?=hˈʌndɹɪd)/g, " ").replace(/ z(?=[;:,.!?¡¿—…"«»“” ]|$)/g, "z");
   if (!british) ps = ps.replace(/(?<=nˈaɪn)ti(?!ː)/g, "di");
@@ -52,13 +61,16 @@ async function kokoro(m) {
     model = { vocab, voices: new Map(), session: await ort.InferenceSession.create(path.join(dir, "model.onnx"), sessionOptions) };
     models.set(m.pack, model);
   }
-  let style = model.voices.get(m.voice);
+  // a Japanese line gets Kokoro's Japanese voice when the pack has it (packs downloaded before it was added do not)
+  const ja = m.lang === "ja";
+  const voice = ja && fs.existsSync(path.join(dir, "voices", "jf_alpha.bin")) ? "jf_alpha" : m.voice;
+  let style = model.voices.get(voice);
   if (!style) {
-    const buf = fs.readFileSync(path.join(dir, "voices", `${m.voice}.bin`));
+    const buf = fs.readFileSync(path.join(dir, "voices", `${voice}.bin`));
     style = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-    model.voices.set(m.voice, style);
+    model.voices.set(voice, style);
   }
-  const ps = (await kokoroIds(m.text, m.voice.startsWith("b"))).trim();
+  const ps = (await kokoroIds(m.text, voice.startsWith("b"), ja)).trim();
   const ids = [0];
   for (const ch of ps) if (model.vocab[ch] != null && ids.length < 511) ids.push(model.vocab[ch]);
   ids.push(0);
@@ -83,7 +95,7 @@ async function piper(m) {
   }
   const { config, session } = model;
   const map = config.phoneme_id_map;
-  const ps = await toPhonemes(m.text, config.espeak?.voice || "en-us");
+  const ps = await toPhonemes(m.text, config.espeak?.voice || "en-us", "piper", m.lang === "ja");
   const ids = [...map["^"], ...map["_"]];
   for (const ch of ps) if (map[ch]) ids.push(...map[ch], ...map["_"]);
   ids.push(...map["$"]);

@@ -39,7 +39,7 @@ const PACKS = {
     files: [
       { url: `${KOKORO_BASE}onnx/model.onnx`, to: "model.onnx", sha256: "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb" },
       { url: `${KOKORO_BASE}tokenizer.json`, to: "tokenizer.json" },
-      ...KOKORO_VOICES.map((v) => ({ url: `${KOKORO_BASE}voices/${v}.bin`, to: `voices/${v}.bin` }))
+      ...[...KOKORO_VOICES, "jf_alpha"].map((v) => ({ url: `${KOKORO_BASE}voices/${v}.bin`, to: `voices/${v}.bin` })) // jf_alpha: Japanese battle cries
     ]
   }
 };
@@ -226,13 +226,13 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     pump();
   }
   // Latest wins: a line still waiting when a newer one arrives is skipped (the bubble it belonged to is gone).
-  function speak({ pack, voice, speed, text, low = false }) {
+  function speak({ pack, voice, speed, text, lang = "", low = false }) {
     if (!packs[pack]) throw Object.assign(new Error("Unknown voice pack"), { statusCode: 400 });
     if (!runtimeReady() || !packReady(pack)) throw Object.assign(new Error("Voice pack not installed"), { statusCode: 409 });
     const line = cleanText(text);
     if (!line) return Promise.resolve({ skipped: true });
     const kokoroVoice = KOKORO_VOICES.includes(voice) ? voice : KOKORO_VOICES[0];
-    const req = { engine: packs[pack].engine, pack, voice: kokoroVoice, speed: clampSpeed(speed), text: line };
+    const req = { engine: packs[pack].engine, pack, voice: kokoroVoice, speed: clampSpeed(speed), text: line, lang: lang === "ja" ? "ja" : "" };
     touch();
     return new Promise((resolve) => {
       if ((busy || pending) && low) { resolve({ skipped: true }); return; }
