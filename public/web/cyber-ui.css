@@ -247,7 +247,7 @@ body.topology-fullscreen-mode #tab-topology .topology-smartbar input, body.topol
 .tnm-open:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 
 /* Graduated sliders: ticks under every step, current level highlighted. */
-.range-ticks { position: relative; height: 22px; margin: 2px 8px 6px; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(25% - .25px)) 0 0 / calc(100% - 1px) 6px no-repeat; }
+.range-ticks { position: relative; height: 22px; margin: 2px 8px 6px; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc((100% - 1px) / var(--n, 4))) 0 0 / 100% 6px no-repeat; }
 .range-ticks::after { content: ""; position: absolute; right: 0; top: 0; width: 1px; height: 6px; background: var(--line); }
 .range-ticks span { position: absolute; top: 8px; transform: translateX(-50%); white-space: nowrap; font-size: calc(9px * var(--font-scale, 1)); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); cursor: pointer; transition: color .2s; }
 .range-ticks span:first-child { transform: translateX(-8px); }
@@ -295,3 +295,21 @@ body.sidebar-collapsed .sidebar-meta { display: none; }
 .auri-speech-opts[hidden] { display: none; }
 .sidebar-meta a.sidebar-meta-site { color: var(--muted); text-decoration: none; transition: color .2s; }
 .sidebar-meta a.sidebar-meta-site:hover { color: var(--accent); }
+
+/* AURI Character panel: personality and voice cards side by side, tidy voice rows. */
+.auri-char-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+.auri-card h2 { margin-bottom: 8px; }
+.auri-speech { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.auri-speech-opts { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px 12px; align-items: center; }
+.auri-speech-opts[hidden] { display: none; }
+.auri-speech-opts > label { margin: 0; }
+.auri-speech-opts select, .auri-speech-opts input[type="range"] { width: 100%; min-width: 0; }
+.auri-speech-opts .range-ticks { grid-column: 2; margin-top: -4px; }
+.auri-speech-test { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.auri-speech-test button { flex: 0 0 auto; width: auto !important; min-width: 64px; }
+.auri-speech-test span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(11px * var(--font-scale, 1)); }
+
+.auri-kokoro { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.auri-kokoro select { flex: 1 1 auto; min-width: 0; }
+.auri-kokoro button { flex: 0 0 auto; width: auto !important; }
+.auri-kokoro-state { font-size: calc(11px * var(--font-scale, 1)); margin-top: -4px; }

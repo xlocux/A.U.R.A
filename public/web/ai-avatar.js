@@ -131,9 +131,10 @@
     bubble.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 232))}px`;
     bubble.style.top = below ? `${rect.bottom + 8}px` : `${Math.max(8, rect.top - 52)}px`;
     bubble.classList.add("show");
-    if (window.AuraSpeech) window.AuraSpeech.speak(text);
+    bubble.dataset.say = String(text);
+    if (window.AuraSpeech) window.AuraSpeech.speak(text, { ms });
     clearTimeout(bubbleTimer);
-    bubbleTimer = setTimeout(() => bubble.classList.remove("show"), ms);
+    bubbleTimer = setTimeout(() => bubble.classList.remove("show"), Math.max(ms, window.AuraSpeech ? window.AuraSpeech.estimate(text) : 0));
   }
 
   function wake() {
@@ -519,6 +520,14 @@
     scheduleIdle();
     scheduleSleep();
     window.addEventListener("aura:ai", (event) => react(event.detail?.type, event.detail?.text, event.detail || {}));
+    // While she speaks a bubble, that bubble stays up until the sentence is over.
+    window.addEventListener("aura:speech", (event) => {
+      const d = event.detail || {};
+      if (!bubble || bubble.dataset.say !== String(d.text)) return;
+      bubble.classList.add("show");
+      clearTimeout(bubbleTimer);
+      bubbleTimer = setTimeout(() => bubble.classList.remove("show"), (Number(d.ms) || 2000) + 600);
+    });
     // Mounts can appear later (panel re-render): keep them populated.
     let mountQueued = false;
     new MutationObserver(() => {

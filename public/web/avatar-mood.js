@@ -20,6 +20,7 @@
 
   let run = null; // { start, lastFind, events: [timestamps] }
   let lastBored = 0, lastHype = 0, lastAdr = 0;
+  const hint = (e) => { if (window.AuraSpeech) window.AuraSpeech.hint(e); };
   const homes = () => (A() ? A().mounts().filter((el) => !el.classList.contains("ai-avatar-roamer")) : []);
   const rude = (list) => pick(list).replace("{n}", window.AuraQuotes ? window.AuraQuotes.nick() : "you");
 
@@ -41,13 +42,14 @@
       document.body.animate([{ translate: "0 0" }, { translate: "3px -2px" }, { translate: "-3px 2px" }, { translate: "0 0" }], { duration: 260, iterations: n >= 3 ? 4 : 2 });
       if ((n >= 3 || level() >= 3) && window.AuraAnimeFx) window.AuraAnimeFx.title(n >= 5 ? "JACKPOT!" : "FOUND IT!", 1100);
     }
-    if (level() >= 3) setTimeout(() => A().say(pick(ADR), 2600, true), 1300);
+    if (level() >= 3) setTimeout(() => { hint("adrenaline"); A().say(pick(ADR), 2600, true); }, 1300);
   }
 
   function hype() {
     if (Date.now() - lastHype < 70000 || level() < 2) return;
     lastHype = Date.now();
     A().act("cheer", 1600);
+    hint("hyped");
     A().say(level() >= 4 ? rude(HYPE_WILD) : pick(HYPE), 3200, true);
     flag("av-hyper", 5000);
     // Chatty and up: she loses it a little.
@@ -59,6 +61,7 @@
     if (!run || !limit || Date.now() - run.lastFind < limit || Date.now() - lastBored < limit * 1.5 || A().isAway() || A().isRoaming() || document.hidden) return;
     lastBored = Date.now();
     flag("av-bored", 9000);
+    hint("bored");
     A().say(level() >= 4 ? rude(BORED_RUDE) : pick(BORED), 4200, true);
     // Chatty and up: she finds her own entertainment.
     if (level() >= 3) setTimeout(() => { if (!A().isRoaming() && !A().isThinking()) A().antic(pick(["sing", "play", "dance", "peek"])); }, 4600);

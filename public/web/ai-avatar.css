@@ -314,3 +314,8 @@ html.av-xray .workspace { filter: contrast(1.2) brightness(1.15) hue-rotate(200d
 @keyframes avHeart { 0%, 100% { scale: 1; } 20% { scale: 1.22; } 40% { scale: 1; } 60% { scale: 1.14; } }
 .av-adr { position: fixed; inset: 0; z-index: 1139; pointer-events: none; box-shadow: inset 0 0 90px 10px color-mix(in srgb, var(--bad) 70%, transparent), inset 0 0 220px color-mix(in srgb, var(--warn) 30%, transparent); }
 @media (prefers-reduced-motion: reduce) { [data-ai-avatar].av-bored, [data-ai-avatar].av-hyper, [data-ai-avatar].av-heartbeat { animation: none; } }
+
+/* Drag resistance: the elastic band and the bite. */
+.av-drag-band { position: fixed; z-index: 1146; height: 3px; margin-top: -1.5px; transform-origin: 0 50%; pointer-events: none; border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--warn)); box-shadow: 0 0 8px var(--accent); }
+.av-drag-bite { position: fixed; z-index: 1151; pointer-events: none; font-family: var(--font-display, monospace); font-size: 18px; letter-spacing: .1em; color: var(--bad); text-shadow: 0 0 10px var(--bad), 1px 1px 0 var(--ink); }

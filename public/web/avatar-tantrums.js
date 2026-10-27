@@ -40,7 +40,7 @@
       bubble.style.left = `${x}px`;
       bubble.style.top = `${y - 46}px`;
     };
-    g.say = (text, ms = 1600) => { if (window.AuraSpeech) window.AuraSpeech.speak(text, { loud: true }); bubble.textContent = text; bubble.classList.add("show"); clearTimeout(g.hide); g.hide = setTimeout(() => bubble.classList.remove("show"), ms); };
+    g.say = (text, ms = 1600) => { if (window.AuraSpeech) window.AuraSpeech.speak(text, { loud: true, ms }); bubble.textContent = text; bubble.classList.add("show"); clearTimeout(g.hide); g.hide = setTimeout(() => bubble.classList.remove("show"), ms); };
     g.remove = () => { clearTimeout(g.hide); el.remove(); bubble.remove(); };
     g.put(g.x, g.y);
     return g;
