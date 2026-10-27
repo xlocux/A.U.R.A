@@ -96,7 +96,7 @@
       const g = st.lastGen;
       const speed = st.rtf == null ? "" : st.rtf <= 1 ? " - fast enough for live bubbles" : ` - ${st.rtf.toFixed(1)}x slower than real time` + (st.slow ? ": live bubbles use the browser voice" : "");
       $("auriSpeechTest").textContent = st.demo ? "Stop" : "Test";
-      $("auriSpeechInfo").textContent = st.demo ? "Mood demo: neutral, happy, hyped, adrenaline, bored, rage, creepy, singing, battle cry..." : st.generating ? "Generating voice..." : g ? `Last line: ${g.seconds}s of speech in ${(g.ms / 1000).toFixed(1)}s${speed}` : st.serverError && st.pack ? `Voice engine: ${st.serverError}` : "";
+      $("auriSpeechInfo").textContent = st.demo ? "Mood demo: calm, happy, hyped, adrenaline, bored, angry, creepy, battle cry, sulky..." : st.generating ? "Generating voice..." : g ? `Last line: ${g.seconds}s of speech in ${(g.ms / 1000).toFixed(1)}s${speed}` : st.serverError && st.pack ? `Voice engine: ${st.serverError}` : "";
       fillVoices(st);
       fillPacks(st);
     }
