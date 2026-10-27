@@ -48,7 +48,9 @@
   function shout(text) {
     if (!window.AuraSpeech || !window.AuraSpeech.cue) return Promise.resolve(0);
     const [line, emotion, lang] = cryLine(text);
-    return window.AuraSpeech.cue(line, { emotion, interrupt: true, lang, deadline: "cry" });
+    // gag: the cry keeps its place among the gag's lines (it never cuts the gag's own intro)
+    const gag = window.AuraAvatar && window.AuraAvatar.showId ? window.AuraAvatar.showId() : 0;
+    return window.AuraSpeech.cue(line, { emotion, interrupt: true, lang, deadline: "cry", gag });
   }
   // The move name appears exactly as she shouts it and stays up for the whole cry. Resolves when it appears, with the
   // cry's length (0 without a voice), so a gag can time its strike on the cry: `const cry = await title(...)`.

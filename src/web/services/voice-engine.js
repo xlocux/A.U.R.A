@@ -66,7 +66,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
   let job = null; // { pack, phase: "runtime" | "download", progress, error, done }
   let worker = null, workerState = "stopped", workerError = "", failedAt = 0, idleTimer = null, seq = 0;
   const waiting = new Map();
-  // one line generating; waiting lines: only the newest chatter is kept, priority lines (battle cries, rage, pokes) never dropped
+  // one line generating; waiting lines in order, priority lines (battle cries, rage, pokes) first
   let busy = null;
   const queue = [];
   const memory = new Map(); // generated audio of priority / prefetched lines, oldest dropped first
@@ -267,8 +267,9 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
       if (!busy && !queue.length) { restartWhenIdle = false; stopWorker(); }
     })();
   }
-  // Latest chatter wins: a normal line still waiting when a newer one arrives is skipped (its bubble is gone). Priority
-  // lines are never skipped by newer ones.
+  // Lines are generated in order, priority lines (battle cries, rants, pokes) ahead of the chatter; none is skipped for
+  // a newer one (the page sends only the line she is saying and the next). A prefetch ("low") is skipped while the
+  // engine is busy: it never delays a line she is about to say.
   function speak({ pack, voice, speed, text, lang = "", low = false, priority = false }) {
     if (!packs[pack]) throw Object.assign(new Error("Unknown voice pack"), { statusCode: 400 });
     if (!runtimeReady() || !packReady(pack)) throw Object.assign(new Error("Voice pack not installed"), { statusCode: 409 });
@@ -286,9 +287,10 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     if (hit) return Promise.resolve({ ...hit, loadMs: 0, cached: true });
     return new Promise((resolve) => {
       if ((busy || queue.length) && low) { resolve({ skipped: true }); return; }
-      for (let i = queue.length - 1; i >= 0; i -= 1) if (!queue[i].priority) { queue[i].resolve({ skipped: true }); queue.splice(i, 1); }
       const keep = priority || low ? (result) => { if (!result.error && !result.skipped) remember(key, result); resolve(result); } : resolve;
-      queue.push({ req, resolve: keep, priority: Boolean(priority) });
+      const entry = { req, resolve: keep, priority: Boolean(priority) };
+      const at = priority ? queue.findIndex((q) => !q.priority) : -1;
+      if (at < 0) queue.push(entry); else queue.splice(at, 0, entry);
       pump();
     });
   }

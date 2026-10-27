@@ -82,6 +82,9 @@
   let roamer = null;
   let roaming = false;
   let lastRoam = 0;
+  // which gag (or walk) she is performing: its lines travel together in her voice queue
+  let showId = 0;
+  const currentShow = () => (roaming ? showId : 0);
 
   function mountAll() {
     for (const el of mounts()) {
@@ -112,7 +115,17 @@
   // While the voice settings are open she keeps still and quiet, so voice tests are not drowned out.
   const inVoiceSettings = () => Boolean(document.getElementById("tab-settings")?.classList.contains("active") && document.getElementById("settings-auri")?.classList.contains("active"));
   const visibleMount = () => (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
-  let queuedBubble = null;
+  // Bubbles waiting for her voice, by text: each one appears when she starts saying it.
+  const pendingBubbles = new Map();
+  // A remark made while a gag owns the stage waits until it is over (only the latest, 10 s at most: the next gag's
+  // lines must not queue up behind old remarks).
+  let deferred = [];
+  function flushDeferred() {
+    const now = Date.now();
+    const lines = deferred.filter((d) => now - d.t < 10000);
+    deferred = [];
+    for (const d of lines) say(d.text, d.ms, false, d.opts);
+  }
 
   // opts.pain: the red "ouch" bubble. opts.silent: a bubble only (chant fragments). Forced lines (pokes, drags) cut
   // the line she is saying.
@@ -124,19 +137,19 @@
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
     if (!visibleMount()) return;
     // A gag owns the stage: other remarks (scan news, idle quips) wait until it is over instead of popping up on it.
-    if (roaming && !force && !opts.fromGag) return;
-    // With the voice on, the bubble waits for the voice and shows when she starts saying it, so text and voice never
-    // drift apart. A line the voice drops (a newer one came in) is dropped from the bubbles too.
-    // During a gag the gag sets the pace: a line is spoken only if she is free and can start on time; if she is
-    // already talking it is dropped altogether, never shown as a silent bubble on top of what she is saying.
+    if (roaming && !force && !opts.fromGag) { deferred = [{ text, ms, opts, t: Date.now() }]; return; }
+    // With the voice on, every line waits its turn in her voice queue (she never talks over herself) and its bubble
+    // shows when she starts saying it, so text and voice never drift apart.
     const speech = window.AuraSpeech;
     const voiceOn = Boolean(speech && speech.isOn && speech.isOn());
     // opts.synced: the bubble of the line she is saying right now (shown as the voice starts)
     if (opts.silent) { if (opts.synced || !(voiceOn && speech.isBusy && speech.isBusy())) showBubble(text, ms, opts.pain); return; }
-    const timing = roaming && !force ? { ifIdle: true, deadline: "gag" } : {};
-    const accepted = speech ? speech.speak(text, { ms, interrupt: force, ...timing }) : undefined;
-    if (accepted === true) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
-    if (accepted === false) return; // she is busy talking: no bubble that she would not be saying
+    const accepted = speech ? speech.speak(text, { ms, interrupt: force, gag: opts.fromGag ? currentShow() : 0 }) : undefined;
+    if (accepted === true) {
+      pendingBubbles.set(String(text), { ms, pain: Boolean(opts.pain) });
+      if (pendingBubbles.size > 12) pendingBubbles.delete(pendingBubbles.keys().next().value); // lines she let go
+      return;
+    }
     showBubble(text, ms, opts.pain); // no voice: the bubble alone
   }
   function showBubble(text, ms, pain = false) {
@@ -336,6 +349,7 @@
       return;
     }
     roaming = true;
+    showId += 1;
     lastRoam = Date.now();
     const size = { w: 46, h: 52 };
     const r = ensureRoamer();
@@ -385,6 +399,7 @@
       }
       origin.classList.remove("av-away");
       roaming = false;
+      flushDeferred();
     }
   }
 
@@ -394,6 +409,7 @@
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
     if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings()) return false;
     roaming = true;
+    showId += 1;
     lastRoam = Date.now();
     const r = ensureRoamer();
     r.style.pointerEvents = "";
@@ -415,11 +431,12 @@
         return r.animate(frames, { duration: o.ms ?? 1500, easing: o.easing ?? "ease-in-out", fill: "forwards" }).finished.then(() => r.classList.remove("walking"));
       },
       anim(frames, opts) { return r.animate(frames, { fill: "forwards", ...opts }).finished; },
-      // A line the gag waits for (the next beat depends on it): the bubble appears as she starts it, and the gag goes
-      // on when she has said it (at least ms). Without a voice, or if it cannot start within 1.5 s: bubble and ms only.
+      // A line the gag waits for (the next beat depends on it): it goes ahead of the chatter (after the sentence she is
+      // saying), the bubble appears as she starts it, and the gag goes on when she has said it (at least ms). Without a
+      // voice, or if it cannot start in time once its turn has come: bubble and ms only.
       async line(text, ms = 2000) {
         if (!(voice() >= 1)) { await sleep(ms); return; }
-        const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(text, { interrupt: true, deadline: "line" }) : 0;
+        const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(text, { force: true, deadline: "line", gag: currentShow() }) : 0;
         showBubble(text, Math.max(ms, spoken + 400));
         await sleep(Math.max(ms, spoken + 150));
       },
@@ -429,6 +446,9 @@
       origin.classList.add("av-away");
       r.style.display = "block";
       await script(api);
+      // she finishes what the gag made her say before she goes home (6 s at most)
+      const id = showId;
+      for (let i = 0; i < 30 && window.AuraSpeech?.busyWith?.(id); i += 1) await sleep(200);
     } catch {
       // gag interrupted: fall through to cleanup
     } finally {
@@ -441,6 +461,7 @@
       r.classList.remove("walking", "face-left", "av-overload", "av-glitching");
       origin.classList.remove("av-away");
       roaming = false;
+      flushDeferred();
     }
     return true;
   }
@@ -566,7 +587,8 @@
       const d = event.detail || {};
       const text = String(d.text);
       const stay = (Number(d.ms) || 2000) + 600;
-      if (queuedBubble && queuedBubble.text === text) { const q = queuedBubble; queuedBubble = null; showBubble(text, Math.max(stay, Math.min(q.ms, stay + 2500)), q.pain); return; }
+      const q = pendingBubbles.get(text);
+      if (q) { pendingBubbles.delete(text); showBubble(text, Math.max(stay, Math.min(q.ms, stay + 2500)), q.pain); return; }
       if (!bubble || bubble.dataset.say !== text) return;
       bubble.classList.add("show");
       clearTimeout(bubbleTimer);
@@ -576,7 +598,7 @@
     let wasQuiet = false;
     document.addEventListener("click", () => setTimeout(() => {
       const quiet = inVoiceSettings();
-      if (quiet && !wasQuiet) { queuedBubble = null; if (bubble) bubble.classList.remove("show"); window.AuraSpeech?.stop?.(); }
+      if (quiet && !wasQuiet) { pendingBubbles.clear(); deferred = []; if (bubble) bubble.classList.remove("show"); window.AuraSpeech?.stop?.(); }
       wasQuiet = quiet;
     }, 0), true);
     // Mounts can appear later (panel re-render): keep them populated.
@@ -593,7 +615,7 @@
     }
   }
 
-  window.AuraAvatar = { react, say, act, roamTo, stage, rage, rageLines: RAGE_LINES, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming };
+  window.AuraAvatar = { react, say, act, roamTo, stage, rage, rageLines: RAGE_LINES, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming, showId: currentShow };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

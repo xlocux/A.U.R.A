@@ -615,8 +615,9 @@
     if (Date.now() - lastInput < (api.voice() >= 4 ? 1500 : 5000)) return false; // someone is busy
     if (document.querySelector(".fx-modal:not(.hidden), #flowStageModal.open")) return false;
     if (document.body.classList.contains("topology-fullscreen-mode") || document.body.classList.contains("results-view-expanded") || document.fullscreenElement) return false;
+    // a focused field stops her only while someone is typing in it (the chat keeps the focus after every reply)
     const tag = document.activeElement?.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return false;
+    if ((tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") && Date.now() - lastInput < 8000) return false;
     return true;
   }
 
@@ -640,16 +641,22 @@
     return pick(pool);
   }
 
-  function schedule() {
+  function schedule(delay) {
     const level = A() ? A().voice() : 2;
     const gap = level >= 4 ? 18000 : level >= 3 ? 100000 : 240000; // minimum time between gags
-    const wait = level >= 4 ? 9000 + Math.random() * 9000 : (level >= 3 ? 45000 : 70000) + Math.random() * 50000;
+    const wait = delay ?? (level >= 4 ? 9000 + Math.random() * 9000 : (level >= 3 ? 45000 : 70000) + Math.random() * 50000);
     setTimeout(async () => {
-      if (okToPerform() && Date.now() - lastAntic > gap) {
+      const since = Date.now() - lastAntic;
+      if (okToPerform() && since > gap) {
         await run(chooseName());
         // Psychopathic: sometimes a second (or third) gag right away.
         for (let extra = 0; extra < 2 && A() && A().voice() >= 4 && Math.random() < 0.6 && okToPerform(); extra += 1) { await new Promise((r) => setTimeout(r, 900)); await run(chooseName()); }
+        schedule();
+        return;
       }
+      // Psychopathic: kept back only because she is out for a walk, or the gap is almost over: she tries again soon
+      const roaming = Boolean(A() && A().isRoaming());
+      if (level >= 4 && (roaming || since <= gap)) { schedule(roaming ? 2500 : Math.max(1000, gap - since + 200)); return; }
       schedule();
     }, wait);
   }
