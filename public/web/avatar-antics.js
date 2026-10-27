@@ -663,7 +663,21 @@
     });
   }
 
-  window.AuraAvatar = Object.assign(window.AuraAvatar || {}, { antic: run, registerAntic, antics: Object.keys(ANTICS) });
+  // The lines the gags say (the fixed texts of their s.say / s.line calls), so the voice can prepare them ahead and say
+  // them on the beat. Lines built while the gag runs are not found here: those are simply generated when said.
+  function anticLines() {
+    const found = new Set();
+    const re = /\bs\.(?:say|line)\(\s*(["'])((?:\\.|(?!\1)[^\\])*)\1/g;
+    for (const fn of Object.values(ANTICS)) {
+      for (const m of String(fn).matchAll(re)) {
+        const text = m[2].replace(/\\(.)/g, "$1");
+        if (text.replace(/[^A-Za-z]/g, "").length >= 3) found.add(text);
+      }
+    }
+    return [...found];
+  }
+
+  window.AuraAvatar = Object.assign(window.AuraAvatar || {}, { antic: run, registerAntic, antics: Object.keys(ANTICS), anticLines });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

@@ -31,6 +31,7 @@ async function speakVoice({ request, response }) {
     "X-Sample-Rate": String(result.rate),
     "X-Gen-Ms": String(result.ms), // generation only, without loading the model
     "X-Load-Ms": String(result.loadMs || 0),
+    "X-Cached": result.cached ? "1" : "0", // remembered line: not a measure of the voice speed
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff"
   });

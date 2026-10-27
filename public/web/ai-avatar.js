@@ -123,13 +123,21 @@
     if (!force && inVoiceSettings()) return;
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
     if (!visibleMount()) return;
+    // A gag owns the stage: other remarks (scan news, idle quips) wait until it is over instead of popping up on it.
+    if (roaming && !force && !opts.fromGag) return;
     // With the voice on, the bubble waits for the voice and shows when she starts saying it, so text and voice never
     // drift apart. A line the voice drops (a newer one came in) is dropped from the bubbles too.
-    // During a gag the gag sets the pace: a line is spoken only if she is free and can start within 0.9 s; otherwise
-    // it is just a bubble, so lines never pile up behind the gag.
+    // During a gag the gag sets the pace: a line is spoken only if she is free and can start on time; if she is
+    // already talking it is dropped altogether, never shown as a silent bubble on top of what she is saying.
+    const speech = window.AuraSpeech;
+    const voiceOn = Boolean(speech && speech.isOn && speech.isOn());
+    // opts.synced: the bubble of the line she is saying right now (shown as the voice starts)
+    if (opts.silent) { if (opts.synced || !(voiceOn && speech.isBusy && speech.isBusy())) showBubble(text, ms, opts.pain); return; }
     const timing = roaming && !force ? { ifIdle: true, deadline: "gag" } : {};
-    if (!opts.silent && window.AuraSpeech && window.AuraSpeech.speak(text, { ms, interrupt: force, ...timing })) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
-    showBubble(text, ms, opts.pain);
+    const accepted = speech ? speech.speak(text, { ms, interrupt: force, ...timing }) : undefined;
+    if (accepted === true) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
+    if (accepted === false) return; // she is busy talking: no bubble that she would not be saying
+    showBubble(text, ms, opts.pain); // no voice: the bubble alone
   }
   function showBubble(text, ms, pain = false) {
     const visible = visibleMount();
@@ -354,7 +362,7 @@
       await out.finished;
       r.classList.remove("walking");
       act(action, action === "saiyan" ? 3400 : 1900);
-      if (text) say(text, stay + 800);
+      if (text) say(text, stay + 800, false, { fromGag: true });
       await sleep(stay);
       // Back home (recompute: the panel may have moved or been hidden meanwhile).
       const back = isVisible(origin) ? centerOf(origin) : home;
@@ -394,7 +402,9 @@
     const centerOf = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2 - size.w / 2, y: b.top + b.height / 2 - size.h / 2 }; };
     const at = (p, s = 1, rot = 0) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ") rotate(" + rot + "deg)";
     const api = {
-      el: r, size, at, sleep, say, act,
+      el: r, size, at, sleep, act,
+      // the gag's own lines (the only ones allowed while it runs)
+      say: (text, ms, force = false, opts = {}) => say(text, ms, force, { ...opts, fromGag: true }),
       home: () => centerOf(origin),
       place(p, o = {}) { r.getAnimations().forEach((a) => a.cancel()); r.style.transform = at(p, o.scale ?? 1, o.rot ?? 0); r.style.opacity = String(o.opacity ?? 1); },
       move(from, to, o = {}) {
@@ -583,7 +593,7 @@
     }
   }
 
-  window.AuraAvatar = { react, say, act, roamTo, stage, rage, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming };
+  window.AuraAvatar = { react, say, act, roamTo, stage, rage, rageLines: RAGE_LINES, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

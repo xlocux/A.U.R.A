@@ -15,8 +15,9 @@
   const KEY = "aura.speech";
   const synth = window.speechSynthesis;
   const defaults = { on: false, engine: "browser", voice: "auto", volume: 0.85 };
-  // Kokoro is her ideal voice; Nezumi (Japanese, also speaks English) is what she starts with once it is downloaded.
-  const DEFAULT_KOKORO_VOICE = "jf_nezumi";
+  // Kokoro is her ideal voice, and she has ONE voice for every mood: Tebukuro (Japanese, also speaks English), unless
+  // the user picks another one in Settings.
+  const DEFAULT_KOKORO_VOICE = "jf_tebukuro";
   let cfg = { ...defaults };
   try { cfg = { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { /* first run */ }
   delete cfg.model; // the in-browser Kokoro model is gone (it was too slow on CPU)
@@ -25,25 +26,22 @@
   const listeners = new Set();
   const emit = () => listeners.forEach((fn) => fn(info()));
 
-  // ── emotions ── voice = Kokoro voice, speed = model speed, rate = playback rate (pitch and tempo together, at most
-  // about 10% so the voice stays natural), gain = loudness (never past clipping). Measured on real Piper audio: the
-  // angry settings are about 6 dB louder, 20% faster and 25 Hz higher than neutral; the bored ones 55% slower,
-  // lower and quieter. No effects: she must always sound like a real voice. Female voices only.
-  // Kokoro "Auto" uses the Japanese voices for everything (they speak English with an accent, and Japanese natively),
-  // so she sounds the same in her lines and in her battle cries. Picked by measured pitch: Tebukuro the brightest
-  // (329 Hz), Alpha the most expressive (253 Hz), Nezumi the flattest, Gongitsune the lowest (226 Hz).
+  // ── emotions ── One voice for all of them: a mood changes how she speaks, never who is speaking. speed = model
+  // speed, rate = playback rate (pitch and tempo together, at most about 10% so the voice stays natural), gain =
+  // loudness (never past clipping). Measured on real audio: the angry settings are about 6 dB louder, 20% faster and
+  // 25 Hz higher than neutral; the bored ones 55% slower, lower and quieter. No effects: always a real voice.
   const EMOTIONS = {
-    neutral: { voice: "jf_alpha", speed: 1.0, rate: 1.0, gain: 1 },
-    happy: { voice: "jf_tebukuro", speed: 1.1, rate: 1.03, gain: 1.1 },
-    hyped: { voice: "jf_tebukuro", speed: 1.2, rate: 1.05, gain: 1.2 },
-    adrenaline: { voice: "jf_alpha", speed: 1.3, rate: 1.05, gain: 1.2 },
-    bored: { voice: "jf_nezumi", speed: 0.72, rate: 0.86, gain: 0.7 },
-    sulk: { voice: "jf_gongitsune", speed: 0.78, rate: 0.9, gain: 0.78 },
-    angry: { voice: "jf_alpha", speed: 1.22, rate: 1.07, gain: 1.45 },
-    rage: { voice: "jf_alpha", speed: 1.3, rate: 1.08, gain: 1.6 },
-    creepy: { voice: "jf_gongitsune", speed: 0.76, rate: 0.9, gain: 0.85 },
-    sing: { voice: "jf_tebukuro", speed: 0.94, rate: 1.02, gain: 1.05 },
-    shout: { voice: "jf_alpha", speed: 1.0, rate: 1.03, gain: 1.5 } // anime battle cry
+    neutral: { speed: 1.0, rate: 1.0, gain: 1 },
+    happy: { speed: 1.1, rate: 1.03, gain: 1.1 },
+    hyped: { speed: 1.2, rate: 1.05, gain: 1.2 },
+    adrenaline: { speed: 1.3, rate: 1.05, gain: 1.2 },
+    bored: { speed: 0.72, rate: 0.86, gain: 0.7 },
+    sulk: { speed: 0.78, rate: 0.9, gain: 0.78 },
+    angry: { speed: 1.22, rate: 1.07, gain: 1.45 },
+    rage: { speed: 1.3, rate: 1.08, gain: 1.6 },
+    creepy: { speed: 0.76, rate: 0.9, gain: 0.85 },
+    sing: { speed: 0.94, rate: 1.02, gain: 1.05 },
+    shout: { speed: 1.0, rate: 1.03, gain: 1.5 } // anime battle cry
   };
 
   function inferEmotion(text, opts) {
@@ -95,7 +93,8 @@
     if (cfg.engine === "piper") return cfg.voice !== "auto" && installed(cfg.voice) ? cfg.voice : (piperPacks().find((p) => p.installed) || {}).id || null;
     return null;
   }
-  const pickVoice = (emo) => (cfg.engine === "kokoro" && cfg.voice !== "auto" && kokoroVoices().includes(cfg.voice) ? cfg.voice : (EMOTIONS[emo] || EMOTIONS.neutral).voice);
+  // the same Kokoro voice whatever her mood: the one chosen in Settings, Tebukuro otherwise
+  const pickVoice = () => (cfg.engine === "kokoro" && cfg.voice !== "auto" && kokoroVoices().includes(cfg.voice) ? cfg.voice : DEFAULT_KOKORO_VOICE);
 
   async function refresh() {
     try {
@@ -157,7 +156,8 @@
       lastGen = { ms, seconds: Math.round(seconds * 10) / 10, emotion: emoName, pack };
       // The speed check uses generation time only. A server that does not report model loading (an older one) counts
       // loading in the first line: that sample is ignored, or she would think she is slow for minutes.
-      const measured = res.headers.has("X-Load-Ms") || rtf != null;
+      // (a remembered line comes back at once: it says nothing about the voice speed)
+      const measured = res.headers.get("X-Cached") !== "1" && (res.headers.has("X-Load-Ms") || rtf != null);
       if (measured) {
         // a short line still pays the model's fixed cost: count it as at least 1.5 s of speech, or every cry looks slow
         const r = ms / Math.max(1500, seconds * 1000);
@@ -167,7 +167,7 @@
       }
       serverError = "";
       cache.set(key, audio);
-      if (cache.size > 80) cache.delete(cache.keys().next().value);
+      if (cache.size > 200) cache.delete(cache.keys().next().value);
       return { ...audio, emo };
     } catch (err) {
       serverError = err.name === "TimeoutError" ? "the voice engine took too long" : err.message;
@@ -212,8 +212,11 @@
       src.onended = finish;
       current = src;
       src.start();
-      onStart(seconds * 1000);
-      setTimeout(finish, seconds * 1000 + 1200);
+      // The sound reaches the speakers after the output latency (a few ms on a laptop, 0.2-0.5 s on Bluetooth):
+      // the bubble, the move name and the gag's beat wait for it, so what you read is what you hear.
+      const lag = Math.min(600, Math.round(((ctx.outputLatency || 0) + (ctx.baseLatency || 0)) * 1000));
+      if (lag > 15) setTimeout(() => onStart(seconds * 1000), lag); else onStart(seconds * 1000);
+      setTimeout(finish, seconds * 1000 + lag + 1200);
     });
   }
   function speakBrowser(item, onStart) {
@@ -265,9 +268,9 @@
       if (item.opts.onStart) try { item.opts.onStart(ms); } catch { /* the caller's callback */ }
     };
     try {
-      // When the neural voice is known to be too slow, do not keep the bubble waiting: unless the audio is (almost) ready, use the browser voice.
-      // (a Japanese line never falls back: the browser voice would read the romaji as English)
-      let wait = tooSlow() && !item.opts.force && !item.opts.lang ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
+      // One voice only: with a neural voice on, a line is never handed to the browser voice (that would be a second,
+      // different voice). A line that is not ready in time stays a bubble.
+      let wait = item.ready;
       // A line that cannot start by its deadline is not said late: what it went with (a gag, a bubble) has moved on.
       // opts.deadline is ms or a kind ("gag", "cry", "scene", "line"), which scales with how fast the voice really is.
       const asked = item.opts.deadline;
@@ -279,10 +282,11 @@
       // Chatter overtaken while it was being prepared is stale (its bubble is gone); a priority line is always said.
       if (!item.priority && queue.some((q) => !q.cancelled)) { dropped = true; return; }
       if (audio) await play(audio, audio.emo, cfg.volume * (item.opts.loud ? 1.2 : 1), onStart);
-      else await speakBrowser(item, onStart);
+      else if (!item.neural) await speakBrowser(item, onStart); // the browser voice is the voice only when no pack is on
     } finally {
       // no voice came out (no speech engine, an error): her bubble still shows the line
-      if (!started && !dropped && !item.cancelled) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
+      // (only if no other line is about to be said: a silent bubble must never sit on top of what she is saying)
+      if (!started && !dropped && !item.cancelled && !queue.some((q) => !q.cancelled)) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
       settle(item);
       if (currentItem === item) currentItem = null; // a cut-in may already have taken the slot
       pump();
@@ -301,7 +305,8 @@
   };
   function deadlineFor(kind) {
     const l = latency();
-    const by = { chatter: Math.max(2500, l * 2.5), gag: Math.max(900, l * 1.5), cry: Math.max(2500, l * 1.8), scene: Math.max(1200, l * 1.6), line: Math.max(1500, l * 1.8) };
+    // gag chatter is capped: past 1.6 s the gag has moved on, and a late line would land on the next beat
+    const by = { chatter: Math.max(2500, l * 2.5), gag: Math.min(1600, Math.max(900, l * 1.5)), cry: Math.max(2500, l * 1.8), scene: Math.max(1200, l * 1.6), line: Math.max(1500, l * 1.8) };
     return by[kind] ?? by.chatter;
   }
   // "Too slow" lasts 45 s at most, then the neural voice is tried again (the machine may have been busy).
@@ -327,7 +332,8 @@
     for (const q of queue) if (!shielded(q) && (!q.priority || cut)) cancelItem(q);
     queue.splice(0, queue.length, ...queue.filter((q) => !q.cancelled));
     const pack = activePack();
-    item.ready = pack && (!tooSlow() || opts.force || opts.lang || cache.has(cacheKey(pack, text, item.emoName, opts.lang))) ? generate(text, item.emoName, false, opts.lang, item.priority) : null;
+    item.neural = Boolean(pack);
+    item.ready = pack ? generate(text, item.emoName, false, opts.lang, item.priority) : null;
     queue.push(item);
     pump();
     return true; // she will say it: the caller's bubble waits for the "aura:speech" event
@@ -380,25 +386,38 @@
         if (demo !== token) return;
         const onStart = (ms) => { played += 1; if (window.AuraAvatar) window.AuraAvatar.say(text, ms + 400, true); };
         if (audio) await play(audio, audio.emo, cfg.volume, onStart);
-        else await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
+        else if (!activePack()) await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
+        else { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // one voice: a missing line is a bubble
         await new Promise((r) => setTimeout(r, 250));
       }
     } finally { if (demo === token) { demo = null; emit(); } }
   }
 
-  // Lines that must land on time (battle cries) are generated ahead, only while she is silent.
+  // Lines that must land on time (battle cries, then every line the gags say) are generated ahead, one at a time and
+  // only while she is silent. The server remembers them (also across restarts), so this costs once.
   const prefetchList = [];
+  let prefetching = false;
   function prefetch(lines) {
-    prefetchList.push(...lines);
+    prefetchList.push(...lines.map((l) => ({ l, tries: 0 })));
+    if (prefetching) return;
+    prefetching = true;
     const tick = async () => {
-      if (!prefetchList.length) return;
-      if (!cfg.on || !activePack() || currentItem || queue.length || generating || demo) { setTimeout(tick, 2500); return; }
-      const [text, emotion, lang] = prefetchList.shift();
-      await generate(text, emotion, true, lang);
-      setTimeout(tick, 400);
+      if (!prefetchList.length) { prefetching = false; return; }
+      if (!cfg.on || !activePack() || currentItem || queue.length || generating || demo || document.hidden) { setTimeout(tick, 2500); return; }
+      const entry = prefetchList.shift();
+      const [text, emotion, lang] = entry.l;
+      const t0 = Date.now();
+      const audio = await generate(text, emotion, true, lang);
+      if (!audio && (entry.tries += 1) < 3) prefetchList.push(entry); // skipped because she started talking: later
+      // rest as long as the line took: the laptop is never kept at full load (lines already remembered go quickly)
+      setTimeout(tick, Math.max(300, Date.now() - t0));
     };
     setTimeout(tick, 3000);
   }
+  // plain lines (a gag's bubbles): the emotion is inferred exactly as when she will say them
+  const prefetchLines = (texts) => prefetch(texts.map((t) => [t, inferEmotion(t, {}), ""]));
+  // she is saying something, or is about to
+  const isBusy = () => Boolean(currentItem) || queue.some((q) => !q.cancelled) || Boolean(demo);
 
   const info = () => ({ cfg: { ...cfg }, server, serverError, pack: activePack(), lastGen, played, rtf, generating, slow: tooSlow(), demo: Boolean(demo), kokoroVoices: kokoroVoices(), piperPacks: piperPacks() });
   function set(patch) {
@@ -419,7 +438,7 @@
   // keep the model loaded while the dashboard is open with the voice on: no cold start in the middle of a gag
   setInterval(() => { if (!document.hidden) warm(); }, 8 * 60 * 1000);
   window.AuraSpeech = {
-    speak, cue, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
+    speak, cue, stop, showcase, hint, estimate, prefetch, prefetchLines, isBusy, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     deadlineFor, state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
   };

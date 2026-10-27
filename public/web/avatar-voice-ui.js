@@ -28,7 +28,7 @@
             <option value="piper">Piper - fast neural voice</option>
             <option value="kokoro">Kokoro - recommended: AURI's ideal voice</option>
           </select>
-          <div id="auriKokoroTip" class="auri-tip" hidden><span><b>Tip:</b> Kokoro is AURI's ideal voice: Japanese voices that also speak English, with real emotion. She starts with Nezumi.</span><button id="auriKokoroTipBtn" type="button" class="hud-btn hud-sm">Use Kokoro</button></div>
+          <div id="auriKokoroTip" class="auri-tip" hidden><span><b>Tip:</b> Kokoro is AURI's ideal voice: Japanese voices that also speak English, with real emotion. One voice for every mood: Tebukuro.</span><button id="auriKokoroTipBtn" type="button" class="hud-btn hud-sm">Use Kokoro</button></div>
           <label for="auriSpeechVoice">Voice</label>
           <select id="auriSpeechVoice"></select>
           <label for="auriSpeechVol">Volume</label>
@@ -53,7 +53,7 @@
       if (key === voiceKey) return;
       voiceKey = key;
       if (st.cfg.engine === "kokoro") {
-        voice.innerHTML = '<option value="auto">Auto - Japanese voices, one per mood (English and Japanese)</option>' + kokoroOptions(st.kokoroVoices);
+        voice.innerHTML = '<option value="auto">Default - JP Tebukuro, one voice for every mood</option>' + kokoroOptions(st.kokoroVoices);
         voice.value = st.kokoroVoices.includes(st.cfg.voice) ? st.cfg.voice : "auto";
       } else if (st.cfg.engine === "piper") {
         voice.innerHTML = '<option value="auto">Auto - first downloaded voice</option>' + piper.map((p) => `<option value="${p.id}">${esc(p.label.replace(/^Piper - /, ""))}</option>`).join("");
@@ -114,7 +114,7 @@
       slot.querySelector(".auri-speech-opts").hidden = !st.cfg.on;
       renderTip(st);
       const g = st.lastGen;
-      const speed = st.rtf == null ? "" : st.rtf <= 1 ? " - fast enough for live bubbles" : ` - ${st.rtf.toFixed(1)}x slower than real time` + (st.slow ? ": live bubbles use the browser voice" : "");
+      const speed = st.rtf == null ? "" : st.rtf <= 1 ? " - fast enough for live bubbles" : ` - ${st.rtf.toFixed(1)}x slower than real time` + (st.slow ? ": some quick lines may show without the voice" : "");
       $("auriSpeechTest").textContent = st.demo ? "Stop" : "Test";
       $("auriSpeechInfo").textContent = st.demo ? "Mood demo: calm, happy, hyped, adrenaline, bored, angry, creepy, battle cry, sulky..." : st.generating ? "Generating voice..." : g ? `Last line: ${g.seconds}s of speech in ${(g.ms / 1000).toFixed(1)}s${speed}` : st.serverError && st.pack ? `Voice engine: ${st.serverError}` : "";
       fillVoices(st);

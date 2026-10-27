@@ -39,6 +39,15 @@
     }
     api.registerAntic = register;
     window.AuraGags = { manifest, loaded: loaded.map((p) => p.id) };
+    // Every fixed line of the gags, and the rant, is prepared ahead by the voice (after the battle cries), so it lands
+    // on the beat instead of after it. The server keeps them, so this happens once.
+    const speech = window.AuraSpeech;
+    if (speech && speech.prefetchLines && api.anticLines) {
+      setTimeout(() => {
+        speech.prefetchLines(api.anticLines());
+        if (api.rageLines) speech.prefetch(api.rageLines.map((line) => [line, "rage", ""]));
+      }, 6000);
+    }
     try {
       const raw = localStorage.getItem(SEEN_KEY);
       const seen = new Set(raw ? JSON.parse(raw) : []);

@@ -243,7 +243,7 @@
     const r = home.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     api.act("cheer", 1600);
-    api.say(line, Math.max(2600, spoken + 400), true, { silent: true });
+    api.say(line, Math.max(2600, spoken + 400), true, { silent: true, synced: Boolean(spoken) });
     for (let i = 0; i < 22; i += 1) {
       const p = fx("av-an-confetti", x, y);
       p.style.background = pick(["var(--accent)", "var(--accent-2)", "var(--warn)", "var(--ink)"]);

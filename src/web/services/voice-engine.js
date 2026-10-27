@@ -23,7 +23,8 @@ const KOKORO_ALL = [...KOKORO_VOICES, ...KOKORO_JA_VOICES, ...KOKORO_MIXES];
 const KOKORO_BASE = "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/";
 const PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/";
 const RUNTIME_BYTES = 40e6;
-const MEMORY_LINES = 80; // generated priority/prefetched lines kept in memory (about 200 KB each)
+const MEMORY_LINES = 300; // remembered lines kept in memory (about 200 KB each)
+const DISK_LINES = 600; // and on disk, in data/voice/cache (about 120 MB at most)
 
 const PACKS = {
   "piper-linda": {
@@ -167,6 +168,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     if (job && !job.done && job.pack === id) throw Object.assign(new Error("This pack is downloading"), { statusCode: 409 });
     stopWorker();
     memory.clear(); // lines generated with the removed voice
+    fs.rmSync(path.join(root, "cache"), { recursive: true, force: true });
     fs.rmSync(packDir(id), { recursive: true, force: true });
     // the runtime is only worth keeping while at least one pack uses it
     if (!Object.keys(packs).some(packReady) && !(job && !job.done)) fs.rmSync(runtimeDir, { recursive: true, force: true });
@@ -276,17 +278,50 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     const kokoroVoice = KOKORO_ALL.includes(voice) ? voice : KOKORO_VOICES[0];
     const req = { engine: packs[pack].engine, pack, voice: kokoroVoice, speed: clampSpeed(speed), text: line, lang: lang === "ja" ? "ja" : "" };
     touch();
-    // Battle cries, rants and the prefetched lines repeat all the time: remember them, so the next time is instant.
-    const key = priority || low ? JSON.stringify(req) : "";
-    const hit = key && memory.get(key);
-    if (hit) return Promise.resolve({ ...hit, loadMs: 0 });
+    // Battle cries, rants and the prefetched gag lines repeat all the time: they are remembered (in memory and on disk,
+    // so a server restart keeps them) and any later request for the same line is instant. "cached" tells the page not
+    // to count it when it measures how fast the voice is.
+    const key = JSON.stringify(req);
+    const hit = remembered(key);
+    if (hit) return Promise.resolve({ ...hit, loadMs: 0, cached: true });
     return new Promise((resolve) => {
       if ((busy || queue.length) && low) { resolve({ skipped: true }); return; }
       for (let i = queue.length - 1; i >= 0; i -= 1) if (!queue[i].priority) { queue[i].resolve({ skipped: true }); queue.splice(i, 1); }
-      const keep = key ? (result) => { if (!result.error && !result.skipped) { memory.set(key, result); if (memory.size > MEMORY_LINES) memory.delete(memory.keys().next().value); } resolve(result); } : resolve;
+      const keep = priority || low ? (result) => { if (!result.error && !result.skipped) remember(key, result); resolve(result); } : resolve;
       queue.push({ req, resolve: keep, priority: Boolean(priority) });
       pump();
     });
+  }
+
+  // ── remembered lines: memory first, then data/voice/cache (float32 samples, the rate in the file name) ──
+  const cacheDir = path.join(root, "cache");
+  const fileOf = (key) => path.join(cacheDir, crypto.createHash("sha1").update(key).digest("hex"));
+  function remembered(key) {
+    if (memory.has(key)) return memory.get(key);
+    const base = fileOf(key);
+    for (const name of safeList(cacheDir)) {
+      if (!name.startsWith(path.basename(base) + "-")) continue;
+      try {
+        const buf = fs.readFileSync(path.join(cacheDir, name));
+        const [rate, ms] = name.slice(path.basename(base).length + 1).replace(/\.f32$/, "").split("-").map(Number);
+        const result = { data: new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)), rate, ms };
+        memory.set(key, result);
+        return result;
+      } catch { return null; }
+    }
+    return null;
+  }
+  function remember(key, result) {
+    memory.set(key, result);
+    if (memory.size > MEMORY_LINES) memory.delete(memory.keys().next().value);
+    try {
+      fs.mkdirSync(cacheDir, { recursive: true });
+      const data = Buffer.from(result.data.buffer, result.data.byteOffset, result.data.byteLength);
+      fs.writeFileSync(`${fileOf(key)}-${result.rate}-${Math.round(result.ms || 0)}.f32`, data);
+      // keep the folder bounded: the oldest lines go first
+      const files = safeList(cacheDir).map((name) => ({ name, t: fs.statSync(path.join(cacheDir, name)).mtimeMs })).sort((a, b) => a.t - b.t);
+      for (const old of files.slice(0, Math.max(0, files.length - DISK_LINES))) fs.rmSync(path.join(cacheDir, old.name), { force: true });
+    } catch { /* the disk copy is only a convenience */ }
   }
 
   return { status, install, remove, speak, stop: stopWorker, packs };
