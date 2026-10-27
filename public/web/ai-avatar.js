@@ -121,8 +121,7 @@
   // lines must not queue up behind old remarks).
   let deferred = [];
   function flushDeferred() {
-    const now = Date.now();
-    const lines = deferred.filter((d) => now - d.t < 10000);
+    const lines = deferred; // every remark that waited for the gag is said afterwards (the voice queue keeps them all)
     deferred = [];
     for (const d of lines) say(d.text, d.ms, false, d.opts);
   }
@@ -137,7 +136,7 @@
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
     if (!visibleMount()) return;
     // A gag owns the stage: other remarks (scan news, idle quips) wait until it is over instead of popping up on it.
-    if (roaming && !force && !opts.fromGag) { deferred = [{ text, ms, opts, t: Date.now() }]; return; }
+    if (roaming && !force && !opts.fromGag) { deferred = deferred.concat({ text, ms, opts }).slice(-20); return; }
     // With the voice on, every line waits its turn in her voice queue (she never talks over herself) and its bubble
     // shows when she starts saying it, so text and voice never drift apart.
     const speech = window.AuraSpeech;
@@ -147,8 +146,7 @@
     const accepted = speech ? speech.speak(text, { ms, interrupt: force, gag: opts.fromGag ? currentShow() : 0 }) : undefined;
     if (accepted === true) {
       pendingBubbles.set(String(text), { ms, pain: Boolean(opts.pain) });
-      if (pendingBubbles.size > 12) pendingBubbles.delete(pendingBubbles.keys().next().value); // lines she let go
-      return;
+      return true;
     }
     showBubble(text, ms, opts.pain); // no voice: the bubble alone
   }
@@ -192,8 +190,8 @@
           const hexes = [...document.querySelectorAll("#tab-flow.active .flow-hex")];
           const spot = hexes.length ? pick(hexes) : { x: 120 + Math.random() * (window.innerWidth - 360), y: 120 + Math.random() * (window.innerHeight - 260) };
           roamTo(spot, { text: pick(["Just stretching my pixels.", "Exploring the pipeline.", "Checking the hex grid.", "Nothing to see here... or is there?"]), action: pick(["wink", "sparkle", "tilt"]), stay: 2200 });
-        } else if (action === "quip") say(contextQuip());
-        else act(action, 1300);
+        } else if (action === "quip" && !window.AuraSpeech?.isBusy?.()) say(contextQuip()); // never piles up behind what she is saying
+        else act(action === "quip" ? "wink" : action, 1300);
       }
       scheduleIdle();
     }, (14000 + Math.random() * 14000) * [1, 3, 1, 0.5, 0.2][voice()]);
@@ -417,10 +415,19 @@
     const size = { w: 46, h: 52 };
     const centerOf = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2 - size.w / 2, y: b.top + b.height / 2 - size.h / 2 }; };
     const at = (p, s = 1, rot = 0) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ") rotate(" + rot + "deg)";
+    let pace = Promise.resolve();
+    // resolves when the voice starts that line (or after 8 s at most: a line that never starts must not freeze the gag)
+    const whenStarted = (text) => new Promise((resolve) => {
+      const done = () => { window.removeEventListener("aura:speech", onSpeech); clearTimeout(timer); resolve(); };
+      const onSpeech = (event) => { if (event.detail && event.detail.text === String(text)) done(); };
+      const timer = setTimeout(done, 8000);
+      window.addEventListener("aura:speech", onSpeech);
+    });
     const api = {
       el: r, size, at, sleep, act,
       // the gag's own lines (the only ones allowed while it runs)
-      say: (text, ms, force = false, opts = {}) => say(text, ms, force, { ...opts, fromGag: true }),
+      // a gag moves with her voice: before its next move or animation it waits until the line it just asked for has started
+      say: (text, ms, force = false, opts = {}) => { const spoken = say(text, ms, force, { ...opts, fromGag: true }) === true; if (spoken) pace = whenStarted(text); },
       home: () => centerOf(origin),
       place(p, o = {}) { r.getAnimations().forEach((a) => a.cancel()); r.style.transform = at(p, o.scale ?? 1, o.rot ?? 0); r.style.opacity = String(o.opacity ?? 1); },
       move(from, to, o = {}) {
@@ -430,7 +437,7 @@
         const frames = mid ? [{ transform: at(from) }, { transform: at(mid), offset: 0.5 }, { transform: at(to) }] : [{ transform: at(from) }, { transform: at(to) }];
         return r.animate(frames, { duration: o.ms ?? 1500, easing: o.easing ?? "ease-in-out", fill: "forwards" }).finished.then(() => r.classList.remove("walking"));
       },
-      anim(frames, opts) { return r.animate(frames, { fill: "forwards", ...opts }).finished; },
+      anim(frames, opts) { return pace.then(() => r.animate(frames, { fill: "forwards", ...opts }).finished); },
       // A line the gag waits for (the next beat depends on it): it goes ahead of the chatter (after the sentence she is
       // saying), the bubble appears as she starts it, and the gag goes on when she has said it (at least ms). Without a
       // voice, or if it cannot start in time once its turn has come: bubble and ms only.
@@ -442,13 +449,15 @@
       },
       randomPoint(margin = 100) { return { x: margin + Math.random() * Math.max(1, innerWidth - 2 * margin - size.w), y: 90 + Math.random() * Math.max(1, innerHeight - 190 - size.h) }; }
     };
+    const rawMove = api.move;
+    api.move = (...args) => pace.then(() => rawMove(...args));
     try {
       origin.classList.add("av-away");
       r.style.display = "block";
       await script(api);
       // she finishes what the gag made her say before she goes home (6 s at most)
       const id = showId;
-      for (let i = 0; i < 30 && window.AuraSpeech?.busyWith?.(id); i += 1) await sleep(200);
+      for (let i = 0; i < 100 && window.AuraSpeech?.busyWith?.(id); i += 1) await sleep(200);
     } catch {
       // gag interrupted: fall through to cleanup
     } finally {

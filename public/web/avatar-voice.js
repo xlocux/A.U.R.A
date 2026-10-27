@@ -300,22 +300,22 @@
     });
   }
 
-  // ── queue: one line at a time, in order, each said in full ──
-  // She never talks over herself, and a line is not thrown away because the voice took a few seconds to prepare it:
-  // it waits its turn, and its bubble appears when she starts saying it. Order: pokes, rants and tests first; then the
-  // lines of the gag she is performing, its battle cries included, in the order the gag asks for them; then the other
-  // chatter. A rant or a poke cuts the sentence she is saying, and so does a battle cry unless that sentence belongs to
-  // its own gag. Only chatter whose moment has passed (waiting longer than STALE_MS, or the lines of a gag that is
-  // over) or that would pile up past MAX_WAITING lines is let go, the general remarks before the gag's lines.
-  // The next line is prepared while she speaks, so there is no gap between two lines.
-  // opts.done() is called when a line has been said or let go, so a scene (the rage) can wait for her.
-  const MAX_WAITING = 3, STALE_MS = 20000, PREPARE_AHEAD = 2;
+  // ── queue: ONE line at a time, in order, nothing is ever thrown away ──
+  // She never talks over herself and every line is said, however long the voice takes: it waits its turn and its bubble
+  // appears when she starts saying it. Order (rank): pokes, rants and tests; then the lines of the gag she is performing,
+  // its battle cries included, in the order the gag asks for them; then the other chatter.
+  // A higher-rank line takes the floor at the end of the piece she is saying; a poke or a rant takes it at once, and the
+  // piece it cut is said again from its start afterwards. The producers hold back instead of piling up: a gag starts
+  // only when she is quiet (avatar-antics) and idle quips are skipped while she is busy (ai-avatar).
+  // The next lines are prepared while she speaks, so there is no gap between two lines.
+  // opts.done() is called when a line has been said, or when its gag stopped waiting for it (it is still said).
+  const PREPARE_AHEAD = 3;
   let currentItem = null, played = 0;
   const queue = [];
+  const rank = (q) => (q.opts.gag ? 1 : q.priority ? 0 : 2);
   const settle = (item) => { if (item.settled) return; item.settled = true; try { if (item.opts.done) item.opts.done(); } catch { /* the caller's callback */ } };
   const cancelItem = (item) => { item.cancelled = true; settle(item); };
-  // The line she is saying and the next one are generated (all their pieces, in order); the others when they move up
-  // (the server keeps the order, and it never works on lines that may still be let go).
+  // The line she is saying and the next ones are generated (all their pieces, in order); the server keeps the order.
   function prepare() {
     let n = 0;
     for (const q of [currentItem, ...queue]) {
@@ -329,11 +329,9 @@
     if (currentItem || !queue.length) return;
     const item = queue.shift();
     if (item.cancelled) { pump(); return; }
-    // chatter that waited too long is let go: what it was about is over
-    if (!item.priority && Date.now() - item.t0 > STALE_MS) { cancelItem(item); pump(); return; }
     currentItem = item;
     prepare();
-    let started = false, late = false;
+    let started = false, yielded = false;
     // the bubble (and whoever asked with onStart, e.g. a gag waiting for its battle cry) learns when she starts and for how long
     const onStart = (ms) => {
       started = true; played += 1;
@@ -346,32 +344,42 @@
       // different voice).
       if (!item.neural) { await speakBrowser(item, onStart); return; }
       const parts = item.ready || [];
-      let wait = parts[0] || Promise.resolve(null);
-      // Only a line a gag is waiting for has a deadline (opts.deadline: ms or a kind, "cry", "scene", "line", scaled
-      // to how fast the voice really is), counted from its turn: past it the gag goes on and the line stays a bubble.
-      // Every other line is said, however long the voice takes to prepare it.
+      // A line a gag waits for (opts.deadline: ms or a kind, "cry", "scene", "line", scaled to how fast the voice really
+      // is) lets the gag go on once its turn has come and the deadline has passed; the line itself is still said.
       const asked = item.opts.deadline;
       const deadline = typeof asked === "string" ? deadlineFor(asked) : asked || 0;
-      if (deadline) wait = Promise.race([wait, new Promise((r) => setTimeout(() => { late = true; r(null); }, deadline))]);
-      let audio = await wait;
-      if (item.cancelled || late) return; // a late line: its bubble still shows (below), without the voice
+      if (deadline) setTimeout(() => settle(item), deadline);
+      let audio = await (parts[0] || Promise.resolve(null));
       // Piece after piece. The bubble stays up for the whole line: until the next pieces are ready their length is
       // estimated, and each piece renews it.
       const volume = cfg.volume * (item.opts.loud ? 1.2 : 1);
-      for (let i = 0; audio && !item.cancelled; i += 1) {
+      for (let i = 0; audio && !item.cancelled;) {
         const rest = item.parts.slice(i + 1).join(" ");
         const withRest = (ms) => ms + (rest ? estimate(rest) : 0);
         const renew = (ms) => window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: withRest(ms) } }));
-        if (!(await play(audio, audio.emo, volume, i === 0 ? (ms) => onStart(withRest(ms)) : renew))) break;
-        if (i + 1 >= parts.length) break;
-        audio = await parts[i + 1];
+        if (!(await play(audio, audio.emo, volume, i === 0 && !item.resumed ? (ms) => onStart(withRest(ms)) : renew))) break;
+        // a cut piece is said again from its start; otherwise on to the next one
+        const next = item.preempt ? i : i + 1;
+        if (next >= parts.length) break;
+        if (item.preempt || queue.some((q) => !q.cancelled && rank(q) < rank(item))) {
+          // someone more urgent is waiting: the rest of this line goes back to the queue, right behind it
+          item.preempt = false; item.resumed = true; item.parts = item.parts.slice(next); item.ready = parts.slice(next); yielded = true;
+          break;
+        }
+        audio = (await parts[next]) || (await generateLine(item.parts[next], item.emoName, false, item.opts.lang, item.priority)); // one retry
+        i = next;
       }
     } finally {
-      // no voice came out (no speech engine, an error, too late for its gag): her bubble still shows the line (she
-      // is silent at this moment, so it never sits on top of what she is saying)
-      if (!started && !item.cancelled) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
-      settle(item);
-      if (currentItem === item) currentItem = null; // a cut-in may already have taken the slot
+      if (yielded) {
+        const at = queue.findIndex((q) => !q.cancelled && rank(q) >= rank(item));
+        queue.splice(at < 0 ? queue.length : at, 0, item);
+      } else {
+        // no voice came out (no speech engine, an error): her bubble still shows the line (she is silent at this
+        // moment, so it never sits on top of what she is saying)
+        if (!started && !item.cancelled) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
+        settle(item);
+      }
+      if (currentItem === item) currentItem = null;
       pump();
     }
   }
@@ -402,36 +410,21 @@
     // nothing she can pronounce ("...", another alphabet): a silent beat in the queue, its bubble shows in its turn
     item.silent = !/[A-Za-z]{2}/.test(clean(text));
     item.priority = Boolean(opts.loud || opts.interrupt || opts.force || item.emoName === "rage" || item.emoName === "shout");
-    // opts.gag: the id of the gag (or walk) she is performing, for its lines. A new gag lets go of what the previous
-    // one still had to say; within a gag the lines keep their order (a battle cry never cuts its own gag's intro).
-    const gag = opts.gag || 0;
-    if (gag) for (const q of queue) if (q.opts.gag && q.opts.gag !== gag) cancelItem(q);
-    const ownGag = Boolean(gag && currentItem && currentItem.opts.gag === gag);
-    const cut = Boolean(opts.loud || item.emoName === "rage" || (opts.interrupt && !ownGag));
-    // A battle cry is never cut by another line: it is said in full, the next line waits its turn.
-    const shielded = (q) => q.emoName === "shout";
-    if (cut && !(currentItem && shielded(currentItem))) {
-      // cut in: what she is saying stops now and the next line starts at once
-      if (currentItem) { cancelItem(currentItem); currentItem = null; }
-      silence();
-    }
-    // a rant takes over: the chatter waiting behind it is let go
-    if (opts.loud || item.emoName === "rage") for (const q of queue) if (!q.priority) cancelItem(q);
+    // She does not say everything: of the optional remarks (not a cry, a poke, a rant, a test or a line a gag waits for)
+    // she voices a random share, fewer the more she talks; the others stay bubbles, shown in their turn like any line.
+    const share = [1, 1, 0.7, 0.5, 0.35][level()] ?? 0.7;
+    if (!item.priority && !opts.onStart && !opts.deadline && Math.random() >= share) item.silent = true;
+    // opts.gag: the id of the gag (or walk) she is performing, for its lines. Poke, rage, drag or test: takes the floor
+    // now (the sentence she is saying stops and is said again, from the cut piece, right after). A battle cry or a line of
+    // a gag waits for the end of the piece instead.
+    const takeFloor = Boolean(opts.loud || item.emoName === "rage" || (opts.interrupt && !opts.gag && item.emoName !== "shout"));
+    if (takeFloor && currentItem && currentItem.neural && !currentItem.silent && currentItem.emoName !== "shout") { currentItem.preempt = true; silence(); }
     item.neural = Boolean(activePack()) && !item.silent;
     if (item.neural) item.parts = partsOf(text, item.emoName, opts);
-    // order: pokes, rants and tests; then the gag's lines (its cries included, in the order the gag asked for them);
-    // then the general remarks
-    const rank = (q) => (q.opts.gag ? 1 : q.priority ? 0 : 2);
+    // nothing is dropped: a line goes behind the lines of its own rank or above
     const live = queue.filter((q) => !q.cancelled);
     const at = live.findIndex((q) => rank(q) > rank(item));
     live.splice(at < 0 ? live.length : at, 0, item);
-    // too much to say: the oldest waiting general remark is let go (then the oldest gag line), so she keeps up with
-    // what is happening now
-    const chatter = live.filter((q) => !q.priority);
-    if (chatter.length > MAX_WAITING) {
-      const out = chatter.find((q) => !q.opts.gag) || chatter[0];
-      cancelItem(out); live.splice(live.indexOf(out), 1);
-    }
     queue.splice(0, queue.length, ...live);
     prepare();
     pump();

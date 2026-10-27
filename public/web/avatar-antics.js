@@ -613,6 +613,7 @@
     const api = A();
     if (!api || api.voice() < 2 || api.isRoaming() || api.isThinking() || api.isAway() || document.hidden) return false;
     if (Date.now() - lastInput < (api.voice() >= 4 ? 1500 : 5000)) return false; // someone is busy
+    if (window.AuraSpeech && window.AuraSpeech.isBusy && window.AuraSpeech.isBusy()) return false; // a gag starts when she is quiet: its lines never pile up behind another
     if (document.querySelector(".fx-modal:not(.hidden), #flowStageModal.open")) return false;
     if (document.body.classList.contains("topology-fullscreen-mode") || document.body.classList.contains("results-view-expanded") || document.fullscreenElement) return false;
     // a focused field stops her only while someone is typing in it (the chat keeps the focus after every reply)
@@ -655,8 +656,8 @@
         return;
       }
       // Psychopathic: kept back only because she is out for a walk, or the gap is almost over: she tries again soon
-      const roaming = Boolean(A() && A().isRoaming());
-      if (level >= 4 && (roaming || since <= gap)) { schedule(roaming ? 2500 : Math.max(1000, gap - since + 200)); return; }
+      const roaming = Boolean(A() && A().isRoaming()), talking = Boolean(window.AuraSpeech && window.AuraSpeech.isBusy && window.AuraSpeech.isBusy());
+      if (level >= 4 && (roaming || talking || since <= gap)) { schedule(roaming || talking ? 2500 : Math.max(1000, gap - since + 200)); return; }
       schedule();
     }, wait);
   }

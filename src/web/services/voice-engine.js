@@ -287,7 +287,8 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     if (hit) return Promise.resolve({ ...hit, loadMs: 0, cached: true });
     return new Promise((resolve) => {
       if ((busy || queue.length) && low) { resolve({ skipped: true }); return; }
-      const keep = priority || low ? (result) => { if (!result.error && !result.skipped) remember(key, result); resolve(result); } : resolve;
+      // every line is remembered: most of her remarks come from fixed pools and come back, and then cost nothing
+      const keep = (result) => { if (!result.error && !result.skipped) remember(key, result); resolve(result); };
       const entry = { req, resolve: keep, priority: Boolean(priority) };
       const at = priority ? queue.findIndex((q) => !q.priority) : -1;
       if (at < 0) queue.push(entry); else queue.splice(at, 0, entry);

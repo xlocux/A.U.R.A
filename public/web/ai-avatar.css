@@ -344,3 +344,8 @@ html.av-xray .workspace { filter: contrast(1.2) brightness(1.15) hue-rotate(200d
 /* While she is being dragged: no text selection, grabbing hand everywhere. */
 html.av-dragging, html.av-dragging * { user-select: none !important; -webkit-user-select: none !important; cursor: grabbing !important; }
 .ai-avatar-roamer:not(.av-piece):active { cursor: grabbing; }
+
+/* Nico Robin: Mil Fleur */
+.av-an-hand { position: fixed; z-index: 1146; width: 38px; height: 46px; margin: -23px 0 0 -19px; pointer-events: none; color: var(--accent-2, #b58cff); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.av-an-hand svg, .av-an-cross svg { width: 100%; height: 100%; display: block; }
+.av-an-cross { position: fixed; z-index: 1147; width: 70px; height: 70px; margin: -35px 0 0 -35px; pointer-events: none; color: var(--accent-2, #b58cff); }

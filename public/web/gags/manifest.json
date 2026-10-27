@@ -6,7 +6,7 @@
     {
       "id": "anime",
       "file": "anime.js",
-      "since": "0.1.3",
+      "since": "0.1.4",
       "title": "Anime classics",
       "gags": [
         "ninja",
@@ -19,13 +19,14 @@
     {
       "id": "eyes-luffy",
       "file": "eyes-luffy.js",
-      "since": "0.1.2",
-      "title": "Dojutsu eyes and Luffy moves",
+      "since": "0.1.4",
+      "title": "Dojutsu eyes, Luffy moves and Nico Robin",
       "gags": [
         "eyes",
         "gomu",
         "gear5",
-        "haki"
+        "haki",
+        "robin"
       ]
     },
     {

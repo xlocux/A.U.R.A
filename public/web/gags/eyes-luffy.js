@@ -1,7 +1,7 @@
 "use strict";
 
-// More anime for Aura: dojutsu eyes (Sharingan, Mangekyo, Byakugan, Rinnegan) and Luffy-style moves
-// (Gomu Gomu no Pistol and Gatling, Gear 5, Conqueror's Haki). Registered as ordinary antics.
+// More anime for Aura: dojutsu eyes (Sharingan, Mangekyo, Byakugan, Rinnegan), Luffy-style moves
+// (Gomu Gomu no Pistol and Gatling, Gear 5, Conqueror's Haki) and Nico Robin's Mil Fleur (a thousand hands). Registered as ordinary antics.
 (function initAvatarAnimeEyes() {
   const F = () => window.AuraAnimeFx;
 
@@ -199,6 +199,39 @@
     await s.move(spot, s.home(), { ms: 1300 });
   }
 
+  // ── Nico Robin: Hana Hana no Mi, Mil Fleur ──
+  const HAND = '<svg viewBox="0 0 40 48"><path d="M10 46C4 38 4 30 6 24V12a3 3 0 0 1 6 0V22L13 6a3 3 0 0 1 6 0V22L21 4a3 3 0 0 1 6 0V22L29 10a3 3 0 0 1 6 0V32C35 40 30 46 24 46Z" fill="currentColor" stroke="#4b2a8a" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  async function robin(s) {
+    const { fx, title, shake, wait, rand, pick } = F();
+    const home = s.home();
+    const spot = s.randomPoint(220);
+    s.place(home);
+    s.say("Let me lend you a few hands.", 2000);
+    await s.move(home, spot, { ms: 1400 });
+    const c = { x: spot.x + s.size.w / 2, y: spot.y + s.size.h / 2 };
+    // arms crossed over her chest: the sign of the move
+    const cross = fx("av-an-cross", c.x, c.y, '<svg viewBox="-30 -30 60 60"><path d="M-22 -22L22 22M22 -22L-22 22" stroke="currentColor" stroke-width="9" stroke-linecap="round"/></svg>');
+    cross.animate([{ transform: "scale(.2) rotate(-40deg)", opacity: 0 }, { transform: "scale(1) rotate(0deg)", opacity: 1, offset: 0.25 }, { transform: "scale(1) rotate(0deg)", opacity: 1, offset: 0.9 }, { transform: "scale(1.3)", opacity: 0 }], { duration: 2600, fill: "forwards" }).finished.then(() => cross.remove(), () => cross.remove());
+    const cry = await title("HANA HANA NO... MIL FLEUR!", 1800);
+    await wait(cry ? cry * 0.45 : 300); // the hands bloom on "miru furuuuuru"
+    // a thousand hands: they sprout from her in waves, farther and farther, then fade
+    const reach = Math.hypot(innerWidth, innerHeight) * 0.6, bloom = Math.max(900, cry ? cry * 0.55 : 900);
+    shake(10, 600);
+    const hands = [];
+    for (let i = 0; i < 110; i += 1) {
+      const dist = Math.pow(Math.random(), 0.7) * reach, ang = rand(0, Math.PI * 2);
+      const x = Math.max(10, Math.min(innerWidth - 10, c.x + Math.cos(ang) * dist)), y = Math.max(10, Math.min(innerHeight - 10, c.y + Math.sin(ang) * dist));
+      const h = fx("av-an-hand", x, y, HAND);
+      const rot = rand(-70, 70), size = rand(0.7, 1.5), wave = (dist / reach) * bloom;
+      h.style.opacity = "0";
+      hands.push(h.animate([{ transform: "scale(0) rotate(" + (rot - 40) + "deg)", opacity: 0 }, { transform: "scale(" + size * 1.15 + ") rotate(" + rot + "deg)", opacity: 1, offset: 0.3 }, { transform: "scale(" + size + ") rotate(" + (rot + rand(-8, 8)) + "deg)", opacity: 1, offset: 0.8 }, { transform: "scale(" + size * 0.8 + ")", opacity: 0 }], { duration: 2000, delay: wave, easing: "ease-out", fill: "forwards" }).finished.then(() => h.remove(), () => h.remove()));
+    }
+    await wait(Math.max(900, bloom * 0.8));
+    s.say(pick(["Mil Fleur. A thousand hands, and none of them touched your cache.", "Many hands make light work. Of your firewall.", "Hands everywhere. Don't worry, they only wave."]), 3000);
+    await Promise.all(hands);
+    await s.move(spot, s.home(), { ms: 1300 });
+  }
+
   function boot() {
     const api = window.AuraAvatar;
     if (!api || !api.registerAntic) return;
@@ -206,6 +239,7 @@
     api.registerAntic("gomu", gomu, true);
     api.registerAntic("gear5", gear5, true);
     api.registerAntic("haki", haki, true);
+    api.registerAntic("robin", robin, true);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
