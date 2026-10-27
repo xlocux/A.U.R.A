@@ -26,8 +26,9 @@
           <select id="auriSpeechEngine">
             <option value="browser">Browser voice - instant, flat</option>
             <option value="piper">Piper - fast neural voice</option>
-            <option value="kokoro">Kokoro - most expressive neural voice</option>
+            <option value="kokoro">Kokoro - recommended: AURI's ideal voice</option>
           </select>
+          <div id="auriKokoroTip" class="auri-tip" hidden><span><b>Tip:</b> Kokoro is AURI's ideal voice: Japanese voices that also speak English, with real emotion. She starts with Nezumi.</span><button id="auriKokoroTipBtn" type="button" class="hud-btn hud-sm">Use Kokoro</button></div>
           <label for="auriSpeechVoice">Voice</label>
           <select id="auriSpeechVoice"></select>
           <label for="auriSpeechVol">Volume</label>
@@ -52,7 +53,7 @@
       if (key === voiceKey) return;
       voiceKey = key;
       if (st.cfg.engine === "kokoro") {
-        voice.innerHTML = '<option value="auto">Auto - changes with her mood</option>' + kokoroOptions(st.kokoroVoices);
+        voice.innerHTML = '<option value="auto">Auto - Japanese voices, one per mood (English and Japanese)</option>' + kokoroOptions(st.kokoroVoices);
         voice.value = st.kokoroVoices.includes(st.cfg.voice) ? st.cfg.voice : "auto";
       } else if (st.cfg.engine === "piper") {
         voice.innerHTML = '<option value="auto">Auto - first downloaded voice</option>' + piper.map((p) => `<option value="${p.id}">${esc(p.label.replace(/^Piper - /, ""))}</option>`).join("");
@@ -95,11 +96,23 @@
       else if (srv.worker.state === "failed") state.textContent = `Voice engine error: ${srv.worker.error}`;
       else state.textContent = "";
     }
+    // The Kokoro tip: shown until Kokoro is the voice in use.
+    function renderTip(st) {
+      const tip = $("auriKokoroTip"), btn = $("auriKokoroTipBtn");
+      const kokoro = st.server && st.server.packs.find((p) => p.id === "kokoro");
+      const job = st.server && st.server.job;
+      tip.hidden = !kokoro || (st.cfg.engine === "kokoro" && kokoro.installed);
+      if (!kokoro) return;
+      const busy = Boolean(job && !job.done);
+      btn.textContent = kokoro.installed ? "Use Kokoro" : busy && job.pack === "kokoro" ? "Downloading..." : `Download (${mb(kokoro.bytes)})`;
+      btn.disabled = busy;
+    }
     function render(st = S().info()) {
       on.checked = st.cfg.on;
       eng.value = st.cfg.engine;
       vol.value = String(st.cfg.volume);
       slot.querySelector(".auri-speech-opts").hidden = !st.cfg.on;
+      renderTip(st);
       const g = st.lastGen;
       const speed = st.rtf == null ? "" : st.rtf <= 1 ? " - fast enough for live bubbles" : ` - ${st.rtf.toFixed(1)}x slower than real time` + (st.slow ? ": live bubbles use the browser voice" : "");
       $("auriSpeechTest").textContent = st.demo ? "Stop" : "Test";
@@ -112,11 +125,19 @@
     const hello = () => S().speak("Hi! This is my new voice. Do you like it?", { emotion: "happy", interrupt: true, force: true });
 
     on.addEventListener("change", () => { S().set({ on: on.checked }); if (on.checked) S().speak("Hello. I can talk now. Try not to regret it.", { emotion: "creepy", interrupt: true }); });
-    eng.addEventListener("change", () => { voiceKey = ""; S().set({ engine: eng.value, voice: "auto" }); });
+    // Kokoro starts with Nezumi; the other engines with their automatic choice
+    const startVoice = (engine) => (engine === "kokoro" ? S().defaultKokoroVoice : "auto");
+    eng.addEventListener("change", () => { voiceKey = ""; S().set({ engine: eng.value, voice: startVoice(eng.value) }); });
     // A new voice is heard right away, so the change is obvious.
     voice.addEventListener("change", () => { S().set({ voice: voice.value }); hello(); });
     vol.addEventListener("change", () => S().set({ volume: Number(vol.value) }));
     $("auriSpeechTest").addEventListener("click", test);
+    // downloaded: switch to it; not yet: download (when it finishes she switches to Kokoro with Nezumi by herself)
+    $("auriKokoroTipBtn").addEventListener("click", () => {
+      const kokoro = (S().info().server?.packs || []).find((p) => p.id === "kokoro");
+      if (kokoro && kokoro.installed) { voiceKey = ""; S().set({ engine: "kokoro", voice: S().defaultKokoroVoice }); hello(); }
+      else S().download("kokoro");
+    });
     list.addEventListener("click", async (event) => {
       const btn = event.target.closest("button[data-act]");
       if (!btn) return;

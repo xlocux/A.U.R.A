@@ -321,3 +321,10 @@ body.sidebar-collapsed .sidebar-meta { display: none; }
 .auri-packs-more::before { content: "+ "; color: var(--accent); }
 .auri-packs-more[aria-expanded="true"]::before { content: "- "; }
 .auri-packs-more:hover { color: var(--accent); }
+/* Voice settings: the Kokoro tip, a thin note across the whole row. */
+.auri-tip { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px 8px 6px 10px; border-left: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent); font-size: calc(11px * var(--font-scale, 1)); color: var(--ink); }
+.auri-tip[hidden] { display: none; }
+.auri-tip span { flex: 1 1 auto; min-width: 0; }
+.auri-tip b { color: var(--accent); }
+.auri-tip button { flex: 0 0 auto; width: auto !important; }

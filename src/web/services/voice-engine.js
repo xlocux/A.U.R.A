@@ -41,7 +41,7 @@ const PACKS = {
     ]
   },
   kokoro: {
-    engine: "kokoro", label: "Kokoro - 7 voices", note: "most expressive", bytes: 330e6,
+    engine: "kokoro", label: "Kokoro - 11 voices, JP + EN", note: "recommended, most expressive", bytes: 330e6,
     files: [
       { url: `${KOKORO_BASE}onnx/model.onnx`, to: "model.onnx", sha256: "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb" },
       { url: `${KOKORO_BASE}tokenizer.json`, to: "tokenizer.json" },

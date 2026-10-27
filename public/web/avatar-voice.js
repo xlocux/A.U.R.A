@@ -15,6 +15,8 @@
   const KEY = "aura.speech";
   const synth = window.speechSynthesis;
   const defaults = { on: false, engine: "browser", voice: "auto", volume: 0.85 };
+  // Kokoro is her ideal voice; Nezumi (Japanese, also speaks English) is what she starts with once it is downloaded.
+  const DEFAULT_KOKORO_VOICE = "jf_nezumi";
   let cfg = { ...defaults };
   try { cfg = { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { /* first run */ }
   delete cfg.model; // the in-browser Kokoro model is gone (it was too slow on CPU)
@@ -27,18 +29,21 @@
   // about 10% so the voice stays natural), gain = loudness (never past clipping). Measured on real Piper audio: the
   // angry settings are about 6 dB louder, 20% faster and 25 Hz higher than neutral; the bored ones 55% slower,
   // lower and quieter. No effects: she must always sound like a real voice. Female voices only.
+  // Kokoro "Auto" uses the Japanese voices for everything (they speak English with an accent, and Japanese natively),
+  // so she sounds the same in her lines and in her battle cries. Picked by measured pitch: Tebukuro the brightest
+  // (329 Hz), Alpha the most expressive (253 Hz), Nezumi the flattest, Gongitsune the lowest (226 Hz).
   const EMOTIONS = {
-    neutral: { voice: "af_heart", speed: 1.0, rate: 1.0, gain: 1 },
-    happy: { voice: "af_bella", speed: 1.1, rate: 1.03, gain: 1.1 },
-    hyped: { voice: "af_bella", speed: 1.2, rate: 1.05, gain: 1.2 },
-    adrenaline: { voice: "af_nicole", speed: 1.3, rate: 1.05, gain: 1.2 },
-    bored: { voice: "af_nicole", speed: 0.72, rate: 0.86, gain: 0.7 },
-    sulk: { voice: "af_sky", speed: 0.78, rate: 0.9, gain: 0.78 },
-    angry: { voice: "af_bella", speed: 1.22, rate: 1.07, gain: 1.45 },
-    rage: { voice: "af_bella", speed: 1.3, rate: 1.08, gain: 1.6 },
-    creepy: { voice: "af_nicole", speed: 0.76, rate: 0.9, gain: 0.85 },
-    sing: { voice: "af_heart", speed: 0.94, rate: 1.02, gain: 1.05 },
-    shout: { voice: "af_bella", speed: 1.0, rate: 1.03, gain: 1.5 } // anime battle cry
+    neutral: { voice: "jf_alpha", speed: 1.0, rate: 1.0, gain: 1 },
+    happy: { voice: "jf_tebukuro", speed: 1.1, rate: 1.03, gain: 1.1 },
+    hyped: { voice: "jf_tebukuro", speed: 1.2, rate: 1.05, gain: 1.2 },
+    adrenaline: { voice: "jf_alpha", speed: 1.3, rate: 1.05, gain: 1.2 },
+    bored: { voice: "jf_nezumi", speed: 0.72, rate: 0.86, gain: 0.7 },
+    sulk: { voice: "jf_gongitsune", speed: 0.78, rate: 0.9, gain: 0.78 },
+    angry: { voice: "jf_alpha", speed: 1.22, rate: 1.07, gain: 1.45 },
+    rage: { voice: "jf_alpha", speed: 1.3, rate: 1.08, gain: 1.6 },
+    creepy: { voice: "jf_gongitsune", speed: 0.76, rate: 0.9, gain: 0.85 },
+    sing: { voice: "jf_tebukuro", speed: 0.94, rate: 1.02, gain: 1.05 },
+    shout: { voice: "jf_alpha", speed: 1.0, rate: 1.03, gain: 1.5 } // anime battle cry
   };
 
   function inferEmotion(text, opts) {
@@ -101,7 +106,7 @@
       serverError = "";
       const job = server.job;
       // a download that just finished switches her to that voice
-      if (job && job.done && !job.error && before && !before.done) { cfg.engine = server.packs.find((p) => p.id === job.pack).engine; cfg.voice = cfg.engine === "piper" ? job.pack : "auto"; save(); warm(); }
+      if (job && job.done && !job.error && before && !before.done) { cfg.engine = server.packs.find((p) => p.id === job.pack).engine; cfg.voice = cfg.engine === "piper" ? job.pack : DEFAULT_KOKORO_VOICE; save(); warm(); }
     } catch (err) { serverError = err.message; }
     clearTimeout(pollTimer);
     if (server && server.job && !server.job.done) pollTimer = setTimeout(refresh, 900);
@@ -401,6 +406,6 @@
   window.AuraSpeech = {
     speak, cue, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS)
+    state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
   };
 })();
