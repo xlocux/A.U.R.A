@@ -127,7 +127,7 @@
     // drift apart. A line the voice drops (a newer one came in) is dropped from the bubbles too.
     // During a gag the gag sets the pace: a line is spoken only if she is free and can start within 0.9 s; otherwise
     // it is just a bubble, so lines never pile up behind the gag.
-    const timing = roaming && !force ? { ifIdle: true, deadline: 900 } : {};
+    const timing = roaming && !force ? { ifIdle: true, deadline: "gag" } : {};
     if (!opts.silent && window.AuraSpeech && window.AuraSpeech.speak(text, { ms, interrupt: force, ...timing })) { queuedBubble = { text: String(text), ms, pain: Boolean(opts.pain) }; return; }
     showBubble(text, ms, opts.pain);
   }
@@ -226,7 +226,7 @@
     for (const line of RAGE_LINES) {
       // With the voice on, each line appears when she starts yelling it and stays up while she says it (4.5 s at
       // most); a line that cannot start within 2 s is shown without the voice. Without a voice: the original rhythm.
-      const ms = window.AuraSpeech ? await window.AuraSpeech.cue(line, { loud: true, deadline: 2000 }) : 0;
+      const ms = window.AuraSpeech ? await window.AuraSpeech.cue(line, { loud: true, deadline: "cry" }) : 0;
       text.textContent = line;
       await sleep(Math.max(line.startsWith("...") ? 1500 : 1050, Math.min(ms, 4500)));
     }
@@ -409,7 +409,7 @@
       // on when she has said it (at least ms). Without a voice, or if it cannot start within 1.5 s: bubble and ms only.
       async line(text, ms = 2000) {
         if (!(voice() >= 1)) { await sleep(ms); return; }
-        const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(text, { interrupt: true, deadline: 1500 }) : 0;
+        const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(text, { interrupt: true, deadline: "line" }) : 0;
         showBubble(text, Math.max(ms, spoken + 400));
         await sleep(Math.max(ms, spoken + 150));
       },

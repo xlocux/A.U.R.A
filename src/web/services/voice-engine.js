@@ -73,7 +73,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
   function status() {
     return {
       runtime: { installed: runtimeReady(), bytes: RUNTIME_BYTES },
-      packs: Object.entries(packs).map(([id, p]) => ({ id, engine: p.engine, label: p.label, note: p.note, bytes: p.bytes, installed: packReady(id) })),
+      packs: Object.entries(packs).map(([id, p]) => ({ id, engine: p.engine, label: p.label, note: p.note, bytes: p.bytes, installed: packReady(id), missing: packReady(id) ? p.files.filter((file) => !fs.existsSync(path.join(packDir(id), file.to))).map((file) => path.basename(file.to)) : [] })),
       job: job ? { ...job } : null,
       worker: { state: workerState, error: workerError, threads: workerThreads() },
       kokoroVoices: KOKORO_ALL
@@ -188,6 +188,13 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
       waiting.delete(m.id);
       done(m.type === "audio" ? m : { error: m.message || "generation failed" });
     });
+    // A send to a worker that just died emits "error": without a listener that would crash the whole web server.
+    w.on("error", (error) => {
+      if (worker !== w) return;
+      worker = null;
+      workerState = "failed"; workerError = error.message; failedAt = Date.now();
+      failWaiting("voice worker failed: " + error.message);
+    });
     w.on("exit", (code) => {
       if (worker !== w) return; // an old worker that was stopped on purpose
       worker = null;
@@ -220,7 +227,13 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     return new Promise((resolve) => {
       const id = ++seq;
       waiting.set(id, resolve);
-      startWorker().send({ type: "speak", id, ...req });
+      try {
+        startWorker().send({ type: "speak", id, ...req }, (error) => { if (error && waiting.has(id)) { waiting.delete(id); resolve({ error: "voice worker unavailable: " + error.message }); } });
+      } catch (error) {
+        waiting.delete(id);
+        resolve({ error: "voice worker unavailable: " + error.message });
+        return;
+      }
       setTimeout(() => { if (waiting.has(id)) { waiting.delete(id); resolve({ error: "voice generation timed out" }); } }, 45000).unref?.();
     });
   }
@@ -229,10 +242,28 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     const item = queue.shift();
     busy = item;
     const t0 = Date.now();
-    const result = await generate(item.req);
+    let result;
+    try { result = await generate(item.req); } catch (error) { result = { error: error.message }; } // never an unhandled rejection
     busy = null;
     item.resolve(result.error ? result : { data: result.data, rate: result.rate, ms: result.genMs ?? Date.now() - t0, loadMs: result.loadMs || 0 });
+    if (restartWhenIdle && !queue.length) { restartWhenIdle = false; stopWorker(); }
     pump();
+  }
+  // A pack downloaded before some of its files existed (new voices) gets them now, once, in the background.
+  const repaired = new Set();
+  let restartWhenIdle = false;
+  function repairPack(id) {
+    if (repaired.has(id) || (job && !job.done)) return;
+    repaired.add(id);
+    const missing = packs[id].files.filter((file) => !fs.existsSync(path.join(packDir(id), file.to)));
+    if (!missing.length) return;
+    (async () => {
+      for (const file of missing) {
+        try { await download(file, path.join(packDir(id), file.to), () => {}); } catch { repaired.delete(id); return; } // retried next time
+      }
+      restartWhenIdle = true; // the worker reloads the voices once it is free
+      if (!busy && !queue.length) { restartWhenIdle = false; stopWorker(); }
+    })();
   }
   // Latest chatter wins: a normal line still waiting when a newer one arrives is skipped (its bubble is gone). Priority
   // lines are never skipped by newer ones.
@@ -241,6 +272,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     if (!runtimeReady() || !packReady(pack)) throw Object.assign(new Error("Voice pack not installed"), { statusCode: 409 });
     const line = cleanText(text);
     if (!line) return Promise.resolve({ skipped: true });
+    repairPack(pack);
     const kokoroVoice = KOKORO_ALL.includes(voice) ? voice : KOKORO_VOICES[0];
     const req = { engine: packs[pack].engine, pack, voice: kokoroVoice, speed: clampSpeed(speed), text: line, lang: lang === "ja" ? "ja" : "" };
     touch();

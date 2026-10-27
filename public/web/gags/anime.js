@@ -48,7 +48,7 @@
   function shout(text) {
     if (!window.AuraSpeech || !window.AuraSpeech.cue) return Promise.resolve(0);
     const [line, emotion, lang] = cryLine(text);
-    return window.AuraSpeech.cue(line, { emotion, interrupt: true, lang, deadline: 2500 });
+    return window.AuraSpeech.cue(line, { emotion, interrupt: true, lang, deadline: "cry" });
   }
   // The move name appears exactly as she shouts it and stays up for the whole cry. Resolves when it appears, with the
   // cry's length (0 without a voice), so a gag can time its strike on the cry: `const cry = await title(...)`.
@@ -239,7 +239,7 @@
     lastCheer = Date.now();
     // the confetti fly when she cheers out loud (a cheer that cannot start within 1.2 s goes without the voice)
     const line = pick(CHEERS);
-    const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(line, { interrupt: true, deadline: 1200 }) : 0;
+    const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(line, { interrupt: true, deadline: "scene" }) : 0;
     const r = home.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     api.act("cheer", 1600);

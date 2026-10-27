@@ -132,6 +132,7 @@
 
   // ── generation ──
   let lastGen = null, rtf = null, generating = 0, slowAt = 0; // rtf = generation time / speech time (moving average)
+  let avgGen = null; // how long the server takes to prepare a line, in ms (moving average): deadlines follow it
   const cache = new Map();
   const cacheKey = (pack, text, emoName, lang = "") => { const emo = EMOTIONS[emoName] || EMOTIONS.neutral; return `${pack}|${lang}|${pickVoice(emoName)}|${emo.speed}|${shape(text, emoName)}`; };
   // lang "ja": the line is Japanese romaji (battle cries) and is said with Japanese sounds by the server voices.
@@ -162,6 +163,7 @@
         const r = ms / Math.max(1500, seconds * 1000);
         rtf = rtf == null ? r : rtf * 0.6 + r * 0.4;
         if (rtf > 1.3) slowAt = Date.now();
+        avgGen = avgGen == null ? ms : avgGen * 0.7 + ms * 0.3;
       }
       serverError = "";
       cache.set(key, audio);
@@ -267,7 +269,9 @@
       // (a Japanese line never falls back: the browser voice would read the romaji as English)
       let wait = tooSlow() && !item.opts.force && !item.opts.lang ? Promise.race([item.ready, new Promise((r) => setTimeout(() => r(null), 400))]) : item.ready;
       // A line that cannot start by its deadline is not said late: what it went with (a gag, a bubble) has moved on.
-      const deadline = item.opts.deadline ?? (item.priority ? 0 : STALE_MS);
+      // opts.deadline is ms or a kind ("gag", "cry", "scene", "line"), which scales with how fast the voice really is.
+      const asked = item.opts.deadline;
+      const deadline = typeof asked === "string" ? deadlineFor(asked) : asked ?? (item.priority ? 0 : deadlineFor("chatter"));
       if (deadline) wait = Promise.race([wait || Promise.resolve(null), new Promise((r) => setTimeout(() => { late = true; r(null); }, Math.max(0, deadline - (Date.now() - item.t0))))]);
       const audio = item.ready || deadline ? await wait : null;
       if (item.cancelled) return;
@@ -288,7 +292,18 @@
   let hinted = null;
   const hint = (emotion) => { hinted = { emotion, t: Date.now() }; };
   const estimate = (text) => (cfg.on ? Math.round(String(text).split(/\s+/).length * 380 + 700) : 0);
-  const STALE_MS = 2500; // chatter that cannot start within this is not said at all (no lines said seconds late)
+  // How long a line may wait for her voice before it goes without it. Measured, not guessed: Piper prepares a line in
+  // a few tenths of a second, Kokoro on a busy laptop in 1.5-3 s, and fixed deadlines would silence Kokoro.
+  const latency = () => {
+    const pack = activePack();
+    if (!pack) return 400; // browser voice
+    return Math.max(500, (avgGen ?? (pack === "kokoro" ? 2200 : 500)) + 250);
+  };
+  function deadlineFor(kind) {
+    const l = latency();
+    const by = { chatter: Math.max(2500, l * 2.5), gag: Math.max(900, l * 1.5), cry: Math.max(2500, l * 1.8), scene: Math.max(1200, l * 1.6), line: Math.max(1500, l * 1.8) };
+    return by[kind] ?? by.chatter;
+  }
   // "Too slow" lasts 45 s at most, then the neural voice is tried again (the machine may have been busy).
   const tooSlow = () => rtf != null && rtf > 1.3 && Date.now() - slowAt < 45000;
 
@@ -406,6 +421,6 @@
   window.AuraSpeech = {
     speak, cue, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
+    deadlineFor, state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
   };
 })();

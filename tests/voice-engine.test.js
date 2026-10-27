@@ -98,6 +98,30 @@ test("a pack is downloaded, verified and removed; a corrupted file is rejected",
   assert.equal(engine.status().runtime.installed, false);
 });
 
+test("a pack downloaded before new files existed (new voices) fetches them by itself", async () => {
+  const root = path.join(workDir, "packs-repair");
+  fakeRuntime(root);
+  const a = Buffer.from("voice-a"), b = Buffer.from("voice-b");
+  const packs = {
+    "piper-two": {
+      engine: "piper", label: "Two", note: "test", bytes: a.length + b.length,
+      files: [{ url: "https://example.test/a.bin", to: "a.bin" }, { url: "https://example.test/b.bin", to: "voices/b.bin" }]
+    }
+  };
+  const engine = createVoiceEngine({ root, packs, fetchImpl: fakeFetch({ "https://example.test/a.bin": a, "https://example.test/b.bin": b }) });
+  engine.install("piper-two");
+  await finished(engine);
+  const late = path.join(root, "packs", "piper-two", "voices", "b.bin");
+  fs.rmSync(late);
+  assert.deepEqual(engine.status().packs[0].missing, ["b.bin"]);
+  // the fake runtime cannot really speak: the line fails, the repair still runs
+  await engine.speak({ pack: "piper-two", text: "hi" });
+  for (let i = 0; i < 200 && !fs.existsSync(late); i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(fs.readFileSync(late, "utf8"), "voice-b");
+  assert.deepEqual(engine.status().packs[0].missing, []);
+  engine.stop();
+});
+
 test("the voice routes need a login and report status", async () => {
   const { openScanStore } = require("../src/db/scan-store");
   const { createWebAuth } = require("../src/web/auth");

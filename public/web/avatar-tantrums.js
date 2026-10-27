@@ -45,7 +45,7 @@
     let sayId = 0;
     g.say = async (text, ms = 1600) => {
       const id = ++sayId;
-      const spoken = window.AuraSpeech ? await window.AuraSpeech.cue(text, { loud: true, ms, deadline: 1200 }) : 0;
+      const spoken = window.AuraSpeech ? await window.AuraSpeech.cue(text, { loud: true, ms, deadline: "scene" }) : 0;
       if (id !== sayId || !bubble.isConnected) return;
       bubble.textContent = text;
       bubble.classList.add("show");
