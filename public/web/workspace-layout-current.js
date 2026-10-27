@@ -62,8 +62,9 @@
 
     logsButton.addEventListener("click", (event) => {
       event.preventDefault();
-      activateMainPanel("logs");
-      renderActiveLogSubtab("tools");
+      // the shared activateTab (app.js) also remembers the tab for the next page load
+      if (typeof window.activateTab === "function") window.activateTab("logs"); else activateMainPanel("logs");
+      renderActiveLogSubtab(document.querySelector("#tab-logs [data-log-subtab].active")?.dataset.logSubtab || "tools");
     });
     // Restore #tab-runs children when navigating away from logs tab to runs tab.
     document.addEventListener("click", (event) => {

@@ -112,6 +112,7 @@
   function say(text, ms = 4200, force = false) {
     const level = voice();
     if ((raging || isAway()) && !force) return;
+    if (!force && window.AuraSpeech?.inDemo?.()) return; // the voice mood demo owns the bubble
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
     if (bubble) bubble.classList.remove("pain");
     const visible = (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));

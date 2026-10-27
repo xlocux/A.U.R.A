@@ -43,6 +43,8 @@
   }
 
   function activateGuideTab() {
+    // the shared activateTab (app.js) also remembers the tab for the next page load
+    if (typeof window.activateTab === "function") { window.activateTab("guide"); return; }
     document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === "guide"));
     document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === "tab-guide"));
   }

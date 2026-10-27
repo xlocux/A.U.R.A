@@ -4,11 +4,6 @@
 // (downloaded only when the user asks; they run in the A.U.R.A server on this PC).
 (function initAvatarVoiceUi() {
   const S = () => window.AuraSpeech;
-  const TESTS = [
-    ["Testing, one, two. Is this thing on?", "neutral"], ["YATTA! Found one! I love my job!", "hyped"],
-    ["...I'm so bored. Wake me when something happens.", "bored"], ["ARE YOU KIDDING ME?! Stop poking me!", "rage"],
-    ["Hello, friend. I see you. I always see you.", "creepy"], ["KAMEHAMEHAAAA!!", "shout"]
-  ];
   const label = (v) => `${v.startsWith("b") ? "UK" : "US"} ${v.slice(3, 4).toUpperCase()}${v.slice(4)}`;
   const mb = (bytes) => `${Math.round(bytes / 1e6)} MB`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -30,7 +25,7 @@
           <select id="auriSpeechVoice"></select>
           <label for="auriSpeechVol">Volume</label>
           <input id="auriSpeechVol" type="range" min="0" max="1" step="0.05">
-          <div class="auri-speech-test"><button id="auriSpeechTest" type="button" class="hud-btn hud-sm">Test</button><span id="auriSpeechInfo" class="muted"></span></div>
+          <div class="auri-speech-test"><button id="auriSpeechTest" type="button" class="hud-btn hud-sm" title="A short monologue through all her moods">Test</button><span id="auriSpeechInfo" class="muted"></span></div>
           <div class="auri-packs">
             <div class="auri-packs-head"><span>Voice packs</span><span id="auriPackState" class="muted"></span></div>
             <div id="auriPackList"></div>
@@ -90,16 +85,19 @@
       slot.querySelector(".auri-speech-opts").hidden = !st.cfg.on;
       const g = st.lastGen;
       const speed = st.rtf == null ? "" : st.rtf <= 1 ? " - fast enough for live bubbles" : ` - ${st.rtf.toFixed(1)}x slower than real time` + (st.slow ? ": live bubbles use the browser voice" : "");
-      $("auriSpeechInfo").textContent = st.generating ? "Generating voice..." : g ? `Last line: ${g.seconds}s of speech in ${(g.ms / 1000).toFixed(1)}s${speed}` : st.serverError && st.pack ? `Voice engine: ${st.serverError}` : "";
+      $("auriSpeechTest").textContent = st.demo ? "Stop" : "Test";
+      $("auriSpeechInfo").textContent = st.demo ? "Mood demo: neutral, happy, hyped, adrenaline, bored, rage, creepy, singing, battle cry..." : st.generating ? "Generating voice..." : g ? `Last line: ${g.seconds}s of speech in ${(g.ms / 1000).toFixed(1)}s${speed}` : st.serverError && st.pack ? `Voice engine: ${st.serverError}` : "";
       fillVoices(st);
       fillPacks(st);
     }
-    const test = () => { const [text, emotion] = TESTS[Math.floor(Math.random() * TESTS.length)]; S().speak(text, { emotion, interrupt: true, force: true }); };
+    // Test = the mood demo (click again to stop); a new voice gets one short line so the change is heard at once.
+    const test = () => (S().info().demo ? S().stop() : S().showcase());
+    const hello = () => S().speak("Hi! This is my new voice. Do you like it?", { emotion: "happy", interrupt: true, force: true });
 
     on.addEventListener("change", () => { S().set({ on: on.checked }); if (on.checked) S().speak("Hello. I can talk now. Try not to regret it.", { emotion: "creepy", interrupt: true }); });
     eng.addEventListener("change", () => { voiceKey = ""; S().set({ engine: eng.value, voice: "auto" }); });
     // A new voice is heard right away, so the change is obvious.
-    voice.addEventListener("change", () => { S().set({ voice: voice.value }); test(); });
+    voice.addEventListener("change", () => { S().set({ voice: voice.value }); hello(); });
     vol.addEventListener("change", () => S().set({ volume: Number(vol.value) }));
     $("auriSpeechTest").addEventListener("click", test);
     list.addEventListener("click", async (event) => {

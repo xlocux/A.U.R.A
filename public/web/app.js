@@ -340,6 +340,8 @@ function restoreActiveTab() {
   const saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
   const valid = saved && document.getElementById(`tab-${saved}`);
   activateTab(valid ? saved : "recon");
+  // Logs and Guide are injected after boot: keep them saved so the retry below can still restore them.
+  if (saved && !valid) localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, saved);
 }
 
 function bindDashboardShellActions() {
@@ -2537,10 +2539,16 @@ reorderNav();
   observer.observe(nav, { childList: true });
   setTimeout(() => observer.disconnect(), 20000);
 })();
-// Guide/Logs panels are injected after boot; retry the restore once if the saved tab was one of them.
-if (localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) && !document.getElementById(`tab-${localStorage.getItem(ACTIVE_TAB_STORAGE_KEY)}`)) {
-  setTimeout(restoreActiveTab, 600);
-}
+// Guide/Logs panels are injected after boot: wait for the saved one (a few seconds at most), unless the
+// operator has already moved to another tab meanwhile.
+(function restoreInjectedTab(tries = 0) {
+  const saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+  const panel = saved && document.getElementById(`tab-${saved}`);
+  if (!saved || panel?.classList.contains("active")) return;
+  // its own button, so the sidebar tree and the panel's own setup follow too
+  if (panel) { const button = document.querySelector(`#workspaceNav .tab[data-tab="${saved}"]`); if (button) button.click(); else restoreActiveTab(); return; }
+  if (tries < 30) setTimeout(() => restoreInjectedTab(tries + 1), 200);
+})();
 $("nmapPreset")?.addEventListener("change", () => {
   $("nmapPorts")?.classList.toggle("hidden", $("nmapPreset").value !== "custom");
 });

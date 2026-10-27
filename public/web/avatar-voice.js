@@ -238,7 +238,7 @@
   const tooSlow = () => rtf != null && rtf > 1.3;
 
   function speak(text, opts = {}) {
-    if (!cfg.on || document.hidden) return;
+    if (!cfg.on || document.hidden || demo) return; // during the mood demo her bubbles stay silent
     if (hinted && Date.now() - hinted.t < 1500 && !opts.emotion) opts = { ...opts, emotion: hinted.emotion };
     hinted = null;
     const item = { text, opts, emoName: inferEmotion(text, opts), cancelled: false };
@@ -249,7 +249,44 @@
     pending = item;
     pump();
   }
-  function stop() { if (pending) pending.cancelled = true; pending = null; if (currentItem) currentItem.cancelled = true; stopCurrent(); if (synth) synth.cancel(); }
+  function stop() { demo = null; if (pending) pending.cancelled = true; pending = null; if (currentItem) currentItem.cancelled = true; stopCurrent(); if (synth) synth.cancel(); emit(); }
+
+  // The Test button: a short monologue through her moods, played back to back (nothing is dropped). The next line
+  // is generated while the current one plays; each line also shows in her bubble.
+  const DEMO = [
+    ["Hi, I'm AURI. Want to hear all my moods? Here we go.", "neutral"],
+    ["Ooh, a brand new target! This is going to be fun.", "happy"],
+    ["YATTA! Forty subdomains in one go! I love my job!", "hyped"],
+    ["Wait. Is that... a vulnerability? My heart is racing!", "adrenaline"],
+    ["...zero results. Again. I'm so bored I could sleep.", "bored"],
+    ["HEY! Stop poking me! I said STOP!", "rage"],
+    ["I see every open port. And I always see you.", "creepy"],
+    ["♪ Scanning all night, finding bugs till the light ♪", "sing"],
+    ["KAMEHAMEHAAAA!!", "shout"],
+    ["Okay, okay. I'm done. So... do you like my voice?", "sulk"]
+  ];
+  let demo = null;
+  async function showcase(lines = DEMO) {
+    stop();
+    if (!cfg.on) return;
+    const token = {};
+    demo = token;
+    emit();
+    const prepare = ([text, emotion]) => (activePack() ? generate(text, emotion) : Promise.resolve(null));
+    let next = prepare(lines[0]);
+    try {
+      for (let i = 0; i < lines.length && demo === token; i += 1) {
+        const [text, emotion] = lines[i];
+        const audio = await next;
+        next = i + 1 < lines.length ? prepare(lines[i + 1]) : null;
+        if (demo !== token) return;
+        const onStart = (ms) => { played += 1; if (window.AuraAvatar) window.AuraAvatar.say(text, ms + 400, true); };
+        if (audio) await play(audio, audio.emo, cfg.volume, onStart);
+        else await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    } finally { if (demo === token) { demo = null; emit(); } }
+  }
 
   // Lines that must land on time (battle cries) are generated ahead, only while she is silent.
   const prefetchList = [];
@@ -265,7 +302,7 @@
     setTimeout(tick, 3000);
   }
 
-  const info = () => ({ cfg: { ...cfg }, server, serverError, pack: activePack(), lastGen, played, rtf, generating, slow: tooSlow(), kokoroVoices: kokoroVoices(), piperPacks: piperPacks() });
+  const info = () => ({ cfg: { ...cfg }, server, serverError, pack: activePack(), lastGen, played, rtf, generating, slow: tooSlow(), demo: Boolean(demo), kokoroVoices: kokoroVoices(), piperPacks: piperPacks() });
   function set(patch) {
     cfg = { ...cfg, ...patch };
     save();
@@ -281,8 +318,8 @@
   }
   refresh().then(() => setTimeout(warm, 2500));
   window.AuraSpeech = {
-    speak, stop, hint, estimate, prefetch, set, download, remove, refresh, info,
+    speak, stop, showcase, hint, estimate, prefetch, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    state: info, isOn: () => cfg.on, emotions: Object.keys(EMOTIONS)
+    state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS)
   };
 })();
