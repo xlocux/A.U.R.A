@@ -16,9 +16,11 @@
     const waiting = [];
     const spokenAt = [];
     const gapSleepers = new Set(); // pauses a new line or the stage can end early
-    const holdSleepers = new Set(); // silent bubbles and min slots: only a poke or stop() end them early
+    const holdSleepers = new Set(); // silent bubbles and min slots: a poke (whatever the cause) or stop() ends them early
     let current = null, held = 0, nextId = 1, endedAt = -Infinity, pumping = false;
     const lvl = () => Math.max(0, Math.min(4, Math.round(Number(level()) || 0)));
+    const safeEmit = (e) => { try { emit(e); } catch { /* a listener's error must not stop her */ } };
+    const handleOf = (item) => ({ id: item.id, started: item.started, ended: item.ended, get voiced() { return item.voiced; } });
 
     function pause(ms, set) {
       return new Promise((resolve) => {
@@ -28,6 +30,7 @@
       });
     }
     const wakeAll = (set) => { for (const done of [...set]) done(); };
+    function putAfterPokes(item) { let at = 0; while (at < waiting.length && waiting[at].opts.cutIn) at += 1; waiting.splice(at, 0, item); }
 
     // in the order they will play: the held performance's lines; else pokes and resumed lines, forced, then chatter
     function order() {
@@ -54,24 +57,23 @@
       item.ended = new Promise((resolve) => { end = resolve; });
       item.markStart = (ms) => { if (item.startedAt == null) { item.startedAt = now(); start(ms); } };
       item.finish = () => { start(0); end(); }; // start(0) is a no-op when it has already started
+      if (item.lane === "show" && (!held || item.show !== held)) { item.stopped = true; item.finish(); return handleOf(item); } // its performance is over (or never held the stage)
       if (item.lane === "chatter" && opts.kind) {
         for (let i = waiting.length - 1; i >= 0; i -= 1) {
           if (waiting[i].lane === "chatter" && waiting[i].opts.kind === opts.kind) waiting.splice(i, 1)[0].finish(); // a newer line of that kind says it better
         }
       }
       if (opts.cutIn && item.lane === "chatter") {
-        let at = 0;
-        while (at < waiting.length && waiting[at].opts.cutIn) at += 1;
-        waiting.splice(at, 0, item);
+        putAfterPokes(item);
         if (current && current.lane === "chatter" && !held) {
           current.cutRequested = true;
           cut();
-          if (current.voiced === false) wakeAll(holdSleepers); // a silent bubble gives way at once
+          wakeAll(holdSleepers); // a silent bubble or a min slot gives way at once
         }
       } else waiting.push(item);
       wakeAll(gapSleepers);
-      pump();
-      return { id: item.id, started: item.started, ended: item.ended, get voiced() { return item.voiced; } };
+      pump().catch(() => {});
+      return handleOf(item);
     }
 
     async function pump() {
@@ -95,7 +97,7 @@
       current = item;
       if (item.voiced === null) item.voiced = decideVoice(item);
       const onStart = (ms) => {
-        emit({ phase: "start", id: item.id, text: item.text, ms: Math.max(ms, item.opts.min || 0), bubble: item.opts.bubble ?? true });
+        safeEmit({ phase: "start", id: item.id, text: item.text, ms: Math.max(ms, item.opts.min || 0), bubble: item.opts.bubble ?? true });
         item.markStart(ms);
       };
       let result = {};
@@ -119,13 +121,11 @@
         item.resumes += 1;
         item.resumed = true;
         if (item.resumes > 1) item.voiced = false; // cut twice: the rest is shown, not said again
-        let at = 0;
-        while (at < waiting.length && waiting[at].opts.cutIn) at += 1;
-        waiting.splice(at, 0, item);
+        putAfterPokes(item);
         return;
       }
       endedAt = now();
-      emit({ phase: "end", id: item.id, text: item.text });
+      safeEmit({ phase: "end", id: item.id, text: item.text });
       item.finish();
     }
 
@@ -137,7 +137,7 @@
         if (waiting[i].lane === "show") { const q = waiting.splice(i, 1)[0]; q.stopped = true; q.finish(); }
       }
       wakeAll(gapSleepers);
-      pump();
+      pump().catch(() => {});
     }
     function stop() {
       for (const q of waiting.splice(0)) { q.stopped = true; q.finish(); }

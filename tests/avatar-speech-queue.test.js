@@ -124,3 +124,40 @@ test("a poke right after a line answers at once, without the breathing gap", asy
   const start = events.find((e) => e.phase === "start" && e.text === "Ow!").t;
   assert.ok(start - end < 100, `poke waited ${start - end} ms`);
 });
+
+test("a poke ends a silent bubble at once, also when the voice failed", async () => {
+  const events = [];
+  const t0 = Date.now();
+  const q = createSpeechQueue({
+    gapMs: [40, 40, 40, 40, 40], budget: [0, 0, 3, 5, 8], level: () => 2, estimate: () => 600,
+    emit: (e) => events.push({ ...e, t: Date.now() - t0 }), cut: () => {},
+    play: async () => ({ failed: true })
+  });
+  q.enqueue("the voice is down");
+  await sleep(100);
+  const poke = q.enqueue("Ow!", { forced: true, cutIn: true });
+  await poke.started;
+  const start = events.find((e) => e.phase === "start" && e.text === "Ow!").t;
+  assert.ok(start < 250, `poke started at ${start} ms`);
+  q.stop();
+});
+
+test("a show line whose performance is not on stage is settled at once", async () => {
+  const { q } = rig();
+  const stray = q.enqueue("late line", { lane: "show", show: 9 });
+  assert.equal(await stray.started, 0);
+  await stray.ended;
+  assert.equal(q.idle(), true);
+});
+
+test("a listener that throws does not stop the queue", async () => {
+  const q = createSpeechQueue({
+    gapMs: [10, 10, 10, 10, 10], budget: [0, 0, 3, 5, 8], level: () => 2, estimate: () => 20,
+    emit: () => { throw new Error("bubble broke"); }, cut: () => {},
+    play: async (item, onStart) => { onStart(10); await sleep(10); return {}; }
+  });
+  const a = q.enqueue("one");
+  const b = q.enqueue("two");
+  await Promise.all([a.ended, b.ended]);
+  assert.equal(q.idle(), true);
+});
