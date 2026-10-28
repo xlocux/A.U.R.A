@@ -6,7 +6,11 @@
   let currentFiltered = { roots: [], candidates: [] };
   let selectedNode = null;
 
+  let loadedRunId = null;
+
   async function refresh(runId) {
+    if (runId !== loadedRunId) selectedNode = null;
+    loadedRunId = runId;
     if (!runId) {
       currentTree = null;
       currentFiltered = { roots: [], candidates: [] };
@@ -16,8 +20,20 @@
     }
     const data = await window.auraApi(`/api/recon-runs/${runId}/result-tree`);
     currentTree = data.tree;
-    selectedNode = null;
+    // Keep the user's selection across polls: re-bind it to the fresh tree (render() drops it if filtered out).
+    selectedNode = reselect(selectedNode, currentTree);
     render();
+  }
+
+  function reselect(node, tree) {
+    if (!node) return null;
+    if (node.type === "candidate") return tree.candidates.find((candidate) => candidate.id === node.id) || null;
+    if (node.tool_name) return tree.screenshots.find((shot) => shot.id === node.id) || null;
+    for (const root of tree.roots) {
+      const found = root.children.find((child) => child.id === node.id);
+      if (found) return found;
+    }
+    return null;
   }
 
   function render() {

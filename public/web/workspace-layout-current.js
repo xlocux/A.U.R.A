@@ -282,7 +282,7 @@
       activity: activityHtml(events, tools, aiRows),
       timeline: timelineHtml(events, tools, aiRows),
       events: tablePane("Run Events", ["Time", "Phase", "Severity", "Source", "Message"], events.map((event) => [event.time, event.phase, event.severity, event.source, event.message])),
-      tools: tablePane("Tool Results", ["Tool", "Status", "Exit", "Started", "Logs"], tools.map((tool) => [tool.Tool, tool.Status, tool.Exit, tool.Started, tool.Logs])),
+      tools: tablePane("Tool Results", ["Tool", "Status", "Exit", "Started", "Logs"], tools.map((tool) => [tool.Tool, tool.Status, tool.Exit, tool.Started, tool.buttonsHtml ? { html: tool.buttonsHtml } : tool.Logs])),
       ai: tablePane("AI Decisions", ["Time", "Source", "Action", "Evidence"], aiRows.map((row) => [row.Time, row.Source, row.Action, row.Evidence])),
       correlation: correlationHtml(currentRunData),
       errors: tablePane("Warnings & Errors", ["Time/Tool", "Severity/Status", "Source", "Message"], warnings.map((item) => [item.time || item.Tool || "-", item.severity || item.Status || "-", item.source || item.Tool || "-", item.message || item.Logs || "-"]))
@@ -303,8 +303,12 @@
   function collectTableRows(selector, keys) {
     return [...document.querySelectorAll(selector)].map((tr) => {
       const cells = [...tr.children].map((td) => td.textContent.trim());
-      if (!cells.length || /no .*loaded|no .*results/i.test(cells.join(" "))) return null;
-      return Object.fromEntries(keys.map((key, index) => [key, cells[index] || "-"]));
+      // Group headers and "First N of M" notes are single colspan cells, not data rows.
+      if (cells.length < 2 || /no .*loaded|no .*results/i.test(cells.join(" "))) return null;
+      const row = Object.fromEntries(keys.map((key, index) => [key, cells[index] || "-"]));
+      // Keep the app-generated log buttons (stdout/stderr) so the Logs tab rows stay clickable.
+      row.buttonsHtml = [...tr.querySelectorAll("button.tool-log-button")].map((b) => b.outerHTML).join(" ");
+      return row;
     }).filter(Boolean);
   }
 
@@ -414,6 +418,7 @@
     const label = String(header || "").toLowerCase();
     if (label === "severity") return window.AuraStatusBadges?.badge(cell, { kind: "severity" }) || esc(cell);
     if (label === "status" || label === "severity/status") return window.AuraStatusBadges?.badge(cell) || esc(cell);
+    if (cell && typeof cell === "object" && cell.html) return cell.html;
     return esc(cell);
   }
 

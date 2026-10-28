@@ -71,7 +71,9 @@ function inferRootsFromDomainRows(rows) {
     const domain = normalizeDomain(row?.domain || row?.host || row);
     if (!domain) continue;
     const parts = domain.split(".");
-    roots.add(parts.length > 2 ? parts.slice(-2).join(".") : domain);
+    // Country second-level suffixes (shop.example.co.uk -> example.co.uk) keep three labels.
+    const keep = parts.length > 2 && parts.at(-1).length === 2 && SECOND_LEVEL_TLDS.has(parts.at(-2)) ? 3 : 2;
+    roots.add(parts.length > keep ? parts.slice(-keep).join(".") : domain);
   }
   return [...roots].sort();
 }

@@ -883,7 +883,10 @@ async function _refreshRun() {
     technologies: resultsData.technologies,
     screenshots: resultsData.screenshots
   });
-  window.AuraAiLog.refresh(activeRunId);
+  // Refetch the AI log only when something happened (new events, run switched/finishing) or a view that
+  // shows it (Results > AI log, Logs tab) is visible; the Logs tab reads the #aiLogRows table.
+  const aiLogShown = ["results-ai-log", "tab-logs"].some((id) => { const el = $(id); return el && el.offsetParent !== null; });
+  if (switched || finishing || eventData.events.length > 0 || aiLogShown) window.AuraAiLog.refresh(activeRunId);
   // The result tree is rebuilt server-side on every call: reload it only when the data changed.
   if (topologyChanged || finishing) window.AuraResultsExplorer.refresh(runId);
 }
@@ -1335,7 +1338,9 @@ function renderVulnRows() {
         const meta = lead._meta;
         const sev = String(meta.severity || "unknown").toLowerCase();
         const engine = meta.engine || (lead.source || "").split(":")[0] || "-";
-        const ref = meta.url || meta.reference;
+        // nuclei stores `reference` as an array; accept only http(s) URLs (no javascript:/data:).
+        const ref = [meta.url, ...(Array.isArray(meta.reference) ? meta.reference : [meta.reference])]
+          .map((item) => String(item || "").trim()).find((item) => /^https?:\/\//i.test(item));
         const refCell = ref ? `<a href="${esc(ref)}" target="_blank" rel="noreferrer noopener">${esc(meta.cve || "details")} ↗</a>` : esc(meta.cve || "-");
         const cvss = meta.cvss ? ` <span class="muted">(${esc(meta.cvss)})</span>` : "";
         return `<tr><td><span class="risk-tag vuln-${esc(sev)}">${esc(sev)}</span>${cvss}</td><td class="mono wrap">${esc(lead.value || "")}</td><td>${esc(engine)}</td><td>${refCell}</td></tr>`;

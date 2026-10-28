@@ -266,13 +266,19 @@ async function requestJson(url, options = {}) {
 
 function classifyApiFailure(message) {
   const text = String(message || "");
-  if (/(quota|credit|credits|limit|rate.?limit|exhaust|payment|required|plan|subscription|insufficient|no credits|forbidden|not authorized|unauthorized|401|402|403|429)/i.test(text)) {
-    return {
-      status: "exhausted",
-      action: "Replace the API key, upgrade/enable the provider plan, or disable this provider for recon."
-    };
+  // Network errors carry no HTTP status; test them first so "timed out ... plan" style noise is not read as quota.
+  if (!/\bHTTP \d{3}\b/.test(text) && /(fetch failed|ECONN\w+|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|socket hang up|timed? ?out|aborted|network)/i.test(text)) {
+    return { kind: "network", status: "failed", action: "Network error reaching the provider: check connectivity/proxy and retry; the API key is probably fine." };
   }
-  return { status: "failed", action: "Check the API key and provider status." };
+  // Quota/billing: the key is valid but cannot serve more calls.
+  if (/\bHTTP (402|429)\b|\b(quota|credits?|rate.?limit|too many requests|exhaust\w*|payment required|insufficient|limit (reached|exceeded)|(plan|subscription) (limit|required|upgrade))/i.test(text)) {
+    return { kind: "quota", status: "exhausted", action: "Replace the API key, upgrade/enable the provider plan, or disable this provider for recon." };
+  }
+  // Auth: the key itself is rejected.
+  if (/\bHTTP (401|403)\b|unauthori[sz]ed|forbidden|not authori[sz]ed|invalid (api )?key/i.test(text)) {
+    return { kind: "auth", status: "failed", action: "The provider rejected the API key: check or replace it." };
+  }
+  return { kind: "other", status: "failed", action: "Check the API key and provider status." };
 }
 
 function basicAuth(secret) {

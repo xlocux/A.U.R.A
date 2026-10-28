@@ -26,6 +26,21 @@ const RUNTIME_BYTES = 40e6;
 const MEMORY_LINES = 300; // remembered lines kept in memory (about 200 KB each)
 const DISK_LINES = 600; // and on disk, in data/voice/cache (about 120 MB at most)
 
+// SHA-256 of the pinned voice files (computed from the installed pack); a mismatch fails the download.
+const VOICE_SHA256 = {
+  af_bella: "f69d836209b78eb8c66e75e3cda491e26ea838a3674257e9d4e5703cbaf55c8b",
+  af_heart: "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b",
+  af_nicole: "cd2191ab31b914ed7b318416b0e4440fdf392ddad9106a060819aa600a64f59a",
+  af_sarah: "4409fbc125afabacc615d94db5398d847006a737b0247d6892b7a9a0007a2f0a",
+  af_sky: "4435255c9744f3f31659e0d714ab7689bf65d9e77ec1cce060f083912614f0b9",
+  bf_emma: "669fe0647f9dd04fcab92f1439a40eeb4c8b4ab1f82e4996fe3d918ce4a63b73",
+  bf_isabella: "3754352c4aaa46d17f27654ab7518d65b62ad6163a0f55a5f4330c2da2c4e94f",
+  jf_alpha: "56b479360aad9f367aeb8cef908f9201cf48b4555e488c5f4590c9dfcd978bb6",
+  jf_gongitsune: "0f1181f3772d27b7c12aaf4bcd71e31b186c4146e330d074a3dc64ee392af396",
+  jf_nezumi: "13cb71eebb0b48739d444558322aa35a8c9a489b80e1e631f14d2e6aea93026b",
+  jf_tebukuro: "29c6c0561b4288d59639677bebe7533c919743d5ea68d0d2ae992644beea6696"
+};
+
 const PACKS = {
   "piper-linda": {
     engine: "piper", label: "Piper - Linda (US)", note: "very fast", bytes: 63.5e6,
@@ -45,8 +60,8 @@ const PACKS = {
     engine: "kokoro", label: "Kokoro - 11 voices, JP + EN", note: "recommended, most expressive", bytes: 330e6,
     files: [
       { url: `${KOKORO_BASE}onnx/model.onnx`, to: "model.onnx", sha256: "8fbea51ea711f2af382e88c833d9e288c6dc82ce5e98421ea61c058ce21a34cb" },
-      { url: `${KOKORO_BASE}tokenizer.json`, to: "tokenizer.json" },
-      ...[...KOKORO_VOICES, ...KOKORO_JA_VOICES].map((v) => ({ url: `${KOKORO_BASE}voices/${v}.bin`, to: `voices/${v}.bin` }))
+      { url: `${KOKORO_BASE}tokenizer.json`, to: "tokenizer.json", sha256: "77a02c8e164413299b4b4c403b14f8e0e1c1b727db4d46a09d6327b861060a34" },
+      ...[...KOKORO_VOICES, ...KOKORO_JA_VOICES].map((v) => ({ url: `${KOKORO_BASE}voices/${v}.bin`, to: `voices/${v}.bin`, sha256: VOICE_SHA256[v] }))
     ]
   }
 };
@@ -242,6 +257,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
   async function pump() {
     if (busy || !queue.length) return;
     const item = queue.shift();
+    if (item.gone?.()) { item.resolve({ skipped: true }); pump(); return; } // the client stopped waiting: do not synthesize it
     busy = item;
     const t0 = Date.now();
     let result;
@@ -270,7 +286,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
   // Lines are generated in order, priority lines (battle cries, rants, pokes) ahead of the chatter; none is skipped for
   // a newer one (the page sends only the line she is saying and the next). A prefetch ("low") is skipped while the
   // engine is busy: it never delays a line she is about to say.
-  function speak({ pack, voice, speed, text, lang = "", low = false, priority = false }) {
+  function speak({ pack, voice, speed, text, lang = "", low = false, priority = false }, gone = null) {
     if (!packs[pack]) throw Object.assign(new Error("Unknown voice pack"), { statusCode: 400 });
     if (!runtimeReady() || !packReady(pack)) throw Object.assign(new Error("Voice pack not installed"), { statusCode: 409 });
     const line = cleanText(text);
@@ -289,7 +305,7 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
       if ((busy || queue.length) && low) { resolve({ skipped: true }); return; }
       // every line is remembered: most of her remarks come from fixed pools and come back, and then cost nothing
       const keep = (result) => { if (!result.error && !result.skipped) remember(key, result); resolve(result); };
-      const entry = { req, resolve: keep, priority: Boolean(priority) };
+      const entry = { req, resolve: keep, priority: Boolean(priority), gone };
       const at = priority ? queue.findIndex((q) => !q.priority) : -1;
       if (at < 0) queue.push(entry); else queue.splice(at, 0, entry);
       pump();

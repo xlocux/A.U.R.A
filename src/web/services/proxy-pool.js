@@ -116,7 +116,7 @@ function redactProxy(proxy) {
 function dedupeProxyRecords(proxies) {
   const seen = new Set();
   return proxies.filter((proxy) => {
-    const key = `${proxy.type}://${proxy.address}:${proxy.port}`;
+    const key = `${proxy.type}://${String(proxy.address).toLowerCase()}:${proxy.port}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

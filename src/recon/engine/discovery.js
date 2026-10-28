@@ -48,13 +48,18 @@ async function checkToolAvailability({ store, runId, toolNames, context }) {
 }
 
 async function collectPassive({ store, runId, targetName, roots, passiveSources, discovered }) {
-  const apiKeys = Object.fromEntries(API_PASSIVE_PROVIDERS.map((provider) => [provider, store.getActiveApiKey(provider)]));
+  const apiKeys = {};
   for (const root of roots) {
     for (const source of passiveSources) {
       await waitForRunControl(store, runId);
+      // Re-pick the key before every call so monthly limits and rotation see the calls already made.
+      for (const provider of API_PASSIVE_PROVIDERS) if (!apiKeys[provider] || provider === source) apiKeys[provider] = store.getActiveApiKey(provider);
       store.appendEvent(runId, { phase: "recon", source, message: `Querying passive source for ${root}` });
+      const usedKey = apiKeys[source];
+      let counted = false;
       try {
         const passiveResult = await runPassiveSource(source, root, { apiKeys });
+        if (usedKey?.id) { store.markApiKeyUsed(usedKey.id); counted = true; }
         const domains = Array.isArray(passiveResult) ? passiveResult : passiveResult.domains || [];
         const metadata = Array.isArray(passiveResult) ? {} : passiveResult.metadata || {};
         for (const domain of domains) discovered.add(domain);
@@ -63,6 +68,7 @@ async function collectPassive({ store, runId, targetName, roots, passiveSources,
         store.appendEvent(runId, { phase: "recon", severity: domains.length || !metadata.reason ? "ok" : "warn", source, message: `${source} returned ${domains.length} domains for ${root}${note}` });
       } catch (error) {
         const activeKey = apiKeys[source];
+        if (activeKey?.id && !counted) store.markApiKeyUsed(activeKey.id); // the failed call still spent quota
         if (activeKey?.id && classifyApiFailure(error.message).status === "exhausted") {
           store.updateApiKeyStatus(activeKey.id, "exhausted");
           store.appendEvent(runId, {

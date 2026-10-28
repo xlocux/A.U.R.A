@@ -149,7 +149,9 @@ module.exports = {
       urls: countDistinct(this.db, "recon_urls", "url", runId),
       httpServices: countDistinct(this.db, "recon_http_services", "url", runId),
       technologies: summarizeTechnologies(technologyRows).length,
-      screenshots: countRows(this.db, "recon_screenshots", runId),
+      // Captured images, not screenshot-run rows (a failed or multi-image run is not "1 screenshot").
+      screenshots: this.db.prepare("SELECT metadata_json FROM recon_screenshots WHERE run_id=?").all(Number(runId))
+        .reduce((sum, row) => { const n = Number(parseJson(row.metadata_json, {}).screenshotCount); return sum + (Number.isFinite(n) ? n : 1); }, 0),
       events: countRows(this.db, "scan_events", runId),
       toolResults: countRows(this.db, "recon_tool_results", runId)
     };

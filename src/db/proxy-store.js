@@ -70,7 +70,8 @@ class ProxyStore {
   // and only changes status when the caller passes one explicitly.
   async addProxy(address, port, type, metadata = {}) {
     const { country = null, username = null, password = null, status } = metadata;
-    const existing = this.db.prepare("SELECT id FROM proxies WHERE address = ? AND port = ? AND type = ?").get(address, port, type);
+    address = String(address).trim().toLowerCase(); // hostnames are case-insensitive: "Proxy.X.com" and "proxy.x.com" are one proxy
+    const existing = this.db.prepare("SELECT id FROM proxies WHERE lower(address) = ? AND port = ? AND type = ?").get(address, port, type);
     const timestamp = nowIso();
     if (existing) {
       this.db.prepare(`
@@ -239,8 +240,8 @@ class ProxyStore {
 
   async findProxyByCoords(address, port, type) {
     return this.db.prepare(
-      "SELECT * FROM proxies WHERE address = ? AND port = ? AND type = ?"
-    ).get(address, port, type);
+      "SELECT * FROM proxies WHERE lower(address) = ? AND port = ? AND type = ?"
+    ).get(String(address).trim().toLowerCase(), port, type);
   }
 
   async updateProxy(proxyId, proxy) {

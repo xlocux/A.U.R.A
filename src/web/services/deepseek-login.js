@@ -15,6 +15,7 @@ const { ensureDeviceId, deepSeekValidateToken } = require("./deepseek-web");
 const LOGIN_URL = "https://chat.deepseek.com/";
 const POLL_MS = 2000;
 const TIMEOUT_MS = 5 * 60 * 1000;
+const CDP_TIMEOUT_MS = 15000;
 
 const STATIC_BASE = "https://fe-static.deepseek.com/chat/static/";
 const WASM_OUT = path.resolve("data", "deepseek_sha3.wasm");
@@ -55,9 +56,9 @@ function findBrowser() {
 function cdpVersion(port, attemptsLeft) {
   return new Promise((resolve, reject) => {
     const tryOnce = (left) => {
-      http.get({ host: "127.0.0.1", port, path: "/json/version" }, (res) => {
+      http.get({ host: "127.0.0.1", port, path: "/json/version", timeout: CDP_TIMEOUT_MS }, (res) => {
         let body = ""; res.on("data", (c) => (body += c)); res.on("end", () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
-      }).on("error", (err) => (left <= 0 ? reject(err) : setTimeout(() => tryOnce(left - 1), 300)));
+      }).on("timeout", function () { this.destroy(new Error("browser debug port timed out")); }).on("error", (err) => (left <= 0 ? reject(err) : setTimeout(() => tryOnce(left - 1), 300)));
     };
     tryOnce(attemptsLeft);
   });
@@ -68,12 +69,22 @@ function cdpClient(wsUrl) {
   const ws = new WebSocket(wsUrl);
   let id = 0;
   const pending = new Map();
-  const ready = new Promise((resolve) => ws.addEventListener("open", resolve, { once: true }));
+  const ready = new Promise((resolve, reject) => { ws.addEventListener("open", resolve, { once: true }); setTimeout(() => reject(new Error("browser connection timed out")), CDP_TIMEOUT_MS).unref?.(); });
   ws.addEventListener("message", (event) => {
     const msg = JSON.parse(typeof event.data === "string" ? event.data : Buffer.from(event.data).toString());
     if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); }
   });
-  const send = (method, params = {}) => new Promise((resolve) => { id += 1; pending.set(id, resolve); ws.send(JSON.stringify({ id, method, params })); });
+  // A hung or closed browser must not leave a call waiting forever: it settles with an error after CDP_TIMEOUT_MS.
+  const settleAll = (error) => { for (const done of pending.values()) done({ error }); pending.clear(); };
+  ws.addEventListener("close", () => settleAll({ message: "browser connection closed" }));
+  ws.addEventListener("error", () => settleAll({ message: "browser connection failed" }));
+  const send = (method, params = {}, timeoutMs = CDP_TIMEOUT_MS) => new Promise((resolve) => {
+    id += 1;
+    const mine = id;
+    const timer = setTimeout(() => { pending.delete(mine); resolve({ error: { message: "browser did not answer" } }); }, timeoutMs);
+    pending.set(mine, (msg) => { clearTimeout(timer); resolve(msg); });
+    try { ws.send(JSON.stringify({ id: mine, method, params })); } catch (error) { clearTimeout(timer); pending.delete(mine); resolve({ error: { message: error.message } }); }
+  });
   return { ws, ready, send };
 }
 
@@ -211,7 +222,7 @@ async function runCapture(store) {
   try {
     await cdpVersion(port, 50);
     // Attach to the DeepSeek tab.
-    const targets = await fetch(`http://127.0.0.1:${port}/json`).then((r) => r.json());
+    const targets = await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(CDP_TIMEOUT_MS) }).then((r) => r.json());
     const target = targets.find((t) => t.type === "page" && String(t.url).includes("deepseek.com")) || targets.find((t) => t.type === "page");
     if (!target?.webSocketDebuggerUrl) throw new Error("No debuggable DeepSeek tab.");
     client = cdpClient(target.webSocketDebuggerUrl);
@@ -231,7 +242,7 @@ async function runCapture(store) {
       if (token) {
         // Verify it's a REAL, usable token (not a logged-out placeholder) before saving.
         let verdict;
-        try { verdict = await deepSeekValidateToken({ token, deviceId }); }
+        try { verdict = await Promise.race([deepSeekValidateToken({ token, deviceId }), new Promise((_, reject) => setTimeout(() => reject(new Error("validation timed out")), CDP_TIMEOUT_MS).unref?.())]); }
         catch { verdict = { ok: false, networkError: true }; }
         if (verdict.authFailed) {
           // Token present but rejected (e.g. stale value in storage) — keep waiting for a real login.
@@ -279,4 +290,4 @@ function cancelDeepSeekLogin() {
   return state;
 }
 
-module.exports = { startDeepSeekLogin, deepSeekLoginStatus, cancelDeepSeekLogin };
+module.exports = { cdpClient, startDeepSeekLogin, deepSeekLoginStatus, cancelDeepSeekLogin };

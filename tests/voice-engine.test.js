@@ -147,3 +147,16 @@ test("the voice routes need a login and report status", async () => {
     store.close?.();
   }
 });
+
+test("a line whose client already left is not generated, and the pack manifest pins every kokoro file", async () => {
+  const root = path.join(workDir, "packs-gone");
+  fakeRuntime(root);
+  fs.mkdirSync(path.join(root, "packs", "piper-test"), { recursive: true });
+  fs.writeFileSync(path.join(root, "packs", "piper-test", ".complete"), "x");
+  const packs = { "piper-test": { engine: "piper", label: "T", note: "t", bytes: 1, files: [] } };
+  const engine = createVoiceEngine({ root, packs });
+  const result = await engine.speak({ pack: "piper-test", text: "never said" }, () => true);
+  assert.equal(result.skipped, true);
+  assert.equal(engine.status().worker.state, "stopped"); // no worker was even started
+  assert.ok(PACKS.kokoro.files.every((f) => /^[0-9a-f]{64}$/.test(f.sha256 || "")));
+});

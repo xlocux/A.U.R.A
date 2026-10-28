@@ -72,6 +72,9 @@ function deleteTarget({ response, store, params }) {
   const targetName = params.name;
   const target = store.getTarget(targetName);
   if (!target) throw new HttpError(404, `Target not found: ${targetName}`);
+  if (store.listRuns({ limit: 1000, targetName }).some((run) => ["queued", "running", "paused"].includes(run.status))) {
+    throw new HttpError(409, `Target ${targetName} has an active run. Stop it before deleting the target.`);
+  }
   const removed = store.deleteTarget(targetName);
   removeTargetFiles(targetName, target.config_path, removed.runIds);
   sendJson(response, { deleted: true, targetName, runIds: removed.runIds });

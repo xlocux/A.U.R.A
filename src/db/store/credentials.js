@@ -50,14 +50,17 @@ module.exports = {
   },
 
   getActiveApiKey(provider) {
-    const row = this.db.prepare(`SELECT * FROM api_keys WHERE provider=? AND status='active' AND (monthly_limit IS NULL OR used_count < monthly_limit)
-      ORDER BY used_count ASC, last_used_at IS NULL DESC, last_used_at ASC, id ASC LIMIT 1`).get(provider);
+    // The monthly limit applies per calendar month: a count last touched in an earlier month no longer blocks the key.
+    const month = nowIso().slice(0, 7);
+    const row = this.db.prepare(`SELECT * FROM api_keys WHERE provider=? AND status='active'
+      AND (monthly_limit IS NULL OR used_count < monthly_limit OR substr(last_used_at, 1, 7) < ?)
+      ORDER BY used_count ASC, last_used_at IS NULL DESC, last_used_at ASC, id ASC LIMIT 1`).get(provider, month);
     return row ? hydrate.apiKey(row, true) : null;
   },
 
   markApiKeyUsed(id) {
     const t = nowIso();
-    this.db.prepare("UPDATE api_keys SET used_count=used_count+1, last_used_at=?, updated_at=? WHERE id=?").run(t, t, Number(id));
+    this.db.prepare("UPDATE api_keys SET used_count=CASE WHEN last_used_at IS NOT NULL AND substr(last_used_at, 1, 7) < ? THEN 1 ELSE used_count+1 END, last_used_at=?, updated_at=? WHERE id=?").run(t.slice(0, 7), t, t, Number(id));
   },
 
   updateApiKeyStatus(id, status) {

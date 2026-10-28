@@ -547,7 +547,14 @@
     frame = window.requestAnimationFrame(animate);
   }
 
+  let optionTimer = null;
+  // Debounced: every keystroke in the search box would otherwise rebuild the whole graph.
   function handleOptionChange() {
+    clearTimeout(optionTimer);
+    optionTimer = setTimeout(applyOptionChange, 200);
+  }
+
+  function applyOptionChange() {
     options = {
       query: $("topologySearch")?.value || "",
       focus: $("topologyFocus")?.value || "all",
