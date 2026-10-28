@@ -30,8 +30,9 @@
     $("zoomTopologyOut")?.addEventListener("click", () => zoom(-0.15));
     ["topologyDomains", "topologyServices", "topologyArtifacts", "topologyCandidates"].forEach((id) => $(id)?.addEventListener("change", handleLayerToggle));
     ["topologySearch", "topologyFocus", "topologyLayout"].forEach((id) => $(id)?.addEventListener("input", handleOptionChange));
+    $("topologyLabels")?.addEventListener("change", () => { options.labels = $("topologyLabels").value; saveOptions(); }); // only repaints: the animation loop draws the next frame
     $("topologyResetSmart")?.addEventListener("click", () => {
-      options = { query: "", focus: "all", layout: "smart" };
+      options = { query: "", focus: "all", layout: "smart", labels: "auto" };
       saveOptions();
       syncControls();
       reset();
@@ -59,6 +60,11 @@
           <option value="smart">Smart layout</option>
           <option value="rings">Rings</option>
           <option value="radial">Radial</option>
+        </select>
+        <select id="topologyLabels" title="Node labels">
+          <option value="auto">Labels: auto</option>
+          <option value="all">Labels: all</option>
+          <option value="none">Labels: none</option>
         </select>
         <button id="topologyResetSmart" type="button">Reset View</button>
       </div>
@@ -467,7 +473,9 @@
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    const dense = graph.nodes.length > 45;
+    const labels = options.labels || "auto"; // auto hides most labels on a crowded graph; all and none are the user's choice
+    if (labels === "none") { ctx.restore(); return; }
+    const dense = graph.nodes.length > 45 && labels !== "all";
     if (!selected && dense && !(["target", "cluster", "service", "tech"].includes(node.type) && view.zoom > 0.5)) { ctx.restore(); return; }
     ctx.font = (selected ? "400 12px " : "400 11px ") + pal.font;
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0.4px";
@@ -558,7 +566,8 @@
     options = {
       query: $("topologySearch")?.value || "",
       focus: $("topologyFocus")?.value || "all",
-      layout: $("topologyLayout")?.value || "smart"
+      layout: $("topologyLayout")?.value || "smart",
+      labels: $("topologyLabels")?.value || "auto"
     };
     saveOptions();
     update();
@@ -568,6 +577,7 @@
     if ($("topologySearch")) $("topologySearch").value = options.query || "";
     if ($("topologyFocus")) $("topologyFocus").value = options.focus || "all";
     if ($("topologyLayout")) $("topologyLayout").value = options.layout || "smart";
+    if ($("topologyLabels")) $("topologyLabels").value = options.labels || "auto";
   }
 
   function updateHint() {
