@@ -122,8 +122,9 @@ Stage API given to scripts (`s`):
   `deferred` / `flushDeferred` (the chatter lane replaces them).
 - `say(text, ms, force, opts)` stays as the chatter entry point: it calls `voice.speak` on the chatter lane. A click
   on the home avatar, a poke and important events (vuln found, run done, stage failed) are `forced`.
-- `stage()` and `rage()` move to the director (rage becomes a performance: its cries are prepared and said in a row
-  with the full-screen text, no bubble).
+- `stage()` stays here as the drawing side only (roaming copy out, helpers, clean-up; no voice, no pacing); the
+  director wraps it. `rage()` runs as a director performance (its cries prepared and said in a row with the
+  full-screen text, no bubble). The scheduler's "OK to perform?" policy stays in `avatar-antics.js`.
 - Expected size: ~630 -> ~480 lines.
 
 ## The metronome (pace)
