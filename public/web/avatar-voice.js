@@ -112,6 +112,7 @@
     } catch (err) { serverError = err.message; }
     clearTimeout(pollTimer);
     if (server && server.job && !server.job.done) pollTimer = setTimeout(refresh, 900);
+    else if (!server) pollTimer = setTimeout(refresh, 3000); // the first status failed (server starting, not signed in yet): keep trying, she has no voice until it answers
     emit();
   }
   async function post(path, body) {
@@ -213,7 +214,14 @@
   // Every click or key press wakes the sound up while it is asleep, not only the first one: Edge, Safari and Firefox
   // may let it start only inside the click itself, so after a reload she stayed mute until the voice was switched off
   // and on (the only click that woke it).
-  const unlock = () => { if (cfg.on && (!ctx || ctx.state !== "running")) ensureCtx(); };
+  // A line the browser would not let her say (no click on this page yet) is lost; the first click that opens the sound
+  // says so with a short line, instead of leaving her silent until the next remark.
+  let refused = 0;
+  const unlock = () => {
+    if (!cfg.on || (ctx && ctx.state === "running")) return;
+    ensureCtx();
+    if (refused) { refused = 0; setTimeout(() => speak("Sound is on. I can talk now.", { emotion: "happy", force: true }), 150); }
+  };
   for (const type of ["pointerdown", "pointerup", "keydown"]) document.addEventListener(type, unlock, { capture: true });
   // Before the first click the audio is not even created: the browser would not let it start (and says so in the
   // console). A browser that lets this site play sound by itself (Edge: site permission "Media autoplay: Allow") is
@@ -244,7 +252,7 @@
   }
   // resolves true when the line has been played (or cut), false when the sound could not start
   async function play(audio, emo, volume, onStart) {
-    if (!(await audible())) return false;
+    if (!(await audible())) { refused += 1; return false; }
     return new Promise((resolve) => {
       stopCurrent();
       const buf = ctx.createBuffer(1, audio.data.length, audio.rate);
@@ -420,6 +428,7 @@
     const takeFloor = Boolean(opts.loud || item.emoName === "rage" || (opts.interrupt && !opts.gag && item.emoName !== "shout"));
     if (takeFloor && currentItem && currentItem.neural && !currentItem.silent && currentItem.emoName !== "shout") { currentItem.preempt = true; silence(); }
     item.neural = Boolean(activePack()) && !item.silent;
+    if (!item.neural && cfg.engine !== "browser") item.silent = true; // a neural voice chosen but not ready (status loading, pack missing): a bubble, never the browser's second voice
     if (item.neural) item.parts = partsOf(text, item.emoName, opts);
     // nothing is dropped: a line goes behind the lines of its own rank or above
     const live = queue.filter((q) => !q.cancelled);
@@ -478,7 +487,7 @@
         if (demo !== token) return;
         const onStart = (ms) => { played += 1; if (window.AuraAvatar) window.AuraAvatar.say(text, ms + 400, true); };
         if (audio) await play(audio, audio.emo, cfg.volume, onStart);
-        else if (!activePack()) await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
+        else if (cfg.engine === "browser") await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
         else { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // one voice: a missing line is a bubble
         await new Promise((r) => setTimeout(r, 250));
       }

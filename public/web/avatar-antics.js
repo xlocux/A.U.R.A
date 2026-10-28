@@ -657,7 +657,8 @@
       }
       // Psychopathic: kept back only because she is out for a walk, or the gap is almost over: she tries again soon
       const roaming = Boolean(A() && A().isRoaming()), talking = Boolean(window.AuraSpeech && window.AuraSpeech.isBusy && window.AuraSpeech.isBusy());
-      if (level >= 4 && (roaming || talking || since <= gap)) { schedule(roaming || talking ? 2500 : Math.max(1000, gap - since + 200)); return; }
+      if (roaming || talking) { schedule(2500); return; } // kept back only because she is busy: try again soon, at every level
+      if (level >= 4 && since <= gap) { schedule(Math.max(1000, gap - since + 200)); return; }
       schedule();
     }, wait);
   }

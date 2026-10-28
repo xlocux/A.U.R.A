@@ -145,7 +145,8 @@
     if (opts.silent) { if (opts.synced || !(voiceOn && speech.isBusy && speech.isBusy())) showBubble(text, ms, opts.pain); return; }
     const accepted = speech ? speech.speak(text, { ms, interrupt: force, gag: opts.fromGag ? currentShow() : 0 }) : undefined;
     if (accepted === true) {
-      pendingBubbles.set(String(text), { ms, pain: Boolean(opts.pain) });
+      // one entry per queued line: the same text twice must give two bubbles, not one
+      pendingBubbles.set(String(text), (pendingBubbles.get(String(text)) || []).concat({ ms, pain: Boolean(opts.pain) }));
       return true;
     }
     showBubble(text, ms, opts.pain); // no voice: the bubble alone
@@ -596,8 +597,9 @@
       const d = event.detail || {};
       const text = String(d.text);
       const stay = (Number(d.ms) || 2000) + 600;
-      const q = pendingBubbles.get(text);
-      if (q) { pendingBubbles.delete(text); showBubble(text, Math.max(stay, Math.min(q.ms, stay + 2500)), q.pain); return; }
+      const waiting = pendingBubbles.get(text), q = waiting && waiting.shift();
+      if (waiting && !waiting.length) pendingBubbles.delete(text);
+      if (q) { showBubble(text, Math.max(stay, Math.min(q.ms, stay + 2500)), q.pain); return; }
       if (!bubble || bubble.dataset.say !== text) return;
       bubble.classList.add("show");
       clearTimeout(bubbleTimer);
