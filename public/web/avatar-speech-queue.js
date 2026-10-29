@@ -44,13 +44,17 @@
       return [...first, ...forced, ...rest];
     }
 
-    function decideVoice(item) {
+    // would this line be spoken if its turn came now? (the voice makes no audio ahead for a line the budget will mute)
+    function wouldVoice(item) {
       if (item.opts.voice === false || item.opts.muted) return false; // chosen caption, or the setup mutes it (voice off, hidden page...)
       if (item.lane === "show" || item.forced) return true;
       while (spokenAt.length && now() - spokenAt[0] > MINUTE) spokenAt.shift();
-      if (spokenAt.length >= budget[lvl()]) return false;
-      spokenAt.push(now());
-      return true;
+      return spokenAt.length < budget[lvl()];
+    }
+    function decideVoice(item) {
+      const voiced = wouldVoice(item);
+      if (voiced && item.lane === "chatter" && !item.forced) spokenAt.push(now());
+      return voiced;
     }
 
     function enqueue(text, opts = {}, extra = {}) {
@@ -155,7 +159,7 @@
     }
 
     return {
-      enqueue, hold, release, stop,
+      enqueue, hold, release, stop, wouldVoice,
       idle: () => !current && waiting.length === 0,
       current: () => current,
       upcoming: (n) => order().slice(0, n),

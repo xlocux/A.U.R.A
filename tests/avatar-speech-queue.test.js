@@ -289,3 +289,42 @@ test("prepare: a piece the engine failed to make is not missing (it will be a si
   assert.deepEqual({ ...mixed }, { ready: 1, missing: 1 });
   v.dispose();
 });
+
+test("wouldVoice: a waiting chatter line over budget would be a silent bubble; forced lines always speak", async () => {
+  const { q } = rig({ budget: [0, 0, 1, 1, 1], playMs: 60 });
+  const one = q.enqueue("one"); // spoken: uses the budget
+  q.enqueue("two");
+  q.enqueue("news", { forced: true });
+  const [news, two] = q.upcoming(2); // forced lines first
+  assert.equal(q.wouldVoice(two), false);
+  assert.equal(q.wouldVoice(news), true);
+  await one.ended;
+  q.stop();
+});
+
+test("a piece being made is asked from the server once, however many times it is prepared meanwhile", async () => {
+  const pending = [];
+  const v = loadVoice({ answer: (text, audio) => new Promise((resolve) => pending.push(() => resolve(audio()))) });
+  await v.ready();
+  const lines = [{ text: "Hold on, I know a shortcut.", emotion: "neutral" }];
+  await v.S.prepare(lines, { timeoutMs: 30 }); // not ready in time: the gag is postponed, the piece goes on being made
+  const retry = v.S.prepare(lines, { timeoutMs: 1000 }); // the retry while it is still being made
+  await sleep(20);
+  pending.forEach((answer) => answer());
+  assert.equal((await retry).missing, 0);
+  assert.equal(v.asked.filter((t) => t === "Hold on, I know a shortcut.").length, 1);
+  v.dispose();
+});
+
+test("chatter the budget will show silently gets no audio made ahead", async () => {
+  const v = loadVoice({ level: 1 }); // level 1: no budget, only forced lines are spoken
+  await v.ready();
+  v.S.speak("Important news for you.", { forced: true });
+  v.S.speak("Just a remark about the scan.");
+  v.S.speak("Another remark about the scan.");
+  await sleep(50);
+  assert.ok(v.asked.includes("Important news for you.")); // the harness does make audio for a spoken line
+  assert.ok(!v.asked.includes("Just a remark about the scan."));
+  assert.ok(!v.asked.includes("Another remark about the scan."));
+  v.dispose();
+});

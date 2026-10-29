@@ -156,12 +156,18 @@
   // lang "ja": the line is Japanese romaji (battle cries) and is said with Japanese sounds by the server voices.
   // priority: a battle cry, a rant or a reaction to a poke: the server prepares it before the chatter.
   const generate = (text, emoName, low = false, lang = "", priority = false) => generateLine(shape(text, emoName), emoName, low, lang, priority);
+  // cache key -> its request in flight: a piece asked again meanwhile (a retried prepare) waits for it, or the server
+  // would generate it twice
+  const making = new Map();
   async function generateLine(line, emoName, low = false, lang = "", priority = false) {
     const pack = activePack();
     const emo = EMOTIONS[emoName] || EMOTIONS.neutral;
     if (!pack || !line) return null;
     const key = cacheKey(pack, line, emoName, lang);
     if (cache.has(key)) return { ...cache.get(key), emo };
+    if (making.has(key)) { await making.get(key); return cache.has(key) ? { ...cache.get(key), emo } : null; }
+    let made;
+    making.set(key, new Promise((resolve) => { made = resolve; }));
     generating += 1; emit();
     try {
       const res = await fetch("/api/voice/speak", {
@@ -190,7 +196,7 @@
     } catch (err) {
       serverError = err.name === "TimeoutError" ? "the voice engine took too long" : err.message;
       return null;
-    } finally { generating -= 1; emit(); }
+    } finally { generating -= 1; making.delete(key); made(); emit(); }
   }
   // The first line loads the model (a few seconds): do it while she is quiet.
   const warm = () => { if (cfg.on && activePack()) generate("Hi.", "neutral", true); };
@@ -330,10 +336,11 @@
   });
   // every piece of a queued line, generated in order (the server keeps the order)
   const generateParts = (q) => q.parts.map((part) => generateLine(part, q.emoName, false, q.opts.lang, q.priority));
-  // the line she says and the next ones are generated while she speaks (all their pieces, in order)
+  // the line she says and the next ones are generated while she speaks (all their pieces, in order); not a line that
+  // will be a silent bubble (a caption, muted, over the chatter budget): its audio would only cost CPU and cache
   function prepareAhead() {
     for (const q of [queue.current(), ...queue.upcoming(PREPARE_AHEAD)]) {
-      if (q && q.neural && q.opts.voice !== false && !q.opts.muted && !q.ready) q.ready = generateParts(q);
+      if (q && q.neural && !q.ready && (q.voiced ?? queue.wouldVoice(q))) q.ready = generateParts(q);
     }
   }
   // Plays one queued line, piece after piece. onStart(ms) as she starts (her bubble appears then, for the whole line).
