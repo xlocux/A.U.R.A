@@ -132,7 +132,8 @@ Stage API given to scripts (`s`):
 Lives in the voice queue, applies to the chatter lane only (a performance sets its own timing).
 
 - Breathing gap between the end of a line and the start of the next: level 0-1: 1.5 s, 2: 1.2 s, 3: 1.0 s,
-  4: 0.8 s. Never zero. Forced lines also respect it (a gap of silence is not a burst).
+  4: 0.8 s. Never zero. Forced lines also respect it (a gap of silence is not a burst), except a poke or the hand
+  (`cutIn`), which she answers at once.
 - Spoken chatter budget per rolling minute: level 1: 0 (only forced lines are spoken, as today's "important moments
   only"), 2: 3, 3: 5, 4: 8. Level 0 says nothing (as today). Over budget, a chatter line becomes a silent bubble in its turn, with the same gap. Forced lines
   do not use the budget and are always spoken.
