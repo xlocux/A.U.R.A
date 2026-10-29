@@ -45,6 +45,8 @@
     if (speech && speech.prefetch && director && api.anticScripts) {
       setTimeout(() => {
         const lines = Object.values(api.anticScripts()).flatMap((fn) => director.linesFor(fn, new Map(), { quotes: false }));
+        // the tantrum scenes' lines (yelled: prepared loud, the way the ghost says them)
+        if (window.AuraTantrums && window.AuraTantrums.scenes) lines.push(...Object.values(window.AuraTantrums.scenes()).flatMap((fn) => director.linesFor(fn, new Map(), { quotes: false })));
         speech.prefetch(lines.map((l) => [l.text, l.emotion, l.lang || ""]));
         if (api.rageLines) speech.prefetch(api.rageLines.map((line) => [line, "rage", ""]));
       }, 6000);

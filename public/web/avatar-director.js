@@ -25,23 +25,24 @@
   // [line, emotion, lang] as the voice engine wants it
   const cryLine = (move) => (JAPANESE[move] ? [JAPANESE[move], "shout", "ja"] : [stretch(move), "shout", ""]);
 
-  // ── what a script will say, read from its source: literal first arguments of s.say / s.line / g.say (tantrum
-  // ghosts), s.cry, s.quote, and every option of s.pick([...]). Lines built at run time are not found: they are
-  // generated when said, and the script waits for them at that beat.
+  // ── what a script will say, read from its source: literal first arguments of s.say / s.line, g.say (a tantrum
+  // ghost's yelled line: prepared loud, the way she will say it), s.cry, s.quote, and every option of s.pick([...]).
+  // Lines built at run time are not found: they are generated when said, and the script waits for them at that beat.
   const STR = String.raw`(["'])((?:\\.|(?!\1)[^\\])*)\1`;
   const STR2 = STR.replace(/\\1/g, "\\3"); // the same string pattern with its backreference renumbered, for a second string in one regex
   const unquote = (s) => s.replace(/\\(.)/g, (m, c) => (c === "n" ? "\n" : c === "t" ? "\t" : c));
   const sayable = (t) => t.replace(/[^A-Za-z]/g, "").length >= 3;
   function extractLines(source) {
     const src = String(source);
-    const say = [], cries = [], quotes = [];
-    for (const m of src.matchAll(new RegExp(String.raw`\b[sg]\.(?:say|line)\(\s*` + STR, "g"))) say.push(unquote(m[2]));
+    const say = [], loud = [], cries = [], quotes = [];
+    for (const m of src.matchAll(new RegExp(String.raw`\bs\.(?:say|line)\(\s*` + STR, "g"))) say.push(unquote(m[2]));
+    for (const m of src.matchAll(new RegExp(String.raw`\bg\.say\(\s*` + STR, "g"))) loud.push(unquote(m[2]));
     for (const m of src.matchAll(/\bs\.pick\(\s*\[([^\]]*)\]/g)) for (const n of m[1].matchAll(new RegExp(STR, "g"))) say.push(unquote(n[2]));
     for (const m of src.matchAll(new RegExp(String.raw`\bs\.cry\(\s*` + STR, "g"))) cries.push(unquote(m[2]));
     for (const m of src.matchAll(new RegExp(String.raw`\bs\.quote\(\s*` + STR + String.raw`\s*,\s*` + STR2, "g"))) quotes.push([unquote(m[2]), unquote(m[4])]);
     const seen = new Set();
     const once = (list, key) => list.filter((x) => { const k = key(x); if (seen.has(k)) return false; seen.add(k); return true; });
-    return { say: once(say.filter(sayable), (t) => "s:" + t), cries: once(cries, (t) => "c:" + t), quotes: once(quotes, (q) => "q:" + q.join("|")) };
+    return { say: once(say.filter(sayable), (t) => "s:" + t), loud: once(loud.filter(sayable), (t) => "l:" + t), cries: once(cries, (t) => "c:" + t), quotes: once(quotes, (q) => "q:" + q.join("|")) };
   }
 
   // A quote line is rolled once per performance and kept while the performance is postponed, so the line prepared in
@@ -54,9 +55,10 @@
   }
   function linesFor(script, rolls = new Map(), { quotes = true } = {}) {
     const S = root.AuraSpeech;
-    const emotion = (text) => (S && S.emotionFor ? S.emotionFor(text, {}) : "neutral");
+    const emotion = (text, opts = {}) => (S && S.emotionFor ? S.emotionFor(text, opts) : "neutral");
     const found = extractLines(script.source || script);
     const lines = found.say.map((text) => ({ text, emotion: emotion(text) }));
+    for (const text of found.loud) lines.push({ text, emotion: emotion(text, { loud: true }), loud: true });
     for (const move of found.cries) { const [text, emo, lang] = cryLine(move); lines.push({ text, emotion: emo, lang }); }
     if (quotes) for (const [first, key] of found.quotes) { const text = quoteText(first, key, rolls); lines.push({ text, emotion: emotion(text) }); }
     return lines;

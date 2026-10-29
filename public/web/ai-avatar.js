@@ -250,7 +250,9 @@
   function tantrumStart() {
     if (raging || !roamer) return null;
     raging = true;
-    const rect = roamer.getBoundingClientRect();
+    // the walk may have ended while the scene waited for the floor: then she is where her home avatar is
+    const from = isVisible(roamer) ? roamer : (mounts().find((el) => el !== roamer && isVisible(el)) || roamer);
+    const rect = from.getBoundingClientRect();
     if (bubble) { bubble.classList.remove("show"); bubble.style.display = "none"; }
     roamer.style.visibility = "hidden";
     return { rect, svg: roamer.innerHTML };

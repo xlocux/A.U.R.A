@@ -127,7 +127,10 @@
         if (i % 5 === 0) shakePage(3, 200);
       }, () => chip.remove());
       g.el.classList.toggle("face-left", tx < g.x);
-      if (i % 9 === 4) g.say(s.pick(["RATE LIMIT THIS!", "401 UNAUTHORIZED, JERK!", "EXPIRED. LIKE MY PATIENCE."]), 1100); // s.pick: the director prepares all three
+      if (i % 9 === 4) { // one of three yells (spelled out so the director finds and prepares all of them)
+        const roll = Math.random();
+        if (roll < 0.34) g.say("RATE LIMIT THIS!", 1100); else if (roll < 0.67) g.say("401 UNAUTHORIZED, JERK!", 1100); else g.say("EXPIRED. LIKE MY PATIENCE.", 1100);
+      }
       await sleep(rand(70, 140));
     }
     await sleep(1400);
@@ -251,15 +254,22 @@
   }
 
   const RUN = { leave, tokens, hammer };
+  // The stand-in appears when the scene starts (she may wait for the floor and for her lines first): only then is the
+  // roaming copy hidden. A scene that never started has hidden nothing.
   function run(name) {
     const fn = RUN[name];
-    const start = fn && A() && A().tantrumStart();
-    if (!start || !window.AuraDirector) return;
-    const scene = Object.assign((s) => fn(start, s), { source: fn }); // the director reads the scene's lines from fn
+    if (!fn || !A() || !window.AuraDirector) return;
+    let started = false;
+    const scene = Object.assign((s) => {
+      const start = A().tantrumStart();
+      if (!start) return undefined;
+      started = true;
+      return fn(start, s);
+    }, { source: fn }); // the director reads the scene's lines from fn
     window.AuraDirector.perform("tantrum:" + name, scene, { stage: false })
-      .then((performed) => { if (!performed) A().tantrumEnd(); })
+      .then(() => { if (started) A().tantrumEnd(); }) // a scene ends itself; this restores her if it was cut short or threw
       .finally(() => document.querySelectorAll(".av-tt-ghost,.av-tt-say,.av-tt-token,.av-tt-ring,.av-tt-crack,.av-tt-hammer").forEach((e) => e.remove()));
   }
 
-  window.AuraTantrums = { choose, run };
+  window.AuraTantrums = { choose, run, scenes: () => ({ ...RUN }) };
 })();

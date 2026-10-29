@@ -18,7 +18,8 @@ test("extractLines finds the literal lines a script will say", () => {
     s.say("Hold on, I know a shortcut.");
   }
   const found = extractLines(gag);
-  assert.deepEqual(found.say, ["Hold on, I know a shortcut.", 'She said "hi" and left.', "Reconstructing... done.", "That's it. I'm leaving.", "Too slow!", "Missed me!"]);
+  assert.deepEqual(found.say, ["Hold on, I know a shortcut.", 'She said "hi" and left.', "Reconstructing... done.", "Too slow!", "Missed me!"]);
+  assert.deepEqual(found.loud, ["That's it. I'm leaving."]); // a tantrum ghost's lines are yelled: prepared loud
   assert.deepEqual(found.cries, ["KAMEHAMEHA"]);
   assert.deepEqual(found.quotes, [["Wormhole engaged.", "gag:wormhole"]]);
 });
