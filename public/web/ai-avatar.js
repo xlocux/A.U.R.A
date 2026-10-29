@@ -82,9 +82,6 @@
   let roamer = null;
   let roaming = false;
   let lastRoam = 0;
-  // which gag (or walk) she is performing: its lines travel together in her voice queue
-  let showId = 0;
-  const currentShow = () => (roaming ? showId : 0);
 
   function mountAll() {
     for (const el of mounts()) {
@@ -274,7 +271,7 @@
   let lastPointer = { x: innerWidth / 2, y: innerHeight / 2 };
 
   function onRoamerPoke() {
-    if (!roamer || roamer.dataset.catching) return; // the catch-me game has its own click
+    if (!roamer || roamer.dataset.catching || window.AuraDirector?.isPerforming?.()) return; // a game has its own click; no pokes while she performs
     wake();
     const now = Date.now();
     pokes = pokes.filter((t) => now - t < 6000).concat(now);
@@ -330,7 +327,6 @@
       return;
     }
     roaming = true;
-    showId += 1;
     lastRoam = Date.now();
     const size = { w: 46, h: 52 };
     const r = ensureRoamer();
@@ -383,26 +379,24 @@
     }
   }
 
-  // Runs a choreographed gag with the roaming copy: hides the home avatar, hands the script some helpers,
-  // and always cleans up afterwards. Returns false when she can't perform right now.
-  async function stage(script) {
+  // The drawing side of a performance (avatar-director.js owns its time and voice): the roaming copy comes out, the
+  // home avatar is hidden, the script gets the drawing helpers, and everything is put back afterwards. Returns false
+  // when she can't perform right now. interactive: the script handles clicks on her (being carried); otherwise she
+  // is not clickable while she performs.
+  const canStage = () => !(isAway() || roaming || reducedMotion() || document.hidden || inVoiceSettings() || !mounts().some((el) => el !== roamer && isVisible(el)));
+  async function stage(script, { interactive = false } = {}) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
-    if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings()) return false;
+    if (!canStage() || !origin) return false;
     roaming = true;
-    showId += 1;
     lastRoam = Date.now();
     const r = ensureRoamer();
-    r.style.pointerEvents = "";
+    r.style.pointerEvents = interactive ? "" : "none";
     delete r.dataset.catching;
     const size = { w: 46, h: 52 };
     const centerOf = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2 - size.w / 2, y: b.top + b.height / 2 - size.h / 2 }; };
     const at = (p, s = 1, rot = 0) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ") rotate(" + rot + "deg)";
-    let pace = Promise.resolve();
     const api = {
       el: r, size, at, sleep, act,
-      // the gag's own lines
-      // a gag moves with her voice: before its next move or animation it waits until the line it just asked for has started
-      say: (text, ms, force = false, opts = {}) => { const h = window.AuraSpeech?.speak(text, { min: ms, forced: true, voice: opts.silent ? false : undefined }); if (h) pace = h.started; return h; },
       home: () => centerOf(origin),
       place(p, o = {}) { r.getAnimations().forEach((a) => a.cancel()); r.style.transform = at(p, o.scale ?? 1, o.rot ?? 0); r.style.opacity = String(o.opacity ?? 1); },
       move(from, to, o = {}) {
@@ -412,17 +406,9 @@
         const frames = mid ? [{ transform: at(from) }, { transform: at(mid), offset: 0.5 }, { transform: at(to) }] : [{ transform: at(from) }, { transform: at(to) }];
         return r.animate(frames, { duration: o.ms ?? 1500, easing: o.easing ?? "ease-in-out", fill: "forwards" }).finished.then(() => r.classList.remove("walking"));
       },
-      anim(frames, opts) { return pace.then(() => r.animate(frames, { fill: "forwards", ...opts }).finished); },
-      // A line the gag waits for (the next beat depends on it): it goes ahead of the chatter, the bubble appears as she
-      // starts it, and the gag goes on when she has said it (at least ms). Without a voice: bubble and ms only.
-      async line(text, ms = 2000) {
-        if (!(voice() >= 1) || !window.AuraSpeech) { await sleep(ms); return; }
-        await window.AuraSpeech.speak(text, { min: ms, forced: true }).ended;
-      },
+      anim(frames, opts) { return r.animate(frames, { fill: "forwards", ...opts }).finished; },
       randomPoint(margin = 100) { return { x: margin + Math.random() * Math.max(1, innerWidth - 2 * margin - size.w), y: 90 + Math.random() * Math.max(1, innerHeight - 190 - size.h) }; }
     };
-    const rawMove = api.move;
-    api.move = (...args) => pace.then(() => rawMove(...args));
     try {
       origin.classList.add("av-away");
       r.style.display = "block";
@@ -588,7 +574,7 @@
     }
   }
 
-  window.AuraAvatar = { react, say, act, roamTo, stage, rage, rageLines: RAGE_LINES, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming, showId: currentShow };
+  window.AuraAvatar = { react, say, act, roamTo, stage, rage, rageLines: RAGE_LINES, tantrumStart, tantrumEnd, setAway, isAway, isQuiet: inVoiceSettings, pointer: () => lastPointer, mounts, isThinking: () => thinking, voice, isRoaming: () => roaming, canStage };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
 })();

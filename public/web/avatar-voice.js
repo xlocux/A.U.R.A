@@ -399,8 +399,12 @@
     if (!c) return Promise.resolve(true);
     return Promise.race([c.ended.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), ms))]);
   }
-  // shortcut: the old cue() for the scenes not converted yet; removed in Task 7 of the director plan.
-  const cue = (text, opts = {}) => speak(text, { ...opts, forced: true, bubble: false }).started;
+  // shortcut: the old cue() for the scenes not converted yet; removed in Task 7 of the director plan. Inside a
+  // performance it goes to the stage's lane, or it would wait for the end of the gag that waits for it.
+  const cue = (text, opts = {}) => {
+    const show = window.AuraDirector && window.AuraDirector.showId ? window.AuraDirector.showId() : 0;
+    return speak(text, { ...opts, forced: true, bubble: false, ...(show ? { lane: "show", show } : {}) }).started;
+  };
   function stop() {
     demo = null;
     queue.stop();

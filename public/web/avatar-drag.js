@@ -110,14 +110,14 @@
   // ── home avatar: a short stage with the roaming copy ──
   function dragHome(grab, firstEvent) {
     const mode = chooseMode();
-    A().stage(async (s) => {
+    window.AuraDirector.perform("carry", async (s) => {
       const base = s.home();
       s.place(base);
       const band = makeBand();
       const released = new Promise((resolve) => { grab.release = resolve; });
       let pos = { ...base }, won = false, lastMove = Date.now(), spoke = 0, bitten = false;
       const origin = { x: base.x + s.size.w / 2, y: base.y + s.size.h / 2 };
-      const say = (key) => { if (Date.now() - spoke < 1400) return; spoke = Date.now(); s.say(line(key), 2200); };
+      const say = (key) => { if (Date.now() - spoke < 1400) return; spoke = Date.now(); s.say(line(key)); };
       say(mode === "bite" ? "rubber" : mode);
 
       const update = (event) => {
@@ -138,7 +138,7 @@
           s.anim([{ transform: s.at(pos, 1.3, 0) }, { transform: s.at(base, 1, 0) }], { duration: 260, easing: "cubic-bezier(.2,1.8,.4,1)" });
           band.style.opacity = "0";
         }
-        if (mode === "bite" && !bitten && len > 60) { bitten = true; chomp(event, (t) => { spoke = Date.now(); s.say(t, 2200); }); }
+        if (mode === "bite" && !bitten && len > 60) { bitten = true; chomp(event, (t) => { spoke = Date.now(); s.say(t); }); }
       };
       window.addEventListener("pointermove", update);
       update(firstEvent);
@@ -158,7 +158,7 @@
       ], { duration: 520, easing: "ease-out" });
       if (stretched > 70 || mode === "greased") { s.act("dizzy", 900); say("free"); }
       await wait(1200);
-    });
+    }, { interactive: true, immediate: true });
   }
 
   // ── roaming copy: she is in the middle of a gag. Her animations are paused while held (and any step the gag

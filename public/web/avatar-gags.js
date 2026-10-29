@@ -39,12 +39,13 @@
     }
     api.registerAntic = register;
     window.AuraGags = { manifest, loaded: loaded.map((p) => p.id) };
-    // Every fixed line of the gags, and the rant, is prepared ahead by the voice (after the battle cries), so it lands
-    // on the beat instead of after it. The server keeps them, so this happens once.
-    const speech = window.AuraSpeech;
-    if (speech && speech.prefetchLines && api.anticLines) {
+    // Every fixed line of the gags, and the rant, is prepared ahead by the voice, so a gag usually starts at once.
+    // The server keeps them, so this happens once. (Quote lines are rolled per performance: prepared when it starts.)
+    const speech = window.AuraSpeech, director = window.AuraDirector;
+    if (speech && speech.prefetch && director && api.anticScripts) {
       setTimeout(() => {
-        speech.prefetchLines(api.anticLines());
+        const lines = Object.values(api.anticScripts()).flatMap((fn) => director.linesFor(fn, new Map(), { quotes: false }));
+        speech.prefetch(lines.map((l) => [l.text, l.emotion, l.lang || ""]));
         if (api.rageLines) speech.prefetch(api.rageLines.map((line) => [line, "rage", ""]));
       }, 6000);
     }
