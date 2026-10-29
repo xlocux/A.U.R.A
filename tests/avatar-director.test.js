@@ -163,6 +163,18 @@ test("a click on her home avatar is a forced line, not a cut-in", () => {
   assert.equal(said.length, 1);
   assert.equal(said[0].forced, true);
   assert.ok(!said[0].cutIn);
+  assert.equal(said[0].kind, "quip"); // rapid clicks: the newest quip replaces the waiting one
+  page.dispose();
+});
+
+test("stage-complete lines share the kind stage (voice off: they replace each other instead of piling up as bubbles)", async () => {
+  const { said, speak } = recorder();
+  const page = loadAvatar({ speak });
+  page.AuraAvatar.react("stage", "", { stageId: "subdomains", label: "Subdomains" });
+  assert.equal(said[0].kind, "stage");
+  page.AuraAvatar.roamTo({ x: 300, y: 200 }, { text: "Subdomains complete!", kind: "stage", stay: 10 }); // the walk to the tile
+  await until(() => said.length === 2);
+  assert.equal(said[1].kind, "stage");
   page.dispose();
 });
 

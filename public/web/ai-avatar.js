@@ -171,7 +171,7 @@
           const hexes = [...document.querySelectorAll("#tab-flow.active .flow-hex")];
           const spot = hexes.length ? pick(hexes) : { x: 120 + Math.random() * (window.innerWidth - 360), y: 120 + Math.random() * (window.innerHeight - 260) };
           roamTo(spot, { text: pick(["Just stretching my pixels.", "Exploring the pipeline.", "Checking the hex grid.", "Nothing to see here... or is there?"]), action: pick(["wink", "sparkle", "tilt"]), stay: 2200 });
-        } else if (action === "quip" && !window.AuraSpeech?.isBusy?.()) say(contextQuip()); // never piles up behind what she is saying
+        } else if (action === "quip" && !window.AuraSpeech?.isBusy?.()) say(contextQuip(), 4200, false, { kind: "quip" }); // never piles up behind what she is saying
         else act(action === "quip" ? "wink" : action, 1300);
       }
       scheduleIdle();
@@ -329,10 +329,11 @@
   }
 
   // Leave the chat, walk (along a gentle arc) to the target, react, then walk back home.
-  async function roamTo(target, { text = "", action = "cheer", stay = 2600 } = {}) {
+  // kind: given to her line (a newer line of that kind replaces it while it waits)
+  async function roamTo(target, { text = "", action = "cheer", stay = 2600, kind } = {}) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
     if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings()) {
-      if (text && !isAway()) say(text);
+      if (text && !isAway()) say(text, 4200, false, { kind });
       return;
     }
     roaming = true;
@@ -362,7 +363,7 @@
       await out.finished;
       r.classList.remove("walking");
       act(action, action === "saiyan" ? 3400 : 1900);
-      if (text) say(text, stay + 800);
+      if (text) say(text, stay + 800, false, { kind });
       await sleep(stay);
       // Back home (recompute: the panel may have moved or been hidden meanwhile).
       const back = isVisible(origin) ? centerOf(origin) : home;
@@ -485,8 +486,10 @@
       // Walk over to the tile when the Flow is on screen and we haven't wandered recently.
       const sq = (window.AuraQuotes ? window.AuraQuotes.get(""+"stage:"+detail.stageId+"", { force: false }) : null);
       const full = sq ? line + "\n" + sq : line;
-      if (tile && Date.now() - lastRoam > 20000) roamTo(tile, { text: full, action: detail.zone === "vuln" ? "sparkle" : "cheer" });
-      else { act("sparkle", 1100); say(full, 3600); }
+      // a stage ends every few seconds in a run: a newer one replaces the line still waiting (with the voice off, each
+      // would be a 5-8 s bubble in a growing queue)
+      if (tile && Date.now() - lastRoam > 20000) roamTo(tile, { text: full, action: detail.zone === "vuln" ? "sparkle" : "cheer", kind: "stage" });
+      else { act("sparkle", 1100); say(full, 3600, false, { kind: "stage" }); }
     }
     else if (type === "vuln") {
       // Found something: power up! The aura grows (A.U.R.A, get it?). Walks to the finding's tile if the Flow is open.
@@ -543,8 +546,8 @@
       const now = Date.now();
       clicks = clicks.filter((t) => now - t < 2000).concat(now);
       // a click on her is answered: forced (spoken, no budget), but it waits for the line in progress
-      if (clicks.length >= 3) { act("dizzy", 1200); { const dz = (window.AuraQuotes ? window.AuraQuotes.get("dizzy", { force: true }) : null); say(pick(["Hey, that tickles!", "Whoa, easy there!", "I'm dizzy now..."]) + (dz ? "\n" + dz : ""), 4200, true); } clicks = []; }
-      else { act(pick(["wink", "tilt", "sparkle", "blush"]), 1300); say(contextQuip(), 4200, true); }
+      if (clicks.length >= 3) { act("dizzy", 1200); { const dz = (window.AuraQuotes ? window.AuraQuotes.get("dizzy", { force: true }) : null); say(pick(["Hey, that tickles!", "Whoa, easy there!", "I'm dizzy now..."]) + (dz ? "\n" + dz : ""), 4200, true, { kind: "quip" }); } clicks = []; }
+      else { act(pick(["wink", "tilt", "sparkle", "blush"]), 1300); say(contextQuip(), 4200, true, { kind: "quip" }); }
     });
   }
 
