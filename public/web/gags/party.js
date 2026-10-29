@@ -10,38 +10,45 @@
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // ── singing ──
-  const SONGS = [
-    ["Twinkle twinkle little packet,", "how I wonder what you carry...", "up above the firewall high,", "like a payload in the sky!"],
-    ["Happy birthday to you, happy birthday to you,", "happy birthday dear... [segfault]", "...core dumped, core dumped, core dumped to you."],
-    ["Ninety-nine open ports on the wall,", "ninety-nine open ports!", "Take one down, filter it round...", "ninety-eight. This could take a while."],
-    ["Row row row your boat, gently down the stream,", "merrily merrily merrily merrily,", "life is but a nmap -sS."],
-    ["Never gonna give you up, never gonna let you down,", "never gonna run a scan without scope...", "...wait, that's not how it goes."],
-    ["I will always love yoooou,", "...your TLS configuration, which is TLS 1.0,", "and that is, frankly, a crime."],
-    ["Is this the real life? Is this just a honeypot?", "Caught in a landslide, no escape from the logs..."],
-    ["Baby shark, doo doo doo doo doo doo,", "baby shark, doo doo doo doo doo doo,", "baby SHARK... ahem. Wireshark."]
-  ];
   async function sing(s) {
     const { fx, done } = F();
     const home = s.home();
     const spot = s.randomPoint(180);
+    // The songs: every line is written out here, as a literal, so that the director reads it from this source and
+    // prepares it ahead (a line is sung with `await line({ min })`).
+    const songs = [
+      [(o) => s.say("♪ Twinkle twinkle little packet,", o), (o) => s.say("♪ how I wonder what you carry...", o), (o) => s.say("♪ up above the firewall high,", o), (o) => s.say("♪ like a payload in the sky!", o)],
+      [(o) => s.say("♪ Happy birthday to you, happy birthday to you,", o), (o) => s.say("♪ happy birthday dear... [segfault]", o), (o) => s.say("♪ ...core dumped, core dumped, core dumped to you.", o)],
+      [(o) => s.say("♪ Ninety-nine open ports on the wall,", o), (o) => s.say("♪ ninety-nine open ports!", o), (o) => s.say("♪ Take one down, filter it round...", o), (o) => s.say("♪ ninety-eight. This could take a while.", o)],
+      [(o) => s.say("♪ Row row row your boat, gently down the stream,", o), (o) => s.say("♪ merrily merrily merrily merrily,", o), (o) => s.say("♪ life is but a nmap -sS.", o)],
+      [(o) => s.say("♪ Never gonna give you up, never gonna let you down,", o), (o) => s.say("♪ never gonna run a scan without scope...", o), (o) => s.say("♪ ...wait, that's not how it goes.", o)],
+      [(o) => s.say("♪ I will always love yoooou,", o), (o) => s.say("♪ ...your TLS configuration, which is TLS 1.0,", o), (o) => s.say("♪ and that is, frankly, a crime.", o)],
+      [(o) => s.say("♪ Is this the real life? Is this just a honeypot?", o), (o) => s.say("♪ Caught in a landslide, no escape from the logs...", o)],
+      [(o) => s.say("♪ Baby shark, doo doo doo doo doo doo,", o), (o) => s.say("♪ baby shark, doo doo doo doo doo doo,", o), (o) => s.say("♪ baby SHARK... ahem. Wireshark.", o)]
+    ];
     s.place(home);
-    s.say("Ahem. Ahem. Mic check.", 1600);
+    const check = s.say("Ahem. Ahem. Mic check.");
+    await check.started;
     await s.move(home, spot, { ms: 1400 });
-    const song = pick(SONGS);
+    const song = pick(songs);
     const c = { x: spot.x + 23, y: spot.y + 10 };
     let stop = false;
-    (async () => {
-      while (!stop) {
-        const n = fx("av-pt-note", c.x + rand(-8, 8), c.y, pick(["♪", "♫", "♬", "♩"]));
-        done(n.animate([{ transform: "translate(0,0) rotate(0deg)", opacity: 1 }, { transform: `translate(${rand(-60, 60)}px, ${rand(-110, -60)}px) rotate(${rand(-40, 40)}deg)`, opacity: 0 }], { duration: 1500, easing: "ease-out", fill: "forwards" }), n);
-        await wait(rand(180, 320));
-      }
-    })();
-    s.anim([{ transform: s.at(spot, 1, -6) }, { transform: s.at(spot, 1.05, 6) }, { transform: s.at(spot, 1, -6) }], { duration: 1200, iterations: Infinity, easing: "ease-in-out" });
-    for (const line of song) { s.say("♪ " + line, 2400); await wait(2300); }
-    stop = true;
-    s.say("Thank you, thank you. I'll be here all week.", 2400);
-    await wait(1900);
+    try {
+      (async () => {
+        while (!stop) {
+          const n = fx("av-pt-note", c.x + rand(-8, 8), c.y, pick(["♪", "♫", "♬", "♩"]));
+          done(n.animate([{ transform: "translate(0,0) rotate(0deg)", opacity: 1 }, { transform: `translate(${rand(-60, 60)}px, ${rand(-110, -60)}px) rotate(${rand(-40, 40)}deg)`, opacity: 0 }], { duration: 1500, easing: "ease-out", fill: "forwards" }), n);
+          await wait(rand(180, 320));
+        }
+      })();
+      s.anim([{ transform: s.at(spot, 1, -6) }, { transform: s.at(spot, 1.05, 6) }, { transform: s.at(spot, 1, -6) }], { duration: 1200, iterations: Infinity, easing: "ease-in-out" });
+      await check; // she starts to sing when she has said her mic check
+      for (const line of song) await line({ min: 2300 });
+      stop = true;
+      await s.say("Thank you, thank you. I'll be here all week.", { min: 1900 });
+    } finally { // the notes stop even if the gag is cut short
+      stop = true;
+    }
     await s.move(spot, s.home(), { ms: 1300 });
   }
 
@@ -59,29 +66,36 @@
     const home = s.home();
     const spot = { x: Math.max(60, Math.min(innerWidth - 330, s.randomPoint(160).x)), y: Math.max(110, Math.min(innerHeight - 230, s.randomPoint(160).y)) };
     s.place(home);
-    s.say("Psst. Wanna play a game?", 1800);
+    await s.say("Psst. Wanna play a game?").started;
     await s.move(home, spot, { ms: 1400 });
     const wild = window.AuraAvatar.voice() >= 4;
     const ui = card(`<div class="av-pt-title">${wild ? "Rock, paper, scissors. Lose, loser." : "Rock, paper, scissors?"}</div><div class="av-pt-row">${MOVES.map(([k, l]) => `<button class="hud-btn hud-sm" data-m="${k}">${l}</button>`).join("")}<button class="hud-btn hud-sm av-pt-no" data-m="no">NO</button></div><div class="av-pt-out"></div>`);
     ui.style.left = `${spot.x + 60}px`;
     ui.style.top = `${spot.y - 6}px`;
-    const choice = await new Promise((resolve) => {
-      ui.addEventListener("click", (e) => { const b = e.target.closest("button[data-m]"); if (b) resolve(b.dataset.m); });
-      setTimeout(() => resolve(null), 14000);
-    });
-    if (!choice || choice === "no") {
-      s.say(wild ? "Boring. You were always boring." : "...okay. Another time.", 2200);
-    } else {
-      const mine = pick(Object.keys(BEATS));
-      const out = ui.querySelector(".av-pt-out");
-      for (const w of ["Rock...", "Paper...", "Scissors..."]) { out.textContent = w; await wait(450); }
-      const you = choice === mine ? "draw" : BEATS[choice] === mine ? "win" : "lose";
-      out.textContent = `You: ${choice} | Me: ${mine}`;
-      s.say(you === "draw" ? "A draw. We think alike. Creepy." : you === "win" ? (wild ? "Beginner's luck, you absolute potato." : "You win! Take it, I'm not bitter.") : (wild ? "HA! Loser! Again? No. Never." : "I win! Good game."), 2800);
-      if (you === "win") s.act("dizzy", 900); else s.act("cheer", 900);
+    try {
+      const choice = await new Promise((resolve) => {
+        ui.addEventListener("click", (e) => { const b = e.target.closest("button[data-m]"); if (b) resolve(b.dataset.m); });
+        setTimeout(() => resolve(null), 14000);
+      });
+      if (!choice || choice === "no") {
+        await (wild ? s.say("Boring. You were always boring.", { min: 2600 }) : s.say("...okay. Another time.", { min: 2600 }));
+      } else {
+        const mine = pick(Object.keys(BEATS));
+        const out = ui.querySelector(".av-pt-out");
+        for (const w of ["Rock...", "Paper...", "Scissors..."]) { out.textContent = w; await wait(450); }
+        const you = choice === mine ? "draw" : BEATS[choice] === mine ? "win" : "lose";
+        out.textContent = `You: ${choice} | Me: ${mine}`;
+        // each reply is written out as a literal, so that the director prepares it ahead
+        let reply;
+        if (you === "draw") reply = s.say("A draw. We think alike. Creepy.", { min: 2600 });
+        else if (you === "win") reply = wild ? s.say("Beginner's luck, you absolute potato.", { min: 2600 }) : s.say("You win! Take it, I'm not bitter.", { min: 2600 });
+        else reply = wild ? s.say("HA! Loser! Again? No. Never.", { min: 2600 }) : s.say("I win! Good game.", { min: 2600 });
+        if (you === "win") s.act("dizzy", 900); else s.act("cheer", 900);
+        await reply;
+      }
+    } finally { // the card fades and goes even if the gag is cut short
+      ui.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" }).finished.then(() => ui.remove(), () => ui.remove());
     }
-    await wait(2600);
-    ui.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" }).finished.then(() => ui.remove(), () => ui.remove());
     await s.move(spot, s.home(), { ms: 1300 });
   }
 
@@ -175,10 +189,11 @@
   }
 
   async function dontclick(s) {
-    if (bait) { s.say("I already left some buttons around. Go on.", 2400); return; }
     const home = s.home();
     s.place(home);
-    s.say("I'm leaving some buttons around. Do NOT touch the red one.", 2800);
+    if (bait) { await s.say("I already left some buttons around. Go on."); return; }
+    const leaving = s.say("I'm leaving some buttons around. Do NOT touch the red one.");
+    await leaving.started;
     const spot = s.randomPoint(160);
     await s.move(home, spot, { ms: 1400 });
     // DO NOT CLICK plus one or two Alice-style companions, scattered on free-ish ground.
@@ -202,8 +217,8 @@
       btn.animate([{ scale: 0 }, { scale: 1.12 }, { scale: 1 }], { duration: 500, fill: "forwards" });
       await wait(450);
     }
-    s.say("They'll stay a while. Curiosity is a vulnerability.", 3000);
-    await wait(2400);
+    await leaving;
+    await s.say("They'll stay a while. Curiosity is a vulnerability.", { min: 2400 });
     await s.move(spot, s.home(), { ms: 1300 });
   }
 

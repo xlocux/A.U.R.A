@@ -21,58 +21,65 @@
   }
 
   async function bankai(s) {
-    const { fx, title, shake, wait, done, shout } = F();
+    const { fx, shake, wait, done } = F();
     const home = s.home();
     const spot = { x: innerWidth / 2 - 23, y: innerHeight / 2 + 30 };
+    const made = []; // everything she puts on the page: removed at the curtain, or when the gag is cut short
+    const put = (...args) => { const el = fx(...args); made.push(el); return el; };
     s.place(home);
-    s.say("Fine. You want to see my real power?", 2000);
+    const fine = s.say("Fine. You want to see my real power?");
+    await fine.started;
     await s.move(home, spot, { ms: 1500 });
     const c = { x: spot.x + 23, y: spot.y + 26 };
+    try {
+      // spiritual pressure: a column of light, rings, the page trembles
+      const column = put("av-bk-column", c.x, 0);
+      column.animate([{ opacity: 0, transform: "scaleX(.2)" }, { opacity: 1, transform: "scaleX(1)" }], { duration: 600, fill: "forwards" });
+      s.el.classList.add("av-bk-reiatsu");
+      for (let i = 0; i < 3; i += 1) {
+        const ring = fx("av-an-ring av-bk-ring", c.x, c.y);
+        done(ring.animate([{ scale: 0.3, opacity: 1 }, { scale: 30, opacity: 0 }], { duration: 1300, delay: i * 300, easing: "ease-out", fill: "forwards" }), ring);
+      }
+      shake(4, 900);
+      await fine; // the release command comes after her line, then "BANKAI"
+      await s.say("Flower wind rampage, flower god roar...", { min: 1700 });
+      const bankaiCry = await s.cry("BANKAI", { ms: 1300 });
+      await wait(Math.max(1300, bankaiCry + 150));
 
-    // spiritual pressure: a column of light, rings, the page trembles
-    const column = fx("av-bk-column", c.x, 0);
-    column.animate([{ opacity: 0, transform: "scaleX(.2)" }, { opacity: 1, transform: "scaleX(1)" }], { duration: 600, fill: "forwards" });
-    s.el.classList.add("av-bk-reiatsu");
-    for (let i = 0; i < 3; i += 1) {
-      const ring = fx("av-an-ring av-bk-ring", c.x, c.y);
-      done(ring.animate([{ scale: 0.3, opacity: 1 }, { scale: 30, opacity: 0 }], { duration: 1300, delay: i * 300, easing: "ease-out", fill: "forwards" }), ring);
+      // the stage
+      const world = put("av-bk-world", 0, 0);
+      world.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, fill: "forwards" });
+      petals(46, 5200);
+      const kanji = put("av-bk-kanji", 0, 0, [...KANJI].map((ch) => `<span>${ch}</span>`).join(""));
+      Object.assign(kanji.style, { left: "auto", right: "8vw", top: "50%" });
+      [...kanji.children].forEach((el, i) => el.animate([{ opacity: 0, transform: "translateY(-10px)", filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "none" }], { duration: 380, delay: 200 + i * 170, fill: "forwards" }));
+      const name = put("av-bk-name", 0, 0, `<small>${NAME[0]}</small><b>${NAME[1]}</b><i></i>`);
+      Object.assign(name.style, { left: "50%", top: "auto", bottom: "12vh", opacity: "0" });
+      // the name is written as she shouts it (the cry is the name in NAME, with no big title); the blades cross when the cry ends
+      const nameCry = await s.cry("KATEN KYOKOTSU: KARAMATSU SHINJU", { silentTitle: true });
+      name.animate([{ opacity: 0, letterSpacing: ".5em" }, { opacity: 1, letterSpacing: ".12em" }], { duration: 900, easing: "ease-out", fill: "forwards" });
+      await wait(Math.max(1900, nameCry + 100));
+
+      // two blades cross with a flash
+      const b1 = put("av-bk-blade", c.x, c.y), b2 = put("av-bk-blade av-bk-blade-2", c.x, c.y);
+      const cut = { duration: 420, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" };
+      b1.animate([{ transform: "rotate(-150deg) scaleX(0)" }, { transform: "rotate(-35deg) scaleX(1)" }], cut);
+      b2.animate([{ transform: "rotate(-30deg) scaleX(0)" }, { transform: "rotate(-145deg) scaleX(1)" }], cut);
+      await wait(430);
+      const flash = fx("av-an-white", 0, 0);
+      done(flash.animate([{ opacity: 0 }, { opacity: 0.7 }, { opacity: 0 }], { duration: 380, fill: "forwards" }), flash);
+      shake(10, 450);
+      await wait(1600);
+      await s.say("Sorry. This one is very dramatic. I love dramatic.", { min: 1500 });
+
+      // curtain
+      for (const el of made) done(el.animate([{ opacity: getComputedStyle(el).opacity }, { opacity: 0 }], { duration: 700, fill: "forwards" }), el);
+      s.el.classList.remove("av-bk-reiatsu");
+      await wait(800);
+    } finally { // the stage is cleared even if the gag is cut short
+      for (const el of made) el.remove();
+      s.el.classList.remove("av-bk-reiatsu");
     }
-    shake(4, 900);
-    await s.line("Flower wind rampage, flower god roar...", 1700); // the release command, then "BANKAI"
-    const bankaiCry = await title("BANKAI", 1300);
-    await wait(Math.max(1300, bankaiCry + 150));
-
-    // the stage
-    const world = fx("av-bk-world", 0, 0);
-    world.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500, fill: "forwards" });
-    petals(46, 5200);
-    const kanji = fx("av-bk-kanji", 0, 0, [...KANJI].map((ch) => `<span>${ch}</span>`).join(""));
-    Object.assign(kanji.style, { left: "auto", right: "8vw", top: "50%" });
-    [...kanji.children].forEach((el, i) => el.animate([{ opacity: 0, transform: "translateY(-10px)", filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "none" }], { duration: 380, delay: 200 + i * 170, fill: "forwards" }));
-    const name = fx("av-bk-name", 0, 0, `<small>${NAME[0]}</small><b>${NAME[1]}</b><i></i>`);
-    Object.assign(name.style, { left: "50%", top: "auto", bottom: "12vh", opacity: "0" });
-    // the name is written as she shouts it; the blades cross when the cry ends
-    const nameCry = await shout(NAME.join(": "));
-    name.animate([{ opacity: 0, letterSpacing: ".5em" }, { opacity: 1, letterSpacing: ".12em" }], { duration: 900, easing: "ease-out", fill: "forwards" });
-    await wait(Math.max(1900, nameCry + 100));
-
-    // two blades cross with a flash
-    const b1 = fx("av-bk-blade", c.x, c.y), b2 = fx("av-bk-blade av-bk-blade-2", c.x, c.y);
-    const cut = { duration: 420, easing: "cubic-bezier(.2,.9,.3,1)", fill: "forwards" };
-    b1.animate([{ transform: "rotate(-150deg) scaleX(0)" }, { transform: "rotate(-35deg) scaleX(1)" }], cut);
-    b2.animate([{ transform: "rotate(-30deg) scaleX(0)" }, { transform: "rotate(-145deg) scaleX(1)" }], cut);
-    await wait(430);
-    const flash = fx("av-an-white", 0, 0);
-    done(flash.animate([{ opacity: 0 }, { opacity: 0.7 }, { opacity: 0 }], { duration: 380, fill: "forwards" }), flash);
-    shake(10, 450);
-    await wait(1600);
-    s.say("Sorry. This one is very dramatic. I love dramatic.", 2600);
-    await wait(1500);
-
-    // curtain
-    for (const el of [world, kanji, name, b1, b2, column]) done(el.animate([{ opacity: getComputedStyle(el).opacity }, { opacity: 0 }], { duration: 700, fill: "forwards" }), el);
-    s.el.classList.remove("av-bk-reiatsu");
-    await wait(800);
     await s.move(spot, s.home(), { ms: 1300 });
   }
 
@@ -80,7 +87,7 @@
     const api = window.AuraAvatar;
     if (!api || !api.registerAntic || !window.AuraAnimeFx) return;
     api.registerAntic("bankai", bankai, true);
-    // the cries are pre-generated by gags/anime.js (its JAPANESE table has both)
+    // the cries are prepared by the director (it reads the literal s.cry calls above; the JAPANESE table is in avatar-director.js)
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();

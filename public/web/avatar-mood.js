@@ -40,7 +40,7 @@
     flag("av-heartbeat", 2600);
     if (level() >= 2) {
       document.body.animate([{ translate: "0 0" }, { translate: "3px -2px" }, { translate: "-3px 2px" }, { translate: "0 0" }], { duration: 260, iterations: n >= 3 ? 4 : 2 });
-      if ((n >= 3 || level() >= 3) && window.AuraAnimeFx) window.AuraAnimeFx.title(n >= 5 ? "JACKPOT!" : "FOUND IT!", 1100);
+      if ((n >= 3 || level() >= 3) && window.AuraDirector) window.AuraDirector.shout(n >= 5 ? "JACKPOT!" : "FOUND IT!", 1100);
     }
     if (level() >= 3) setTimeout(() => { hint("adrenaline"); A().say(pick(ADR), 2600, true); }, 1300);
   }
@@ -83,6 +83,9 @@
   function boot() {
     window.addEventListener("aura:ai", (event) => onEvent(event.detail));
     setInterval(bored, 15000);
+    // the two big-find shouts are prepared ahead, so the title appears the moment she shouts
+    const director = window.AuraDirector, speech = window.AuraSpeech;
+    if (director && speech && speech.prefetch) speech.prefetch(["FOUND IT!", "JACKPOT!"].map(director.cryLine));
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
