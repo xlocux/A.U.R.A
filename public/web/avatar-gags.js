@@ -39,12 +39,13 @@
     }
     api.registerAntic = register;
     window.AuraGags = { manifest, loaded: loaded.map((p) => p.id) };
-    // Every fixed line of the gags, and the rant, is prepared ahead by the voice, so a gag usually starts at once.
-    // The server keeps them, so this happens once. (Quote lines are rolled per performance: prepared when it starts.)
+    // Every line of the gags, and the rant, is prepared ahead by the voice, so a gag usually starts at once. The quotes
+    // are rolled now (the director keeps each gag's roll until it is performed), so the quote she will say is the one prepared.
+    // The server keeps them, so this happens once.
     const speech = window.AuraSpeech, director = window.AuraDirector;
     if (speech && speech.prefetch && director && api.anticScripts) {
       setTimeout(() => {
-        const lines = Object.values(api.anticScripts()).flatMap((fn) => director.linesFor(fn, new Map(), { quotes: false }));
+        const lines = Object.entries(api.anticScripts()).flatMap(([name, fn]) => director.linesFor(fn, director.rollsFor(name)));
         // the tantrum scenes' lines (yelled: prepared loud, the way the ghost says them)
         if (window.AuraTantrums && window.AuraTantrums.scenes) lines.push(...Object.values(window.AuraTantrums.scenes()).flatMap((fn) => director.linesFor(fn, new Map(), { quotes: false })));
         speech.prefetch(lines.map((l) => [l.text, l.emotion, l.lang || ""]));

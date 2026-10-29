@@ -88,6 +88,8 @@
   const within = (promise, ms) => { let timer; return Promise.race([promise, new Promise((resolve) => { timer = setTimeout(resolve, ms); })]).finally(() => clearTimeout(timer)); };
   const MAX_SHOW_MS = 60000;
   const rollsBy = new Map(); // gag name -> the quotes rolled for its next performance
+  // the quotes a gag will say next time, rolled now so they can be prepared ahead (start-up prefetch); kept until it is performed
+  const rollsFor = (name) => { if (!rollsBy.has(name)) rollsBy.set(name, new Map()); return rollsBy.get(name); };
   let seq = 0, current = null;
 
   function voiceApi(base, show) {
@@ -139,8 +141,7 @@
       if (!immediate) {
         if (!(await S.quiet(10000))) return false;
         if (show.aborted) return false;
-        const rolls = rollsBy.get(name) || new Map();
-        rollsBy.set(name, rolls);
+        const rolls = rollsFor(name);
         show.rolls = rolls;
         const { missing } = await S.prepare([...linesFor(script, rolls), ...lines], { timeoutMs: 6000 });
         if (show.aborted) return false;
@@ -178,6 +179,6 @@
     S.speak(text, { emotion, lang, bubble: false, forced: true }).started.then((d) => showTitle(move, Math.max(ms, d + 200)));
   }
 
-  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), showId: () => (current ? current.id : 0), shout, extractLines, linesFor, cryLine, JAPANESE };
+  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), showId: () => (current ? current.id : 0), shout, extractLines, linesFor, rollsFor, cryLine, JAPANESE };
   if (typeof module === "object" && module.exports) module.exports = { extractLines, cryLine };
 })(typeof window !== "undefined" ? window : globalThis);

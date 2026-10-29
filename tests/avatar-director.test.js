@@ -76,3 +76,30 @@ test("perform: extra lines are prepared with the script's own (the rage says a l
   delete globalThis.AuraSpeech;
   delete globalThis.AuraAvatar;
 });
+
+test("rollsFor: the quotes rolled ahead (start-up) are the ones perform prepares and says, until the gag is performed", async () => {
+  let rolled = 0, prepared = null, said = null;
+  globalThis.AuraQuotes = { get: () => "QUOTE" + (rolled += 1) };
+  globalThis.AuraSpeech = {
+    hold: () => {},
+    release: () => {},
+    quiet: async () => true,
+    prepare: async (lines) => { prepared = lines; return { ready: lines.length, missing: 0 }; },
+    emotionFor: () => "neutral",
+    speak: (text) => { said = text; return { id: 1, started: Promise.resolve(10), ended: Promise.resolve() }; }
+  };
+  globalThis.AuraAvatar = { canStage: () => true };
+  const D = globalThis.AuraDirector;
+  const gag = async (s) => { await s.say(s.quote("Hello there.", "gag:x")); };
+  const ahead = D.linesFor(gag, D.rollsFor("rolled-ahead"));
+  assert.deepEqual(ahead.map((l) => l.text), ["Hello there.\nQUOTE1"]);
+  assert.equal(D.rollsFor("rolled-ahead"), D.rollsFor("rolled-ahead")); // the same roll until it is performed
+  assert.equal(await D.perform("rolled-ahead", gag, { stage: false }), true);
+  assert.ok(prepared.some((l) => l.text === "Hello there.\nQUOTE1")); // prepared and said: the quote rolled ahead
+  assert.equal(said, "Hello there.\nQUOTE1");
+  assert.equal(rolled, 1);
+  assert.equal(D.rollsFor("rolled-ahead").size, 0); // performed: new quotes next time
+  delete globalThis.AuraQuotes;
+  delete globalThis.AuraSpeech;
+  delete globalThis.AuraAvatar;
+});

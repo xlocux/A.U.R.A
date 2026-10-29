@@ -55,28 +55,35 @@
     async wormhole(s) {
       const home = s.home();
       const spot = s.randomPoint();
+      const gates = []; // the portals she opens: removed even if the gag is cut short
       s.place(home);
-      const shortcut = s.say("Hold on, I know a shortcut.");
-      await shortcut.started;
-      await s.move(home, spot, { ms: 1500 });
-      const gate = portal(spot.x + 23, spot.y + 30);
-      await s.sleep(450);
-      await shortcut; // her last line is over before the next one is asked, so that one starts at once
-      const engaged = s.say(s.quote("Wormhole engaged.", "gag:wormhole"));
-      await engaged.started;
-      await s.anim([{ transform: s.at(spot, 1, 0), opacity: 1 }, { transform: s.at(spot, 0.04, 720), opacity: 0 }], { duration: 950, easing: "ease-in" });
-      await gate.close();
-      await engaged;
-      await s.sleep(1400 + Math.random() * 1600);
-      const exit = s.randomPoint();
-      const gate2 = portal(exit.x + 23, exit.y + 30);
-      await s.sleep(450);
-      await s.say(s.quote("Miss me?", "gag:wormholeBack")).started;
-      await s.anim([{ transform: s.at(exit, 0.04, -720), opacity: 0 }, { transform: s.at(exit, 1, 0), opacity: 1 }], { duration: 950, easing: "ease-out" });
-      await gate2.close();
-      s.act("sparkle", 1400);
-      await s.sleep(900);
-      await s.move(exit, s.home(), { ms: 1500 });
+      try {
+        const shortcut = s.say("Hold on, I know a shortcut.");
+        await shortcut.started;
+        await s.move(home, spot, { ms: 1500 });
+        const gate = portal(spot.x + 23, spot.y + 30);
+        gates.push(gate);
+        await s.sleep(450);
+        await shortcut; // her last line is over before the next one is asked, so that one starts at once
+        const engaged = s.say(s.quote("Wormhole engaged.", "gag:wormhole"));
+        await engaged.started;
+        await s.anim([{ transform: s.at(spot, 1, 0), opacity: 1 }, { transform: s.at(spot, 0.04, 720), opacity: 0 }], { duration: 950, easing: "ease-in" });
+        await gate.close();
+        await engaged;
+        await s.sleep(1400 + Math.random() * 1600);
+        const exit = s.randomPoint();
+        const gate2 = portal(exit.x + 23, exit.y + 30);
+        gates.push(gate2);
+        await s.sleep(450);
+        await s.say(s.quote("Miss me?", "gag:wormholeBack")).started;
+        await s.anim([{ transform: s.at(exit, 0.04, -720), opacity: 0 }, { transform: s.at(exit, 1, 0), opacity: 1 }], { duration: 950, easing: "ease-out" });
+        await gate2.close();
+        s.act("sparkle", 1400);
+        await s.sleep(900);
+        await s.move(exit, s.home(), { ms: 1500 });
+      } finally {
+        gates.forEach((g) => g.el.remove());
+      }
     },
 
     async explode(s) {
@@ -147,12 +154,15 @@
       window.addEventListener("pointermove", dodge, { passive: true });
       r.addEventListener("click", onClick);
       const timer = setTimeout(finish, 15000);
-      await done;
-      clearTimeout(timer);
-      window.removeEventListener("pointermove", dodge);
-      r.removeEventListener("click", onClick);
-      delete r.dataset.catching;
-      r.style.pointerEvents = "";
+      try {
+        await done;
+      } finally { // the game is over, however the gag ends: no listener, timer or click left behind
+        clearTimeout(timer);
+        window.removeEventListener("pointermove", dodge);
+        r.removeEventListener("click", onClick);
+        delete r.dataset.catching;
+        r.style.pointerEvents = "";
+      }
       if (caught) {
         const total = Number(localStorage.getItem("auraCatches") || 0) + 1;
         localStorage.setItem("auraCatches", String(total));
@@ -207,12 +217,15 @@
       let caught = false;
       const watch = (event) => { if (Math.hypot(event.clientX - (spot.x + 23), event.clientY - (spot.y + 26)) < 150) caught = true; };
       window.addEventListener("pointermove", watch, { passive: true });
-      for (let i = 0; i < 8 && !caught; i += 1) {
-        await s.anim([
-          { transform: s.at(spot, 1, i % 2 ? 10 : -10) }, { transform: s.at({ x: spot.x, y: spot.y - 16 }, 1.05, i % 2 ? -10 : 10) }, { transform: s.at(spot, 1, i % 2 ? 10 : -10) }
-        ], { duration: 520, easing: "ease-in-out" });
+      try {
+        for (let i = 0; i < 8 && !caught; i += 1) {
+          await s.anim([
+            { transform: s.at(spot, 1, i % 2 ? 10 : -10) }, { transform: s.at({ x: spot.x, y: spot.y - 16 }, 1.05, i % 2 ? -10 : 10) }, { transform: s.at(spot, 1, i % 2 ? 10 : -10) }
+          ], { duration: 520, easing: "ease-in-out" });
+        }
+      } finally {
+        window.removeEventListener("pointermove", watch);
       }
-      window.removeEventListener("pointermove", watch);
       if (caught) { await hello; await s.say("...you saw nothing.", { min: 1800 }); }
       await s.move(spot, s.home(), { ms: 1400 });
     },
@@ -311,33 +324,37 @@
         document.body.appendChild(p);
         return p;
       });
-      s.place(spot, { opacity: 0 });
-      burst(spot.x + 23, spot.y + 26, 18);
-      const spots = pieces.map(() => s.randomPoint(60));
-      await Promise.all(pieces.map((p, i) => p.animate([
-        { transform: s.at(spot, 1, 0) },
-        { transform: s.at({ x: lerp(spot.x, spots[i].x, 0.6), y: spot.y - 90 - Math.random() * 90 }, 1, 200) },
-        { transform: s.at(spots[i], 1, 400 + i * 60) }
-      ], { duration: 1100, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).finished));
-      await intro; // the first line is over before the next one is asked
-      const everywhere = s.say(s.quote("Pieces everywhere.", "gag:explode"));
-      await everywhere.started;
-      await Promise.all(pieces.map((p, i) => p.animate([
-        { transform: s.at(spots[i], 1, 400 + i * 60) },
-        { transform: s.at({ x: spots[i].x + (Math.random() - 0.5) * 50, y: spots[i].y - 40 }, 1, 460) },
-        { transform: s.at(spots[i], 1, 400 + i * 60) }
-      ], { duration: 700 + i * 120, iterations: 3, easing: "ease-in-out", fill: "forwards" }).finished));
-      implode(spot.x + 23, spot.y + 26, 16);
-      await Promise.all(pieces.map((p, i) => p.animate([
-        { transform: s.at(spots[i], 1, 400 + i * 60) }, { transform: s.at(spot, 1, 720) }
-      ], { duration: 850, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" }).finished));
-      pieces.forEach((p) => p.remove());
-      s.place(spot, { opacity: 1 });
-      burst(spot.x + 23, spot.y + 26, 8);
-      await everywhere;
-      s.act("wink", 1300);
-      await s.say(s.quote("All in one piece. Mostly.", "gag:rebuilt"), { min: 1500 });
-      await s.move(spot, s.home(), { ms: 1400 });
+      try {
+        s.place(spot, { opacity: 0 });
+        burst(spot.x + 23, spot.y + 26, 18);
+        const spots = pieces.map(() => s.randomPoint(60));
+        await Promise.all(pieces.map((p, i) => p.animate([
+          { transform: s.at(spot, 1, 0) },
+          { transform: s.at({ x: lerp(spot.x, spots[i].x, 0.6), y: spot.y - 90 - Math.random() * 90 }, 1, 200) },
+          { transform: s.at(spots[i], 1, 400 + i * 60) }
+        ], { duration: 1100, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).finished));
+        await intro; // the first line is over before the next one is asked
+        const everywhere = s.say(s.quote("Pieces everywhere.", "gag:explode"));
+        await everywhere.started;
+        await Promise.all(pieces.map((p, i) => p.animate([
+          { transform: s.at(spots[i], 1, 400 + i * 60) },
+          { transform: s.at({ x: spots[i].x + (Math.random() - 0.5) * 50, y: spots[i].y - 40 }, 1, 460) },
+          { transform: s.at(spots[i], 1, 400 + i * 60) }
+        ], { duration: 700 + i * 120, iterations: 3, easing: "ease-in-out", fill: "forwards" }).finished));
+        implode(spot.x + 23, spot.y + 26, 16);
+        await Promise.all(pieces.map((p, i) => p.animate([
+          { transform: s.at(spots[i], 1, 400 + i * 60) }, { transform: s.at(spot, 1, 720) }
+        ], { duration: 850, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" }).finished));
+        pieces.forEach((p) => p.remove());
+        s.place(spot, { opacity: 1 });
+        burst(spot.x + 23, spot.y + 26, 8);
+        await everywhere;
+        s.act("wink", 1300);
+        await s.say(s.quote("All in one piece. Mostly.", "gag:rebuilt"), { min: 1500 });
+        await s.move(spot, s.home(), { ms: 1400 });
+      } finally {
+        pieces.forEach((p) => p.remove()); // the pieces are gone even if the gag is cut short
+      }
     },
 
     // Pulled into a wormhole with a spiral and spaghettification, spat out later.
@@ -346,26 +363,32 @@
       s.place(home);
       const hole = { x: Math.min(innerWidth - 140, home.x + 180 + Math.random() * 200), y: Math.max(110, home.y - 90 - Math.random() * 170) };
       const gate = portal(hole.x + 23, hole.y + 26);
-      await s.say("Uh-oh. Something is pulling at me...", { min: 900 });
-      const frames = [];
-      const steps = 18;
-      for (let i = 0; i <= steps; i += 1) {
-        const t = i / steps;
-        const e = Math.pow(t, 1.7);
-        const rad = (1 - t) * 70;
-        frames.push({ transform: tf(lerp(home.x, hole.x, e) + Math.cos(t * 12) * rad, lerp(home.y, hole.y, e) + Math.sin(t * 12) * rad, 1 - 0.8 * t, 1 + 0.9 * t, t * 900), opacity: 1 - 0.9 * t * t });
+      let gate2 = null;
+      try {
+        await s.say("Uh-oh. Something is pulling at me...", { min: 900 });
+        const frames = [];
+        const steps = 18;
+        for (let i = 0; i <= steps; i += 1) {
+          const t = i / steps;
+          const e = Math.pow(t, 1.7);
+          const rad = (1 - t) * 70;
+          frames.push({ transform: tf(lerp(home.x, hole.x, e) + Math.cos(t * 12) * rad, lerp(home.y, hole.y, e) + Math.sin(t * 12) * rad, 1 - 0.8 * t, 1 + 0.9 * t, t * 900), opacity: 1 - 0.9 * t * t });
+        }
+        await s.anim(frames, { duration: 2100, easing: "ease-in" });
+        await gate.close();
+        await s.sleep(2400);
+        const exit = s.randomPoint();
+        gate2 = portal(exit.x + 23, exit.y + 26);
+        await s.sleep(500);
+        await s.say(s.quote("Whoa... where am I?", "gag:wormholeBack")).started;
+        await s.anim([{ transform: tf(exit.x, exit.y, 0.1, 2, 540), opacity: 0 }, { transform: tf(exit.x, exit.y, 1, 1, 0), opacity: 1 }], { duration: 900, easing: "cubic-bezier(.2,1.4,.4,1)" });
+        await gate2.close();
+        await s.sleep(900);
+        await s.move(exit, s.home(), { ms: 1500 });
+      } finally {
+        gate.el.remove(); // the portals are gone even if the gag is cut short
+        if (gate2) gate2.el.remove();
       }
-      await s.anim(frames, { duration: 2100, easing: "ease-in" });
-      await gate.close();
-      await s.sleep(2400);
-      const exit = s.randomPoint();
-      const gate2 = portal(exit.x + 23, exit.y + 26);
-      await s.sleep(500);
-      await s.say(s.quote("Whoa... where am I?", "gag:wormholeBack")).started;
-      await s.anim([{ transform: tf(exit.x, exit.y, 0.1, 2, 540), opacity: 0 }, { transform: tf(exit.x, exit.y, 1, 1, 0), opacity: 1 }], { duration: 900, easing: "cubic-bezier(.2,1.4,.4,1)" });
-      await gate2.close();
-      await s.sleep(900);
-      await s.move(exit, s.home(), { ms: 1500 });
     },
 
     // A time-travelling car: accelerates across the screen, leaves two lines of fire, vanishes in a flash.
@@ -388,16 +411,21 @@
         t.style.transform = "scaleX(0)";
         return t;
       });
-      const ease = "cubic-bezier(.65,0,1,.75)";
-      const travel = car.animate([{ transform: "translateX(0)" }, { transform: "translateX(" + (endX - startX) + "px)" }], { duration: 2300, easing: ease, fill: "forwards" });
-      trails.forEach((t) => t.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 2300, easing: ease, fill: "forwards" }));
-      await travel.finished;
-      burst(endX + 55, y + 18, 26);
-      car.remove();
-      await s.say(s.quote("Roads? Where we're going we don't need roads.", "gag:glitch"), { min: 3600 });
-      await Promise.all(trails.map((t) => t.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1500, fill: "forwards" }).finished));
-      trails.forEach((t) => t.remove());
-      await s.anim([{ transform: s.at(home), opacity: 0 }, { transform: s.at(home), opacity: 1 }], { duration: 500 });
+      try {
+        const ease = "cubic-bezier(.65,0,1,.75)";
+        const travel = car.animate([{ transform: "translateX(0)" }, { transform: "translateX(" + (endX - startX) + "px)" }], { duration: 2300, easing: ease, fill: "forwards" });
+        trails.forEach((t) => t.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 2300, easing: ease, fill: "forwards" }));
+        await travel.finished;
+        burst(endX + 55, y + 18, 26);
+        car.remove();
+        await s.say(s.quote("Roads? Where we're going we don't need roads.", "gag:glitch"), { min: 3600 });
+        await Promise.all(trails.map((t) => t.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1500, fill: "forwards" }).finished));
+        trails.forEach((t) => t.remove());
+        await s.anim([{ transform: s.at(home), opacity: 0 }, { transform: s.at(home), opacity: 1 }], { duration: 500 });
+      } finally {
+        car.remove(); // the car and its fire lines are gone even if the gag is cut short
+        trails.forEach((t) => t.remove());
+      }
     },
 
     // A thunderstorm rolls in; she is struck and vanishes, then is summoned back by another bolt.
@@ -406,24 +434,28 @@
       s.place(home);
       const sky = node("av-storm", 0, 0);
       sky.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, fill: "forwards" });
-      await s.say("The weather is turning...", { min: 1500 });
-      for (let i = 0; i < 3; i += 1) {
-        bolt(Math.max(60, Math.min(innerWidth - 60, home.x + (Math.random() - 0.5) * 700)), 200 + Math.random() * 400);
-        await s.sleep(700 + Math.random() * 500);
+      try {
+        await s.say("The weather is turning...", { min: 1500 });
+        for (let i = 0; i < 3; i += 1) {
+          bolt(Math.max(60, Math.min(innerWidth - 60, home.x + (Math.random() - 0.5) * 700)), 200 + Math.random() * 400);
+          await s.sleep(700 + Math.random() * 500);
+        }
+        await s.say(s.quote("That one was close.", "gag:glitch"), { min: 1300 });
+        bolt(home.x + 23, home.y + 26, 4);
+        s.place(home, { opacity: 0 });
+        burst(home.x + 23, home.y + 26, 22);
+        const scorch = node("av-scorch", home.x + 23, home.y + 52);
+        scorch.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: 3600, fill: "forwards" }).finished.then(() => scorch.remove());
+        await s.sleep(2600);
+        await sky.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, fill: "forwards" }).finished;
+        sky.remove();
+        bolt(home.x + 23, home.y + 26, 4);
+        await s.anim([{ transform: s.at(home, 0.4), opacity: 0 }, { transform: s.at(home, 1), opacity: 1 }], { duration: 450, easing: "ease-out" });
+        s.act("sparkle", 1500);
+        await s.say("Electrifying.", { min: 1600 });
+      } finally {
+        sky.remove(); // the storm sky is gone even if the gag is cut short
       }
-      await s.say(s.quote("That one was close.", "gag:glitch"), { min: 1300 });
-      bolt(home.x + 23, home.y + 26, 4);
-      s.place(home, { opacity: 0 });
-      burst(home.x + 23, home.y + 26, 22);
-      const scorch = node("av-scorch", home.x + 23, home.y + 52);
-      scorch.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], { duration: 3600, fill: "forwards" }).finished.then(() => scorch.remove());
-      await s.sleep(2600);
-      await sky.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, fill: "forwards" }).finished;
-      sky.remove();
-      bolt(home.x + 23, home.y + 26, 4);
-      await s.anim([{ transform: s.at(home, 0.4), opacity: 0 }, { transform: s.at(home, 1), opacity: 1 }], { duration: 450, easing: "ease-out" });
-      s.act("sparkle", 1500);
-      await s.say("Electrifying.", { min: 1600 });
     }
   });
 
@@ -439,32 +471,36 @@
       const bottle = node("av-bottle", spot.x + 62, spot.y + 40);
       bottle.innerHTML = '<svg viewBox="0 0 40 60" aria-hidden="true"><rect x="15" y="2" width="10" height="9" rx="2" fill="#b98a4a"/><path d="M13 11h14v8l7 12v22a5 5 0 0 1-5 5H11a5 5 0 0 1-5-5V31l7-12z" fill="rgba(120,220,255,.35)" stroke="#bfefff" stroke-width="1.4"/><rect x="9" y="30" width="22" height="14" fill="#f4ead2"/><text x="20" y="40" font-size="5.6" text-anchor="middle" fill="#3a2a14" font-family="serif">DRINK ME</text></svg>';
       bottle.animate([{ scale: 0, opacity: 0 }, { scale: 1, opacity: 1 }], { duration: 400, easing: "ease-out", fill: "forwards" });
-      await s.sleep(500);
-      await rabbit; // her last line is over before the next one is asked
-      await s.say("It says 'Drink me'. How curious...", { min: 1900 });
-      s.act("sparkle", 1000);
-      bottle.animate([{ transform: "rotate(0deg)", opacity: 1 }, { transform: "rotate(-60deg)", opacity: 1 }, { transform: "rotate(-60deg)", opacity: 0 }], { duration: 900, fill: "forwards" }).finished.then(() => bottle.remove());
-      await s.sleep(700);
-      const centre = { x: innerWidth / 2 - 23, y: innerHeight * 0.55 };
-      const curious = s.say("Curiouser and curiouser!");
-      await curious.started;
-      // She grows until she nearly fills the screen; the page shakes a little.
-      await s.anim([
-        { transform: s.at(spot, 1) },
-        { transform: s.at({ x: lerp(spot.x, centre.x, 0.5), y: lerp(spot.y, centre.y, 0.5) }, 4.5) },
-        { transform: s.at(centre, 9) }
-      ], { duration: 2600, easing: "cubic-bezier(.3,0,.2,1)" });
-      await curious;
-      document.body.animate([{ transform: "translate(0,0)" }, { transform: "translate(-3px,2px)" }, { transform: "translate(3px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260, iterations: 3 });
-      await s.say("I'm opening out like the largest telescope that ever was!", { min: 3800 });
-      await s.say("Why, sometimes I've believed as many as six impossible things before breakfast.", { min: 4800 });
-      await s.say("Eat me. Of course.", { min: 1500 });
-      await s.anim([{ transform: s.at(centre, 9) }, { transform: s.at(centre, 0.35) }], { duration: 1500, easing: "cubic-bezier(.7,0,.3,1)" });
-      await s.say("Who in the world am I? Ah, that's the great puzzle!", { min: 2400 });
-      await s.anim([{ transform: s.at(centre, 0.35) }, { transform: s.at(centre, 1) }], { duration: 700, easing: "cubic-bezier(.2,1.5,.4,1)" });
-      s.act("wink", 1200);
-      await s.sleep(1200);
-      await s.move(centre, s.home(), { ms: 1500 });
+      try {
+        await s.sleep(500);
+        await rabbit; // her last line is over before the next one is asked
+        await s.say("It says 'Drink me'. How curious...", { min: 1900 });
+        s.act("sparkle", 1000);
+        bottle.animate([{ transform: "rotate(0deg)", opacity: 1 }, { transform: "rotate(-60deg)", opacity: 1 }, { transform: "rotate(-60deg)", opacity: 0 }], { duration: 900, fill: "forwards" }).finished.then(() => bottle.remove());
+        await s.sleep(700);
+        const centre = { x: innerWidth / 2 - 23, y: innerHeight * 0.55 };
+        const curious = s.say("Curiouser and curiouser!");
+        await curious.started;
+        // She grows until she nearly fills the screen; the page shakes a little.
+        await s.anim([
+          { transform: s.at(spot, 1) },
+          { transform: s.at({ x: lerp(spot.x, centre.x, 0.5), y: lerp(spot.y, centre.y, 0.5) }, 4.5) },
+          { transform: s.at(centre, 9) }
+        ], { duration: 2600, easing: "cubic-bezier(.3,0,.2,1)" });
+        await curious;
+        document.body.animate([{ transform: "translate(0,0)" }, { transform: "translate(-3px,2px)" }, { transform: "translate(3px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260, iterations: 3 });
+        await s.say("I'm opening out like the largest telescope that ever was!", { min: 3800 });
+        await s.say("Why, sometimes I've believed as many as six impossible things before breakfast.", { min: 4800 });
+        await s.say("Eat me. Of course.", { min: 1500 });
+        await s.anim([{ transform: s.at(centre, 9) }, { transform: s.at(centre, 0.35) }], { duration: 1500, easing: "cubic-bezier(.7,0,.3,1)" });
+        await s.say("Who in the world am I? Ah, that's the great puzzle!", { min: 2400 });
+        await s.anim([{ transform: s.at(centre, 0.35) }, { transform: s.at(centre, 1) }], { duration: 700, easing: "cubic-bezier(.2,1.5,.4,1)" });
+        s.act("wink", 1200);
+        await s.sleep(1200);
+        await s.move(centre, s.home(), { ms: 1500 });
+      } finally {
+        bottle.remove(); // the bottle is gone even if the gag is cut short
+      }
     }
   });
 
@@ -487,24 +523,28 @@
         document.body.appendChild(p);
         return p;
       });
-      const ends = await Promise.all(clones.map(async (p) => {
-        let from = home;
-        for (let k = 0; k < 5; k += 1) {
-          const to = s.randomPoint(30);
-          await p.animate([{ transform: s.at(from) }, { transform: s.at({ x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 50 }) }, { transform: s.at(to) }], { duration: 550 + Math.random() * 450, easing: "ease-in-out", fill: "forwards" }).finished;
-          from = to;
-        }
-        return from;
-      }));
-      await many;
-      const mad = s.say("We're all mad here. All of us.");
-      await mad.started;
-      await Promise.all(clones.map((p, i) => p.animate([{ transform: s.at(ends[i]) }, { transform: s.at(home) }], { duration: 800, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" }).finished));
-      clones.forEach((p) => p.remove());
-      burst(home.x + 23, home.y + 26, 16);
-      s.place(home, { opacity: 1 });
-      await mad;
-      await s.say("Phew. Back to one.", { min: 1500 });
+      try {
+        const ends = await Promise.all(clones.map(async (p) => {
+          let from = home;
+          for (let k = 0; k < 5; k += 1) {
+            const to = s.randomPoint(30);
+            await p.animate([{ transform: s.at(from) }, { transform: s.at({ x: (from.x + to.x) / 2, y: Math.min(from.y, to.y) - 50 }) }, { transform: s.at(to) }], { duration: 550 + Math.random() * 450, easing: "ease-in-out", fill: "forwards" }).finished;
+            from = to;
+          }
+          return from;
+        }));
+        await many;
+        const mad = s.say("We're all mad here. All of us.");
+        await mad.started;
+        await Promise.all(clones.map((p, i) => p.animate([{ transform: s.at(ends[i]) }, { transform: s.at(home) }], { duration: 800, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" }).finished));
+        clones.forEach((p) => p.remove());
+        burst(home.x + 23, home.y + 26, 16);
+        s.place(home, { opacity: 1 });
+        await mad;
+        await s.say("Phew. Back to one.", { min: 1500 });
+      } finally {
+        clones.forEach((p) => p.remove()); // the copies are gone even if the gag is cut short
+      }
     },
 
     // Dashes between random points at high speed, leaving fading afterimages.
@@ -573,34 +613,40 @@
       const shroom = node("av-shroom", spot.x + 70, spot.y + 52);
       shroom.innerHTML = '<svg viewBox="0 0 40 44" aria-hidden="true"><path d="M5 22C5 11 12 4 20 4s15 7 15 18z" fill="#e0453a"/><circle cx="14" cy="14" r="3" fill="#fff"/><circle cx="25" cy="11" r="2.4" fill="#fff"/><circle cx="29" cy="18" r="2" fill="#fff"/><path d="M14 22h12v14a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4z" fill="#f2e3c8"/></svg>';
       shroom.animate([{ scale: 0 }, { scale: 1 }], { duration: 500, easing: "cubic-bezier(.2,1.5,.4,1)", fill: "forwards" });
-      await s.sleep(900);
-      await mushroom; // her last line is over before the next one is asked
-      await s.say("Don't mind if I do.", { min: 1300 });
-      await shroom.animate([{ scale: 1, transform: "translate(0,0)" }, { scale: 0, transform: "translate(-62px,-24px)" }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
-      shroom.remove();
-      s.act("sparkle", 1000);
-      await s.sleep(700);
-      // Trip: the page blurs/warps/hue-shifts and she wobbles and changes colour.
-      ensureTripFilter();
-      document.documentElement.classList.add("av-trip");
-      s.el.classList.add("av-tripping");
-      const wobble = s.el.animate([
-        { transform: s.at(spot, 1, -12) }, { transform: s.at({ x: spot.x + 40, y: spot.y - 30 }, 1.5, 14) },
-        { transform: s.at({ x: spot.x - 30, y: spot.y + 10 }, 0.8, -20) }, { transform: s.at({ x: spot.x + 10, y: spot.y - 50 }, 1.8, 10) },
-        { transform: s.at(spot, 1, -12) }
-      ], { duration: 4200, iterations: 2, easing: "ease-in-out", fill: "forwards" });
-      // the trip lines are spelled out (not looped over an array) so the director can read and prepare every one
-      await s.say("Whoa. The walls are breathing.", { min: 1750 });
-      await s.say("Everything is a fractal. Even this button.", { min: 1750 });
-      await s.say("I can hear the colours.", { min: 1750 });
-      await s.say("The hex tiles are alive. They know.", { min: 1750 });
-      await s.say("Packets... so many tiny packets...", { min: 1750 });
-      await wobble.finished.catch(() => {});
-      document.documentElement.classList.remove("av-trip");
-      s.el.classList.remove("av-tripping");
-      s.act("dizzy", 1300);
-      await s.say("...okay. That was a lot. I'm fine.", { min: 2000 });
-      await s.move(spot, s.home(), { ms: 1500 });
+      try {
+        await s.sleep(900);
+        await mushroom; // her last line is over before the next one is asked
+        await s.say("Don't mind if I do.", { min: 1300 });
+        await shroom.animate([{ scale: 1, transform: "translate(0,0)" }, { scale: 0, transform: "translate(-62px,-24px)" }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
+        shroom.remove();
+        s.act("sparkle", 1000);
+        await s.sleep(700);
+        // Trip: the page blurs/warps/hue-shifts and she wobbles and changes colour.
+        ensureTripFilter();
+        document.documentElement.classList.add("av-trip");
+        s.el.classList.add("av-tripping");
+        const wobble = s.el.animate([
+          { transform: s.at(spot, 1, -12) }, { transform: s.at({ x: spot.x + 40, y: spot.y - 30 }, 1.5, 14) },
+          { transform: s.at({ x: spot.x - 30, y: spot.y + 10 }, 0.8, -20) }, { transform: s.at({ x: spot.x + 10, y: spot.y - 50 }, 1.8, 10) },
+          { transform: s.at(spot, 1, -12) }
+        ], { duration: 4200, iterations: 2, easing: "ease-in-out", fill: "forwards" });
+        // the trip lines are spelled out (not looped over an array) so the director can read and prepare every one
+        await s.say("Whoa. The walls are breathing.", { min: 1750 });
+        await s.say("Everything is a fractal. Even this button.", { min: 1750 });
+        await s.say("I can hear the colours.", { min: 1750 });
+        await s.say("The hex tiles are alive. They know.", { min: 1750 });
+        await s.say("Packets... so many tiny packets...", { min: 1750 });
+        await wobble.finished.catch(() => {});
+        document.documentElement.classList.remove("av-trip");
+        s.el.classList.remove("av-tripping");
+        s.act("dizzy", 1300);
+        await s.say("...okay. That was a lot. I'm fine.", { min: 2000 });
+        await s.move(spot, s.home(), { ms: 1500 });
+      } finally { // the page is back to normal even if the gag is cut short
+        shroom.remove();
+        document.documentElement.classList.remove("av-trip");
+        s.el.classList.remove("av-tripping");
+      }
     }
   });
 
@@ -644,6 +690,9 @@
     return pick(pool);
   }
 
+  // A gag the director could not start (its lines were not ready in time: they go on being prepared in the background)
+  // is tried again in 8 s, once; a gag refused twice waits for its normal turn.
+  let retryName = "";
   function schedule(delay) {
     const level = A() ? A().voice() : 2;
     const gap = level >= 4 ? 18000 : level >= 3 ? 100000 : 240000; // minimum time between gags
@@ -651,7 +700,10 @@
     setTimeout(async () => {
       const since = Date.now() - lastAntic;
       if (okToPerform() && since > gap) {
-        await run(chooseName());
+        const again = retryName, name = again || chooseName();
+        const performed = await run(name);
+        retryName = performed || again ? "" : name;
+        if (!performed) { schedule(again ? undefined : 8000); return; }
         // Psychopathic: sometimes a second (or third) gag right away.
         for (let extra = 0; extra < 2 && A() && A().voice() >= 4 && Math.random() < 0.6 && okToPerform(); extra += 1) { await new Promise((r) => setTimeout(r, 900)); await run(chooseName()); }
         schedule();
