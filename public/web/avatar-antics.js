@@ -120,7 +120,9 @@
       const home = s.home();
       let pos = s.randomPoint();
       s.place(home);
-      await s.say(s.quote("Bet you can't catch me!", "gag:catch")).started;
+      const bet = s.say(s.quote("Bet you can't catch me!", "gag:catch"));
+      await bet.started;
+      let remark = null; // the dodge remark, if she made one
       await s.move(home, pos, { ms: 1300 });
       r.style.pointerEvents = "auto";
       r.style.cursor = "pointer";
@@ -146,7 +148,7 @@
         const from = pos;
         pos = best;
         dodges += 1;
-        if (dodges === 6) s.say("Too slow!"); // a remark: the game never waits for her
+        if (dodges === 6) remark = s.say("Too slow!"); // a remark: the game never waits for her
         await s.move(from, best, { ms: 360, lift: 30, easing: "cubic-bezier(.2,.8,.2,1)" });
         dodging = false;
       };
@@ -163,6 +165,7 @@
         delete r.dataset.catching;
         r.style.pointerEvents = "";
       }
+      await Promise.all([bet, remark]); // her earlier lines are over: the cheer and the next line start together
       if (caught) {
         const total = Number(localStorage.getItem("auraCatches") || 0) + 1;
         localStorage.setItem("auraCatches", String(total));

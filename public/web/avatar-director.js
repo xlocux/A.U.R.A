@@ -45,8 +45,8 @@
     return { say: once(say.filter(sayable), (t) => "s:" + t), loud: once(loud.filter(sayable), (t) => "l:" + t), cries: once(cries, (t) => "c:" + t), quotes: once(quotes, (q) => "q:" + q.join("|")) };
   }
 
-  // A quote line is rolled once per performance and kept while the performance is postponed, so the line prepared in
-  // the background is the one she says next time.
+  // A quote line is rolled ahead of its performance (at start-up, and right after each performance) and kept while the
+  // gag is postponed, so the line prepared in the background is the one she says next time.
   function quoteText(first, key, rolls) {
     const id = first + "|" + key;
     if (!rolls.has(id)) { const q = root.AuraQuotes ? root.AuraQuotes.get(key, { force: true }) : null; rolls.set(id, q || ""); }
@@ -160,6 +160,10 @@
       if (stage) { if (!(await A.stage(run, { interactive }))) return false; }
       else await run(null);
       rollsBy.delete(name); // performed: new quotes next time
+      if (!immediate && S.prefetch) {
+        // roll the next performance's quotes now and prepare them in the background, so that one starts at once too
+        try { const next = linesFor(script, rollsFor(name)); S.prefetch(next.map((l) => [l.text, l.emotion, l.lang || ""])); } catch { /* best effort: this performance is done */ }
+      }
       return true;
     } catch (error) {
       console.warn("AURI: the performance \"" + name + "\" failed:", error);

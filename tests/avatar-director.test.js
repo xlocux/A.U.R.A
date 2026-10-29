@@ -98,7 +98,39 @@ test("rollsFor: the quotes rolled ahead (start-up) are the ones perform prepares
   assert.ok(prepared.some((l) => l.text === "Hello there.\nQUOTE1")); // prepared and said: the quote rolled ahead
   assert.equal(said, "Hello there.\nQUOTE1");
   assert.equal(rolled, 1);
-  assert.equal(D.rollsFor("rolled-ahead").size, 0); // performed: new quotes next time
+  assert.equal(D.rollsFor("rolled-ahead").size, 0); // performed: new quotes next time (no prefetch in this stub, so none are rolled ahead)
+  delete globalThis.AuraQuotes;
+  delete globalThis.AuraSpeech;
+  delete globalThis.AuraAvatar;
+});
+
+test("perform: a refused gag keeps its roll; a performed one rolls the next quotes and prepares them in the background", async () => {
+  let rolled = 0, missing = 1, prefetched = null, said = null;
+  globalThis.AuraQuotes = { get: () => "QUOTE" + (rolled += 1) };
+  globalThis.AuraSpeech = {
+    hold: () => {},
+    release: () => {},
+    quiet: async () => true,
+    prepare: async () => ({ ready: 0, missing }),
+    emotionFor: () => "neutral",
+    prefetch: (list) => { prefetched = list; },
+    speak: (text) => { said = text; return { id: 1, started: Promise.resolve(10), ended: Promise.resolve() }; }
+  };
+  globalThis.AuraAvatar = { canStage: () => true };
+  const D = globalThis.AuraDirector;
+  const gag = async (s) => { await s.say(s.quote("Hello there.", "gag:y")); };
+  const before = D.rollsFor("kept");
+  assert.equal(await D.perform("kept", gag, { stage: false }), false); // its lines are not ready: refused
+  assert.equal(D.rollsFor("kept"), before); // the roll is kept for the next try
+  assert.equal(before.get("Hello there.|gag:y"), "QUOTE1");
+  assert.equal(rolled, 1);
+  assert.equal(prefetched, null);
+  missing = 0;
+  assert.equal(await D.perform("kept", gag, { stage: false }), true);
+  assert.equal(said, "Hello there.\nQUOTE1"); // the kept roll is the one she says
+  assert.notEqual(D.rollsFor("kept"), before); // performed: a new roll for the next performance...
+  assert.equal(D.rollsFor("kept").get("Hello there.|gag:y"), "QUOTE2");
+  assert.deepEqual(prefetched, [["Hello there.\nQUOTE2", "neutral", ""]]); // ...prepared in the background
   delete globalThis.AuraQuotes;
   delete globalThis.AuraSpeech;
   delete globalThis.AuraAvatar;
