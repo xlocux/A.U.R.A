@@ -82,7 +82,8 @@
   }
 
   // ── performances ──
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // a race against a timer that is cleared when the race is won
+  const within = (promise, ms) => { let timer; return Promise.race([promise, new Promise((resolve) => { timer = setTimeout(resolve, ms); })]).finally(() => clearTimeout(timer)); };
   const MAX_SHOW_MS = 60000;
   const rollsBy = new Map(); // gag name -> the quotes rolled for its next performance
   let seq = 0, current = null;
@@ -145,8 +146,8 @@
         // being carried lasts as long as the hand holds her; every other script is capped. A script stopped by the cap
         // ends on its next call: the race has already taken over its rejection.
         if (interactive) { try { await playing; } catch { /* a script that throws still ends cleanly */ } }
-        else await Promise.race([playing, wait(MAX_SHOW_MS)]);
-        await Promise.race([Promise.all(show.handles.map((h) => h.ended)), wait(15000)]);
+        else await within(playing, MAX_SHOW_MS);
+        await within(Promise.all(show.handles.map((h) => h.ended)), 15000);
       };
       if (stage) { if (!(await A.stage(run, { interactive }))) return false; }
       else await run(null);
