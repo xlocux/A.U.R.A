@@ -19,9 +19,11 @@
     const gapSleepers = new Set(); // pauses a new line or the stage can end early
     const holdSleepers = new Set(); // silent bubbles and min slots: a poke (whatever the cause) or stop() ends them early
     let current = null, held = 0, nextId = 1, endedAt = -Infinity, pumping = false;
+    let dropped = 0; // the performance stop() ended: its next lines are settled at once, its hold stays until it releases
     const lvl = () => Math.max(0, Math.min(4, Math.round(Number(level()) || 0)));
     const safeEmit = (e) => { try { emit(e); } catch { /* a listener's error must not stop her */ } };
-    const handleOf = (item) => ({ id: item.id, started: item.started, ended: item.ended, get voiced() { return item.voiced; } });
+    // stopped: settled by stop() or by the end of its performance, not said (the director ends a performance on it)
+    const handleOf = (item) => ({ id: item.id, started: item.started, ended: item.ended, get voiced() { return item.voiced; }, get stopped() { return Boolean(item.stopped); } });
 
     function pause(ms, set) {
       return new Promise((resolve) => {
@@ -58,7 +60,7 @@
       item.ended = new Promise((resolve) => { end = resolve; });
       item.markStart = (ms) => { if (item.startedAt == null) { item.startedAt = now(); start(ms); } };
       item.finish = () => { start(0); end(); }; // start(0) is a no-op when it has already started
-      if (item.lane === "show" && (!held || item.show !== held)) { item.stopped = true; item.finish(); return handleOf(item); } // its performance is over (or never held the stage)
+      if (item.lane === "show" && (!held || item.show !== held || item.show === dropped)) { item.stopped = true; item.finish(); return handleOf(item); } // its performance is over (or never held the stage)
       if (item.lane === "chatter" && opts.kind) {
         for (let i = waiting.length - 1; i >= 0; i -= 1) {
           if (waiting[i].lane === "chatter" && waiting[i].opts.kind === opts.kind) waiting.splice(i, 1)[0].finish(); // a newer line of that kind says it better
@@ -148,7 +150,8 @@
       if (current) { current.stopped = true; current.cutRequested = true; cut(); }
       wakeAll(holdSleepers);
       wakeAll(gapSleepers);
-      held = 0;
+      // the performance on stage ends at its next line (avatar-director.js); until it releases, no chatter plays
+      dropped = held;
     }
 
     return {

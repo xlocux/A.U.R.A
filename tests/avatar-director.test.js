@@ -205,6 +205,39 @@ test("perform: on stage only once running; a carry preempts a gag still waiting 
   delete globalThis.AuraAvatar;
 });
 
+test("perform: a stop() during a gag ends it at its next line; chatter waits until the stage is released", async () => {
+  const { q, starts } = fakeVoice();
+  const released = [];
+  globalThis.AuraSpeech = {
+    hold: (id) => q.hold(id),
+    release: (id) => { released.push(starts().slice()); q.release(id); },
+    quiet: async () => true,
+    prepare: async () => ({ ready: 0, missing: 0 }),
+    emotionFor: () => "neutral",
+    speak: (text, opts) => q.enqueue(text, opts)
+  };
+  // as ai-avatar.js stage(): a script cut short still closes the stage
+  globalThis.AuraAvatar = { canStage: () => true, stage: async (run) => { try { await run({}); } catch { /* cut short */ } return true; } };
+  let reached = false, chatter = null;
+  const gag = async (s) => {
+    await s.say("Before the stop.");
+    q.stop(); // Settings > AURI opened, or the voice turned off
+    chatter = q.enqueue("A remark.");
+    await sleep(80); // a visual step: the gag is still on stage
+    await s.say("After the stop.");
+    reached = true;
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  try { assert.equal(await globalThis.AuraDirector.perform("stopped", gag), true); } finally { console.warn = warn; }
+  assert.equal(reached, false); // ended at its next line, not fast-forwarded to its end
+  assert.deepEqual(released, [["Before the stop."]]); // released once; no chatter and no later line while it was on stage
+  await chatter.ended;
+  assert.deepEqual(starts(), ["Before the stop.", "A remark."]);
+  delete globalThis.AuraSpeech;
+  delete globalThis.AuraAvatar;
+});
+
 test("perform: extra lines are prepared with the script's own (the rage says a list, not literals)", async () => {
   let prepared = null;
   globalThis.AuraSpeech = {

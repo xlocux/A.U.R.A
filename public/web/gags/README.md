@@ -64,7 +64,8 @@ Drawing helpers: `s.el`, `s.size`, `s.at(p, scale, rot)`, `s.place(p, o)`, `s.mo
 - Never leave elements behind: remove every node you create, finish animations, use `fill: "forwards"` only on nodes you remove.
 - Lines are said one at a time, in order: before a beat that depends on a line (a cry, a strike), `await` the previous line,
   or the new one waits behind it.
-- A performance can be cut short (60 s cap, an error): wrap the part between a change outside her copy (a class on
+- A performance can be cut short (60 s cap, the voice stopped from Settings, an error: the script throws at its next
+  line): wrap the part between a change outside her copy (a class on
   `document.documentElement` or `body`, an overlay) and its undo in `try { ... } finally { ... }`. Effects that remove
   themselves (`done(anim, el)`) need nothing.
 - Reduced motion is handled by the stage (gags do not run when it is on).

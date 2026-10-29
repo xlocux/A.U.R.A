@@ -98,14 +98,18 @@
 
   function voiceApi(base, show) {
     const S = root.AuraSpeech;
-    const guard = () => { if (show.closed) throw new Error("the performance is over"); };
+    const guard = () => { if (show.closed || show.stopped) throw new Error("the performance is over"); };
+    // a line settled by stop() (voice settings opened, voice turned off): the script ends here instead of running on
+    // with every later line settled at once
+    const live = (h) => { if (h.stopped) show.stopped = true; guard(); };
     const track = (h) => { show.handles.push(h); return h; };
     // await s.say(x) ends when she has said x (and not before opts.min ms); s.say(x).started when she starts it
     function say(text, opts = {}) {
       guard();
       if (typeof opts === "number") opts = { min: opts }; // the old form s.say(text, ms)
       const h = track(S.speak(String(text), { ...opts, lane: "show", show: show.id, forced: true }));
-      h.then = (ok, ko) => h.ended.then(ok, ko);
+      live(h);
+      h.then = (ok, ko) => h.ended.then(() => live(h)).then(ok, ko);
       return h;
     }
     // the battle cry: the move name appears as she starts shouting it; resolves then, with the cry's length
@@ -114,6 +118,7 @@
       const [text, emotion, lang] = cryLine(move);
       const h = track(S.speak(text, { lane: "show", show: show.id, emotion, lang, bubble: false, forced: true }));
       const ms = await h.started;
+      live(h);
       if (!opts.silentTitle) showTitle(move, Math.max(opts.ms || 1500, ms + 200));
       return ms;
     }
