@@ -116,8 +116,9 @@
   let bubbleLine = 0;
 
   // opts.pain: the red "ouch" bubble. opts.silent: a bubble only. opts.kind: lines of the same kind replace each other
-  // while they wait (a newer status says it better). Forced lines (pokes, clicks, important news) always speak; the
-  // others follow her pace and budget (avatar-speech-queue.js). The bubble appears when the line's turn comes.
+  // while they wait (a newer status says it better). opts.cutIn: a poke or the hand, the only lines that cut the one in
+  // progress. Forced lines (pokes, clicks, important news) always speak but wait their turn; the others follow her pace
+  // and budget (avatar-speech-queue.js). The bubble appears when the line's turn comes.
   function say(text, ms = 4200, force = false, opts = {}) {
     const level = voice();
     if ((raging || isAway()) && !force) return false;
@@ -127,7 +128,7 @@
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return false;
     if (!visibleMount() || !window.AuraSpeech) return false;
     window.AuraSpeech.speak(text, {
-      min: ms, forced: force || Date.now() < importantUntil, cutIn: force,
+      min: ms, forced: force || Date.now() < importantUntil, cutIn: Boolean(opts.cutIn),
       bubble: opts.pain ? { pain: true } : true, voice: opts.silent ? false : undefined, kind: opts.kind
     });
     return true;
@@ -295,7 +296,7 @@
     setTimeout(() => roamer && roamer.classList.remove("av-hurt"), 600);
     act(angry ? "shake" : "worried", 900);
     const rudePoke = voice() >= 4 && window.AuraQuotes ? window.AuraQuotes.rude("poke") : null;
-    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true, { pain: true });
+    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true, { pain: true, cutIn: true });
   }
 
   function ensureRoamer() {
@@ -541,8 +542,9 @@
       if (restore?.classList.contains("active")) restore.click(); // open the chat if minimized
       const now = Date.now();
       clicks = clicks.filter((t) => now - t < 2000).concat(now);
-      if (clicks.length >= 3) { act("dizzy", 1200); { const dz = (window.AuraQuotes ? window.AuraQuotes.get("dizzy", { force: true }) : null); say(pick(["Hey, that tickles!", "Whoa, easy there!", "I'm dizzy now..."]) + (dz ? "\n" + dz : "")); } clicks = []; }
-      else { act(pick(["wink", "tilt", "sparkle", "blush"]), 1300); say(contextQuip()); }
+      // a click on her is answered: forced (spoken, no budget), but it waits for the line in progress
+      if (clicks.length >= 3) { act("dizzy", 1200); { const dz = (window.AuraQuotes ? window.AuraQuotes.get("dizzy", { force: true }) : null); say(pick(["Hey, that tickles!", "Whoa, easy there!", "I'm dizzy now..."]) + (dz ? "\n" + dz : ""), 4200, true); } clicks = []; }
+      else { act(pick(["wink", "tilt", "sparkle", "blush"]), 1300); say(contextQuip(), 4200, true); }
     });
   }
 

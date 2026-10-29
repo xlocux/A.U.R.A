@@ -122,9 +122,9 @@
     }
     // Test = the mood demo (click again to stop); a new voice gets one short line so the change is heard at once.
     const test = () => (S().info().demo ? S().stop() : S().showcase());
-    const hello = () => S().speak("Hi! This is my new voice. Do you like it?", { emotion: "happy", interrupt: true, force: true });
+    const hello = () => S().speak("Hi! This is my new voice. Do you like it?", { emotion: "happy", force: true });
 
-    on.addEventListener("change", () => { S().set({ on: on.checked }); if (on.checked) S().speak("Hello. I can talk now. Try not to regret it.", { emotion: "creepy", interrupt: true }); });
+    on.addEventListener("change", () => { S().set({ on: on.checked }); if (on.checked) S().speak("Hello. I can talk now. Try not to regret it.", { emotion: "creepy", force: true }); });
     // Kokoro starts with Nezumi; the other engines with their automatic choice
     const startVoice = (engine) => (engine === "kokoro" ? S().defaultKokoroVoice : "auto");
     eng.addEventListener("change", () => { voiceKey = ""; S().set({ engine: eng.value, voice: startVoice(eng.value) }); });

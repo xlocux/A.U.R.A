@@ -205,8 +205,8 @@
     const home = api.mounts().find((el) => el.getBoundingClientRect().width > 0 && !el.classList.contains("ai-avatar-roamer"));
     if (!home) return;
     lastCheer = Date.now();
-    // the confetti fly as she starts cheering: a forced line that cuts in, like a poke (its bubble is the line's own)
-    await speech.speak(pick(CHEERS), { min: 2600, forced: true, cutIn: true }).started;
+    // the confetti fly as she starts cheering: a forced line that waits its turn (its bubble is the line's own)
+    await speech.speak(pick(CHEERS), { min: 2600, forced: true }).started;
     const r = home.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     api.act("cheer", 1600);

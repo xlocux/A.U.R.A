@@ -180,7 +180,8 @@
     const hold = setInterval(freeze, 80);
     const band = makeBand();
     let off = { x: 0, y: 0 }, won = false, bitten = false, lastMove = Date.now(), spoke = 0, done = false;
-    const say = (key) => { if (Date.now() - spoke < 1400) return; spoke = Date.now(); A().say(line(key), 2200, true); };
+    // the hand on her: like a poke, her answer cuts the line in progress
+    const say = (key) => { if (Date.now() - spoke < 1400) return; spoke = Date.now(); A().say(line(key), 2200, true, { cutIn: true }); };
     say(Math.random() < 0.5 ? "busy" : mode === "bite" ? "rubber" : mode);
 
     const wobbleBack = (from) => {
@@ -214,7 +215,7 @@
         clearInterval(hold);
         wobbleBack(off).then(resume);
       }
-      if (mode === "bite" && !bitten && len > 60) { bitten = true; chomp(event, (t) => { spoke = Date.now(); A().say(t, 2200, true); }); }
+      if (mode === "bite" && !bitten && len > 60) { bitten = true; chomp(event, (t) => { spoke = Date.now(); A().say(t, 2200, true, { cutIn: true }); }); }
     };
     const nag = setInterval(() => { if (Date.now() - lastMove > 1800 && !won) say("held"); }, 600);
     async function finish() {

@@ -382,7 +382,7 @@
       parts: neural && !mute ? partsOf(text, emoName, opts) : []
     };
     // muted: the setup silences it, the caller did not choose silence (opts.voice stays the caller's choice)
-    const handle = queue.enqueue(text, { ...opts, forced, cutIn: Boolean(opts.cutIn || opts.interrupt || opts.loud), muted: mute }, extra);
+    const handle = queue.enqueue(text, { ...opts, forced, cutIn: Boolean(opts.cutIn || opts.loud), muted: mute }, extra);
     prepareAhead();
     return handle;
   }
