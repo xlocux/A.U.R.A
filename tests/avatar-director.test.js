@@ -32,9 +32,10 @@ test("extractLines skips bubble-only captions (voice: false): no audio is prepar
     g.say("Ghost caption.", { voice: false });
     s.say("Spoken line here.", { min: 1800 });
     s.say("Another spoken one.", { voice: true });
+    s.say("Flag line here.", { voice: falseFlag }); // not the literal false: spoken
   }
   const found = extractLines(gag);
-  assert.deepEqual(found.say, ["Spoken line here.", "Another spoken one."]);
+  assert.deepEqual(found.say, ["Spoken line here.", "Another spoken one.", "Flag line here."]);
   assert.deepEqual(found.loud, []);
 });
 

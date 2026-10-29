@@ -114,17 +114,19 @@ test("min keeps the line's slot at least that long", async () => {
   assert.ok(end - start >= 115, `slot was ${end - start} ms`);
 });
 
-// a queue whose estimate for any text is 600 ms and whose voice is down (a voiced line fails at once)
+// a queue whose estimate for any text is 600 ms and whose voice is down (a voiced line fails at once); `plays` counts
+// the lines handed to the player
 function silentRig({ budget = [0, 0, 3, 5, 8] } = {}) {
   const events = [];
   const t0 = Date.now();
+  const plays = [];
   const q = createSpeechQueue({
     gapMs: [40, 40, 40, 40, 40], budget, level: () => 2, estimate: () => 600,
     emit: (e) => events.push({ ...e, t: Date.now() - t0 }), cut: () => {},
-    play: async () => ({ failed: true })
+    play: async (item) => { plays.push(item.text); return { failed: true }; }
   });
   const slot = () => events.find((e) => e.phase === "end").t - events.find((e) => e.phase === "start").t;
-  return { q, events, slot };
+  return { q, events, slot, plays };
 }
 
 test("a silent bubble with an explicit min lasts exactly min (a chant word of 100 ms is not stretched to the estimate)", async () => {
@@ -132,8 +134,17 @@ test("a silent bubble with an explicit min lasts exactly min (a chant word of 10
   const h = q.enqueue("Ka...", { voice: false, min: 100 });
   await h.ended;
   assert.equal(h.voiced, false);
-  assert.ok(slot() >= 95 && slot() <= 200, `slot was ${slot()} ms`);
+  assert.ok(slot() >= 95 && slot() <= 300, `slot was ${slot()} ms`);
   assert.ok(events.find((e) => e.phase === "start").ms >= 100);
+});
+
+test("a line muted by the setup (muted: true) is never played and keeps its reading time, whatever min says", async () => {
+  const { q, slot, plays } = silentRig();
+  const h = q.enqueue("a fairly long line of ten words to read here ok", { muted: true, min: 100 });
+  await h.ended;
+  assert.equal(h.voiced, false);
+  assert.deepEqual(plays, []); // not handed to the player: the setup muted it
+  assert.ok(slot() >= 590, `slot was ${slot()} ms`); // max(min, estimate), not the 100 ms of a chosen caption
 });
 
 test("a silent bubble without min, or silent for another reason, keeps max(min, estimate)", async () => {

@@ -331,7 +331,7 @@
   // the line she says and the next ones are generated while she speaks (all their pieces, in order)
   function prepareAhead() {
     for (const q of [queue.current(), ...queue.upcoming(PREPARE_AHEAD)]) {
-      if (q && q.neural && q.opts.voice !== false && !q.ready) q.ready = generateParts(q);
+      if (q && q.neural && q.opts.voice !== false && !q.opts.muted && !q.ready) q.ready = generateParts(q);
     }
   }
   // Plays one queued line, piece after piece. onStart(ms) as she starts (her bubble appears then, for the whole line).
@@ -379,7 +379,8 @@
       priority: forced || opts.lane === "show" || emoName === "rage" || emoName === "shout",
       parts: neural && !mute ? partsOf(text, emoName, opts) : []
     };
-    const handle = queue.enqueue(text, { ...opts, forced, cutIn: Boolean(opts.cutIn || opts.interrupt || opts.loud), voice: mute ? false : opts.voice }, extra);
+    // muted: the setup silences it, the caller did not choose silence (opts.voice stays the caller's choice)
+    const handle = queue.enqueue(text, { ...opts, forced, cutIn: Boolean(opts.cutIn || opts.interrupt || opts.loud), muted: mute }, extra);
     prepareAhead();
     return handle;
   }

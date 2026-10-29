@@ -45,8 +45,9 @@ Her voice sets the time:
   that is longer (default 1.5 s). `{ silentTitle: true }` skips the title (she only shouts), for a gag that draws its own.
 - `s.title("MOVE", 1500)`: the title only, silent.
 - `s.say(s.pick(["A.", "B."]))`, `s.say(s.quote("First.", "gag:key"))`: random lines that are still prepared ahead.
-- `s.say("Text", { voice: false, min: 1800 })`: a bubble only; it lasts exactly `min` (without `min`, the time to
-  read it). The director does not prepare any audio for it.
+- `s.say("Text", { voice: false, min: 1800 })`: a bubble only; a deliberate `voice: false` lasts exactly `min` (without
+  `min`, the time to read it). The director does not prepare any audio for it. A line that is silent for another
+  reason (voice off, hidden page, no engine) keeps its reading time, at least `min`.
 
 Write the lines as string literals in those calls: the director reads them from the source to prepare them. A line
 built at run time (a number, a host name) works too; the gag waits for it at that beat.

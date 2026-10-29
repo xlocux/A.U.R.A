@@ -32,8 +32,10 @@
   const STR2 = STR.replace(/\\1/g, "\\3"); // the same string pattern with its backreference renumbered, for a second string in one regex
   const unquote = (s) => s.replace(/\\(.)/g, (m, c) => (c === "n" ? "\n" : c === "t" ? "\t" : c));
   const sayable = (t) => t.replace(/[^A-Za-z]/g, "").length >= 3;
-  // a caption shown without a voice ({ ..., voice: false }) is not prepared: there is no audio to wait for
-  const NOT_SILENT = String.raw`(?!\s*,\s*\{[^}]*\bvoice\s*:\s*false)`;
+  // a caption shown without a voice ({ ..., voice: false }) is not prepared: there is no audio to wait for. (A
+  // `voice: false` inside a string or after a nested object is not told apart: contrived, the line is then simply
+  // generated at its beat.)
+  const NOT_SILENT = String.raw`(?!\s*,\s*\{[^}]*\bvoice\s*:\s*false\b)`;
   function extractLines(source) {
     const src = String(source);
     const say = [], loud = [], cries = [], quotes = [];

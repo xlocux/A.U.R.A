@@ -42,7 +42,7 @@
     }
 
     function decideVoice(item) {
-      if (item.opts.voice === false) return false;
+      if (item.opts.voice === false || item.opts.muted) return false; // chosen caption, or the setup mutes it (voice off, hidden page...)
       if (item.lane === "show" || item.forced) return true;
       while (spokenAt.length && now() - spokenAt[0] > MINUTE) spokenAt.shift();
       if (spokenAt.length >= budget[lvl()]) return false;
@@ -105,9 +105,10 @@
         try { result = (await play(item, onStart)) || {}; } catch { result = { failed: true }; }
       }
       if (!result.cut && (!item.voiced || result.failed)) {
-        // a silent bubble (over budget, voice off, nothing to say aloud, or no sound came out): same turn, estimated
-        // length; a caption chosen to be silent (voice: false) with an explicit min lasts exactly min
-        const ms = item.opts.voice === false && item.opts.min ? item.opts.min : Math.max(item.opts.min || 0, estimate(item.restText || item.text));
+        // a silent bubble (over budget, muted by the setup, no sound came out): same turn, estimated length, at least
+        // min. Only a caption the gag chose to be silent (voice: false, not muted) with an explicit min lasts exactly min.
+        const chosen = item.opts.voice === false && !item.opts.muted && item.opts.min;
+        const ms = chosen ? item.opts.min : Math.max(item.opts.min || 0, estimate(item.restText || item.text));
         onStart(ms);
         await pause(ms, holdSleepers);
         if (item.cutRequested && !item.stopped) { item.cutRequested = false; result = { cut: true }; }
