@@ -4,11 +4,12 @@
 // wormhole, explode (and rebuild), catch-me (she flees from your cursor), peek, glitch, dance and a section visit.
 // They are rare and polite: personality-level aware, never while you type, in a modal or in a fullscreen view,
 // with a long cooldown. Double-click her for an instant one. window.AuraAvatar.antic(name) runs one by hand.
+// Every gag is a performance of the director (avatar-director.js): `await s.say(x)` ends when she has said x,
+// `await s.say(x).started` when she starts it, so every move follows her real voice. Lines are written as string
+// literals in s.say / s.quote so the director can prepare them before the gag starts.
 (function initAvatarAntics() {
   const A = () => window.AuraAvatar;
   const pick = (list) => list[Math.floor(Math.random() * list.length)];
-  const quote = (key, fallback) => (window.AuraQuotes && window.AuraQuotes.get(key, { force: true })) || fallback;
-  const line = (first, key, fallback) => first + "\n" + quote(key, fallback || "");
 
   // ── small effect helpers (fixed, self-removing) ──
   function node(className, x, y, extra = "") {
@@ -55,18 +56,22 @@
       const home = s.home();
       const spot = s.randomPoint();
       s.place(home);
-      s.say("Hold on, I know a shortcut.", 2600);
+      const shortcut = s.say("Hold on, I know a shortcut.");
+      await shortcut.started;
       await s.move(home, spot, { ms: 1500 });
       const gate = portal(spot.x + 23, spot.y + 30);
       await s.sleep(450);
-      s.say(line("Wormhole engaged.", "gag:wormhole"), 3600);
+      await shortcut; // her last line is over before the next one is asked, so that one starts at once
+      const engaged = s.say(s.quote("Wormhole engaged.", "gag:wormhole"));
+      await engaged.started;
       await s.anim([{ transform: s.at(spot, 1, 0), opacity: 1 }, { transform: s.at(spot, 0.04, 720), opacity: 0 }], { duration: 950, easing: "ease-in" });
       await gate.close();
+      await engaged;
       await s.sleep(1400 + Math.random() * 1600);
       const exit = s.randomPoint();
       const gate2 = portal(exit.x + 23, exit.y + 30);
       await s.sleep(450);
-      s.say(line("Miss me?", "gag:wormholeBack"), 3400);
+      await s.say(s.quote("Miss me?", "gag:wormholeBack")).started;
       await s.anim([{ transform: s.at(exit, 0.04, -720), opacity: 0 }, { transform: s.at(exit, 1, 0), opacity: 1 }], { duration: 950, easing: "ease-out" });
       await gate2.close();
       s.act("sparkle", 1400);
@@ -78,27 +83,27 @@
       const home = s.home();
       const spot = s.randomPoint(160);
       s.place(home);
-      s.say("Warning: power level critical!", 2400);
+      const warning = s.say("Warning: power level critical!");
+      await warning.started;
       await s.move(home, spot, { ms: 1300 });
       s.el.classList.add("av-overload");
       await s.anim([
         { transform: s.at(spot, 1) }, { transform: s.at(spot, 1.25) }, { transform: s.at(spot, 1.1) },
         { transform: s.at(spot, 1.5) }, { transform: s.at(spot, 1.25) }, { transform: s.at(spot, 1.85) }
       ], { duration: 1500, easing: "ease-in" });
+      await warning; // the warning is said before she blows up
       const cx = spot.x + 23;
       const cy = spot.y + 26;
       burst(cx, cy, 34);
       s.el.classList.remove("av-overload");
       s.place(spot, { opacity: 0, scale: 0.2 });
-      s.say(line("BOOM.", "gag:explode"), 3800);
-      await s.sleep(2300);
+      await s.say(s.quote("BOOM.", "gag:explode"), { min: 2300 });
       implode(cx, cy);
       await s.sleep(850);
       burst(cx, cy, 10);
       await s.anim([{ transform: s.at(spot, 0.2), opacity: 0 }, { transform: s.at(spot, 1), opacity: 1 }], { duration: 450, easing: "ease-out" });
-      s.say(line("Reconstructing... done. I'm fine!", "gag:rebuilt"), 3600);
       s.act("wink", 1300);
-      await s.sleep(1500);
+      await s.say(s.quote("Reconstructing... done. I'm fine!", "gag:rebuilt"), { min: 1500 });
       await s.move(spot, s.home(), { ms: 1500 });
     },
 
@@ -108,7 +113,7 @@
       const home = s.home();
       let pos = s.randomPoint();
       s.place(home);
-      s.say(line("Bet you can't catch me!", "gag:catch"), 3600);
+      await s.say(s.quote("Bet you can't catch me!", "gag:catch")).started;
       await s.move(home, pos, { ms: 1300 });
       r.style.pointerEvents = "auto";
       r.style.cursor = "pointer";
@@ -134,7 +139,7 @@
         const from = pos;
         pos = best;
         dodges += 1;
-        if (dodges === 6) s.say("Too slow!", 1800);
+        if (dodges === 6) s.say("Too slow!"); // a remark: the game never waits for her
         await s.move(from, best, { ms: 360, lift: 30, easing: "cubic-bezier(.2,.8,.2,1)" });
         dodging = false;
       };
@@ -152,12 +157,12 @@
         const total = Number(localStorage.getItem("auraCatches") || 0) + 1;
         localStorage.setItem("auraCatches", String(total));
         s.act("cheer", 1900);
-        s.say(total >= 3 ? line("Okay, " + total + " catches. Pro hacker detected.", "gag:caught") : line("You got me!", "gag:caught"), 4200);
+        // the count is only known now: that line is generated as she says it; "You got me!" is prepared ahead
+        await s.say(total >= 3 ? s.quote("Okay, " + total + " catches. Pro hacker detected.", "gag:caught") : s.quote("You got me!", "gag:caught"), { min: 2200 });
       } else {
         s.act("wink", 1400);
-        s.say(line("Too slow, too slow.", "gag:missed"), 3600);
+        await s.say(s.quote("Too slow, too slow.", "gag:missed"), { min: 2200 });
       }
-      await s.sleep(2200);
       await s.move(pos, s.home(), { ms: 1500 });
     },
 
@@ -170,8 +175,7 @@
       s.place(start);
       await s.anim([{ transform: s.at(start) }, { transform: s.at(shown) }], { duration: 700, easing: "ease-out" });
       s.act("wink", 1300);
-      s.say(line("Psst...", "gag:peek"), 3800);
-      await s.sleep(3000);
+      await s.say(s.quote("Psst...", "gag:peek"), { min: 3000 });
       await s.anim([{ transform: s.at(shown) }, { transform: s.at(start) }], { duration: 600, easing: "ease-in" });
     },
 
@@ -185,8 +189,7 @@
       s.el.classList.add("av-glitching");
       await s.anim([{ opacity: 0 }, { opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }], { duration: 650 });
       s.el.classList.remove("av-glitching");
-      s.say(line("Teleport complete. Mostly.", "gag:glitch"), 3800);
-      await s.sleep(2800);
+      await s.say(s.quote("Teleport complete. Mostly.", "gag:glitch"), { min: 2800 });
       s.el.classList.add("av-glitching");
       await s.anim([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 0 }], { duration: 550 });
       s.place(s.home(), { opacity: 0 });
@@ -199,7 +202,8 @@
       const spot = s.randomPoint();
       s.place(home);
       await s.move(home, spot, { ms: 1400 });
-      s.say(line("Nobody's watching, right?", "gag:dance"), 4000);
+      const hello = s.say(s.quote("Nobody's watching, right?", "gag:dance"));
+      await hello.started;
       let caught = false;
       const watch = (event) => { if (Math.hypot(event.clientX - (spot.x + 23), event.clientY - (spot.y + 26)) < 150) caught = true; };
       window.addEventListener("pointermove", watch, { passive: true });
@@ -209,7 +213,7 @@
         ], { duration: 520, easing: "ease-in-out" });
       }
       window.removeEventListener("pointermove", watch);
-      if (caught) { s.say("...you saw nothing.", 2400); await s.sleep(1800); }
+      if (caught) { await hello; await s.say("...you saw nothing.", { min: 1800 }); }
       await s.move(spot, s.home(), { ms: 1400 });
     },
 
@@ -224,8 +228,8 @@
       await s.move(home, spot, { ms: 1500 });
       s.act("tilt", 1100);
       const text = window.AuraQuotes && window.AuraQuotes.get("section:" + tab, { force: true });
-      s.say(text || "Just looking around.", 4200);
-      await s.sleep(3600);
+      // the quote depends on the tab she is on, so this line is generated as she says it (not prepared ahead)
+      await s.say(text || "Just looking around.", { min: 3600 });
       await s.move(spot, s.home(), { ms: 1500 });
     }
   };
@@ -279,8 +283,7 @@
         r.style.zIndex = "";
         r.style.opacity = "1";
         s.act("wink", 1300);
-        s.say(line("Don't mind me, just passing under the UI.", "gag:peek"), 3600);
-        await s.sleep(1900);
+        await s.say(s.quote("Don't mind me, just passing under the UI.", "gag:peek"), { min: 1900 });
         r.style.zIndex = "1";
         r.style.opacity = "0.55";
         await s.move(mid, b, { ms: 2600, arc: false });
@@ -295,7 +298,8 @@
       const home = s.home();
       const spot = s.randomPoint(140);
       s.place(home);
-      s.say("I think I'm coming apart...", 2200);
+      const intro = s.say("I think I'm coming apart...");
+      await intro.started;
       await s.move(home, spot, { ms: 1300 });
       const cuts = ["inset(0 0 56% 0)", "inset(44% 50% 24% 0)", "inset(44% 0 24% 50%)", "inset(76% 0 0 0)", "inset(30% 0 40% 0)"];
       const pieces = cuts.map((clip) => {
@@ -315,7 +319,9 @@
         { transform: s.at({ x: lerp(spot.x, spots[i].x, 0.6), y: spot.y - 90 - Math.random() * 90 }, 1, 200) },
         { transform: s.at(spots[i], 1, 400 + i * 60) }
       ], { duration: 1100, easing: "cubic-bezier(.2,.7,.3,1)", fill: "forwards" }).finished));
-      s.say(line("Pieces everywhere.", "gag:explode"), 3600);
+      await intro; // the first line is over before the next one is asked
+      const everywhere = s.say(s.quote("Pieces everywhere.", "gag:explode"));
+      await everywhere.started;
       await Promise.all(pieces.map((p, i) => p.animate([
         { transform: s.at(spots[i], 1, 400 + i * 60) },
         { transform: s.at({ x: spots[i].x + (Math.random() - 0.5) * 50, y: spots[i].y - 40 }, 1, 460) },
@@ -328,9 +334,9 @@
       pieces.forEach((p) => p.remove());
       s.place(spot, { opacity: 1 });
       burst(spot.x + 23, spot.y + 26, 8);
-      s.say(line("All in one piece. Mostly.", "gag:rebuilt"), 3400);
+      await everywhere;
       s.act("wink", 1300);
-      await s.sleep(1500);
+      await s.say(s.quote("All in one piece. Mostly.", "gag:rebuilt"), { min: 1500 });
       await s.move(spot, s.home(), { ms: 1400 });
     },
 
@@ -340,8 +346,7 @@
       s.place(home);
       const hole = { x: Math.min(innerWidth - 140, home.x + 180 + Math.random() * 200), y: Math.max(110, home.y - 90 - Math.random() * 170) };
       const gate = portal(hole.x + 23, hole.y + 26);
-      s.say("Uh-oh. Something is pulling at me...", 2600);
-      await s.sleep(900);
+      await s.say("Uh-oh. Something is pulling at me...", { min: 900 });
       const frames = [];
       const steps = 18;
       for (let i = 0; i <= steps; i += 1) {
@@ -356,7 +361,7 @@
       const exit = s.randomPoint();
       const gate2 = portal(exit.x + 23, exit.y + 26);
       await s.sleep(500);
-      s.say(line("Whoa... where am I?", "gag:wormholeBack"), 3400);
+      await s.say(s.quote("Whoa... where am I?", "gag:wormholeBack")).started;
       await s.anim([{ transform: tf(exit.x, exit.y, 0.1, 2, 540), opacity: 0 }, { transform: tf(exit.x, exit.y, 1, 1, 0), opacity: 1 }], { duration: 900, easing: "cubic-bezier(.2,1.4,.4,1)" });
       await gate2.close();
       await s.sleep(900);
@@ -371,8 +376,7 @@
       const startX = dir > 0 ? -150 : innerWidth + 150;
       const endX = dir > 0 ? innerWidth * 0.8 : innerWidth * 0.2;
       s.place(home, { opacity: 0 });
-      s.say("Great Scott! Eighty-eight miles an hour...", 2800);
-      await s.sleep(1300);
+      await s.say("Great Scott! Eighty-eight miles an hour...", { min: 1300 });
       const carSvg = '<svg viewBox="0 0 120 40" aria-hidden="true"><path d="M3 31 L22 14 L54 9 L98 14 L117 26 L117 32 L3 32Z" fill="#cdd5df" stroke="#fff" stroke-width="1"/><path d="M30 15 L54 11 L80 14 L90 22 L30 22Z" fill="#12202e"/><rect x="2" y="26" width="9" height="4" fill="#7fd8ff"/><circle cx="30" cy="33" r="6" fill="#0a0d12" stroke="#9aa5b3"/><circle cx="92" cy="33" r="6" fill="#0a0d12" stroke="#9aa5b3"/></svg>';
       const car = node("av-car", startX, y, dir < 0 ? "transform-origin:50% 50%;" : "");
       car.innerHTML = carSvg;
@@ -390,8 +394,7 @@
       await travel.finished;
       burst(endX + 55, y + 18, 26);
       car.remove();
-      s.say(line("Roads? Where we're going we don't need roads.", "gag:glitch"), 4200);
-      await s.sleep(3600);
+      await s.say(s.quote("Roads? Where we're going we don't need roads.", "gag:glitch"), { min: 3600 });
       await Promise.all(trails.map((t) => t.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1500, fill: "forwards" }).finished));
       trails.forEach((t) => t.remove());
       await s.anim([{ transform: s.at(home), opacity: 0 }, { transform: s.at(home), opacity: 1 }], { duration: 500 });
@@ -403,14 +406,12 @@
       s.place(home);
       const sky = node("av-storm", 0, 0);
       sky.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700, fill: "forwards" });
-      s.say("The weather is turning...", 2200);
-      await s.sleep(1500);
+      await s.say("The weather is turning...", { min: 1500 });
       for (let i = 0; i < 3; i += 1) {
         bolt(Math.max(60, Math.min(innerWidth - 60, home.x + (Math.random() - 0.5) * 700)), 200 + Math.random() * 400);
         await s.sleep(700 + Math.random() * 500);
       }
-      s.say(line("That one was close.", "gag:glitch"), 2000);
-      await s.sleep(1300);
+      await s.say(s.quote("That one was close.", "gag:glitch"), { min: 1300 });
       bolt(home.x + 23, home.y + 26, 4);
       s.place(home, { opacity: 0 });
       burst(home.x + 23, home.y + 26, 22);
@@ -422,8 +423,7 @@
       bolt(home.x + 23, home.y + 26, 4);
       await s.anim([{ transform: s.at(home, 0.4), opacity: 0 }, { transform: s.at(home, 1), opacity: 1 }], { duration: 450, easing: "ease-out" });
       s.act("sparkle", 1500);
-      s.say("Electrifying.", 2600);
-      await s.sleep(1600);
+      await s.say("Electrifying.", { min: 1600 });
     }
   });
 
@@ -433,35 +433,34 @@
       const home = s.home();
       const spot = { x: Math.max(120, Math.min(innerWidth - 180, innerWidth * (0.3 + Math.random() * 0.4))), y: Math.max(200, innerHeight * 0.55) };
       s.place(home);
-      s.say("Down the rabbit hole... I'm late, I'm late!", 2600);
+      const rabbit = s.say("Down the rabbit hole... I'm late, I'm late!");
+      await rabbit.started;
       await s.move(home, spot, { ms: 1500 });
       const bottle = node("av-bottle", spot.x + 62, spot.y + 40);
       bottle.innerHTML = '<svg viewBox="0 0 40 60" aria-hidden="true"><rect x="15" y="2" width="10" height="9" rx="2" fill="#b98a4a"/><path d="M13 11h14v8l7 12v22a5 5 0 0 1-5 5H11a5 5 0 0 1-5-5V31l7-12z" fill="rgba(120,220,255,.35)" stroke="#bfefff" stroke-width="1.4"/><rect x="9" y="30" width="22" height="14" fill="#f4ead2"/><text x="20" y="40" font-size="5.6" text-anchor="middle" fill="#3a2a14" font-family="serif">DRINK ME</text></svg>';
       bottle.animate([{ scale: 0, opacity: 0 }, { scale: 1, opacity: 1 }], { duration: 400, easing: "ease-out", fill: "forwards" });
       await s.sleep(500);
-      s.say("It says 'Drink me'. How curious...", 2400);
-      await s.sleep(1900);
+      await rabbit; // her last line is over before the next one is asked
+      await s.say("It says 'Drink me'. How curious...", { min: 1900 });
       s.act("sparkle", 1000);
       bottle.animate([{ transform: "rotate(0deg)", opacity: 1 }, { transform: "rotate(-60deg)", opacity: 1 }, { transform: "rotate(-60deg)", opacity: 0 }], { duration: 900, fill: "forwards" }).finished.then(() => bottle.remove());
       await s.sleep(700);
       const centre = { x: innerWidth / 2 - 23, y: innerHeight * 0.55 };
-      s.say("Curiouser and curiouser!", 3000);
+      const curious = s.say("Curiouser and curiouser!");
+      await curious.started;
       // She grows until she nearly fills the screen; the page shakes a little.
       await s.anim([
         { transform: s.at(spot, 1) },
         { transform: s.at({ x: lerp(spot.x, centre.x, 0.5), y: lerp(spot.y, centre.y, 0.5) }, 4.5) },
         { transform: s.at(centre, 9) }
       ], { duration: 2600, easing: "cubic-bezier(.3,0,.2,1)" });
+      await curious;
       document.body.animate([{ transform: "translate(0,0)" }, { transform: "translate(-3px,2px)" }, { transform: "translate(3px,-2px)" }, { transform: "translate(0,0)" }], { duration: 260, iterations: 3 });
-      s.say("I'm opening out like the largest telescope that ever was!", 3600);
-      await s.sleep(3800);
-      s.say("Why, sometimes I've believed as many as six impossible things before breakfast.", 4600);
-      await s.sleep(4800);
-      s.say("Eat me. Of course.", 2200);
-      await s.sleep(1500);
+      await s.say("I'm opening out like the largest telescope that ever was!", { min: 3800 });
+      await s.say("Why, sometimes I've believed as many as six impossible things before breakfast.", { min: 4800 });
+      await s.say("Eat me. Of course.", { min: 1500 });
       await s.anim([{ transform: s.at(centre, 9) }, { transform: s.at(centre, 0.35) }], { duration: 1500, easing: "cubic-bezier(.7,0,.3,1)" });
-      s.say("Who in the world am I? Ah, that's the great puzzle!", 4200);
-      await s.sleep(2400);
+      await s.say("Who in the world am I? Ah, that's the great puzzle!", { min: 2400 });
       await s.anim([{ transform: s.at(centre, 0.35) }, { transform: s.at(centre, 1) }], { duration: 700, easing: "cubic-bezier(.2,1.5,.4,1)" });
       s.act("wink", 1200);
       await s.sleep(1200);
@@ -476,7 +475,8 @@
     async swarm(s) {
       const home = s.home();
       s.place(home, { opacity: 0 });
-      s.say("There are many of me now.", 2400);
+      const many = s.say("There are many of me now.");
+      await many.started;
       burst(home.x + 23, home.y + 26, 14);
       const clones = Array.from({ length: 7 }, () => {
         const p = document.createElement("div");
@@ -496,20 +496,23 @@
         }
         return from;
       }));
-      s.say("We're all mad here. All of us.", 2600);
+      await many;
+      const mad = s.say("We're all mad here. All of us.");
+      await mad.started;
       await Promise.all(clones.map((p, i) => p.animate([{ transform: s.at(ends[i]) }, { transform: s.at(home) }], { duration: 800, easing: "cubic-bezier(.6,0,.8,.4)", fill: "forwards" }).finished));
       clones.forEach((p) => p.remove());
       burst(home.x + 23, home.y + 26, 16);
       s.place(home, { opacity: 1 });
-      s.say("Phew. Back to one.", 2000);
-      await s.sleep(1500);
+      await mad;
+      await s.say("Phew. Back to one.", { min: 1500 });
     },
 
     // Dashes between random points at high speed, leaving fading afterimages.
     async zoomies(s) {
       const home = s.home();
       s.place(home);
-      s.say("ZOOMIES!", 1600);
+      const zoom = s.say("ZOOMIES!");
+      await zoom.started;
       let from = home;
       for (let i = 0; i < 9; i += 1) {
         const to = s.randomPoint(30);
@@ -524,16 +527,17 @@
         from = to;
       }
       await s.move(from, s.home(), { ms: 700, arc: false });
+      await zoom;
       s.act("dizzy", 1200);
-      s.say("...I need to lie down.", 2200);
-      await s.sleep(1400);
+      await s.say("...I need to lie down.", { min: 1400 });
     },
 
     // Drops from the top of the screen and bounces with squash and stretch.
     async bounce(s) {
       const x = 120 + Math.random() * (innerWidth - 320);
       const floor = innerHeight - 90;
-      s.say("Gravity works!", 1800);
+      s.place({ x, y: -90 }); // above the screen while she waits for her line to start
+      await s.say("Gravity works!").started;
       const frames = [{ transform: tf(x, -90, 1, 1, 0) }];
       let height = floor + 60;
       for (let i = 0; i < 5; i += 1) {
@@ -563,14 +567,15 @@
       const home = s.home();
       const spot = s.randomPoint(160);
       s.place(home);
-      s.say("Is that... a mushroom?", 2200);
+      const mushroom = s.say("Is that... a mushroom?");
+      await mushroom.started;
       await s.move(home, spot, { ms: 1500 });
       const shroom = node("av-shroom", spot.x + 70, spot.y + 52);
       shroom.innerHTML = '<svg viewBox="0 0 40 44" aria-hidden="true"><path d="M5 22C5 11 12 4 20 4s15 7 15 18z" fill="#e0453a"/><circle cx="14" cy="14" r="3" fill="#fff"/><circle cx="25" cy="11" r="2.4" fill="#fff"/><circle cx="29" cy="18" r="2" fill="#fff"/><path d="M14 22h12v14a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4z" fill="#f2e3c8"/></svg>';
       shroom.animate([{ scale: 0 }, { scale: 1 }], { duration: 500, easing: "cubic-bezier(.2,1.5,.4,1)", fill: "forwards" });
       await s.sleep(900);
-      s.say("Don't mind if I do.", 1800);
-      await s.sleep(1300);
+      await mushroom; // her last line is over before the next one is asked
+      await s.say("Don't mind if I do.", { min: 1300 });
       await shroom.animate([{ scale: 1, transform: "translate(0,0)" }, { scale: 0, transform: "translate(-62px,-24px)" }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
       shroom.remove();
       s.act("sparkle", 1000);
@@ -579,25 +584,22 @@
       ensureTripFilter();
       document.documentElement.classList.add("av-trip");
       s.el.classList.add("av-tripping");
-      const lines = [
-        "Whoa. The walls are breathing.",
-        "Everything is a fractal. Even this button.",
-        "I can hear the colours.",
-        "The hex tiles are alive. They know.",
-        "Packets... so many tiny packets..."
-      ];
       const wobble = s.el.animate([
         { transform: s.at(spot, 1, -12) }, { transform: s.at({ x: spot.x + 40, y: spot.y - 30 }, 1.5, 14) },
         { transform: s.at({ x: spot.x - 30, y: spot.y + 10 }, 0.8, -20) }, { transform: s.at({ x: spot.x + 10, y: spot.y - 50 }, 1.8, 10) },
         { transform: s.at(spot, 1, -12) }
       ], { duration: 4200, iterations: 2, easing: "ease-in-out", fill: "forwards" });
-      for (const text of lines) { s.say(text, 2300); await s.sleep(1750); }
+      // the trip lines are spelled out (not looped over an array) so the director can read and prepare every one
+      await s.say("Whoa. The walls are breathing.", { min: 1750 });
+      await s.say("Everything is a fractal. Even this button.", { min: 1750 });
+      await s.say("I can hear the colours.", { min: 1750 });
+      await s.say("The hex tiles are alive. They know.", { min: 1750 });
+      await s.say("Packets... so many tiny packets...", { min: 1750 });
       await wobble.finished.catch(() => {});
       document.documentElement.classList.remove("av-trip");
       s.el.classList.remove("av-tripping");
       s.act("dizzy", 1300);
-      s.say("...okay. That was a lot. I'm fine.", 2800);
-      await s.sleep(2000);
+      await s.say("...okay. That was a lot. I'm fine.", { min: 2000 });
       await s.move(spot, s.home(), { ms: 1500 });
     }
   });
