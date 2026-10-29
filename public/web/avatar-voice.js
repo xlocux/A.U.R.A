@@ -134,7 +134,6 @@
 
   // ── generation ──
   let lastGen = null, rtf = null, generating = 0, slowAt = 0; // rtf = generation time / speech time (moving average)
-  let avgGen = null; // how long the server takes to prepare a line, in ms (moving average): deadlines follow it
   const cache = new Map();
   const cacheKey = (pack, line, emoName, lang = "") => { const emo = EMOTIONS[emoName] || EMOTIONS.neutral; return `${pack}|${lang}|${pickVoice(emoName)}|${emo.speed}|${line}`; };
   // A long line is said in pieces of a sentence or two: she starts as soon as the first (short) piece is ready, and the
@@ -183,7 +182,6 @@
         const r = ms / Math.max(1500, seconds * 1000);
         rtf = rtf == null ? r : rtf * 0.6 + r * 0.4;
         if (rtf > 1.3) slowAt = Date.now();
-        avgGen = avgGen == null ? ms : avgGen * 0.7 + ms * 0.3;
       }
       serverError = "";
       cache.set(key, audio);
@@ -328,31 +326,37 @@
     level,
     emit: (detail) => { if (detail.phase === "start") { played += 1; prepareAhead(); } lineEvent(detail); }
   });
+  // every piece of a queued line, generated in order (the server keeps the order)
+  const generateParts = (q) => q.parts.map((part) => generateLine(part, q.emoName, false, q.opts.lang, q.priority));
   // the line she says and the next ones are generated while she speaks (all their pieces, in order)
   function prepareAhead() {
     for (const q of [queue.current(), ...queue.upcoming(PREPARE_AHEAD)]) {
-      if (q && q.neural && q.opts.voice !== false && !q.ready) q.ready = q.parts.map((part) => generateLine(part, q.emoName, false, q.opts.lang, q.priority));
+      if (q && q.neural && q.opts.voice !== false && !q.ready) q.ready = generateParts(q);
     }
   }
   // Plays one queued line, piece after piece. onStart(ms) as she starts (her bubble appears then, for the whole line).
-  // A line cut by a poke returns { cut: true } and keeps its pieces from the cut one; { failed: true } = no sound came out.
+  // A line cut by a poke (or by stop()) returns { cut: true } and keeps its pieces from the cut one; { failed: true } = no
+  // sound came out. The cut is looked for after every wait: a poke must not wait for a piece still being made.
   async function playItem(item, onStart) {
+    const takeCut = (rest) => { item.cutRequested = false; item.restText = rest; return { cut: true }; };
     if (!item.neural) {
       const started = await speakBrowser(item, onStart);
-      if (item.cutRequested) { item.cutRequested = false; item.restText = item.text; return { cut: true }; }
+      if (item.cutRequested) return takeCut(item.text);
       return started ? {} : { failed: true };
     }
-    if (!item.ready) item.ready = item.parts.map((part) => generateLine(part, item.emoName, false, item.opts.lang, item.priority));
+    if (!item.ready) item.ready = generateParts(item);
     const volume = cfg.volume * (item.opts.loud ? 1.2 : 1);
     let first = true;
     while (item.parts.length) {
-      const audio = (await item.ready[0]) || (await generateLine(item.parts[0], item.emoName, false, item.opts.lang, item.priority)); // one retry
-      if (item.cutRequested) { item.cutRequested = false; item.restText = item.parts.join(" "); return { cut: true }; } // cut while this piece was being made
+      let audio = await item.ready[0];
+      if (item.cutRequested) return takeCut(item.parts.join(" ")); // cut while this piece was being made
+      if (!audio) audio = await generateLine(item.parts[0], item.emoName, false, item.opts.lang, item.priority); // one retry
+      if (item.cutRequested) return takeCut(item.parts.join(" "));
       if (!audio) return first ? { failed: true } : {}; // a later piece that cannot be made: the bubble already shows the whole line
       const rest = item.parts.slice(1).join(" ");
       const ok = await play(audio, audio.emo, volume, first ? (ms) => onStart(ms + (rest ? estimate(rest) : 0)) : () => {});
+      if (item.cutRequested) return takeCut(item.parts.join(" ")); // said again from this piece
       if (!ok) return first ? { failed: true } : {};
-      if (item.cutRequested) { item.cutRequested = false; item.restText = item.parts.join(" "); return { cut: true }; } // said again from this piece
       item.parts.shift();
       item.ready.shift();
       first = false;
@@ -396,7 +400,7 @@
     return Promise.race([c.ended.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), ms))]);
   }
   // shortcut: the old cue() for the scenes not converted yet; removed in Task 7 of the director plan.
-  const cue = (text, opts = {}) => speak(text, { ...opts, forced: true }).started;
+  const cue = (text, opts = {}) => speak(text, { ...opts, forced: true, bubble: false }).started;
   function stop() {
     demo = null;
     queue.stop();
@@ -425,19 +429,21 @@
     const token = {};
     demo = token;
     emit();
-    const prepare = ([text, emotion]) => (activePack() ? generate(text, emotion) : Promise.resolve(null));
-    let next = prepare(lines[0]);
+    const prepareDemo = ([text, emotion]) => (activePack() ? generate(text, emotion) : Promise.resolve(null));
+    let next = prepareDemo(lines[0]);
     try {
       for (let i = 0; i < lines.length && demo === token; i += 1) {
         const [text, emotion] = lines[i];
         const audio = await next;
-        next = i + 1 < lines.length ? prepare(lines[i + 1]) : null;
+        next = i + 1 < lines.length ? prepareDemo(lines[i + 1]) : null;
         if (demo !== token) return;
         const id = -(i + 1); // demo lines are not in the queue: their bubbles get their own ids
-        const onStart = (ms) => { played += 1; lineEvent({ phase: "start", id, text, ms, bubble: true }); };
+        let started = false;
+        const onStart = (ms) => { started = true; played += 1; lineEvent({ phase: "start", id, text, ms, bubble: true }); };
         if (audio) await play(audio, audio.emo, cfg.volume, onStart);
         else if (cfg.engine === "browser") await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
         else { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // one voice: a missing line is a bubble
+        if (!started && demo === token) { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // no sound came out: the bubble still shows
         lineEvent({ phase: "end", id, text });
         await new Promise((r) => setTimeout(r, 250));
       }

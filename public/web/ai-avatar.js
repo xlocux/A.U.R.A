@@ -126,6 +126,7 @@
     if ((raging || isAway()) && !force) return false;
     if (!force && window.AuraSpeech?.inDemo?.()) return false; // the voice mood demo owns the bubble
     if (!force && inVoiceSettings()) return false;
+    if (!force && document.hidden) return false; // nobody sees or hears it: no backlog to replay when she comes back
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return false;
     if (!visibleMount() || !window.AuraSpeech) return false;
     window.AuraSpeech.speak(text, {
@@ -153,7 +154,6 @@
     bubble.style.top = below ? `${rect.bottom + 8}px` : `${Math.max(8, rect.top - 52)}px`;
     bubble.classList.toggle("pain", pain);
     bubble.classList.add("show");
-    bubble.dataset.say = String(text);
     clearTimeout(bubbleTimer);
   }
 
@@ -400,7 +400,7 @@
     let pace = Promise.resolve();
     const api = {
       el: r, size, at, sleep, act,
-      // the gag's own lines (the only ones allowed while it runs)
+      // the gag's own lines
       // a gag moves with her voice: before its next move or animation it waits until the line it just asked for has started
       say: (text, ms, force = false, opts = {}) => { const h = window.AuraSpeech?.speak(text, { min: ms, forced: true, voice: opts.silent ? false : undefined }); if (h) pace = h.started; return h; },
       home: () => centerOf(origin),
