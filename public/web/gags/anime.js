@@ -205,8 +205,11 @@
     const home = api.mounts().find((el) => el.getBoundingClientRect().width > 0 && !el.classList.contains("ai-avatar-roamer"));
     if (!home) return;
     lastCheer = Date.now();
-    // the confetti fly as she starts cheering: a forced line that waits its turn (its bubble is the line's own)
-    await speech.speak(pick(CHEERS), { min: 2600, forced: true }).started;
+    // the confetti fly as she starts cheering. Said like the news it follows (a vuln, the run done): through say(), so it
+    // keeps out of a voice test, the mood demo and a rage, and is forced while that news is fresh (it waits its turn)
+    const cheering = api.say(pick(CHEERS), 2600);
+    if (!cheering) return;
+    await cheering.started;
     const r = home.getBoundingClientRect();
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     api.act("cheer", 1600);

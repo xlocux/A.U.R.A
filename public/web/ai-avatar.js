@@ -127,11 +127,10 @@
     if (!force && document.hidden) return false; // nobody sees or hears it: no backlog to replay when she comes back
     if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return false;
     if (!visibleMount() || !window.AuraSpeech) return false;
-    window.AuraSpeech.speak(text, {
+    return window.AuraSpeech.speak(text, { // the line's handle (false above: not said)
       min: ms, forced: force || Date.now() < importantUntil, cutIn: Boolean(opts.cutIn),
       bubble: opts.pain ? { pain: true } : true, voice: opts.silent ? false : undefined, kind: opts.kind
     });
-    return true;
   }
   function showBubble(text, pain = false) {
     const visible = visibleMount();
@@ -541,6 +540,7 @@
       const av = event.target.closest("[data-ai-avatar]");
       if (!av) return;
       if (av.classList.contains("ai-avatar-roamer")) return; // the roaming copy has its own reaction (pain)
+      if (window.AuraDirector?.isPerforming?.()) return; // not clickable while she performs (as the double-click)
       wake();
       const restore = document.getElementById("aiRestore");
       if (restore?.classList.contains("active")) restore.click(); // open the chat if minimized

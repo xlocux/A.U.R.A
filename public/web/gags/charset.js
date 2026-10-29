@@ -52,17 +52,18 @@
     const text = s.say("Oh, you want text? I'll give you TEXT.");
     await text.started;
     await s.move(home, spot, { ms: 1400 });
-    s.el.style.setProperty("--eye", "#ff2a1a");
-    s.el.classList.add("av-eyes");
-    s.act("shake", 900);
-    await wait(900);
-    await text;
-    const deal = says.deal();
-    const items = swappable();
+    let items = [], flicker = null;
     const apply = () => { for (const it of items) if (it.node.isConnected) it.node.nodeValue = scramble(it.text, lang.glyphs); };
     const restore = () => { for (const it of items) if (it.node.isConnected) it.node.nodeValue = it.text; };
-    const flicker = setInterval(apply, 260);
     try {
+      s.el.style.setProperty("--eye", "#ff2a1a");
+      s.el.classList.add("av-eyes");
+      s.act("shake", 900);
+      await wait(900);
+      await text;
+      const deal = says.deal();
+      items = swappable();
+      flicker = setInterval(apply, 260);
       apply();
       if (window.AuraAnimeFx) window.AuraAnimeFx.shake(8, 500);
       await deal;

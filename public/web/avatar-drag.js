@@ -122,7 +122,8 @@
       const released = new Promise((resolve) => { grab.release = resolve; });
       let pos = { ...base }, won = false, lastMove = Date.now(), spoke = 0, bitten = false;
       const origin = { x: base.x + s.size.w / 2, y: base.y + s.size.h / 2 };
-      const say = (key) => { if (Date.now() - spoke < 1400) return; spoke = Date.now(); s.say(line(key)); };
+      let saying = null; // her last line until it ends: a nag waits for it, or holding her still builds a backlog of lines
+      const say = (key) => { if (Date.now() - spoke < 1400) return; spoke = Date.now(); const h = s.say(line(key)); saying = h; h.ended.then(() => { if (saying === h) saying = null; }); };
       say(mode === "bite" ? "rubber" : mode);
 
       const update = (event) => {
@@ -148,7 +149,7 @@
       window.addEventListener("pointermove", update);
       update(firstEvent);
       // Holding still makes her complain (heavy complains more).
-      const nag = setInterval(() => { if (Date.now() - lastMove > 1800 && !won) say("held"); }, 600);
+      const nag = setInterval(() => { if (Date.now() - lastMove > 1800 && !won && !saying) say("held"); }, 600);
       await released;
       clearInterval(nag);
       window.removeEventListener("pointermove", update);

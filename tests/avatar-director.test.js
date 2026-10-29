@@ -164,6 +164,9 @@ test("a click on her home avatar is a forced line, not a cut-in", () => {
   assert.equal(said[0].forced, true);
   assert.ok(!said[0].cutIn);
   assert.equal(said[0].kind, "quip"); // rapid clicks: the newest quip replaces the waiting one
+  page.window.AuraDirector = { isPerforming: () => true, isBusy: () => true };
+  page.click(page.home); // during a gag she is not clickable
+  assert.equal(said.length, 1);
   page.dispose();
 });
 

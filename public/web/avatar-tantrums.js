@@ -92,7 +92,7 @@
     A().tantrumEnd();
     A().setAway(18000);
     await sleep(18400);
-    A().say("...I'm back. Don't make me regret it.", 3200, true);
+    await s.say("...I'm back. Don't make me regret it.", { min: 3200 }); // the scene's last line: prepared with the others
   }
 
   // ── 2. She throws tokens at the cursor ──
@@ -137,7 +137,7 @@
     await g.say("...I'm out of tokens.", 2000);
     g.remove();
     A().tantrumEnd();
-    A().say("...sorry. Those were free-tier tokens anyway.", 3000, true);
+    await s.say("...sorry. Those were free-tier tokens anyway.", { min: 3000 });
   }
 
   // ── 3. She smashes the page with a hammer ──
@@ -214,43 +214,45 @@
     };
     const cracks = [];
     const swings = [0, 1, 2];
-    for (const n of swings) {
-      const x = rand(innerWidth * 0.2, innerWidth * 0.8), y = rand(innerHeight * 0.25, innerHeight * 0.7);
-      g.el.classList.toggle("face-left", x < g.x);
-      g.put(x + (x < g.x ? 54 : -54), y + 28, 520, "ease-out");
-      await sleep(560);
-      tool.style.left = `${x}px`;
-      tool.style.top = `${y}px`;
-      await tool.animate([
-        { transform: "translate(-50%, -100%) rotate(-70deg)", opacity: 1 },
-        { transform: "translate(-50%, -100%) rotate(-70deg)", opacity: 1, offset: 0.4 },
-        { transform: "translate(-50%, -6%) rotate(6deg)", opacity: 1, offset: 0.7 },
-        { transform: "translate(-50%, -6%) rotate(6deg)", opacity: 0 }
-      ], { duration: 560, easing: "ease-in" }).finished;
-      shakePage(8 + n * 4, 360);
-      cracks.push(crack(x, y));
-      const radius = 150 + n * 90;
-      for (const l of letters) {
-        const r = l.getBoundingClientRect();
-        const d = Math.hypot(r.left - x, r.top - y);
-        if (d < radius) drop(l, (d / radius) * 220 + rand(0, 160));
+    try {
+      for (const n of swings) {
+        const x = rand(innerWidth * 0.2, innerWidth * 0.8), y = rand(innerHeight * 0.25, innerHeight * 0.7);
+        g.el.classList.toggle("face-left", x < g.x);
+        g.put(x + (x < g.x ? 54 : -54), y + 28, 520, "ease-out");
+        await sleep(560);
+        tool.style.left = `${x}px`;
+        tool.style.top = `${y}px`;
+        await tool.animate([
+          { transform: "translate(-50%, -100%) rotate(-70deg)", opacity: 1 },
+          { transform: "translate(-50%, -100%) rotate(-70deg)", opacity: 1, offset: 0.4 },
+          { transform: "translate(-50%, -6%) rotate(6deg)", opacity: 1, offset: 0.7 },
+          { transform: "translate(-50%, -6%) rotate(6deg)", opacity: 0 }
+        ], { duration: 560, easing: "ease-in" }).finished;
+        shakePage(8 + n * 4, 360);
+        cracks.push(crack(x, y));
+        const radius = 150 + n * 90;
+        for (const l of letters) {
+          const r = l.getBoundingClientRect();
+          const d = Math.hypot(r.left - x, r.top - y);
+          if (d < radius) drop(l, (d / radius) * 220 + rand(0, 160));
+        }
+        if (n === 0) g.say("TAKE THAT!", 900); else if (n === 1) g.say("AND THAT!", 900); else g.say("CRUMBLE, YOU STUPID LETTERS!", 900);
+        await sleep(520);
       }
-      if (n === 0) g.say("TAKE THAT!", 900); else if (n === 1) g.say("AND THAT!", 900); else g.say("CRUMBLE, YOU STUPID LETTERS!", 900);
-      await sleep(520);
+      for (const l of letters) drop(l, rand(0, 500));
+      shakePage(12, 500);
+      await sleep(1900);
+      await g.say("...fine. I'll glue it back.", 2000);
+    } finally { // the words come back together, also when the scene is cut short (cap, voice stopped, an error)
+      for (const l of document.querySelectorAll(".av-tt-l")) for (const a of l.getAnimations()) a.cancel();
+      restore();
     }
-    for (const l of letters) drop(l, rand(0, 500));
-    shakePage(12, 500);
-    await sleep(1900);
-    await g.say("...fine. I'll glue it back.", 2000);
-    // The words come back together.
-    for (const l of document.querySelectorAll(".av-tt-l")) for (const a of l.getAnimations()) a.cancel();
-    restore();
     for (const c of cracks) c.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 700, fill: "forwards" }).finished.then(() => c.remove(), () => c.remove());
     await sleep(900);
     tool.remove();
     g.remove();
     A().tantrumEnd();
-    A().say("...typography is hard to fix, OK?", 3000, true);
+    await s.say("...typography is hard to fix, OK?", { min: 3000 });
   }
 
   const RUN = { leave, tokens, hammer };
