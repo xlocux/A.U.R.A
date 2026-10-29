@@ -29,8 +29,8 @@
   // ghosts), s.cry, s.quote, and every option of s.pick([...]). Lines built at run time are not found: they are
   // generated when said, and the script waits for them at that beat.
   const STR = String.raw`(["'])((?:\\.|(?!\1)[^\\])*)\1`;
-  const STR2 = STR.replace(/\\1/g, "\\3");
-  const unquote = (s) => s.replace(/\\(.)/g, "$1");
+  const STR2 = STR.replace(/\\1/g, "\\3"); // the same string pattern with its backreference renumbered, for a second string in one regex
+  const unquote = (s) => s.replace(/\\(.)/g, (m, c) => (c === "n" ? "\n" : c === "t" ? "\t" : c));
   const sayable = (t) => t.replace(/[^A-Za-z]/g, "").length >= 3;
   function extractLines(source) {
     const src = String(source);
@@ -122,30 +122,38 @@
   // carried must answer the hand at once); interactive: the script handles clicks on her.
   async function perform(name, script, { interactive = false, stage = true, immediate = false } = {}) {
     const A = root.AuraAvatar, S = root.AuraSpeech;
-    if (current || !A || !S || (stage && !A.canStage())) return false;
-    const show = { id: ++seq, name, handles: [], closed: false, rolls: new Map() };
+    if (!A || !S || (stage && !A.canStage())) return false;
+    if (current && immediate && !current.running) current.aborted = true; // the hand wins over a gag still getting ready
+    else if (current) return false;
+    const show = { id: ++seq, name, handles: [], closed: false, running: false, aborted: false, rolls: new Map() };
     current = show;
-    S.hold(show.id);
     try {
+      S.hold(show.id);
       if (!immediate) {
         if (!(await S.quiet(10000))) return false;
+        if (show.aborted) return false;
         const rolls = rollsBy.get(name) || new Map();
         rollsBy.set(name, rolls);
         show.rolls = rolls;
         const { missing } = await S.prepare(linesFor(script, rolls), { timeoutMs: 6000 });
+        if (show.aborted) return false;
         if (missing) return false;
       }
       const run = async (base) => {
+        show.running = true;
         const playing = Promise.resolve().then(() => script(voiceApi(base || {}, show)));
-        playing.catch(() => {}); // a script stopped by the cap ends on its next call: nothing to report
-        await Promise.race([playing, wait(MAX_SHOW_MS)]);
+        // being carried lasts as long as the hand holds her; every other script is capped. A script stopped by the cap
+        // ends on its next call: the race has already taken over its rejection.
+        if (interactive) { try { await playing; } catch { /* a script that throws still ends cleanly */ } }
+        else await Promise.race([playing, wait(MAX_SHOW_MS)]);
         await Promise.race([Promise.all(show.handles.map((h) => h.ended)), wait(15000)]);
       };
       if (stage) { if (!(await A.stage(run, { interactive }))) return false; }
       else await run(null);
       rollsBy.delete(name); // performed: new quotes next time
       return true;
-    } catch {
+    } catch (error) {
+      console.warn("AURI: the performance \"" + name + "\" failed:", error);
       return false;
     } finally {
       show.closed = true;
@@ -162,6 +170,6 @@
     S.speak(text, { emotion, lang, bubble: false, forced: true }).started.then((d) => showTitle(move, Math.max(ms, d + 200)));
   }
 
-  root.AuraDirector = { perform, isPerforming: () => Boolean(current), showId: () => (current ? current.id : 0), shout, extractLines, linesFor, cryLine, JAPANESE };
+  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), showId: () => (current ? current.id : 0), shout, extractLines, linesFor, cryLine, JAPANESE };
   if (typeof module === "object" && module.exports) module.exports = { extractLines, cryLine };
 })(typeof window !== "undefined" ? window : globalThis);

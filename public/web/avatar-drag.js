@@ -76,7 +76,7 @@
     const roamer = event.target.closest(".ai-avatar-roamer");
     if (roamer) {
       // the catch-me game and the tantrum pieces have their own clicks
-      if (!A().isRoaming() || roamer.dataset.catching || roamer.classList.contains("av-piece")) return;
+      if (!A().isRoaming() || roamer.dataset.catching || roamer.classList.contains("av-piece") || window.AuraDirector?.isPerforming?.()) return;
       event.preventDefault(); // no text selection while she is pulled across the page (the click/poke still fires)
       active = { el: roamer, roaming: true, x: event.clientX, y: event.clientY, started: false };
       return;
@@ -109,6 +109,7 @@
 
   // ── home avatar: a short stage with the roaming copy ──
   function dragHome(grab, firstEvent) {
+    if (!window.AuraDirector) return;
     const mode = chooseMode();
     window.AuraDirector.perform("carry", async (s) => {
       const base = s.home();

@@ -28,3 +28,30 @@ test("cryLine shouts known moves in Japanese and the others in English", () => {
   assert.deepEqual(cryLine("HANA HANA NO... MIL FLEUR!"), ["haaana haaana no... miru furuuuuru!!", "shout", "ja"]);
   assert.deepEqual(cryLine("FOUND IT!"), ["FOUND IIIIT!!", "shout", ""]);
 });
+
+test("perform: on stage only once running; a carry preempts a gag still waiting for the floor", async () => {
+  const calls = [];
+  let floorFree;
+  globalThis.AuraSpeech = {
+    hold: (id) => calls.push(["hold", id]),
+    release: (id) => calls.push(["release", id]),
+    quiet: () => new Promise((resolve) => { floorFree = () => resolve(true); }),
+    prepare: async () => ({ ready: 0, missing: 0 }),
+    emotionFor: () => "neutral",
+    speak: () => ({ id: 1, started: Promise.resolve(10), ended: Promise.resolve() })
+  };
+  globalThis.AuraAvatar = { canStage: () => true, stage: async (run) => { await run({}); return true; } };
+  const D = globalThis.AuraDirector;
+  const gag = D.perform("gag", async () => {});
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(D.isPerforming(), false);
+  let onStage = false;
+  assert.equal(await D.perform("carry", async () => { onStage = D.isPerforming(); }, { interactive: true, immediate: true }), true);
+  assert.equal(onStage, true);
+  floorFree();
+  assert.equal(await gag, false);
+  assert.equal(D.isPerforming(), false);
+  assert.equal(calls.filter((c) => c[0] === "hold").length, 2);
+  delete globalThis.AuraSpeech;
+  delete globalThis.AuraAvatar;
+});
