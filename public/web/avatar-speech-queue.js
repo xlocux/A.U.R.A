@@ -105,8 +105,9 @@
         try { result = (await play(item, onStart)) || {}; } catch { result = { failed: true }; }
       }
       if (!result.cut && (!item.voiced || result.failed)) {
-        // a silent bubble (over budget, voice off, nothing to say aloud, or no sound came out): same turn, estimated length
-        const ms = Math.max(item.opts.min || 0, estimate(item.restText || item.text));
+        // a silent bubble (over budget, voice off, nothing to say aloud, or no sound came out): same turn, estimated
+        // length; a caption chosen to be silent (voice: false) with an explicit min lasts exactly min
+        const ms = item.opts.voice === false && item.opts.min ? item.opts.min : Math.max(item.opts.min || 0, estimate(item.restText || item.text));
         onStart(ms);
         await pause(ms, holdSleepers);
         if (item.cutRequested && !item.stopped) { item.cutRequested = false; result = { cut: true }; }

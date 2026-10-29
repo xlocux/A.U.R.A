@@ -6,7 +6,7 @@
     {
       "id": "anime",
       "file": "anime.js",
-      "since": "0.1.4",
+      "since": "0.2.0",
       "title": "Anime classics",
       "gags": [
         "ninja",
@@ -19,7 +19,7 @@
     {
       "id": "eyes-luffy",
       "file": "eyes-luffy.js",
-      "since": "0.1.4",
+      "since": "0.2.0",
       "title": "Dojutsu eyes, Luffy moves and Nico Robin",
       "gags": [
         "eyes",
@@ -32,7 +32,7 @@
     {
       "id": "party",
       "file": "party.js",
-      "since": "0.1.0",
+      "since": "0.2.0",
       "title": "Party: songs, games and the red button",
       "gags": [
         "sing",
@@ -43,7 +43,7 @@
     {
       "id": "charset",
       "file": "charset.js",
-      "since": "0.1.0",
+      "since": "0.2.0",
       "title": "Charset rage",
       "gags": [
         "charset"
@@ -52,7 +52,7 @@
     {
       "id": "bleach",
       "file": "bleach.js",
-      "since": "0.1.2",
+      "since": "0.2.0",
       "title": "Bleach: Bankai",
       "gags": [
         "bankai"

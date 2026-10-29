@@ -32,11 +32,13 @@
   const STR2 = STR.replace(/\\1/g, "\\3"); // the same string pattern with its backreference renumbered, for a second string in one regex
   const unquote = (s) => s.replace(/\\(.)/g, (m, c) => (c === "n" ? "\n" : c === "t" ? "\t" : c));
   const sayable = (t) => t.replace(/[^A-Za-z]/g, "").length >= 3;
+  // a caption shown without a voice ({ ..., voice: false }) is not prepared: there is no audio to wait for
+  const NOT_SILENT = String.raw`(?!\s*,\s*\{[^}]*\bvoice\s*:\s*false)`;
   function extractLines(source) {
     const src = String(source);
     const say = [], loud = [], cries = [], quotes = [];
-    for (const m of src.matchAll(new RegExp(String.raw`\bs\.(?:say|line)\(\s*` + STR, "g"))) say.push(unquote(m[2]));
-    for (const m of src.matchAll(new RegExp(String.raw`\bg\.say\(\s*` + STR, "g"))) loud.push(unquote(m[2]));
+    for (const m of src.matchAll(new RegExp(String.raw`\bs\.(?:say|line)\(\s*` + STR + NOT_SILENT, "g"))) say.push(unquote(m[2]));
+    for (const m of src.matchAll(new RegExp(String.raw`\bg\.say\(\s*` + STR + NOT_SILENT, "g"))) loud.push(unquote(m[2]));
     for (const m of src.matchAll(/\bs\.pick\(\s*\[([^\]]*)\]/g)) for (const n of m[1].matchAll(new RegExp(STR, "g"))) say.push(unquote(n[2]));
     for (const m of src.matchAll(new RegExp(String.raw`\bs\.cry\(\s*` + STR, "g"))) cries.push(unquote(m[2]));
     for (const m of src.matchAll(new RegExp(String.raw`\bs\.quote\(\s*` + STR + String.raw`\s*,\s*` + STR2, "g"))) quotes.push([unquote(m[2]), unquote(m[4])]);
@@ -183,6 +185,6 @@
     S.speak(text, { emotion, lang, bubble: false, forced: true }).started.then((d) => showTitle(move, Math.max(ms, d + 200)));
   }
 
-  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), showId: () => (current ? current.id : 0), shout, extractLines, linesFor, rollsFor, cryLine, JAPANESE };
+  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), shout, extractLines, linesFor, rollsFor, cryLine, JAPANESE };
   if (typeof module === "object" && module.exports) module.exports = { extractLines, cryLine };
 })(typeof window !== "undefined" ? window : globalThis);

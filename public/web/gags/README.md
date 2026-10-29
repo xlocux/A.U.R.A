@@ -40,13 +40,20 @@ Her voice sets the time:
 - `await s.say("Line.").started`: she has just started; walk or animate while she talks.
 - `s.say("Line.")` without `await`: a remark during an effect; it still waits its turn after the previous line.
 - `const ms = await s.cry("KAMEHAMEHA", { ms: 1500 })`: the battle cry (Japanese when the move is in the director's
-  table); the big title appears as she starts it; `ms` is the cry's length, to time the strike.
+  table); the big title appears as she starts it and resolves then, with the cry's length in `ms` (to time the
+  strike). The `ms` option is the minimum time the title stays up: it stays up for the cry's length plus 0.2 s if
+  that is longer (default 1.5 s). `{ silentTitle: true }` skips the title (she only shouts), for a gag that draws its own.
 - `s.title("MOVE", 1500)`: the title only, silent.
 - `s.say(s.pick(["A.", "B."]))`, `s.say(s.quote("First.", "gag:key"))`: random lines that are still prepared ahead.
-- `s.say("Text", { voice: false, min: 1800 })`: a bubble only.
+- `s.say("Text", { voice: false, min: 1800 })`: a bubble only; it lasts exactly `min` (without `min`, the time to
+  read it). The director does not prepare any audio for it.
 
 Write the lines as string literals in those calls: the director reads them from the source to prepare them. A line
 built at run time (a number, a host name) works too; the gag waits for it at that beat.
+
+Lines kept in a table are not literals in a call, so the director cannot find them. Unroll them into literal calls:
+`const says = [(o) => s.say("A.", o), (o) => s.say("B.", o)]` (then `await says[i]({ min: 1200 })`), not
+`const lines = ["A.", "B."]` with `s.say(lines[i])`.
 
 Drawing helpers: `s.el`, `s.size`, `s.at(p, scale, rot)`, `s.place(p, o)`, `s.move(from, to, o)`, `s.anim(frames, o)`,
 `s.act(name, ms)`, `s.sleep(ms)`, `s.home()`, `s.randomPoint(margin)`. Shared effects: `window.AuraAnimeFx`.

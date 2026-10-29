@@ -399,12 +399,6 @@
     if (!c) return Promise.resolve(true);
     return Promise.race([c.ended.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), ms))]);
   }
-  // shortcut: the old cue() for the scenes not converted yet; removed in Task 7 of the director plan. Inside a
-  // performance it goes to the stage's lane, or it would wait for the end of the gag that waits for it.
-  const cue = (text, opts = {}) => {
-    const show = window.AuraDirector && window.AuraDirector.showId ? window.AuraDirector.showId() : 0;
-    return speak(text, { ...opts, forced: true, bubble: false, ...(show ? { lane: "show", show } : {}) }).started;
-  };
   function stop() {
     demo = null;
     queue.stop();
@@ -499,7 +493,7 @@
   setInterval(() => { if (!document.hidden) warm(); }, 8 * 60 * 1000);
   window.AuraSpeech = {
     speak, prepare, quiet, hold: (id) => queue.hold(id), release: (id) => queue.release(id), idle: () => queue.idle(),
-    emotionFor, cue, stop, showcase, hint, estimate, prefetch, isBusy, set, download, remove, refresh, info,
+    emotionFor, stop, showcase, hint, estimate, prefetch, isBusy, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
   };

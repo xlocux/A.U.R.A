@@ -114,6 +114,40 @@ test("min keeps the line's slot at least that long", async () => {
   assert.ok(end - start >= 115, `slot was ${end - start} ms`);
 });
 
+// a queue whose estimate for any text is 600 ms and whose voice is down (a voiced line fails at once)
+function silentRig({ budget = [0, 0, 3, 5, 8] } = {}) {
+  const events = [];
+  const t0 = Date.now();
+  const q = createSpeechQueue({
+    gapMs: [40, 40, 40, 40, 40], budget, level: () => 2, estimate: () => 600,
+    emit: (e) => events.push({ ...e, t: Date.now() - t0 }), cut: () => {},
+    play: async () => ({ failed: true })
+  });
+  const slot = () => events.find((e) => e.phase === "end").t - events.find((e) => e.phase === "start").t;
+  return { q, events, slot };
+}
+
+test("a silent bubble with an explicit min lasts exactly min (a chant word of 100 ms is not stretched to the estimate)", async () => {
+  const { q, events, slot } = silentRig();
+  const h = q.enqueue("Ka...", { voice: false, min: 100 });
+  await h.ended;
+  assert.equal(h.voiced, false);
+  assert.ok(slot() >= 95 && slot() <= 200, `slot was ${slot()} ms`);
+  assert.ok(events.find((e) => e.phase === "start").ms >= 100);
+});
+
+test("a silent bubble without min, or silent for another reason, keeps max(min, estimate)", async () => {
+  const plain = silentRig();
+  await plain.q.enqueue("Just a caption.", { voice: false }).ended;
+  assert.ok(plain.slot() >= 590, `no min: slot was ${plain.slot()} ms`);
+  const failed = silentRig(); // the voice failed: not a bubble by choice, so min does not shorten it
+  await failed.q.enqueue("The voice is down.", { min: 100 }).ended;
+  assert.ok(failed.slot() >= 590, `voice failed: slot was ${failed.slot()} ms`);
+  const over = silentRig({ budget: [0, 0, 0, 0, 0] }); // over budget: the same
+  await over.q.enqueue("Over budget.", { min: 100 }).ended;
+  assert.ok(over.slot() >= 590, `over budget: slot was ${over.slot()} ms`);
+});
+
 test("a poke right after a line answers at once, without the breathing gap", async () => {
   const { q, events } = rig({ gapMs: [300, 300, 300, 300, 300] });
   const first = q.enqueue("a remark");

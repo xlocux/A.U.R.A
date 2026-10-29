@@ -24,6 +24,20 @@ test("extractLines finds the literal lines a script will say", () => {
   assert.deepEqual(found.quotes, [["Wormhole engaged.", "gag:wormhole"]]);
 });
 
+test("extractLines skips bubble-only captions (voice: false): no audio is prepared for them", () => {
+  async function gag(s, g) {
+    s.say("Kage Bunshin no Jutsu!", { voice: false, min: 1800 });
+    await s.say('Kai!', { min: 1, voice : false });
+    await s.line("Silent caption here.", { voice: false });
+    g.say("Ghost caption.", { voice: false });
+    s.say("Spoken line here.", { min: 1800 });
+    s.say("Another spoken one.", { voice: true });
+  }
+  const found = extractLines(gag);
+  assert.deepEqual(found.say, ["Spoken line here.", "Another spoken one."]);
+  assert.deepEqual(found.loud, []);
+});
+
 test("cryLine shouts known moves in Japanese and the others in English", () => {
   assert.deepEqual(cryLine("KAMEHAMEHA"), ["kameeehameeehaaaa!!", "shout", "ja"]);
   assert.deepEqual(cryLine("HANA HANA NO... MIL FLEUR!"), ["haaana haaana no... miru furuuuuru!!", "shout", "ja"]);
