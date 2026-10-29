@@ -56,3 +56,23 @@ test("perform: on stage only once running; a carry preempts a gag still waiting 
   delete globalThis.AuraSpeech;
   delete globalThis.AuraAvatar;
 });
+
+test("perform: extra lines are prepared with the script's own (the rage says a list, not literals)", async () => {
+  let prepared = null;
+  globalThis.AuraSpeech = {
+    hold: () => {},
+    release: () => {},
+    quiet: async () => true,
+    prepare: async (lines) => { prepared = lines; return { ready: lines.length, missing: 0 }; },
+    emotionFor: () => "neutral",
+    speak: () => ({ id: 1, started: Promise.resolve(10), ended: Promise.resolve() })
+  };
+  globalThis.AuraAvatar = { canStage: () => true };
+  const extra = { text: "EXTRA LINE", emotion: "rage", loud: true };
+  const scene = async (s) => { await s.say("Own line."); };
+  assert.equal(await globalThis.AuraDirector.perform("x", scene, { stage: false, lines: [extra] }), true);
+  assert.deepEqual(prepared.find((l) => l.text === "EXTRA LINE"), extra);
+  assert.ok(prepared.some((l) => l.text === "Own line."));
+  delete globalThis.AuraSpeech;
+  delete globalThis.AuraAvatar;
+});

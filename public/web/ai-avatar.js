@@ -209,8 +209,10 @@
   // her rant is prepared ahead and said in a row, each line on screen as she yells it; nothing else can slip in.
   async function rage() {
     if (raging || !roamer || !window.AuraDirector) return;
+    // the rant is a list, not literals in rageScene: the director prepares it as she will yell it (loud: rage)
+    const lines = RAGE_LINES.map((text) => ({ text, emotion: window.AuraSpeech?.emotionFor?.(text, { loud: true }) || "rage", loud: true }));
     // not performed (she is busy, the rant is not ready yet): nothing happened, so no apology; the next poke tries again
-    if (!(await window.AuraDirector.perform("rage", rageScene, { stage: false }))) return;
+    if (!(await window.AuraDirector.perform("rage", rageScene, { stage: false, lines }))) return;
     say("...sorry. I lost my temper.", 2800, true);
   }
   async function rageScene(s) {
@@ -239,10 +241,7 @@
       await veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished;
     } finally {
       text.remove(); big.remove(); veil.remove();
-      if (roamer) roamer.style.visibility = "";
-      if (bubble) bubble.style.display = "";
-      raging = false;
-      pokes = [];
+      tantrumEnd(); // gives her back: one restore path for the rage and the scenes
     }
   }
 

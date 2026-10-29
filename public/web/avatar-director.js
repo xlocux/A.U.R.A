@@ -125,7 +125,9 @@
   // carried must answer the hand at once); interactive: the script handles clicks on her, and has no time cap (being
   // carried lasts as long as the hand holds her). A performance counts as performing (isPerforming) only once it is on
   // stage, not while it waits for the floor or for its lines; an immediate one preempts one still preparing.
-  async function perform(name, script, { interactive = false, stage = true, immediate = false } = {}) {
+  // lines: extra [{ text, emotion, lang?, loud? }] to prepare, for a script whose lines are not literals in its source
+  // (the rage says the elements of a list).
+  async function perform(name, script, { interactive = false, stage = true, immediate = false, lines = [] } = {}) {
     const A = root.AuraAvatar, S = root.AuraSpeech;
     if (!A || !S || (stage && !A.canStage())) return false;
     if (current && immediate && !current.running) current.aborted = true; // the hand wins over a gag still getting ready
@@ -140,7 +142,7 @@
         const rolls = rollsBy.get(name) || new Map();
         rollsBy.set(name, rolls);
         show.rolls = rolls;
-        const { missing } = await S.prepare(linesFor(script, rolls), { timeoutMs: 6000 });
+        const { missing } = await S.prepare([...linesFor(script, rolls), ...lines], { timeoutMs: 6000 });
         if (show.aborted) return false;
         if (missing) return false;
       }
