@@ -178,6 +178,16 @@ test("stage-complete lines share the kind stage (voice off: they replace each ot
   page.dispose();
 });
 
+test("while a performance gets ready she does not walk off: the walk's line is said from home", async () => {
+  const { said, speak } = recorder();
+  const page = loadAvatar({ speak });
+  page.window.AuraDirector = { isPerforming: () => false, isBusy: () => true };
+  await page.AuraAvatar.roamTo({ x: 300, y: 200 }, { text: "Checking the hex grid.", stay: 10 });
+  assert.equal(page.roamer(), undefined);
+  assert.deepEqual(said.map((l) => l.text), ["Checking the hex grid."]);
+  page.dispose();
+});
+
 test("perform: on stage only once running; a carry preempts a gag still waiting for the floor", async () => {
   const calls = [];
   let floorFree;
@@ -194,6 +204,7 @@ test("perform: on stage only once running; a carry preempts a gag still waiting 
   const gag = D.perform("gag", async () => {});
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(D.isPerforming(), false);
+  assert.equal(D.isBusy(), true); // getting ready: no walk may start now
   let onStage = false;
   assert.equal(await D.perform("carry", async () => { onStage = D.isPerforming(); }, { interactive: true, immediate: true }), true);
   assert.equal(onStage, true);

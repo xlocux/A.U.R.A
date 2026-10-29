@@ -165,7 +165,7 @@
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       if (!thinking && !document.hidden && voice() >= 1 && !isAway()) {
-        const canRoam = voice() >= 2 && Date.now() - lastRoam > (voice() >= 4 ? 15000 : voice() >= 3 ? 45000 : 90000);
+        const canRoam = voice() >= 2 && Date.now() - lastRoam > (voice() >= 4 ? 15000 : voice() >= 3 ? 45000 : 90000) && !window.AuraDirector?.isBusy?.(); // not while a gag gets ready
         const action = pick(canRoam ? ["wink", "tilt", "sparkle", "quip", "roam", "roam"] : ["wink", "tilt", "sparkle", "wink", "quip"]);
         if (action === "roam") {
           const hexes = [...document.querySelectorAll("#tab-flow.active .flow-hex")];
@@ -329,10 +329,11 @@
   }
 
   // Leave the chat, walk (along a gentle arc) to the target, react, then walk back home.
-  // kind: given to her line (a newer line of that kind replaces it while it waits)
+  // kind: given to her line (a newer line of that kind replaces it while it waits). No walk while a performance gets
+  // ready: her line would be held behind it, and a poke on her would go unanswered.
   async function roamTo(target, { text = "", action = "cheer", stay = 2600, kind } = {}) {
     const origin = mounts().find((el) => el !== roamer && isVisible(el));
-    if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings()) {
+    if (isAway() || roaming || reducedMotion() || !origin || document.hidden || inVoiceSettings() || window.AuraDirector?.isBusy?.()) {
       if (text && !isAway()) say(text, 4200, false, { kind });
       return;
     }
