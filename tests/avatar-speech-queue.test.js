@@ -3,6 +3,51 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createSpeechQueue } = require("../public/web/avatar-speech-queue.js");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const VOICE_SRC = fs.readFileSync(path.join(__dirname, "../public/web/avatar-voice.js"), "utf8");
+// avatar-voice.js in a vm with a fake page: the voice is on with the Kokoro pack installed. Every text sent to
+// /api/voice/speak is listed in `asked`; `answer(text, audio)` gives the server's response (audio() = a short line).
+// Timers are unref'd: a failed test must not hang the run.
+function loadVoice({ level = 2, answer = (text, audio) => audio() } = {}) {
+  const asked = [];
+  const timers = new Set();
+  const track = (t) => { timers.add(t); t.unref(); return t; };
+  const audio = () => ({ ok: true, status: 200, headers: { get: (k) => (k === "X-Sample-Rate" ? "24000" : null), has: () => false }, arrayBuffer: async () => new ArrayBuffer(4 * 240) });
+  class FakeAudioContext {
+    constructor() { this.state = "running"; this.destination = {}; this.outputLatency = 0; this.baseLatency = 0; }
+    resume() { return Promise.resolve(); }
+    createBuffer() { return { copyToChannel() {} }; }
+    createGain() { return { gain: { value: 1 }, connect() {} }; }
+    createBufferSource() { const src = { playbackRate: { value: 1 }, connect() {}, start: () => track(setTimeout(() => src.onended && src.onended(), 10)), stop() {} }; return src; }
+  }
+  const page = {
+    console, AbortSignal, navigator: {}, AudioContext: FakeAudioContext,
+    AuraSpeechQueue: require("../public/web/avatar-speech-queue.js"),
+    document: { hidden: false, documentElement: { dataset: { avatarVoice: String(level) } }, addEventListener() {} },
+    localStorage: { getItem: (k) => (k === "aura.speech" ? JSON.stringify({ on: true, engine: "kokoro", voice: "auto" }) : "1"), setItem() {} },
+    CustomEvent: class { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } },
+    dispatchEvent: () => true,
+    setTimeout: (fn, ms) => track(setTimeout(fn, ms)), clearTimeout,
+    setInterval: (fn, ms) => track(setInterval(fn, ms)), clearInterval,
+    fetch: async (url, init = {}) => {
+      if (url === "/api/voice/status") return { ok: true, json: async () => ({ packs: [{ id: "kokoro", engine: "kokoro", installed: true }], kokoroVoices: ["jf_tebukuro"], job: null }) };
+      const { text } = JSON.parse(init.body);
+      asked.push(text);
+      return answer(text, audio);
+    }
+  };
+  page.window = page;
+  vm.runInNewContext(VOICE_SRC, page);
+  const S = page.AuraSpeech;
+  return {
+    S, asked,
+    ready: () => until(() => S.info().pack === "kokoro"), // the first /api/voice/status has answered
+    dispose: () => { S.stop(); timers.forEach((t) => clearTimeout(t)); }
+  };
+}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function until(check, ms = 3000) {
@@ -232,4 +277,15 @@ test("a listener that throws does not stop the queue", async () => {
   const b = q.enqueue("two");
   await Promise.all([a.ended, b.ended]);
   assert.equal(q.idle(), true);
+});
+
+test("prepare: a piece the engine failed to make is not missing (it will be a silent bubble); one still being made is", async () => {
+  const down = { ok: false, status: 500, json: async () => ({ error: "engine down" }) };
+  const v = loadVoice({ answer: (text, audio) => (/fails/.test(text) ? down : /hangs/.test(text) ? new Promise(() => {}) : audio()) });
+  await v.ready();
+  const failed = await v.S.prepare([{ text: "This line fails.", emotion: "neutral" }], { timeoutMs: 300 });
+  assert.deepEqual({ ...failed }, { ready: 0, missing: 0 }); // (spread: the vm's objects have another Object prototype)
+  const mixed = await v.S.prepare([{ text: "This line hangs.", emotion: "neutral" }, { text: "This line works.", emotion: "neutral" }], { timeoutMs: 100 });
+  assert.deepEqual({ ...mixed }, { ready: 1, missing: 1 });
+  v.dispose();
 });

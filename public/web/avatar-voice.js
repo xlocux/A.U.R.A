@@ -391,10 +391,12 @@
   async function prepare(lines, { timeoutMs = 6000 } = {}) {
     if (!cfg.on || !activePack()) return { ready: lines.length, missing: 0 };
     const jobs = lines.flatMap(({ text, emotion, lang = "", loud = false }) => partsOf(text, emotion, { lang, loud }).map((part) => generateLine(part, emotion, false, lang, true)));
-    let ok = 0;
-    const all = Promise.all(jobs.map((job) => job.then((audio) => { if (audio) ok += 1; })));
+    // missing = still being made at the timeout. A piece the engine failed to make is not missing: it will be a silent
+    // bubble, and the gag goes on (an engine that keeps failing must not refuse every gag forever)
+    let ok = 0, failed = 0;
+    const all = Promise.all(jobs.map((job) => job.then((audio) => { if (audio) ok += 1; else failed += 1; })));
     await Promise.race([all, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
-    return { ready: ok, missing: jobs.length - ok };
+    return { ready: ok, missing: jobs.length - ok - failed };
   }
   // resolves true when the line she is saying is over (never cut), false after ms
   function quiet(ms) {
