@@ -272,7 +272,7 @@
       // The sound reaches the speakers after the output latency (a few ms on a laptop, 0.2-0.5 s on Bluetooth):
       // the bubble, the move name and the gag's beat wait for it, so what you read is what you hear.
       const lag = Math.min(600, Math.round(((ctx.outputLatency || 0) + (ctx.baseLatency || 0)) * 1000));
-      if (lag > 15) setTimeout(() => onStart(seconds * 1000), lag); else onStart(seconds * 1000);
+      if (lag > 15) setTimeout(() => { if (!done) onStart(seconds * 1000); }, lag); else onStart(seconds * 1000);
       setTimeout(finish, seconds * 1000 + lag + 1200);
     });
   }
@@ -442,8 +442,7 @@
         const onStart = (ms) => { started = true; played += 1; lineEvent({ phase: "start", id, text, ms, bubble: true }); };
         if (audio) await play(audio, audio.emo, cfg.volume, onStart);
         else if (cfg.engine === "browser") await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
-        else { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // one voice: a missing line is a bubble
-        if (!started && demo === token) { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // no sound came out: the bubble still shows
+        if (!started && demo === token) { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // one voice: a line that cannot be said (no sound came out, no pack line) is a bubble
         lineEvent({ phase: "end", id, text });
         await new Promise((r) => setTimeout(r, 250));
       }
