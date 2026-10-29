@@ -8,9 +8,8 @@
 // is there she uses the browser voice. Kokoro and Piper have no emotion switch, so emotion comes from natural cues
 // only: the voice picked for the mood, speed, loudness, a touch of pitch and punctuation shaping. No echo, distortion
 // or vibrato: she must always sound like a real voice.
-// Sync with the bubbles: her lines wait their turn in one queue and are said in full, one at a time (battle cries,
-// rants and pokes go first); each bubble appears when she starts saying it and stays up until she has finished it
-// ("aura:speech" event).
+// Sync with the bubbles: every line waits its turn in one queue (avatar-speech-queue.js), is spoken or shown as a silent
+// bubble, and emits "aura:line" start and end; the bubble shows exactly from one to the other.
 (function initAvatarVoice() {
   const KEY = "aura.speech";
   const synth = window.speechSynthesis;
@@ -281,9 +280,9 @@
   }
   function speakBrowser(item, onStart) {
     return new Promise((resolve) => {
-      if (!synth || !synth.getVoices().length) return resolve(); // no speech engine at all
+      if (!synth || !synth.getVoices().length) return resolve(false); // no speech engine at all
       const line = clean(String(item.text).split("\n").join(". "));
-      if (!line) return resolve();
+      if (!line) return resolve(false);
       const u = new SpeechSynthesisUtterance(line);
       const list = synth.getVoices();
       const v = list.find((x) => x.voiceURI === cfg.voice) || list.find((x) => /^en/i.test(x.lang) && /female|zira|aria|jenny|samantha|hazel|susan/i.test(x.name)) || list.find((x) => /^en/i.test(x.lang));
@@ -292,14 +291,13 @@
       // clear differences in tempo, moderate in pitch: big pitch moves make a system voice sound like a robot
       u.pitch = { rage: 0.95, angry: 0.98, creepy: 0.85, bored: 0.88, sulk: 0.92, hyped: 1.15, adrenaline: 1.15, happy: 1.1, shout: 1.05 }[item.emoName] ?? 1.02;
       u.rate = { rage: 1.3, angry: 1.22, creepy: 0.8, bored: 0.72, hyped: 1.25, adrenaline: 1.35, sulk: 0.8, happy: 1.1 }[item.emoName] ?? 1;
-      let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
-      let started = false;
+      let done = false, started = false;
+      const finish = () => { if (!done) { done = true; resolve(started); } };
       u.onstart = () => { started = true; onStart(line.split(/\s+/).length * 380 + 600); };
       u.onend = u.onerror = finish;
       // Chrome silently drops an utterance queued in the same instant as speechSynthesis.cancel(): leave a short gap.
       setTimeout(() => {
-        if (item.cancelled) { finish(); return; }
+        if (item.stopped) { finish(); return; }
         if (synth.paused) synth.resume();
         synth.speak(u);
         setTimeout(() => { if (!started) finish(); }, 2500); // no speech engine answered: never block the queue
@@ -308,150 +306,100 @@
     });
   }
 
-  // ── queue: ONE line at a time, in order, nothing is ever thrown away ──
-  // She never talks over herself and every line is said, however long the voice takes: it waits its turn and its bubble
-  // appears when she starts saying it. Order (rank): pokes, rants and tests; then the lines of the gag she is performing,
-  // its battle cries included, in the order the gag asks for them; then the other chatter.
-  // A higher-rank line takes the floor at the end of the piece she is saying; a poke or a rant takes it at once, and the
-  // piece it cut is said again from its start afterwards. The producers hold back instead of piling up: a gag starts
-  // only when she is quiet (avatar-antics) and idle quips are skipped while she is busy (ai-avatar).
-  // The next lines are prepared while she speaks, so there is no gap between two lines.
-  // opts.done() is called when a line has been said, or when its gag stopped waiting for it (it is still said).
-  const PREPARE_AHEAD = 3;
-  let currentItem = null, played = 0;
-  const queue = [];
-  const rank = (q) => (q.opts.gag ? 1 : q.priority ? 0 : 2);
-  const settle = (item) => { if (item.settled) return; item.settled = true; try { if (item.opts.done) item.opts.done(); } catch { /* the caller's callback */ } };
-  const cancelItem = (item) => { item.cancelled = true; settle(item); };
-  // The line she is saying and the next ones are generated (all their pieces, in order); the server keeps the order.
-  function prepare() {
-    let n = 0;
-    for (const q of [currentItem, ...queue]) {
-      if (!q || q.cancelled) continue;
-      if (n >= PREPARE_AHEAD) break;
-      if (q.neural && !q.ready) q.ready = q.parts.map((part) => generateLine(part, q.emoName, false, q.opts.lang, q.priority));
-      n += 1;
-    }
-  }
-  async function pump() {
-    if (currentItem || !queue.length) return;
-    const item = queue.shift();
-    if (item.cancelled) { pump(); return; }
-    currentItem = item;
-    prepare();
-    let started = false, yielded = false;
-    // the bubble (and whoever asked with onStart, e.g. a gag waiting for its battle cry) learns when she starts and for how long
-    const onStart = (ms) => {
-      started = true; played += 1;
-      window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms } }));
-      if (item.opts.onStart) try { item.opts.onStart(ms); } catch { /* the caller's callback */ }
-    };
-    try {
-      if (item.silent) { const hold = Math.min(4000, Math.max(1200, item.opts.ms || estimate(item.text))); onStart(hold); await new Promise((r) => setTimeout(r, hold)); return; }
-      // One voice only: with a neural voice on, a line is never handed to the browser voice (that would be a second,
-      // different voice).
-      if (!item.neural) { await speakBrowser(item, onStart); return; }
-      const parts = item.ready || [];
-      // A line a gag waits for (opts.deadline: ms or a kind, "cry", "scene", "line", scaled to how fast the voice really
-      // is) lets the gag go on once its turn has come and the deadline has passed; the line itself is still said.
-      const asked = item.opts.deadline;
-      const deadline = typeof asked === "string" ? deadlineFor(asked) : asked || 0;
-      if (deadline) setTimeout(() => settle(item), deadline);
-      let audio = await (parts[0] || Promise.resolve(null));
-      // Piece after piece. The bubble stays up for the whole line: until the next pieces are ready their length is
-      // estimated, and each piece renews it.
-      const volume = cfg.volume * (item.opts.loud ? 1.2 : 1);
-      for (let i = 0; audio && !item.cancelled;) {
-        const rest = item.parts.slice(i + 1).join(" ");
-        const withRest = (ms) => ms + (rest ? estimate(rest) : 0);
-        const renew = (ms) => window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: withRest(ms) } }));
-        if (!(await play(audio, audio.emo, volume, i === 0 && !item.resumed ? (ms) => onStart(withRest(ms)) : renew))) break;
-        // a cut piece is said again from its start; otherwise on to the next one
-        const next = item.preempt ? i : i + 1;
-        if (next >= parts.length) break;
-        if (item.preempt || queue.some((q) => !q.cancelled && rank(q) < rank(item))) {
-          // someone more urgent is waiting: the rest of this line goes back to the queue, right behind it
-          item.preempt = false; item.resumed = true; item.parts = item.parts.slice(next); item.ready = parts.slice(next); yielded = true;
-          break;
-        }
-        audio = (await parts[next]) || (await generateLine(item.parts[next], item.emoName, false, item.opts.lang, item.priority)); // one retry
-        i = next;
-      }
-    } finally {
-      if (yielded) {
-        const at = queue.findIndex((q) => !q.cancelled && rank(q) >= rank(item));
-        queue.splice(at < 0 ? queue.length : at, 0, item);
-      } else {
-        // no voice came out (no speech engine, an error): her bubble still shows the line (she is silent at this
-        // moment, so it never sits on top of what she is saying)
-        if (!started && !item.cancelled) window.dispatchEvent(new CustomEvent("aura:speech", { detail: { text: item.text, ms: Math.max(1500, estimate(item.text)) } }));
-        settle(item);
-      }
-      if (currentItem === item) currentItem = null;
-      pump();
-    }
-  }
-
   let hinted = null;
   const hint = (emotion) => { hinted = { emotion, t: Date.now() }; };
-  const estimate = (text) => (cfg.on ? Math.round(String(text).split(/\s+/).length * 380 + 700) : 0);
-  // How long a line a gag waits for may take to start once its turn has come. Measured, not guessed: Piper prepares a
-  // line in a few tenths of a second, Kokoro on a busy laptop in 1.5-4 s, and fixed deadlines would silence Kokoro.
-  const latency = () => {
-    const pack = activePack();
-    if (!pack) return 400; // browser voice
-    return Math.max(500, (avgGen ?? (pack === "kokoro" ? 2200 : 500)) + 250);
-  };
-  function deadlineFor(kind) {
-    const l = latency();
-    const by = { cry: Math.max(2500, l * 1.8), scene: Math.max(1200, l * 1.6), line: Math.max(1500, l * 1.8) };
-    return by[kind] ?? by.line;
-  }
+  const estimate = (text) => Math.round(String(text).split(/\s+/).length * 380 + 700);
   // "Too slow" lasts 45 s at most, then the neural voice is tried again (the machine may have been busy).
   const tooSlow = () => rtf != null && rtf > 1.3 && Date.now() - slowAt < 45000;
+  // the emotion a line gets now (the director prepares a performance's lines with it, so the cache key matches)
+  const emotionFor = (text, opts = {}) => inferEmotion(text, opts);
 
+  // ── the queue (avatar-speech-queue.js): one line at a time, in order, at her pace; nothing is ever thrown away ──
+  // A line is spoken, or shown as a silent bubble in its turn. Every line emits "aura:line" start and end: the bubble
+  // listens to that and nothing else, so text and voice cannot drift apart.
+  // (estimate and level must be declared above: the queue is created right here, at load.)
+  const PREPARE_AHEAD = 3;
+  let played = 0;
+  const lineEvent = (detail) => window.dispatchEvent(new CustomEvent("aura:line", { detail }));
+  const queue = window.AuraSpeechQueue.createSpeechQueue({
+    play: playItem,
+    cut: silence,
+    estimate,
+    level,
+    emit: (detail) => { if (detail.phase === "start") { played += 1; prepareAhead(); } lineEvent(detail); }
+  });
+  // the line she says and the next ones are generated while she speaks (all their pieces, in order)
+  function prepareAhead() {
+    for (const q of [queue.current(), ...queue.upcoming(PREPARE_AHEAD)]) {
+      if (q && q.neural && q.opts.voice !== false && !q.ready) q.ready = q.parts.map((part) => generateLine(part, q.emoName, false, q.opts.lang, q.priority));
+    }
+  }
+  // Plays one queued line, piece after piece. onStart(ms) as she starts (her bubble appears then, for the whole line).
+  // A line cut by a poke returns { cut: true } and keeps its pieces from the cut one; { failed: true } = no sound came out.
+  async function playItem(item, onStart) {
+    if (!item.neural) {
+      const started = await speakBrowser(item, onStart);
+      if (item.cutRequested) { item.cutRequested = false; item.restText = item.text; return { cut: true }; }
+      return started ? {} : { failed: true };
+    }
+    if (!item.ready) item.ready = item.parts.map((part) => generateLine(part, item.emoName, false, item.opts.lang, item.priority));
+    const volume = cfg.volume * (item.opts.loud ? 1.2 : 1);
+    let first = true;
+    while (item.parts.length) {
+      const audio = (await item.ready[0]) || (await generateLine(item.parts[0], item.emoName, false, item.opts.lang, item.priority)); // one retry
+      if (item.cutRequested) { item.cutRequested = false; item.restText = item.parts.join(" "); return { cut: true }; } // cut while this piece was being made
+      if (!audio) return first ? { failed: true } : {}; // a later piece that cannot be made: the bubble already shows the whole line
+      const rest = item.parts.slice(1).join(" ");
+      const ok = await play(audio, audio.emo, volume, first ? (ms) => onStart(ms + (rest ? estimate(rest) : 0)) : () => {});
+      if (!ok) return first ? { failed: true } : {};
+      if (item.cutRequested) { item.cutRequested = false; item.restText = item.parts.join(" "); return { cut: true }; } // said again from this piece
+      item.parts.shift();
+      item.ready.shift();
+      first = false;
+    }
+    return {};
+  }
+
+  // Queues a line and returns its handle { id, started, ended, voiced }. Nothing she can say aloud (voice off, the mood
+  // demo, a hidden page, "...", another alphabet, a neural voice not ready yet) still takes its turn, as a silent bubble.
   function speak(text, opts = {}) {
-    if (!cfg.on || document.hidden || demo) return; // during the mood demo her bubbles stay silent
     if (hinted && Date.now() - hinted.t < 1500 && !opts.emotion) opts = { ...opts, emotion: hinted.emotion };
     hinted = null;
-    const item = { text, opts, emoName: inferEmotion(text, opts), cancelled: false, t0: Date.now() };
-    // nothing she can pronounce ("...", another alphabet): a silent beat in the queue, its bubble shows in its turn
-    item.silent = !/[A-Za-z]{2}/.test(clean(text));
-    item.priority = Boolean(opts.loud || opts.interrupt || opts.force || item.emoName === "rage" || item.emoName === "shout");
-    // She does not say everything: of the optional remarks (not a cry, a poke, a rant, a test or a line a gag waits for)
-    // she voices a random share, fewer the more she talks; the others stay bubbles, shown in their turn like any line.
-    const share = [1, 1, 0.7, 0.5, 0.35][level()] ?? 0.7;
-    if (!item.priority && !opts.onStart && !opts.deadline && Math.random() >= share) item.silent = true;
-    // opts.gag: the id of the gag (or walk) she is performing, for its lines. Poke, rage, drag or test: takes the floor
-    // now (the sentence she is saying stops and is said again, from the cut piece, right after). A battle cry or a line of
-    // a gag waits for the end of the piece instead.
-    const takeFloor = Boolean(opts.loud || item.emoName === "rage" || (opts.interrupt && !opts.gag && item.emoName !== "shout"));
-    if (takeFloor && currentItem && currentItem.neural && !currentItem.silent && currentItem.emoName !== "shout") { currentItem.preempt = true; silence(); }
-    item.neural = Boolean(activePack()) && !item.silent;
-    if (!item.neural && cfg.engine !== "browser") item.silent = true; // a neural voice chosen but not ready (status loading, pack missing): a bubble, never the browser's second voice
-    if (item.neural) item.parts = partsOf(text, item.emoName, opts);
-    // nothing is dropped: a line goes behind the lines of its own rank or above
-    const live = queue.filter((q) => !q.cancelled);
-    const at = live.findIndex((q) => rank(q) > rank(item));
-    live.splice(at < 0 ? live.length : at, 0, item);
-    queue.splice(0, queue.length, ...live);
-    prepare();
-    pump();
-    return true; // she will say it: the caller's bubble waits for the "aura:speech" event
+    const emoName = emotionFor(text, opts);
+    const neural = Boolean(activePack());
+    const mute = !cfg.on || document.hidden || Boolean(demo) || !/[A-Za-z]{2}/.test(clean(text)) || (!neural && cfg.engine !== "browser");
+    const forced = Boolean(opts.forced || opts.force || opts.loud);
+    const extra = {
+      emoName,
+      neural: neural && !mute,
+      priority: forced || opts.lane === "show" || emoName === "rage" || emoName === "shout",
+      parts: neural && !mute ? partsOf(text, emoName, opts) : []
+    };
+    const handle = queue.enqueue(text, { ...opts, forced, cutIn: Boolean(opts.cutIn || opts.interrupt || opts.loud), voice: mute ? false : opts.voice }, extra);
+    prepareAhead();
+    return handle;
   }
-  // Says a line and resolves when she STARTS saying it, with its length in ms; 0 when it will not be heard (voice
-  // off, let go, past its deadline). Gags await it to show a move name exactly as she shouts it.
-  function cue(text, opts = {}) {
-    return new Promise((resolve) => {
-      let ms = 0;
-      const ok = speak(text, { ...opts, onStart: (d) => { ms = d; resolve(d); }, done: () => resolve(ms) });
-      if (!ok) resolve(0);
-    });
+  // Generates a performance's lines ahead, with the exact key she will use (same emotion, same pieces), before the
+  // chatter. Resolves when all are ready or at the timeout; what is still missing keeps generating in the background.
+  async function prepare(lines, { timeoutMs = 6000 } = {}) {
+    if (!cfg.on || !activePack()) return { ready: lines.length, missing: 0 };
+    const jobs = lines.flatMap(({ text, emotion, lang = "", loud = false }) => partsOf(text, emotion, { lang, loud }).map((part) => generateLine(part, emotion, false, lang, true)));
+    let ok = 0;
+    const all = Promise.all(jobs.map((job) => job.then((audio) => { if (audio) ok += 1; })));
+    await Promise.race([all, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    return { ready: ok, missing: jobs.length - ok };
   }
+  // resolves true when the line she is saying is over (never cut), false after ms
+  function quiet(ms) {
+    const c = queue.current();
+    if (!c) return Promise.resolve(true);
+    return Promise.race([c.ended.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), ms))]);
+  }
+  // shortcut: the old cue() for the scenes not converted yet; removed in Task 7 of the director plan.
+  const cue = (text, opts = {}) => speak(text, { ...opts, forced: true }).started;
   function stop() {
     demo = null;
-    for (const q of queue.splice(0)) cancelItem(q);
-    if (currentItem) { cancelItem(currentItem); currentItem = null; }
+    queue.stop();
     silence();
     emit();
   }
@@ -485,10 +433,12 @@
         const audio = await next;
         next = i + 1 < lines.length ? prepare(lines[i + 1]) : null;
         if (demo !== token) return;
-        const onStart = (ms) => { played += 1; if (window.AuraAvatar) window.AuraAvatar.say(text, ms + 400, true); };
+        const id = -(i + 1); // demo lines are not in the queue: their bubbles get their own ids
+        const onStart = (ms) => { played += 1; lineEvent({ phase: "start", id, text, ms, bubble: true }); };
         if (audio) await play(audio, audio.emo, cfg.volume, onStart);
         else if (cfg.engine === "browser") await speakBrowser({ text, opts: {}, emoName: emotion }, onStart);
         else { onStart(estimate(text)); await new Promise((r) => setTimeout(r, estimate(text))); } // one voice: a missing line is a bubble
+        lineEvent({ phase: "end", id, text });
         await new Promise((r) => setTimeout(r, 250));
       }
     } finally { if (demo === token) { demo = null; emit(); } }
@@ -504,7 +454,7 @@
     prefetching = true;
     const tick = async () => {
       if (!prefetchList.length) { prefetching = false; return; }
-      if (!cfg.on || !activePack() || currentItem || queue.length || generating || demo || document.hidden) { setTimeout(tick, 2500); return; }
+      if (!cfg.on || !activePack() || !queue.idle() || generating || demo || document.hidden) { setTimeout(tick, 2500); return; }
       const entry = prefetchList.shift();
       const [text, emotion, lang] = entry.l;
       const t0 = Date.now();
@@ -517,12 +467,8 @@
     };
     setTimeout(tick, 3000);
   }
-  // plain lines (a gag's bubbles): the emotion is inferred exactly as when she will say them
-  const prefetchLines = (texts) => prefetch(texts.map((t) => [t, inferEmotion(t, {}), ""]));
   // she is saying something, or is about to
-  const isBusy = () => Boolean(currentItem) || queue.some((q) => !q.cancelled) || Boolean(demo);
-  // she still has lines of that gag to say (the gag waits for them before it ends)
-  const busyWith = (gag) => Boolean(gag) && [currentItem, ...queue].some((q) => q && !q.cancelled && q.opts.gag === gag);
+  const isBusy = () => !queue.idle() || Boolean(demo);
 
   const info = () => ({ cfg: { ...cfg }, server, serverError, pack: activePack(), lastGen, played, rtf, generating, slow: tooSlow(), demo: Boolean(demo), kokoroVoices: kokoroVoices(), piperPacks: piperPacks() });
   function set(patch) {
@@ -543,8 +489,9 @@
   // keep the model loaded while the dashboard is open with the voice on: no cold start in the middle of a gag
   setInterval(() => { if (!document.hidden) warm(); }, 8 * 60 * 1000);
   window.AuraSpeech = {
-    speak, cue, stop, showcase, hint, estimate, prefetch, prefetchLines, isBusy, busyWith, set, download, remove, refresh, info,
+    speak, prepare, quiet, hold: (id) => queue.hold(id), release: (id) => queue.release(id), idle: () => queue.idle(),
+    emotionFor, cue, stop, showcase, hint, estimate, prefetch, isBusy, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    deadlineFor, state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
+    state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE
   };
 })();

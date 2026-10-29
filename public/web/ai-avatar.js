@@ -115,43 +115,26 @@
   // While the voice settings are open she keeps still and quiet, so voice tests are not drowned out.
   const inVoiceSettings = () => Boolean(document.getElementById("tab-settings")?.classList.contains("active") && document.getElementById("settings-auri")?.classList.contains("active"));
   const visibleMount = () => (roaming && roamer && isVisible(roamer) ? roamer : null) || mounts().find((el) => el !== roamer && isVisible(el));
-  // Bubbles waiting for her voice, by text: each one appears when she starts saying it.
-  const pendingBubbles = new Map();
-  // A remark made while a gag owns the stage waits until it is over (only the latest, 10 s at most: the next gag's
-  // lines must not queue up behind old remarks).
-  let deferred = [];
-  function flushDeferred() {
-    const lines = deferred; // every remark that waited for the gag is said afterwards (the voice queue keeps them all)
-    deferred = [];
-    for (const d of lines) say(d.text, d.ms, false, d.opts);
-  }
+  // the line whose bubble is up (avatar-voice.js "aura:line" ids): only its end hides the bubble
+  let bubbleLine = 0;
 
-  // opts.pain: the red "ouch" bubble. opts.silent: a bubble only (chant fragments). Forced lines (pokes, drags) cut
-  // the line she is saying.
+  // opts.pain: the red "ouch" bubble. opts.silent: a bubble only. opts.kind: lines of the same kind replace each other
+  // while they wait (a newer status says it better). Forced lines (pokes, clicks, important news) always speak; the
+  // others follow her pace and budget (avatar-speech-queue.js). The bubble appears when the line's turn comes.
   function say(text, ms = 4200, force = false, opts = {}) {
     const level = voice();
-    if ((raging || isAway()) && !force) return;
-    if (!force && window.AuraSpeech?.inDemo?.()) return; // the voice mood demo owns the bubble
-    if (!force && inVoiceSettings()) return;
-    if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return;
-    if (!visibleMount()) return;
-    // A gag owns the stage: other remarks (scan news, idle quips) wait until it is over instead of popping up on it.
-    if (roaming && !force && !opts.fromGag) { deferred = deferred.concat({ text, ms, opts }).slice(-20); return; }
-    // With the voice on, every line waits its turn in her voice queue (she never talks over herself) and its bubble
-    // shows when she starts saying it, so text and voice never drift apart.
-    const speech = window.AuraSpeech;
-    const voiceOn = Boolean(speech && speech.isOn && speech.isOn());
-    // opts.synced: the bubble of the line she is saying right now (shown as the voice starts)
-    if (opts.silent) { if (opts.synced || !(voiceOn && speech.isBusy && speech.isBusy())) showBubble(text, ms, opts.pain); return; }
-    const accepted = speech ? speech.speak(text, { ms, interrupt: force, gag: opts.fromGag ? currentShow() : 0 }) : undefined;
-    if (accepted === true) {
-      // one entry per queued line: the same text twice must give two bubbles, not one
-      pendingBubbles.set(String(text), (pendingBubbles.get(String(text)) || []).concat({ ms, pain: Boolean(opts.pain) }));
-      return true;
-    }
-    showBubble(text, ms, opts.pain); // no voice: the bubble alone
+    if ((raging || isAway()) && !force) return false;
+    if (!force && window.AuraSpeech?.inDemo?.()) return false; // the voice mood demo owns the bubble
+    if (!force && inVoiceSettings()) return false;
+    if (!force && (level === 0 || (level === 1 && Date.now() > importantUntil))) return false;
+    if (!visibleMount() || !window.AuraSpeech) return false;
+    window.AuraSpeech.speak(text, {
+      min: ms, forced: force || Date.now() < importantUntil, cutIn: force,
+      bubble: opts.pain ? { pain: true } : true, voice: opts.silent ? false : undefined, kind: opts.kind
+    });
+    return true;
   }
-  function showBubble(text, ms, pain = false) {
+  function showBubble(text, pain = false) {
     const visible = visibleMount();
     if (!visible) return;
     if (!bubble) {
@@ -172,7 +155,6 @@
     bubble.classList.add("show");
     bubble.dataset.say = String(text);
     clearTimeout(bubbleTimer);
-    bubbleTimer = setTimeout(() => bubble.classList.remove("show"), ms);
   }
 
   function wake() {
@@ -375,7 +357,7 @@
       await out.finished;
       r.classList.remove("walking");
       act(action, action === "saiyan" ? 3400 : 1900);
-      if (text) say(text, stay + 800, false, { fromGag: true });
+      if (text) say(text, stay + 800);
       await sleep(stay);
       // Back home (recompute: the panel may have moved or been hidden meanwhile).
       const back = isVisible(origin) ? centerOf(origin) : home;
@@ -398,7 +380,6 @@
       }
       origin.classList.remove("av-away");
       roaming = false;
-      flushDeferred();
     }
   }
 
@@ -417,18 +398,11 @@
     const centerOf = (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2 - size.w / 2, y: b.top + b.height / 2 - size.h / 2 }; };
     const at = (p, s = 1, rot = 0) => "translate(" + p.x + "px, " + p.y + "px) scale(" + s + ") rotate(" + rot + "deg)";
     let pace = Promise.resolve();
-    // resolves when the voice starts that line (or after 8 s at most: a line that never starts must not freeze the gag)
-    const whenStarted = (text) => new Promise((resolve) => {
-      const done = () => { window.removeEventListener("aura:speech", onSpeech); clearTimeout(timer); resolve(); };
-      const onSpeech = (event) => { if (event.detail && event.detail.text === String(text)) done(); };
-      const timer = setTimeout(done, 8000);
-      window.addEventListener("aura:speech", onSpeech);
-    });
     const api = {
       el: r, size, at, sleep, act,
       // the gag's own lines (the only ones allowed while it runs)
       // a gag moves with her voice: before its next move or animation it waits until the line it just asked for has started
-      say: (text, ms, force = false, opts = {}) => { const spoken = say(text, ms, force, { ...opts, fromGag: true }) === true; if (spoken) pace = whenStarted(text); },
+      say: (text, ms, force = false, opts = {}) => { const h = window.AuraSpeech?.speak(text, { min: ms, forced: true, voice: opts.silent ? false : undefined }); if (h) pace = h.started; return h; },
       home: () => centerOf(origin),
       place(p, o = {}) { r.getAnimations().forEach((a) => a.cancel()); r.style.transform = at(p, o.scale ?? 1, o.rot ?? 0); r.style.opacity = String(o.opacity ?? 1); },
       move(from, to, o = {}) {
@@ -439,14 +413,11 @@
         return r.animate(frames, { duration: o.ms ?? 1500, easing: o.easing ?? "ease-in-out", fill: "forwards" }).finished.then(() => r.classList.remove("walking"));
       },
       anim(frames, opts) { return pace.then(() => r.animate(frames, { fill: "forwards", ...opts }).finished); },
-      // A line the gag waits for (the next beat depends on it): it goes ahead of the chatter (after the sentence she is
-      // saying), the bubble appears as she starts it, and the gag goes on when she has said it (at least ms). Without a
-      // voice, or if it cannot start in time once its turn has come: bubble and ms only.
+      // A line the gag waits for (the next beat depends on it): it goes ahead of the chatter, the bubble appears as she
+      // starts it, and the gag goes on when she has said it (at least ms). Without a voice: bubble and ms only.
       async line(text, ms = 2000) {
-        if (!(voice() >= 1)) { await sleep(ms); return; }
-        const spoken = window.AuraSpeech && window.AuraSpeech.cue ? await window.AuraSpeech.cue(text, { force: true, deadline: "line", gag: currentShow() }) : 0;
-        showBubble(text, Math.max(ms, spoken + 400));
-        await sleep(Math.max(ms, spoken + 150));
+        if (!(voice() >= 1) || !window.AuraSpeech) { await sleep(ms); return; }
+        await window.AuraSpeech.speak(text, { min: ms, forced: true }).ended;
       },
       randomPoint(margin = 100) { return { x: margin + Math.random() * Math.max(1, innerWidth - 2 * margin - size.w), y: 90 + Math.random() * Math.max(1, innerHeight - 190 - size.h) }; }
     };
@@ -456,9 +427,6 @@
       origin.classList.add("av-away");
       r.style.display = "block";
       await script(api);
-      // she finishes what the gag made her say before she goes home (6 s at most)
-      const id = showId;
-      for (let i = 0; i < 100 && window.AuraSpeech?.busyWith?.(id); i += 1) await sleep(200);
     } catch {
       // gag interrupted: fall through to cleanup
     } finally {
@@ -471,7 +439,6 @@
       r.classList.remove("walking", "face-left", "av-overload", "av-glitching");
       origin.classList.remove("av-away");
       roaming = false;
-      flushDeferred();
     }
     return true;
   }
@@ -592,24 +559,19 @@
     scheduleIdle();
     scheduleSleep();
     window.addEventListener("aura:ai", (event) => react(event.detail?.type, event.detail?.text, event.detail || {}));
-    // She starts saying a line: its bubble appears now and stays up until the sentence is over.
-    window.addEventListener("aura:speech", (event) => {
+    // Her lines (avatar-voice.js): a bubble appears as she starts one and goes 300 ms after she has finished it.
+    window.addEventListener("aura:line", (event) => {
       const d = event.detail || {};
-      const text = String(d.text);
-      const stay = (Number(d.ms) || 2000) + 600;
-      const waiting = pendingBubbles.get(text), q = waiting && waiting.shift();
-      if (waiting && !waiting.length) pendingBubbles.delete(text);
-      if (q) { showBubble(text, Math.max(stay, Math.min(q.ms, stay + 2500)), q.pain); return; }
-      if (!bubble || bubble.dataset.say !== text) return;
-      bubble.classList.add("show");
+      if (d.phase === "start" && d.bubble !== false) { bubbleLine = d.id; showBubble(String(d.text), Boolean(d.bubble && d.bubble.pain)); return; }
+      if (d.phase !== "end" || d.id !== bubbleLine) return;
       clearTimeout(bubbleTimer);
-      bubbleTimer = setTimeout(() => bubble.classList.remove("show"), stay);
+      bubbleTimer = setTimeout(() => { if (bubbleLine === d.id && bubble) { bubble.classList.remove("show"); bubbleLine = 0; } }, 300);
     });
     // Entering the voice settings hushes whatever she was saying (later clicks there, like Test, are left alone).
     let wasQuiet = false;
     document.addEventListener("click", () => setTimeout(() => {
       const quiet = inVoiceSettings();
-      if (quiet && !wasQuiet) { pendingBubbles.clear(); deferred = []; if (bubble) bubble.classList.remove("show"); window.AuraSpeech?.stop?.(); }
+      if (quiet && !wasQuiet) { if (bubble) bubble.classList.remove("show"); window.AuraSpeech?.stop?.(); }
       wasQuiet = quiet;
     }, 0), true);
     // Mounts can appear later (panel re-render): keep them populated.
