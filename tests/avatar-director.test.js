@@ -152,6 +152,7 @@ test("a poke on her walk cuts in with a pain bubble; the walk's line does not", 
   assert.ok(!walk.cutIn);
   assert.equal(poke.cutIn, true);
   assert.equal(poke.forced, true);
+  assert.equal(poke.kind, "poke"); // waiting pokes replace each other: she answers the newest
   page.dispose();
 });
 

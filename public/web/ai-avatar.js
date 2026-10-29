@@ -296,7 +296,7 @@
     setTimeout(() => roamer && roamer.classList.remove("av-hurt"), 600);
     act(angry ? "shake" : "worried", 900);
     const rudePoke = voice() >= 4 && window.AuraQuotes ? window.AuraQuotes.rude("poke") : null;
-    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true, { pain: true, cutIn: true });
+    say(rudePoke || pick(angry ? FURIOUS : OUCH), angry ? 3200 : 2400, true, { pain: true, cutIn: true, kind: "poke" });
   }
 
   function ensureRoamer() {

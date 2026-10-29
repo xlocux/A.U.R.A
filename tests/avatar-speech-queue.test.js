@@ -95,6 +95,33 @@ test("a line cut by a poke is said again once; cut a second time, the rest is sh
   assert.equal(long.voiced, false);
 });
 
+test("three rapid pokes: each answer is cut by the next and just ends; only the newest is said in full, nothing twice", async () => {
+  const { q, starts } = rig({ playMs: 80 });
+  const poke = (text) => q.enqueue(text, { forced: true, cutIn: true, kind: "poke" });
+  const p1 = poke("Ow!");
+  await sleep(20);
+  const p2 = poke("Ouch!");
+  await sleep(20);
+  const p3 = poke("Hey!");
+  const later = q.enqueue("a later remark");
+  await Promise.all([p1, p2, p3, later].map((h) => h.ended));
+  assert.deepEqual(starts(), ["Ow!", "Ouch!", "Hey!", "a later remark"]);
+});
+
+test("a poke while a performance holds the stage waits; pokes waiting together are said once, the newest", async () => {
+  const { q, starts } = rig({ playMs: 60 });
+  q.hold(5);
+  const show = q.enqueue("show line", { lane: "show", show: 5 });
+  await show.started;
+  const p1 = q.enqueue("Ow!", { forced: true, cutIn: true, kind: "poke" });
+  const p2 = q.enqueue("Ouch!", { forced: true, cutIn: true, kind: "poke" });
+  await show.ended;
+  assert.deepEqual(starts(), ["show line"]); // the show line was not cut
+  q.release(5);
+  await Promise.all([p1.ended, p2.ended]);
+  assert.deepEqual(starts(), ["show line", "Ouch!"]);
+});
+
 test("stop() settles every line", async () => {
   const { q } = rig({ playMs: 200 });
   const a = q.enqueue("one");

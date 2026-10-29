@@ -6,7 +6,8 @@
 //    the stage only its own lines play; chatter waits in order and plays after the release.
 //  - pace: a breathing gap after every chatter line and a budget of spoken chatter per minute. Over budget a line is
 //    shown as a silent bubble in its turn, never dropped. Forced lines (pokes, clicks, important news) always speak.
-//  - a line cut by a poke is said again from the cut piece once; cut again, the rest is shown silently.
+//  - a line cut by a poke is said again from the cut piece once; cut again, the rest is shown silently. An answer to a
+//    poke cut by the next poke just ends.
 (function initSpeechQueue(root) {
   const GAP_MS = [1500, 1500, 1200, 1000, 800]; // breathing gap after a chatter line, by personality level 0-4
   const BUDGET = [0, 0, 3, 5, 8]; // spoken chatter lines per rolling minute, by level (forced lines do not count)
@@ -118,7 +119,8 @@
         if (left > 0) await pause(left, holdSleepers);
       }
       current = null;
-      if (result.cut && !item.stopped) {
+      // an answer to a poke (or to the hand) cut by a newer one just ends: the newer answer says it better
+      if (result.cut && !item.stopped && !item.opts.cutIn) {
         item.cutRequested = false; // the cut is handled here: a stale flag would cut the silent bubble later
         item.resumes += 1;
         item.resumed = true;
