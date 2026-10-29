@@ -24,7 +24,7 @@ const KOKORO_BASE = "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/
 const PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/en/";
 const RUNTIME_BYTES = 40e6;
 const MEMORY_LINES = 300; // remembered lines kept in memory (about 200 KB each)
-const DISK_LINES = 600; // and on disk, in data/voice/cache (about 120 MB at most)
+const DISK_LINES = 600; // and on disk, in data/voice/cache (about 300 KB each, 180 MB at most)
 
 // SHA-256 of the pinned voice files (computed from the installed pack); a mismatch fails the download.
 const VOICE_SHA256 = {
@@ -315,12 +315,21 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
   // ── remembered lines: memory first, then data/voice/cache (float32 samples, the rate in the file name) ──
   const cacheDir = path.join(root, "cache");
   const fileOf = (key) => path.join(cacheDir, crypto.createHash("sha1").update(key).digest("hex"));
+  // a line that is used again counts as new: the folder drops the lines nobody asks for, not the gag lines she repeats
+  const diskFiles = new Map();
+  function touchFile(key) {
+    const file = diskFiles.get(key);
+    if (!file) return;
+    try { const now = new Date(); fs.utimesSync(file, now, now); } catch { /* evicted meanwhile */ }
+  }
   function remembered(key) {
-    if (memory.has(key)) return memory.get(key);
+    if (memory.has(key)) { touchFile(key); return memory.get(key); }
     const base = fileOf(key);
     for (const name of safeList(cacheDir)) {
       if (!name.startsWith(path.basename(base) + "-")) continue;
       try {
+        diskFiles.set(key, path.join(cacheDir, name));
+        touchFile(key);
         const buf = fs.readFileSync(path.join(cacheDir, name));
         const [rate, ms] = name.slice(path.basename(base).length + 1).replace(/\.f32$/, "").split("-").map(Number);
         const result = { data: new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)), rate, ms };
@@ -336,7 +345,9 @@ function createVoiceEngine({ root = path.resolve("data", "voice"), fetchImpl = g
     try {
       fs.mkdirSync(cacheDir, { recursive: true });
       const data = Buffer.from(result.data.buffer, result.data.byteOffset, result.data.byteLength);
-      fs.writeFileSync(`${fileOf(key)}-${result.rate}-${Math.round(result.ms || 0)}.f32`, data);
+      const file = `${fileOf(key)}-${result.rate}-${Math.round(result.ms || 0)}.f32`;
+      fs.writeFileSync(file, data);
+      diskFiles.set(key, file);
       // keep the folder bounded: the oldest lines go first
       const files = safeList(cacheDir).map((name) => ({ name, t: fs.statSync(path.join(cacheDir, name)).mtimeMs })).sort((a, b) => a.t - b.t);
       for (const old of files.slice(0, Math.max(0, files.length - DISK_LINES))) fs.rmSync(path.join(cacheDir, old.name), { force: true });
