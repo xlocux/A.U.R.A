@@ -193,6 +193,6 @@
   }
 
   // isBusy: a performance is on stage or getting ready (a walk started now would be held behind it)
-  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), isBusy: () => Boolean(current), shout, extractLines, linesFor, rollsFor, cryLine, JAPANESE };
+  root.AuraDirector = { perform, isPerforming: () => Boolean(current && current.running), isBusy: () => Boolean(current), shout, linesFor, rollsFor, cryLine, JAPANESE };
   if (typeof module === "object" && module.exports) module.exports = { extractLines, cryLine };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -162,8 +162,7 @@
       enqueue, hold, release, stop, wouldVoice,
       idle: () => !current && waiting.length === 0,
       current: () => current,
-      upcoming: (n) => order().slice(0, n),
-      holding: () => held
+      upcoming: (n) => order().slice(0, n)
     };
   }
 

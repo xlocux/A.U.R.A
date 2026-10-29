@@ -115,7 +115,7 @@
   // the line whose bubble is up (avatar-voice.js "aura:line" ids): only its end hides the bubble
   let bubbleLine = 0;
 
-  // opts.pain: the red "ouch" bubble. opts.silent: a bubble only. opts.kind: lines of the same kind replace each other
+  // opts.pain: the red "ouch" bubble. opts.kind: lines of the same kind replace each other
   // while they wait (a newer status says it better). opts.cutIn: a poke or the hand, the only lines that cut the one in
   // progress. Forced lines (pokes, clicks, important news) always speak but wait their turn; the others follow her pace
   // and budget (avatar-speech-queue.js). The bubble appears when the line's turn comes.
@@ -129,7 +129,7 @@
     if (!visibleMount() || !window.AuraSpeech) return false;
     return window.AuraSpeech.speak(text, { // the line's handle (false above: not said)
       min: ms, forced: force || Date.now() < importantUntil, cutIn: Boolean(opts.cutIn),
-      bubble: opts.pain ? { pain: true } : true, voice: opts.silent ? false : undefined, kind: opts.kind
+      bubble: opts.pain ? { pain: true } : true, kind: opts.kind
     });
   }
   function showBubble(text, pain = false) {
