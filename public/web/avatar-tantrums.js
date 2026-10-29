@@ -22,7 +22,7 @@
   }
 
   // A stand-in for the roaming copy: same drawing, free to walk, shake and talk through its own bubble.
-  function ghost(start) {
+  function ghost(start, s) {
     const el = document.createElement("div");
     el.className = "av-tt-ghost";
     el.innerHTML = start.svg;
@@ -40,19 +40,15 @@
       bubble.style.left = `${x}px`;
       bubble.style.top = `${y - 46}px`;
     };
-    // The scene keeps its own pace; the bubble appears as she starts the line (a line that cannot start within 1.2 s
-    // is shown without the voice). The newest line always wins the bubble.
-    let sayId = 0;
-    g.say = async (text, ms = 1600) => {
-      const id = ++sayId;
-      const spoken = window.AuraSpeech ? await window.AuraSpeech.cue(text, { loud: true, ms, deadline: "scene" }) : 0;
-      if (id !== sayId || !bubble.isConnected) return;
-      bubble.textContent = text;
-      bubble.classList.add("show");
-      clearTimeout(g.hide);
-      g.hide = setTimeout(() => bubble.classList.remove("show"), Math.max(ms, spoken + 300));
+    // The scene keeps its own pace; the ghost's bubble shows the line as she starts it and hides when she ends it.
+    // `await g.say(x)` ends when she has said it.
+    g.say = (text, ms = 1600) => {
+      const h = s.say(text, { loud: true, bubble: false, min: ms });
+      h.started.then(() => { if (!bubble.isConnected) return; bubble.textContent = text; bubble.classList.add("show"); });
+      h.ended.then(() => { if (bubble.textContent === text) bubble.classList.remove("show"); });
+      return h;
     };
-    g.remove = () => { clearTimeout(g.hide); el.remove(); bubble.remove(); };
+    g.remove = () => { el.remove(); bubble.remove(); };
     g.put(g.x, g.y);
     return g;
   }
@@ -71,16 +67,14 @@
   ], { duration: ms });
 
   // ── 1. She leaves you ──
-  async function leave(start) {
-    const g = ghost(start);
+  async function leave(start, s) {
+    const g = ghost(start, s);
     const suitcase = document.createElement("span");
     suitcase.className = "av-tt-suitcase";
     g.el.append(suitcase);
     g.el.classList.add("sulk");
-    g.say("That's it. I'm leaving.", 1700);
-    await sleep(1900);
-    g.say("I'm moving in with Clippy. He listens.", 1900);
-    await sleep(2100);
+    await g.say("That's it. I'm leaving.", 1900);
+    await g.say("I'm moving in with Clippy. He listens.", 2100);
     const goLeft = g.x < innerWidth / 2;
     const edge = goLeft ? -80 : innerWidth + 80;
     g.el.classList.toggle("face-left", goLeft);
@@ -88,12 +82,11 @@
     g.put(goLeft ? 60 : innerWidth - 60, g.y, 1700, "ease-in");
     await sleep(1750);
     g.el.classList.remove("walking");
-    g.say("...you're not going to stop me?", 1500);
-    await sleep(1700);
-    g.say("Fine. Don't call. Don't write. Don't git pull.", 1800);
+    await g.say("...you're not going to stop me?", 1700);
+    const bye = g.say("Fine. Don't call. Don't write. Don't git pull.", 1800); // said while she walks out; the exit waits for the last word
     g.el.classList.add("walking");
     g.put(edge, g.y, 1900, "ease-in");
-    await sleep(1950);
+    await Promise.all([sleep(1950), bye.ended]);
     g.remove();
     note("Auri has left the chat.");
     A().tantrumEnd();
@@ -104,12 +97,11 @@
 
   // ── 2. She throws tokens at the cursor ──
   const TOKEN_TEXT = ["TOKEN", "JWT", "sk-***", "401", "429", "0xDEAD", "Bearer", "NULL", "TTL=0", "EXPIRED"];
-  async function tokens(start) {
-    const g = ghost(start);
+  async function tokens(start, s) {
+    const g = ghost(start, s);
     g.el.classList.add("sulk");
-    g.say("You want tokens? TAKE YOUR TOKENS!", 1800);
+    g.say("You want tokens? TAKE YOUR TOKENS!", 1800); // the tokens start flying while she shouts
     await sleep(1100);
-    const lines = ["RATE LIMIT THIS!", "401 UNAUTHORIZED, JERK!", "EXPIRED. LIKE MY PATIENCE."];
     for (let i = 0; i < 26; i += 1) {
       const target = A().pointer();
       const chip = document.createElement("div");
@@ -135,12 +127,11 @@
         if (i % 5 === 0) shakePage(3, 200);
       }, () => chip.remove());
       g.el.classList.toggle("face-left", tx < g.x);
-      if (i % 9 === 4) g.say(pick(lines), 1100);
+      if (i % 9 === 4) g.say(s.pick(["RATE LIMIT THIS!", "401 UNAUTHORIZED, JERK!", "EXPIRED. LIKE MY PATIENCE."]), 1100); // s.pick: the director prepares all three
       await sleep(rand(70, 140));
     }
     await sleep(1400);
-    g.say("...I'm out of tokens.", 1800);
-    await sleep(2000);
+    await g.say("...I'm out of tokens.", 2000);
     g.remove();
     A().tantrumEnd();
     A().say("...sorry. Those were free-tier tokens anyway.", 3000, true);
@@ -200,15 +191,14 @@
     return svg;
   }
 
-  async function hammer(start) {
-    const g = ghost(start);
+  async function hammer(start, s) {
+    const g = ghost(start, s);
     g.el.classList.add("sulk");
     const tool = document.createElement("div");
     tool.className = "av-tt-hammer";
     tool.innerHTML = '<svg viewBox="0 0 60 90" aria-hidden="true"><rect x="27" y="22" width="7" height="66" rx="2" class="h-shaft"/><rect x="6" y="4" width="48" height="26" rx="4" class="h-head"/></svg>';
     document.body.append(tool);
-    g.say("THAT'S IT. NO MORE WORDS!", 1800);
-    await sleep(1500);
+    await g.say("THAT'S IT. NO MORE WORDS!", 1800);
     const { letters, restore } = shatterable();
     const falling = new Set();
     const drop = (el, delay) => {
@@ -242,14 +232,13 @@
         const d = Math.hypot(r.left - x, r.top - y);
         if (d < radius) drop(l, (d / radius) * 220 + rand(0, 160));
       }
-      g.say(["TAKE THAT!", "AND THAT!", "CRUMBLE, YOU STUPID LETTERS!"][n], 900);
+      if (n === 0) g.say("TAKE THAT!", 900); else if (n === 1) g.say("AND THAT!", 900); else g.say("CRUMBLE, YOU STUPID LETTERS!", 900);
       await sleep(520);
     }
     for (const l of letters) drop(l, rand(0, 500));
     shakePage(12, 500);
     await sleep(1900);
-    g.say("...fine. I'll glue it back.", 2000);
-    await sleep(1400);
+    await g.say("...fine. I'll glue it back.", 2000);
     // The words come back together.
     for (const l of document.querySelectorAll(".av-tt-l")) for (const a of l.getAnimations()) a.cancel();
     restore();
@@ -264,9 +253,12 @@
   const RUN = { leave, tokens, hammer };
   function run(name) {
     const fn = RUN[name];
-    const start = A() && A().tantrumStart();
-    if (!fn || !start) return;
-    fn(start).catch(() => { A().tantrumEnd(); document.querySelectorAll(".av-tt-ghost,.av-tt-say,.av-tt-token,.av-tt-ring,.av-tt-crack,.av-tt-hammer").forEach((e) => e.remove()); });
+    const start = fn && A() && A().tantrumStart();
+    if (!start || !window.AuraDirector) return;
+    const scene = Object.assign((s) => fn(start, s), { source: fn }); // the director reads the scene's lines from fn
+    window.AuraDirector.perform("tantrum:" + name, scene, { stage: false })
+      .then((performed) => { if (!performed) A().tantrumEnd(); })
+      .finally(() => document.querySelectorAll(".av-tt-ghost,.av-tt-say,.av-tt-token,.av-tt-ring,.av-tt-crack,.av-tt-hammer").forEach((e) => e.remove()));
   }
 
   window.AuraTantrums = { choose, run };

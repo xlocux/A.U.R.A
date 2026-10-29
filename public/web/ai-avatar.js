@@ -205,9 +205,15 @@
     "I'LL @#$% YOUR #&%@ING CACHE!",
     "...okay. Breathing. #@%&."
   ];
-  // Everything goes black; a giant, red, burning Aura swears in full-screen letters, then calms down.
+  // Everything goes black; a giant, red, burning Aura swears in full-screen letters, then calms down. A performance:
+  // her rant is prepared ahead and said in a row, each line on screen as she yells it; nothing else can slip in.
   async function rage() {
-    if (raging || !roamer) return;
+    if (raging || !roamer || !window.AuraDirector) return;
+    // not performed (she is busy, the rant is not ready yet): nothing happened, so no apology; the next poke tries again
+    if (!(await window.AuraDirector.perform("rage", rageScene, { stage: false }))) return;
+    say("...sorry. I lost my temper.", 2800, true);
+  }
+  async function rageScene(s) {
     raging = true;
     if (bubble) { bubble.classList.remove("show"); bubble.style.display = "none"; }
     const veil = document.createElement("div");
@@ -219,26 +225,25 @@
     text.className = "av-rage-text";
     document.body.append(veil, big, text);
     roamer.style.visibility = "hidden";
-    veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: "forwards" });
-    big.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }], { duration: 750, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "forwards" });
-    await sleep(750);
-    for (const line of RAGE_LINES) {
-      // With the voice on, each line appears when she starts yelling it and stays up while she says it (4.5 s at
-      // most); a line that cannot start within 2 s is shown without the voice. Without a voice: the original rhythm.
-      const ms = window.AuraSpeech ? await window.AuraSpeech.cue(line, { loud: true, deadline: "cry" }) : 0;
-      text.textContent = line;
-      await sleep(Math.max(line.startsWith("...") ? 1500 : 1050, Math.min(ms, 4500)));
+    try {
+      veil.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320, fill: "forwards" });
+      big.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 0 }, { transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }], { duration: 750, easing: "cubic-bezier(.2,1.3,.4,1)", fill: "forwards" });
+      await sleep(750);
+      for (const line of RAGE_LINES) {
+        const h = s.say(line, { loud: true, bubble: false, min: line.startsWith("...") ? 1500 : 1050 });
+        h.started.then(() => { text.textContent = line; });
+        await h;
+      }
+      text.remove();
+      await big.animate([{ transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
+      await veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished;
+    } finally {
+      text.remove(); big.remove(); veil.remove();
+      if (roamer) roamer.style.visibility = "";
+      if (bubble) bubble.style.display = "";
+      raging = false;
+      pokes = [];
     }
-    text.remove();
-    await big.animate([{ transform: "translate(-50%, -50%) scale(7.5)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1)", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished;
-    big.remove();
-    await veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 500, fill: "forwards" }).finished;
-    veil.remove();
-    roamer.style.visibility = "";
-    if (bubble) bubble.style.display = "";
-    raging = false;
-    pokes = [];
-    say("...sorry. I lost my temper.", 2800, true);
   }
 
   // Scenes take over the roaming copy: hide it and the bubble, then give everything back at the end.
