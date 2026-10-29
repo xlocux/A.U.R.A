@@ -167,6 +167,18 @@ test("a poke while a performance holds the stage waits; pokes waiting together a
   assert.deepEqual(starts(), ["show line", "Ouch!"]);
 });
 
+test("dropKind() forgets the waiting lines of that kind (the pokes that made the rage are not answered after it)", async () => {
+  const { q, starts } = rig({ playMs: 40 });
+  q.hold(7);
+  const poke = q.enqueue("Ow!", { forced: true, cutIn: true, kind: "poke" });
+  const remark = q.enqueue("a remark");
+  q.dropKind("poke");
+  await poke.ended; // settled, never said
+  q.release(7);
+  await remark.ended;
+  assert.deepEqual(starts(), ["a remark"]);
+});
+
 test("stop() settles every line", async () => {
   const { q } = rig({ playMs: 200 });
   const a = q.enqueue("one");

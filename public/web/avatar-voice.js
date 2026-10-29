@@ -504,7 +504,7 @@
   // keep the model loaded while the dashboard is open with the voice on: no cold start in the middle of a gag
   setInterval(() => { if (!document.hidden) warm(); }, 8 * 60 * 1000);
   window.AuraSpeech = {
-    speak, prepare, quiet, hold: (id) => queue.hold(id), release: (id) => queue.release(id), idle: () => queue.idle(),
+    speak, prepare, quiet, hold: (id) => queue.hold(id), dropKind: (kind) => queue.dropKind(kind), release: (id) => queue.release(id), idle: () => queue.idle(),
     emotionFor, stop, showcase, hint, estimate, prefetch, isBusy, set, download, remove, refresh, info,
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     state: info, isOn: () => cfg.on, inDemo: () => Boolean(demo), emotions: Object.keys(EMOTIONS), defaultKokoroVoice: DEFAULT_KOKORO_VOICE

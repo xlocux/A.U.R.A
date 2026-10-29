@@ -216,6 +216,7 @@
   }
   async function rageScene(s) {
     raging = true;
+    window.AuraSpeech?.dropKind?.("poke"); // the pokes that made her furious are not answered after the rage
     if (bubble) { bubble.classList.remove("show"); bubble.style.display = "none"; }
     const veil = document.createElement("div");
     veil.className = "av-rage-veil";

@@ -140,6 +140,10 @@
     }
 
     function hold(id) { held = id; wakeAll(gapSleepers); }
+    // the waiting lines of a kind are not wanted any more (the pokes that ended in a rage): settled, never said
+    function dropKind(kind) {
+      for (let i = waiting.length - 1; i >= 0; i -= 1) if (waiting[i].lane === "chatter" && waiting[i].opts.kind === kind) waiting.splice(i, 1)[0].finish();
+    }
     function release(id) {
       if (held !== id) return;
       held = 0;
@@ -159,7 +163,7 @@
     }
 
     return {
-      enqueue, hold, release, stop, wouldVoice,
+      enqueue, hold, release, stop, wouldVoice, dropKind,
       idle: () => !current && waiting.length === 0,
       current: () => current,
       upcoming: (n) => order().slice(0, n)
