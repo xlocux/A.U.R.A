@@ -99,13 +99,17 @@
     document.documentElement.classList.add("av-dragging");
     if (active.roaming) dragRoaming(active, event); else dragHome(active, event);
   });
-  window.addEventListener("pointerup", () => {
+  // a lost pointerup (cancelled touch, window switched away) must not keep her on stage forever
+  function endGrab() {
     if (!active) return;
     if (active.started) justDragged = Date.now();
     document.documentElement.classList.remove("av-dragging");
     if (active.release) active.release();
     active = null;
-  });
+  }
+  window.addEventListener("pointerup", endGrab);
+  window.addEventListener("pointercancel", endGrab);
+  window.addEventListener("blur", endGrab);
 
   // ── home avatar: a short stage with the roaming copy ──
   function dragHome(grab, firstEvent) {

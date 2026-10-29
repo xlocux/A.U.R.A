@@ -120,7 +120,9 @@
 
   // false = not performed now (she is busy, the lines are not ready yet...): the caller tries again later.
   // stage: false for scenes that draw their own figure (rage, tantrums); immediate: no waiting, no preparation (being
-  // carried must answer the hand at once); interactive: the script handles clicks on her.
+  // carried must answer the hand at once); interactive: the script handles clicks on her, and has no time cap (being
+  // carried lasts as long as the hand holds her). A performance counts as performing (isPerforming) only once it is on
+  // stage, not while it waits for the floor or for its lines; an immediate one preempts one still preparing.
   async function perform(name, script, { interactive = false, stage = true, immediate = false } = {}) {
     const A = root.AuraAvatar, S = root.AuraSpeech;
     if (!A || !S || (stage && !A.canStage())) return false;
@@ -144,9 +146,10 @@
         show.running = true;
         const playing = Promise.resolve().then(() => script(voiceApi(base || {}, show)));
         // being carried lasts as long as the hand holds her; every other script is capped. A script stopped by the cap
-        // ends on its next call: the race has already taken over its rejection.
-        if (interactive) { try { await playing; } catch { /* a script that throws still ends cleanly */ } }
-        else await within(playing, MAX_SHOW_MS);
+        // ends on its next call (that error is logged too); a script that throws is logged and still ends cleanly.
+        const failed = (error) => console.warn("AURI: the script of \"" + name + "\" failed:", error);
+        if (interactive) { try { await playing; } catch (error) { failed(error); } }
+        else { playing.catch(failed); await within(playing, MAX_SHOW_MS); }
         await within(Promise.all(show.handles.map((h) => h.ended)), 15000);
       };
       if (stage) { if (!(await A.stage(run, { interactive }))) return false; }
