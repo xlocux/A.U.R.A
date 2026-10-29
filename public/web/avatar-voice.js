@@ -248,8 +248,10 @@
     return ctx.state === "running";
   }
   // resolves true when the line has been played (or cut), false when the sound could not start
-  async function play(audio, emo, volume, onStart) {
+  // cancelled(): a cut asked while the sound was waking up (the audio has not started: it never will for this line)
+  async function play(audio, emo, volume, onStart, cancelled = () => false) {
     if (!(await audible())) { refused += 1; return false; }
+    if (cancelled()) return true;
     return new Promise((resolve) => {
       stopCurrent();
       const buf = ctx.createBuffer(1, audio.data.length, audio.rate);
@@ -354,7 +356,7 @@
       if (item.cutRequested) return takeCut(item.parts.join(" "));
       if (!audio) return first ? { failed: true } : {}; // a later piece that cannot be made: the bubble already shows the whole line
       const rest = item.parts.slice(1).join(" ");
-      const ok = await play(audio, audio.emo, volume, first ? (ms) => onStart(ms + (rest ? estimate(rest) : 0)) : () => {});
+      const ok = await play(audio, audio.emo, volume, first ? (ms) => onStart(ms + (rest ? estimate(rest) : 0)) : () => {}, () => item.cutRequested);
       if (item.cutRequested) return takeCut(item.parts.join(" ")); // said again from this piece
       if (!ok) return first ? { failed: true } : {};
       item.parts.shift();

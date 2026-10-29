@@ -212,8 +212,7 @@
     // the rant is a list, not literals in rageScene: the director prepares it as she will yell it (loud: rage)
     const lines = RAGE_LINES.map((text) => ({ text, emotion: window.AuraSpeech?.emotionFor?.(text, { loud: true }) || "rage", loud: true }));
     // not performed (she is busy, the rant is not ready yet): nothing happened, so no apology; the next poke tries again
-    if (!(await window.AuraDirector.perform("rage", rageScene, { stage: false, lines }))) return;
-    say("...sorry. I lost my temper.", 2800, true);
+    await window.AuraDirector.perform("rage", rageScene, { stage: false, lines });
   }
   async function rageScene(s) {
     raging = true;
@@ -243,6 +242,9 @@
       text.remove(); big.remove(); veil.remove();
       tantrumEnd(); // gives her back: one restore path for the rage and the scenes
     }
+    // the apology is the last line of the performance (prepared like the rant): said once she is back, before any
+    // remark that waited for the stage can start
+    await s.say("...sorry. I lost my temper.", { min: 2800 });
   }
 
   // Scenes take over the roaming copy: hide it and the bubble, then give everything back at the end.
